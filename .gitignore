@@ -1,0 +1,27 @@
+# Unity / other game engines (not the web build)
+Mind & Venture 2/
+Mind & Venture/
+misc/Unity2D-Characters-FullProject/
+
+# Dev-only (not needed to play in browser)
+docs/
+.cursor/
+terminals/
+*.log
+
+# Legacy OST — game uses assets/new music/ now
+assets/music/
+
+# Tiled dev scratch / duplicates
+tileset/*.ps1
+tileset/*.txt
+tileset/test-run-map.js
+tileset/test run.tmj
+tileset/Testee2.tmj
+tileset/Testee3.tmj
+tileset/spawns-scan.txt
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store

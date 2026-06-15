@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Idle Animation Sprite</title>
+<style>
+  body {
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  #sprite {
+    image-rendering: pixelated; /* nice crisp pixels */
+    width: 128px; /* frame width */
+    height: 128px; /* frame height */
+    background-image: url('https://static.wixstatic.com/media/4aa02a_e924f332f3a84043a6e5f9d988343f2d~mv2.png');
+    background-repeat: no-repeat;
+  }
+</style>
+</head>
+<body>
+<div id="sprite"></div>
+
+<script>
+  const sprite = document.getElementById('sprite');
+
+  const frameWidth = 128;
+  const frameHeight = 128;
+  const totalFrames = 4; // I counted 4 frames vertically in your sprite sheet
+  let currentFrame = 0;
+  const frameDuration = 250; // ms per frame
+
+  function updateFrame() {
+    // background-position y = frameHeight * currentFrame * -1
+    const posY = -frameHeight * currentFrame;
+    sprite.style.backgroundPosition = `0px ${posY}px`;
+
+    currentFrame++;
+    if (currentFrame >= totalFrames) currentFrame = 0;
+  }
+
+  setInterval(updateFrame, frameDuration);
+  updateFrame(); // show first frame immediately
+</script>
+</body>
+</html>

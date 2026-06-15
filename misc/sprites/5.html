@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Idle Animation Canvas Sprite - Fixed</title>
+<style>
+  body {
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  canvas {
+    image-rendering: pixelated;
+    width: 128px;
+    height: 128px;
+    border: 1px solid #555;
+  }
+</style>
+</head>
+<body>
+<canvas id="spriteCanvas" width="128" height="128"></canvas>
+
+<script>
+  const canvas = document.getElementById('spriteCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const sprite = new Image();
+  sprite.crossOrigin = "anonymous"; // important for CORS
+  sprite.src = 'https://i.imgur.com/AZbPd5V.png'; // your sprite uploaded to Imgur
+
+  const frameWidth = 128;
+  const frameHeight = 128;
+  const totalFrames = 4;
+  let currentFrame = 0;
+  const frameDuration = 250;
+
+  function drawFrame(frame) {
+    ctx.clearRect(0, 0, frameWidth, frameHeight);
+    ctx.drawImage(
+      sprite,
+      0,
+      frameHeight * frame,
+      frameWidth,
+      frameHeight,
+      0,
+      0,
+      frameWidth,
+      frameHeight
+    );
+  }
+
+  sprite.onload = () => {
+    drawFrame(currentFrame);
+    setInterval(() => {
+      currentFrame = (currentFrame + 1) % totalFrames;
+      drawFrame(currentFrame);
+    }, frameDuration);
+  };
+</script>
+</body>
+</html>
