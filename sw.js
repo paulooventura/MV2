@@ -1,14 +1,16 @@
 /* Mind & Venture — lightweight PWA shell cache (assets load from network). */
-const CACHE = 'mv-web-v28';
+const CACHE = 'mv-web-v95';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './assets/Awdjoo/Awdjoo.json',
   './assets/home baked sprites/material/MV2 tilesheet.png',
-  './assets/home baked sprites/square/omniblock.png',
+  './assets/home baked sprites/material/omniblock.png',
   './assets/home baked sprites/material/spawn spots.png',
   './js/save.js', './js/core.js', './js/audio.js', './js/enemies.js', './js/physics.js',
   './js/player.js', './js/weapons.js', './js/ui.js', './js/render.js',
-  './js/editor.js', './js/spawn_fix.js', './js/main.js',
+  './js/editor.js', './js/spawn_fix.js', './js/awdjoo_level.js', './js/healthwatch.js',
+  './js/awdjoo_map.js', './js/main.js',
+  './js/selftest.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -34,7 +36,7 @@ self.addEventListener('fetch', (e) => {
 
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request)
+      fetch(e.request, { cache: 'no-store' })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put('./index.html', copy));

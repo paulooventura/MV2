@@ -273,11 +273,13 @@ function _enterZone(idx){
   if(_zoneIdx===0){
     _ensureCampaignMapApplied();
     ENEMS=[]; CRATES=[];
-    _restoreMapBWalls(); _populateKnowlFromMap(); _initLaituFromMap();
+    _restoreMapBWalls();
+    _populateKnowlFromMap(); _initLaituFromMap();
     kColl=0; _stageScore=0; _stageDamageFree=true; _awdjooTutorial=true;
     _shutdownTimer=0;
     p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies(); _spawnMapCrates();
-    GOALPL={x:-999,y:0,w:1,h:1};
+    if(typeof _setupAwdjooCampaignGoal==='function') _setupAwdjooCampaignGoal();
+    else GOALPL={x:-999,y:0,w:1,h:1};
     console.info('MV zone0 boot:',ENEMS.length,'enemies,',KDROP.length,'knowls');
   }else{
     ENEMS=[]; CRATES=[]; _awdjooTutorial=false;
@@ -291,7 +293,8 @@ function _enterZone(idx){
 
 // ── Draw functions ────────────────────────────────────────────
 function drawGoal(){
-  if(kTotal<=0) return;
+  const awdjooCampaign=_zoneIdx===0&&typeof _mapApplied!=='undefined'&&_mapApplied;
+  if(kTotal<=0&&!awdjooCampaign) return;
   if(_zoneIdx===0&&_awdjooTutorial&&_laitu&&!_laitu.met){
     const lx=sx(_laitu.x+_laitu.w/2), ly=sy(_laitu.y)-sw(6);
     if(lx>-40&&lx<W+40){ drawTextC('MEET LAITU',lx,Math.max(8,ly),C.SAND); if(fr%24<12){ctx.fillStyle=C.WHITE;ctx.fillRect(lx,ly+10,1,1);} }
@@ -309,12 +312,19 @@ function drawGoal(){
       else{ ctx.fillStyle=shimmer?(pulse?C.GREEN_L:C.MINT):(pulse?C.GREEN:C.GREEN_D); ctx.fillRect(bx,py,gw,2); }
     }
     if(goalOpen&&bx<W&&bx>-20){ drawTextC('EXIT',bx+(gw>>1),H-18,C.GREEN_L); if(fr%24<12){ctx.fillStyle=C.WHITE;ctx.fillRect(bx+(gw>>1),Math.round(H*0.45),1,1);ctx.fillRect(bx+(gw>>1),Math.round(H*0.55),1,1);} }
-    else if(bx<W&&bx>-40) drawTextC('KNOWL '+kColl+'/'+kTotal,bx+(gw>>1),14,C.GREEN_L);
+    else if(bx<W&&bx>-40){
+      if(awdjooCampaign&&kTotal<=0&&!goalOpen) drawTextC('GET RCA',bx+(gw>>1),14,C.GREEN_L);
+      else if(kTotal>0) drawTextC('KNOWL '+kColl+'/'+kTotal,bx+(gw>>1),14,C.GREEN_L);
+    }
     return;
   }
   const by=sy(g.y), gh=sw(g.h);
   if(g.y>camY+camViewH()+40||g.y+g.h<camY-40) return;
-  if(!goalOpen){ ctx.fillStyle=C.GREEN_D;ctx.fillRect(bx,by,gw,gh); ditherRect(bx,by,gw,gh,C.BLACK,fr>>3); drawTextC('COLLECT '+(kTotal-kColl)+' KNOWL',bx+(gw>>1),by+(gh>>1)-2,C.GREEN_L); }
+  if(!goalOpen){
+    ctx.fillStyle=C.GREEN_D;ctx.fillRect(bx,by,gw,gh); ditherRect(bx,by,gw,gh,C.BLACK,fr>>3);
+    const lbl=(awdjooCampaign&&kTotal<=0)?'FIND RCA IN BASEMENT':('COLLECT '+(kTotal-kColl)+' KNOWL');
+    drawTextC(lbl,bx+(gw>>1),by+(gh>>1)-2,C.GREEN_L);
+  }
   else{ ctx.fillStyle=C.GREEN_D;ctx.fillRect(bx,by,gw,gh); ctx.fillStyle=fr%20<10?C.GREEN_L:C.GREEN;ctx.fillRect(bx,by,gw,2); drawTextC('GOAL',bx+(gw>>1),by+gh-7,C.GREEN_L); }
 }
 
@@ -608,8 +618,8 @@ function updateVersionBar(){
   const mvVer=document.getElementById('mvVer');
   if(mvVer){
     if(_gameState==='game'&&_battleTestMode){ mvVer.style.fontSize='13px';mvVer.textContent='BATTLE PRACTICE — stats in panel above canvas';mvVer.style.color='#6f6'; }
-    else if(_gameState==='game'){ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); mvVer.textContent='MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+MOVE_WALK+'  |  hold A/D'; mvVer.style.color=spd>=6?'#6f6':(spd>=2?'#ff6':'#f66'); }
-    else{ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/new music\//,''):''; mvVer.textContent='MOVE v'+MOVE_BUILD+(track?'  |  ♪ '+track:'')+' — click to start'; mvVer.style.color='#6f6'; }
+    else if(_gameState==='game'){ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+MOVE_WALK; mvVer.style.color=spd>=6?'#6f6':(spd>=2?'#ff6':'#f66'); }
+    else{ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/new music\//,''):''; const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+(track?'  |  ♪ '+track:'')+' — click to start'; mvVer.style.color='#6f6'; }
   }
   if(inf){
     if(!(_battleTestMode&&_gameState==='game')){

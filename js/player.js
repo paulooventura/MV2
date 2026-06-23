@@ -191,7 +191,7 @@ function mkP(){ return {
   pupilX:0, pupilY:0,
   momentum:0, _prevVx:0, _hasAimInput:false,
   fireRecoil:0, fireRecoilA:0, _lastRecoilMax:14,
-  _lastWTap:-999, _wallJumpTap:0, _wallJumpTime:0, _wallAimFree:0,
+  _lastWTap:-999, _wallJumpTap:0, _wallJumpTime:0, _wallAimFree:0, _jumpArmed:true,
   itemStamina:100, xlrOn:false, magOn:false, xlrHeld:0, magHeld:0,
   laserCharging:false, laserCharge:0, laserCd:0,
   _hitDone:false, _punchHit:false, _pRecoil:0, fistWX:0, fistWY:0, fistSX:0, fistSY:0,
@@ -210,7 +210,13 @@ function _updatePlayerMoveX(pl){
   if(pl.hook&&pl.hook.st==='on') return;
   if(pl.wallGrip>0) return;
   const dir=_moveInputX();
-  const grounded=!!(pl.og||_playerOnGround(pl));
+  if(pl._moveBlocked&&dir){ pl.vx=0; return; }
+  if((pl._grindF||0)>=8 && dir){ pl.vx=0; return; }
+  const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
+  const pushIntoWall=!!(wt.touch&&dir&&wt.dir===dir);
+  if(pushIntoWall&&(pl._grindF||0)>=2){ pl.vx=0; return; }
+  const grounded=!!_playerOnGround(pl);
+  const onSlope=!!(grounded&&pl._onSlope);
   const sprint=isSprintHeld()&&grounded&&dir!==0;
   if(sprint) pl.runRamp=Math.min(1,(pl.runRamp||0)+MOVE_RUN_RAMP);
   else        pl.runRamp=Math.max(0,(pl.runRamp||0)-0.1);
@@ -218,11 +224,24 @@ function _updatePlayerMoveX(pl){
     pl.movePower=Math.max(0,(pl.movePower||0)-0.22);
     if(pl.movePower<=0) pl._moveDir=0;
     pl._moveCap=0;
-    if(grounded){ pl.vx*=MOVE_STOP; if(Math.abs(pl.vx)<0.22) pl.vx=0; }
-    else         { pl.vx*=AIR_DRIFT; if(Math.abs(pl.vx)<0.12) pl.vx=0; }
+    if(grounded){
+      if(onSlope){
+        pl.vx*=WHEEL_COAST_FRIC;
+        if(Math.abs(pl.vx)<0.06) pl.vx=0;
+      }else{
+        pl.vx*=MOVE_STOP;
+        if(Math.abs(pl.vx)<0.22) pl.vx=0;
+      }
+    }else{ pl.vx*=AIR_DRIFT; if(Math.abs(pl.vx)<0.12) pl.vx=0; }
     return;
   }
-  if(pl._moveDir!==dir){ pl._moveDir=dir; pl.movePower=0.25; pl.vx*=0.18; }
+  if(pl._moveDir!==dir){
+    pl._moveDir=dir;
+    // Keep momentum on redirect (Mario skid / Sonic carry) instead of dead-stopping.
+    // MOVE_TURN accel below still reverses promptly; this preserves flow.
+    pl.movePower=onSlope?0.6:0.45;
+    pl.vx*=onSlope?0.75:0.55;
+  }
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
   let cap;
   if(sprint){
@@ -234,17 +253,29 @@ function _updatePlayerMoveX(pl){
     cap=MOVE_WALK*MOVE_PEAK*ease;
     if(!grounded&&dir) cap=Math.max(cap,Math.abs(pl.vx));
   }
+  if(onSlope) cap=Math.max(cap,Math.abs(pl.vx)*0.92+MOVE_WALK*0.35);
   pl._moveCap=cap;
   let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
   if(!sprint&&cap>0.05){
     const ratio=Math.min(1,Math.abs(pl.vx)/cap);
     accel*=1+MOVE_TORQUE*(1-ratio)*(1-ratio);
   }
+  if(onSlope&&pl._slopeAngle){
+    const sinA=Math.sin(pl._slopeAngle);
+    const mom=Math.min(1,(pl.momentum||0)+0.15);
+    if(dir*sinA<-0.03) accel*=1+WHEEL_DRIVE_TORQUE*0.42*(1+mom*0.55);
+    else if(dir*sinA>0.03) accel*=1+mom*0.12;
+  }
   const vSign=pl.vx>0.15?1:(pl.vx<-0.15?-1:0);
-  if(vSign===-dir) pl.vx+=dir*accel*MOVE_TURN;
+  const turnMul=onSlope?1.35:MOVE_TURN;
+  if(vSign===-dir) pl.vx+=dir*accel*turnMul;
   else             pl.vx+=dir*accel;
   if(dir>0) pl.vx=Math.min(pl.vx,cap);
   else       pl.vx=Math.max(pl.vx,-cap);
+  if(pushIntoWall){
+    if(dir>0) pl.vx=Math.min(pl.vx,0);
+    else pl.vx=Math.max(pl.vx,0);
+  }
 }
 
 // ── Connector arm pose ────────────────────────────────────────
@@ -406,7 +437,7 @@ function _releaseHookAim(ax,ay){
 }
 
 function updateHook(){
-  const h=p.hook, pl=allP();
+  const h=p.hook;
   const _hookOff=()=>{h.st='idle';h.ox=NaN;h.oy=NaN;h.tgt=null;h._tight=false;h._slack=false;h._path=null;h._tension=0;h.pivots=null;h.vr=null;};
   const _aimHook=(tx,ty)=>{
     const ox=p.x+SW*0.5, oy=p.y+FEET_OFF-STAND_H*0.5;
@@ -420,14 +451,7 @@ function updateHook(){
     const attach=ropePlayerEndWorld();
     h.ex+=h.evx; h.ey+=h.evy;
     if(Math.hypot(h.ex-attach.x,h.ey-attach.y)>CMAX){ if(h.st==='on') _releaseHookAim(h.ax,h.ay); _hookOff(); return; }
-    let best=null, bestD=1e9;
-    for(const q of pl){
-      if(q.tp!=='solid'&&q.tp!=='ceil') continue;
-      const hit=_segAabbHit(px,py,h.ex,h.ey,q);
-      if(!hit) continue;
-      const d=Math.hypot(hit.tx-px,hit.ty-py);
-      if(d<bestD){bestD=d;best={...hit,enemy:false,tgt:null};}
-    }
+    let best=typeof _hookRayHit==='function'?_hookRayHit(px,py,h.ex,h.ey):null;
     for(const e of ENEMS){
       if(!_enemyCombatActive(e)) continue;
       const hb=_enemyHookHB(e);
@@ -435,7 +459,7 @@ function updateHook(){
       const hit=_segAabbHit(px,py,h.ex,h.ey,fake);
       if(!hit) continue;
       const d=Math.hypot(hit.tx-px,hit.ty-py);
-      if(d<bestD){bestD=d;best={...hit,enemy:true,tgt:e};}
+      if(!best||d<Math.hypot(best.tx-px,best.ty-py)){best={...hit,enemy:true,tgt:e};}
     }
     if(best){
       h.ax=best.tx+(best.nx||0)*2; h.ay=best.ty+(best.ny||0)*2;

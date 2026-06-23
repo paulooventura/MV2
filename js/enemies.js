@@ -22,7 +22,7 @@ const KB_ENEMY_H =4.4,  KB_ENEMY_V =-1.6;
 const KB_PUNCH_PLAYER_RECOIL=3.2, KB_PUNCH_ENEMY_RECOIL=2.4;
 
 // Breakable-wall damage table (also used by weapons.js)
-const BWALL_RED_GID   = 1819;
+const BWALL_RED_GID   = 242; // omniblock push/destruct frame (firstgid 238 + 4)
 const RED_BWALL_HP    = 100;
 const RED_BWALL_DMG   = {punch:35, punchCharged:75, laser:52, laserCharged:105};
 
@@ -338,39 +338,106 @@ function applyPlayerHitFromEnemy(e,dmg=PLAYER_HIT_DMG){
 }
 
 // ── Body separation ───────────────────────────────────────────
-function _separateTwoBodyHB(ax,ay,aw,ah,bx,by,bw,bh){
+const BODY_SEP_GAP=6;
+function _enemySeparationHB(e){
+  if(!_enemyBodyPresent(e)) return {x:0,y:0,w:0,h:0};
+  if(e.mind) return actorSeparationHB(e);
+  if(e.type==='signol'){
+    const sc=_signolCenter(e);
+    const pad=4;
+    return {x:sc.cx-e.r-pad,y:sc.cy-e.r-pad,w:(e.r+pad)*2,h:(e.r+pad)*2};
+  }
+  const pad=4;
+  return {x:e.x-pad,y:e.y-pad,w:e.w+pad*2,h:e.h+pad*2};
+}
+function _horizBodyGap(pl,e){
+  const ph=actorSeparationHB(pl), eh=_enemySeparationHB(e);
+  if(ph.x+ph.w<=eh.x) return eh.x-(ph.x+ph.w);
+  if(eh.x+eh.w<=ph.x) return ph.x-(eh.x+eh.w);
+  return -Math.min(ph.x+ph.w-eh.x,eh.x+eh.w-ph.x);
+}
+function _actorsOverlap(pl,e){
+  if(!pl||!_enemyBodyPresent(e)) return false;
+  const ph=actorSeparationHB(pl), eh=_enemySeparationHB(e);
+  return ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h);
+}
+function _bodySepMomentum(actor,axis){
+  if(!actor) return 0.05;
+  const v=axis==='x'?(actor.vx||0):(actor.vy||0);
+  const mom=typeof actor.momentum==='number'?actor.momentum:0;
+  const walk=typeof MOVE_WALK!=='undefined'?MOVE_WALK:7;
+  const spd=typeof actor.spd==='number'?actor.spd:0;
+  return Math.max(0.05,Math.abs(v)+mom*walk*0.42+spd*0.35);
+}
+function _separateTwoBodyHB(ax,ay,aw,ah,bx,by,bw,bh,aActor,bActor){
   if(!ov(ax,ay,aw,ah,bx,by,bw,bh)) return null;
   const overlapX=Math.min(ax+aw,bx+bw)-Math.max(ax,bx);
   const overlapY=Math.min(ay+ah,by+bh)-Math.max(ay,by);
   if(overlapX<=0||overlapY<=0) return null;
+  const gap=typeof BODY_SEP_GAP!=='undefined'?BODY_SEP_GAP:6;
   if(overlapX<=overlapY){
-    const push=overlapX*0.52+1;
+    const push=overlapX+gap;
+    const aM=_bodySepMomentum(aActor,'x'), bM=_bodySepMomentum(bActor,'x');
+    const total=Math.max(0.1,aM+bM);
     const aMid=ax+aw*0.5, bMid=bx+bw*0.5;
-    return aMid<=bMid?{ax:-push*0.56,bx:push*0.44}:{ax:push*0.56,bx:-push*0.44};
+    const aFrac=bM/total, bFrac=aM/total;
+    return aMid<=bMid?{ax:-push*aFrac,bx:push*bFrac}:{ax:push*aFrac,bx:-push*bFrac};
   }
-  const push=overlapY*0.52+1;
+  const push=overlapY+gap;
+  const aM=_bodySepMomentum(aActor,'y'), bM=_bodySepMomentum(bActor,'y');
+  const total=Math.max(0.1,aM+bM);
   const aMid=ay+ah*0.5, bMid=by+bh*0.5;
-  return aMid<=bMid?{ay:-push*0.5,by:push*0.5}:{ay:push*0.5,by:-push*0.5};
+  const aFrac=bM/total, bFrac=aM/total;
+  return aMid<=bMid?{ay:-push*aFrac,by:push*bFrac}:{ay:push*aFrac,by:-push*bFrac};
 }
-function _resolvePlayerEnemySeparation(pl,e,passes=3){
+function _applyBodySeparation(pl,e,sep){
+  if(!sep) return false;
+  let moved=false;
+  if(sep.ax){ pl.x+=sep.ax; pl.x=Math.max(0,Math.min(WW-SW,pl.x)); moved=true; }
+  if(sep.ay){ pl.y+=sep.ay; moved=true; }
+  if(sep.bx){
+    e.x+=sep.bx;
+    if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
+    else e.x=Math.max(0,Math.min(WW-e.w,e.x));
+    if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
+    moved=true;
+  }
+  if(sep.by){
+    e.y+=sep.by;
+    if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
+    moved=true;
+  }
+  return moved;
+}
+function _resolvePlayerEnemySeparation(pl,e,maxPasses=12){
   if(!pl||!_enemyBodyPresent(e)) return;
-  for(let n=0;n<passes;n++){
-    const ph=playerCoreHB(pl);
-    const eh=e.mind?playerCoreHB(e):{x:e.x,y:e.y,w:e.w,h:e.h};
-    const sep=_separateTwoBodyHB(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h);
+  for(let n=0;n<maxPasses;n++){
+    const ph=actorSeparationHB(pl);
+    const eh=_enemySeparationHB(e);
+    const sep=_separateTwoBodyHB(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h,pl,e);
     if(!sep) break;
-    if(sep.ax){ pl.x+=sep.ax; pl.x=Math.max(0,Math.min(WW-SW,pl.x)); }
-    if(sep.ay) pl.y+=sep.ay;
-    if(sep.bx){
-      e.x+=sep.bx;
-      if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
-      else e.x=Math.max(0,Math.min(WW-e.w,e.x));
-      if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
+    _applyBodySeparation(pl,e,sep);
+  }
+}
+function _resolveAllPlayerEnemyCollisions(pl){
+  if(!pl) return;
+  for(let round=0;round<14;round++){
+    for(const e of ENEMS){
+      if(!_enemyBodyPresent(e)) continue;
+      if(e.type==='signol'){ _resolvePlayerSignolSeparation(pl,e); continue; }
+      if(_actorsOverlap(pl,e)) _resolvePlayerEnemySeparation(pl,e,8);
     }
-    if(sep.by){
-      e.y+=sep.by;
-      if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
-    }
+    _resolveMindEnemiesSeparation();
+    if(!ENEMS.some(e=>_enemyBodyPresent(e)&&_actorsOverlap(pl,e))) break;
+  }
+}
+function _checkPlayerEnemyBodyDamage(pl){
+  if(!pl||_shutdownTimer>0) return;
+  for(const e of ENEMS){
+    if(!e.alive||e.mind) continue;
+    const ph=playerCoreHB(pl);
+    const eh=_enemyItemHB(e);
+    if(ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h)) applyPlayerHitFromEnemy(e);
   }
 }
 function _resolveMindEnemiesSeparation(){
@@ -378,13 +445,15 @@ function _resolveMindEnemiesSeparation(){
   for(let i=0;i<minds.length;i++){
     for(let j=i+1;j<minds.length;j++){
       const a=minds[i], b=minds[j];
-      const ha=playerCoreHB(a), hb=playerCoreHB(b);
-      const sep=_separateTwoBodyHB(ha.x,ha.y,ha.w,ha.h,hb.x,hb.y,hb.w,hb.h);
-      if(!sep) continue;
-      if(sep.ax){ a.x+=sep.ax; if(a.mn!=null) a.x=Math.max(a.mn,Math.min(a.mx-a.w,a.x)); }
-      if(sep.ay) a.y+=sep.ay;
-      if(sep.bx){ b.x+=sep.bx; if(b.mn!=null) b.x=Math.max(b.mn,Math.min(b.mx-b.w,b.x)); }
-      if(sep.by) b.y+=sep.by;
+      for(let n=0;n<6;n++){
+        const ha=actorSeparationHB(a), hb=actorSeparationHB(b);
+        const sep=_separateTwoBodyHB(ha.x,ha.y,ha.w,ha.h,hb.x,hb.y,hb.w,hb.h,a,b);
+        if(!sep) break;
+        if(sep.ax){ a.x+=sep.ax; if(a.mn!=null) a.x=Math.max(a.mn,Math.min(a.mx-a.w,a.x)); }
+        if(sep.ay) a.y+=sep.ay;
+        if(sep.bx){ b.x+=sep.bx; if(b.mn!=null) b.x=Math.max(b.mn,Math.min(b.mx-b.w,b.x)); }
+        if(sep.by) b.y+=sep.by;
+      }
     }
   }
 }
@@ -535,14 +604,19 @@ function _updateSignol(e,pdist,pdx){
 function _resolvePlayerSignolSeparation(pl,e){
   if(!pl||!e||!e.alive||e.type!=='signol') return;
   const sc=_signolCenter(e);
-  const ph=playerCoreHB(pl);
+  const ph=actorSeparationHB(pl);
   const pcx=ph.x+ph.w*0.5, pcy=ph.y+ph.h*0.5;
   const dx=pcx-sc.cx, dy=pcy-sc.cy, d=Math.hypot(dx,dy)||1;
   const minD=e.r+Math.max(ph.w,ph.h)*0.42;
   if(d>=minD) return;
-  const push=(minD-d)*0.58;
-  pl.x+=dx/d*push*0.56; pl.y+=dy/d*push*0.12;
-  e.x-=dx/d*push*0.44;
+  const gap=typeof BODY_SEP_GAP!=='undefined'?BODY_SEP_GAP:6;
+  const push=(minD-d)+gap;
+  const pM=_bodySepMomentum(pl,'x')+_bodySepMomentum(pl,'y');
+  const eM=_bodySepMomentum(e,'x')+_bodySepMomentum(e,'y');
+  const total=Math.max(0.1,pM+eM);
+  const pFrac=eM/total, eFrac=pM/total;
+  pl.x+=dx/d*push*pFrac; pl.y+=dy/d*push*pFrac*0.22;
+  e.x-=dx/d*push*eFrac;
   pl.x=Math.max(0,Math.min(WW-SW,pl.x));
   if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
 }
@@ -822,10 +896,16 @@ function _updateMindEnemy(e){
   const aggro=pdist<(bt?580:480);
   _enemyAiPickTool(e,pdist,pdx,pdy,aggro);
   const moveAccel=bt?0.36:0.22, drag=bt?0.94:0.9;
+  const bodyGap=_horizBodyGap(p,e);
+  const minGap=BODY_SEP_GAP+4;
   if(aggro&&!skipChaseVx){
     const close=pdist<(bt?155:140);
     const chase=e.spd*(bt?(close?2.05:pdist<300?1.75:1.45):(close?1.7:pdist<280?1.4:1.15));
-    if(e.aiMode==='evade'&&e.xlrOn){
+    if(bodyGap<minGap){
+      const away=pdx>0?-1:1;
+      e.vx=(e.vx||0)+away*moveAccel*2.4;
+      e.vx=Math.max(-chase,Math.min(chase,e.vx));
+    }else if(e.aiMode==='evade'&&e.xlrOn){
       if(pdx>0) e.vx=Math.max((e.vx||0)-moveAccel,-chase*1.15);
       else e.vx=Math.min((e.vx||0)+moveAccel,chase*1.15);
     }else if(e.aiMode==='pull'&&e.magOn){
@@ -891,6 +971,7 @@ function _updateMindEnemy(e){
   }else e._hitDone=false;
   e.vy=Math.min((e.vy||0)+GRAV*0.55,11);
   _applyMindEnemyPhysics(e);
+  if(_actorsOverlap(p,e)) _resolvePlayerEnemySeparation(p,e,8);
   if(aggro&&!skipChaseVx) e.vx*=drag;
   e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
   if(e.og){const edx=e.x-ex0;if(Math.abs(edx)>=0.01) e.wheelAngle=(e.wheelAngle||0)+edx/WHEEL_R;}
@@ -1032,7 +1113,7 @@ function _spawnMapEnemies(){
   ENEMS.length=0;
   for(const d of _mapEnemyDefs){
     if(_isBasementSpawnRow(d.row)) continue;
-    const feetY=_snapSpawnToSolid(d.x,d.y||(_spawnY+FEET_OFF));
+    const feetY=d.y!=null?d.y:_spawnFeetFromHeadTop(d.headTopY);
     if(feetY>=TMJ_BASEMENT_FEET_Y) continue;
     const range=Math.max(96,Math.min(200,(d.mx!=null&&d.mn!=null)?(d.mx-d.mn)*0.5:140));
     ENEMS.push(_mkMindEnemy(d.shape,d.x,feetY,{
@@ -1042,13 +1123,22 @@ function _spawnMapEnemies(){
   }
   for(const d of _mapSignolDefs){
     if(_isBasementSpawnRow(d.row)) continue;
-    const feetY=_snapSpawnToSolid(d.x,d.y);
+    const feetY=d.y!=null?d.y:(d.headTopY!=null?_spawnFeetFromHeadTop(d.headTopY,'signol'):_snapSpawnToSolid(d.x,d.y));
     if(feetY>=TMJ_BASEMENT_FEET_Y) continue;
     ENEMS.push(_mkSignol(d.x,feetY,{
       mn:Math.floor(d.x-160),mx:Math.floor(d.x+160),campaignAi:_zoneIdx===0,
     }));
   }
   _purgeMinions();
+  for(const d of _mapMinionDefs){
+    if(_isBasementSpawnRow(d.row)) continue;
+    const feetY=d.y!=null?d.y:_spawnFeetFromHeadTop(d.headTopY);
+    if(feetY>=TMJ_BASEMENT_FEET_Y) continue;
+    const range=Math.max(96,Math.min(200,140));
+    ENEMS.push(_mkMinion(d.x,feetY,d.kind,{
+      mn:Math.floor(d.x-range),mx:Math.floor(d.x+range),
+    }));
+  }
 }
 function _spawnMapCrates(){
   if(!_mapApplied) return;
@@ -1059,7 +1149,7 @@ function _spawnMapCrates(){
 }
 function _populateKnowlFromMap(){
   KDROP.length=0;
-  const defs=_mapKnowlDefs.length?_mapKnowlDefs:KDEFS;
+  const defs=_mapKnowlDefs.length?_mapKnowlDefs:(_mapApplied?[]:KDEFS);
   for(const d of defs){
     KDROP.push({x:d.x,y:d.y,ox:d.x,oy:d.y,px:0,py:0,vx:0,vy:0,got:false,bob:Math.random()*Math.PI*2});
   }

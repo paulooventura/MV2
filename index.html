@@ -23,6 +23,15 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
+<script>window.MV_BUILD='95';</script>
+<script>
+if(location.protocol==='file:'){
+  document.addEventListener('DOMContentLoaded',function(){
+    var v=document.getElementById('mvVer');
+    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// — close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
+  });
+}
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/story/title-key-art.png">
 <style>
@@ -58,7 +67,7 @@ button{background:#111122;color:#666;border:1px solid #222;padding:5px 10px;
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:13px;color:#6f6;font-weight:bold;font-family:monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 28</div>
+<div id="mvVer" style="font-size:13px;color:#6f6;font-weight:bold;font-family:monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 95</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -104,24 +113,34 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/save.js?v=25"></script>
 <script src="js/core.js?v=25"></script>
 <script src="js/audio.js?v=25"></script>
-<script src="js/enemies.js?v=25"></script>
-<script src="js/physics.js?v=25"></script>
-<script src="js/player.js?v=25"></script>
-<script src="js/weapons.js?v=25"></script>
-<script src="js/ui.js?v=25"></script>
-<script src="js/render.js?v=25"></script>
+<script src="js/enemies.js?v=33"></script>
+<script src="js/physics.js?v=95"></script>
+<script src="js/player.js?v=95"></script>
+<script src="js/weapons.js?v=27"></script>
+<script src="js/ui.js?v=94"></script>
+<script src="js/render.js?v=65"></script>
 <script src="js/editor.js?v=25"></script>
-<script src="js/spawn_fix.js?v=28"></script>
-<script src="js/main.js?v=28"></script>
+<script src="js/spawn_fix.js?v=52"></script>
+<script src="js/awdjoo_level.js?v=1"></script>
+<script src="js/healthwatch.js?v=1"></script>
+<script src="js/awdjoo_map.js?v=44"></script>
+<script src="js/main.js?v=94"></script>
+<script src="js/selftest.js?v=13"></script>
 <script>
-if('serviceWorker' in navigator){
+if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    var SW_BUILD='28';
-    if(localStorage.getItem('mv_sw_build')!==SW_BUILD){
+    var SW_BUILD='95';
+    if(/[?&](selftest|ci)=/i.test(location.search)) return;
+    var stored=localStorage.getItem('mv_sw_build');
+    if(stored!==SW_BUILD||window.MV_BUILD!==SW_BUILD){
       localStorage.setItem('mv_sw_build',SW_BUILD);
       navigator.serviceWorker.getRegistrations().then(function(regs){
         return Promise.all(regs.map(function(r){return r.unregister();}));
-      }).finally(function(){ location.reload(); });
+      }).finally(function(){
+        var q=location.search.replace(/^\?/,'');
+        var bust='b='+SW_BUILD+'-'+Date.now();
+        location.replace(location.pathname+'?'+(q?q+'&':'')+bust);
+      });
       return;
     }
     navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});

@@ -1,4 +1,5 @@
-{ "compressionlevel":-1,
+﻿// Auto-generated from assets/Awdjoo/Awdjoo.json. Run sync-awdjoo-map.ps1 after Tiled export.
+window.MV_STAGE0_MAP = { "compressionlevel":-1,
  "height":100,
  "infinite":false,
  "layers":[
@@ -1166,4 +1167,4 @@
  "type":"map",
  "version":"1.10",
  "width":100
-}
+};

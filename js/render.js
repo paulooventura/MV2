@@ -804,9 +804,9 @@ function drawCharacter(){
   const landRaw=p.landF>0?Math.min(1,p.landF/landDur):0;
   const landEase=landRaw*landRaw*(3-2*landRaw);
   const suspC=p.suspComp||0;
-  const walkBob=(!onRope&&p.og&&Math.abs(p.vx)>0.15)?Math.sin(fr*0.28+p.x*0.015)*1.4*(1-suspC*0.5):0;
-  const idleSway=(!onRope&&p.og&&Math.abs(p.vx)<0.15)?Math.sin(fr*0.05)*0.6:0;
-  const suspDrop=onRope?0:suspC*SUSP_TRAVEL*0.92;
+  const walkBob=(!onRope&&p.og&&Math.abs(p.vx)>0.5&&p.landF<=0)?Math.sin(fr*0.28+p.x*0.015)*0.45:0;
+  const idleSway=0;
+  const suspDrop=onRope?0:(p.landF>0?suspC*SUSP_TRAVEL*0.55:0);
   const bodyCompress=onRope?0:landEase*(0.32+landAmp*0.68)*11-walkBob-idleSway+suspDrop;
   const landHeadTuck=onRope?0:landEase;
   let hatTX=0, hatTY=0;
@@ -1193,32 +1193,6 @@ function _carryPlayersOnBwall(bw,dx,dy){
     pl.x=Math.max(0,Math.min(WW-SW,pl.x));
   }
 }
-function _resolvePlayerOutOfBwalls(pl){
-  if(!pl) return;
-  for(let pass=0;pass<3;pass++){
-    const h=playerCoreHB(pl);
-    let moved=false;
-    for(const bw of BWALLS){
-      if(bw.hp<=0) continue;
-      if(!ov(h.x,h.y,h.w,h.h,bw.x,bw.y,bw.w,bw.h)) continue;
-      if(_playerStandingOnPlat(pl,bw)) continue;
-      const overlapX=Math.min(h.x+h.w,bw.x+bw.w)-Math.max(h.x,bw.x);
-      const overlapY=Math.min(h.y+h.h,bw.y+bw.h)-Math.max(h.y,bw.y);
-      if(overlapX<=0||overlapY<=0) continue;
-      if(overlapX<overlapY){
-        pl.x+=h.x+h.w/2<bw.x+bw.w/2?-overlapX:overlapX;
-      }else if(pl.y+FEET_OFF<=bw.y+8){
-        pl.y-=overlapY;
-      }else{
-        pl.y+=overlapY;
-      }
-      pl.vx*=0.5; pl.vy*=0.5;
-      moved=true;
-    }
-    pl.x=Math.max(0,Math.min(WW-SW,pl.x));
-    if(!moved) break;
-  }
-}
 function updateBWalls(){
   for(const bw of BWALLS){
     if(!bw.debris) bw.debris=[];
@@ -1285,7 +1259,8 @@ function drawBreakWall(bw){
 
   if(useTile){
     const {tw,th,sc}=_tmjDraw;
-    _drawTmjTileGid(bw.tileGid,bx,by,tw,th,sc);
+    const animGid=typeof _tmjOmniblockAnimGid==='function'?_tmjOmniblockAnimGid(bw.tileGid):bw.tileGid;
+    _drawTmjTileGid(animGid,bx,by,tw,th,sc);
     if(recentHit){ctx.fillStyle=C.WHITE;ctx.fillRect(bx,by,bws,1);ctx.fillRect(bx,by+bhs-1,bws,1);}
     if(frac>=0.99) return;
   }else if(isRed){
@@ -1887,9 +1862,9 @@ function drawKnowlTreeAura(){
 function drawRopePickup(){
   if(!_mapRopePickup||_mapRopePickup.got) return;
   const r=_mapRopePickup;
-  const rx=sx(r.x), ry=sy(r.y), rw=sw(r.w), rh=sw(r.h);
-  if(rx>W+12||ry>H+12||rx+rw<-12||ry+rh<-12) return;
-  const cx2=rx+(rw>>1), cy2=ry+(rh>>1)+Math.sin(fr*0.08)*2;
+  const rw=Math.max(sw(r.w),24), rh=Math.max(sw(r.h),24);
+  const rx=sx(r.x), ry=sy(r.y), cx2=rx+(rw>>1), cy2=ry+(rh>>1)+Math.sin(fr*0.08)*2;
+  if(rx>W+20||ry>H+20||rx+rw<-20||ry+rh<-20) return;
   if(fr%16<12){
     ctx.fillStyle=C.ORANGE;
     ctx.fillRect(rx,ry,rw,1);ctx.fillRect(rx,ry+rh-1,rw,1);

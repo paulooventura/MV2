@@ -37,17 +37,17 @@ function spawnLaserFizzle(s){
 
 // ── Breakable wall helpers ────────────────────────────────────
 function _isRedBwall(bw){
-  return !!(bw&&(bw.tileGid===BWALL_RED_GID||(!bw.tileGid&&bw.movable)));
+  return !!(bw&&(typeof _isOmniblockRedGid==='function'?_isOmniblockRedGid(bw.tileGid):bw.tileGid===BWALL_RED_GID||(!bw.tileGid&&bw.movable)));
 }
 function _mkBwall(x,y,w,h,opts){
   opts=opts||{};
-  const isRed=opts.tileGid===BWALL_RED_GID||(opts.movable!==false&&!!opts.tileGid);
+  const isRed=typeof _isOmniblockRedGid==='function'?_isOmniblockRedGid(opts.tileGid):(opts.tileGid===BWALL_RED_GID||(opts.movable!==false&&!!opts.tileGid));
   const hp=opts.hp!=null?opts.hp:(isRed?RED_BWALL_HP:3);
   const maxHp=opts.maxHp!=null?opts.maxHp:(isRed?RED_BWALL_HP:3);
   return {x,y,w,h,hp,maxHp,cracked:false,shakeX:0,shakeY:0,debris:[],
     _destroyFr:null,label:opts.label||(isRed?'BLOCK':'WALL'),col:opts.col||'#9c2218',
-    vx:0,vy:0,og:false,movable:opts.movable!==false,
-    tileGid:opts.tileGid||0,canvasGid:opts.canvasGid||0,
+    vx:0,vy:0,og:false,movable:!!opts.movable,
+    tileGid:opts.tileGid||0,canvasGid:opts.canvasGid||0,bgGid:opts.bgGid||0,
     homeCol:opts.homeCol??null,homeRow:opts.homeRow??null,
     homeX:opts.homeX??x,homeY:opts.homeY??y,_impactCd:0,_awake:!!opts._awake};
 }
@@ -138,27 +138,6 @@ function _carryPlayersOnBwall(bw,dx,dy){
     if(!_playerStandingOnPlat(pl,bw)) continue;
     pl.x+=dx; pl.y+=dy;
     pl.x=Math.max(0,Math.min(WW-SW,pl.x));
-  }
-}
-function _resolvePlayerOutOfBwalls(pl){
-  if(!pl) return;
-  for(let pass=0;pass<3;pass++){
-    const h=playerCoreHB(pl);
-    let moved=false;
-    for(const bw of BWALLS){
-      if(bw.hp<=0) continue;
-      if(!ov(h.x,h.y,h.w,h.h,bw.x,bw.y,bw.w,bw.h)) continue;
-      if(_playerStandingOnPlat(pl,bw)) continue;
-      const overlapX=Math.min(h.x+h.w,bw.x+bw.w)-Math.max(h.x,bw.x);
-      const overlapY=Math.min(h.y+h.h,bw.y+bw.h)-Math.max(h.y,bw.y);
-      if(overlapX<=0||overlapY<=0) continue;
-      if(overlapX<overlapY) pl.x+=h.x+h.w/2<bw.x+bw.w/2?-overlapX:overlapX;
-      else if(pl.y+FEET_OFF<=bw.y+8) pl.y-=overlapY;
-      else pl.y+=overlapY;
-      pl.vx*=0.5; pl.vy*=0.5; moved=true;
-    }
-    pl.x=Math.max(0,Math.min(WW-SW,pl.x));
-    if(!moved) break;
   }
 }
 function updateBWalls(){
@@ -471,6 +450,7 @@ function updateRopePickup(){
       _mapRopePickup.got=true;
       _ropePickupAnim={t:0,sx:r.x+r.w*0.5,sy:r.y+r.h*0.5};
       _unlockedMask|=ITEM_UNLOCK_BITS[1]; ITEM=1;
+      if(typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
       _itemTutorial={title:'RCA Grappling Hook',lines:['Your shoulder cannon can now fire a grappling hook.','Q — launch hook · W/S — reel in or let out rope','Space — release to swing or catapult off walls'],t:0,maxT:320};
       sfx('unlock');
       for(let pi=0;pi<14;pi++){

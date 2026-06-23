@@ -7,7 +7,7 @@
 const MV2_VISUAL = true;
 const cv = document.getElementById('c');
 if (!cv || typeof cv.getContext !== 'function') {
-  throw new Error('Canvas #c missing — open index.html from the Mind and Venture folder (use misc/serve.ps1, not a stale copy)');
+  throw new Error('Canvas #c missing — open index.html from the Mind and Venture folder (double-click PLAY.bat or index.html)');
 }
 const ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');

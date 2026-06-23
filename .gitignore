@@ -5,7 +5,7 @@ misc/Unity2D-Characters-FullProject/
 
 # Dev-only (not needed to play in browser)
 docs/
-.cursor/
+.cursor/*
 !.cursor/rules/
 !.cursor/rules/**
 terminals/
@@ -23,7 +23,16 @@ tileset/Testee2.tmj
 tileset/Testee3.tmj
 tileset/spawns-scan.txt
 
+# Visual Studio / IDE junk
+**/.vs/
+*.suo
+**/DocumentLayout*.json
+
 # OS junk
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Node test runner
+node_modules/
+test-results/
