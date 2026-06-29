@@ -1,0 +1,15 @@
+{
+  "name": "mv2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "selftest": "node scripts/run-selftest.mjs",
+    "selftest:quick": "node scripts/run-selftest.mjs --quick",
+    "selftest:watch": "node scripts/watch-selftest.mjs",
+    "selftest:summary": "node scripts/print-report.mjs",
+    "play": "node scripts/play-local.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}
