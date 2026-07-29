@@ -16,7 +16,8 @@ echo [4/4] Pushing to main (MV2 repo)...
 git push origin main
 echo.
 echo ============================================================
-echo Done. Netlify deploys from main when connected to paulooventura/MV2.
-echo Open your Netlify site URL and hard-refresh (Ctrl+F5).
+echo Done. GitHub Pages deploys from main automatically.
+echo Play live: https://paulooventura.github.io/MV2/
+echo Hard-refresh after deploy finishes (Ctrl+F5).
 echo ============================================================
 pause

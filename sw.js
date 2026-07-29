@@ -1,5 +1,5 @@
 /* Mind & Venture — lightweight PWA shell cache (assets load from network). */
-const CACHE = 'mv-web-v95';
+const CACHE = 'mv-web-v96';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './assets/Awdjoo/Awdjoo.json',

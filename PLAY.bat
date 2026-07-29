@@ -8,8 +8,9 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-set "MV_URL=http://127.0.0.1:8765/index.html?b=95"
-echo Mind ^& Venture build 95
+set "MV_URL=http://127.0.0.1:8765/index.html?b=96"
+echo Mind ^& Venture build 96
+echo Live: https://paulooventura.github.io/MV2/
 echo %MV_URL%
 echo Leave this window open while you play. Ctrl+C stops the server.
 echo.

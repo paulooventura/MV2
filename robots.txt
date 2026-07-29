@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mind-and-venture.netlify.app/sitemap.xml
+Sitemap: https://paulooventura.github.io/MV2/sitemap.xml
