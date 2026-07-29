@@ -129,7 +129,7 @@ window.onerror=function(msg,src,line,col,err){
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    var SW_BUILD='95';
+    var SW_BUILD=String(window.MV_BUILD||'96');
     if(/[?&](selftest|ci)=/i.test(location.search)) return;
     var stored=localStorage.getItem('mv_sw_build');
     if(stored!==SW_BUILD||window.MV_BUILD!==SW_BUILD){
