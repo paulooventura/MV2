@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const PORT = Number(process.env.MV_PLAY_PORT || 8765);
-const BUILD = process.env.MV_BUILD || '96';
+const BUILD = process.env.MV_BUILD || '97';
 // Single query param only — ampersands break Windows cmd "start".
 const url = `http://127.0.0.1:${PORT}/index.html?b=${BUILD}-${Date.now()}`;
 

@@ -23,7 +23,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='96';</script>
+<script>window.MV_BUILD='97';</script>
 <script>
 if(location.protocol==='file:'){
   document.addEventListener('DOMContentLoaded',function(){
@@ -129,17 +129,17 @@ window.onerror=function(msg,src,line,col,err){
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    var SW_BUILD=String(window.MV_BUILD||'96');
+    var SW_BUILD=String(window.MV_BUILD||'97');
     if(/[?&](selftest|ci)=/i.test(location.search)) return;
     var stored=localStorage.getItem('mv_sw_build');
-    if(stored!==SW_BUILD||window.MV_BUILD!==SW_BUILD){
+    if(stored!==SW_BUILD){
       localStorage.setItem('mv_sw_build',SW_BUILD);
       navigator.serviceWorker.getRegistrations().then(function(regs){
         return Promise.all(regs.map(function(r){return r.unregister();}));
       }).finally(function(){
-        var q=location.search.replace(/^\?/,'');
-        var bust='b='+SW_BUILD+'-'+Date.now();
-        location.replace(location.pathname+'?'+(q?q+'&':'')+bust);
+        caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));});
+      }).finally(function(){
+        navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});
       });
       return;
     }
