@@ -1,0 +1,12 @@
+Run this loop until npm run selftest exits 0 (PASS):
+
+1. npm run selftest
+2. Read test-results/latest.json and test-results/summary.txt
+3. If FAIL: fix violations listed in violationCounts using samples frames/locations; bump build in index.html + sw.js; repeat from step 1
+4. If PASS: stage game files + test harness, commit, push origin main
+
+Do NOT ask the user to paste console reports. The headless runner writes everything to test-results/.
+
+Pass criteria: empty violationCounts, idleMaxDevPx <= 1.
+
+Repo: Mind & Venture (MV2) — browser game, js/physics.js player.js main.js spawn_fix.js

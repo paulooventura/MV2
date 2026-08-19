@@ -1,0 +1,33 @@
+---
+description: Auto-commit and push MV2 (Mind & Venture) to GitHub after substantive changes
+alwaysApply: true
+---
+
+# Auto commit & deploy — Mind & Venture (MV2)
+
+After completing substantive work in this repo, **commit and push without asking**.
+
+## When to commit
+
+- Game code (`index.html`, `js/**`, `sw.js`), assets, maps, and player-facing fixes
+- Do **not** commit IDE junk (`.vs/`, `DocumentLayout*.json`, `.suo`, backup files)
+- Do **not** commit secrets or large binary blobs unrelated to the task
+- Do **not** commit unless there are real changes (no empty commits)
+
+## Workflow
+
+1. `git status` and `git diff` — stage only files related to the task
+2. Write a concise commit message (1–2 sentences, focus on why)
+3. `git add` → `git commit` → `git push origin main`
+4. Briefly tell the user: commit hash, push succeeded, and that **GitHub Pages** (`https://paulooventura.github.io/MV2/`) deploys from `main` automatically
+
+## Remote
+
+- Repo: `https://github.com/paulooventura/MV2.git`
+- Branch: `main`
+- Root: `C:\Users\PVProductions\.cursor\Home\MIND-AND-VENTURE`
+
+## Do not
+
+- Force-push, amend pushed commits, or skip hooks unless the user explicitly asks
+- Stage entire `.vs/` folders or unrelated C# Unity experiments unless the user asked for those
