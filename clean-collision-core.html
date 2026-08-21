@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MV2 — Clean Collision Core (Kill Ghost Vertex)</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0d12;color:#d7d7e0;
+    font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  #bar{padding:8px 12px;font-size:12px;line-height:1.5;border-bottom:1px solid #24242e;
+    background:#14141b;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  #bar b{color:#8ab4ff} #bar .k{color:#ffd479} #bar .g{color:#7ee787} #bar .r{color:#ff7b72}
+  canvas{flex:1;display:block;image-rendering:pixelated;background:#0d0d12}
+  .pill{padding:2px 8px;border:1px solid #2c2c38;border-radius:10px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <span><b>MV2 Clean Collision Core</b></span>
+    <a href="index.html" style="color:#8ab4ff">back to game</a>
+    <span class="pill">move <span class="k">← →</span></span>
+    <span class="pill">jump <span class="k">Z / Space</span></span>
+    <span class="pill">smash omniblock <span class="k">X</span></span>
+    <span class="pill">reset <span class="k">R</span></span>
+    <span class="pill" id="stat"></span>
+    <span class="pill" id="probe"></span>
+  </div>
+  <canvas id="c"></canvas>
+</div>
+<script>
+/* ============================================================
+   MV2 — CLEAN COLLISION CORE
+   One idea, proven: every solid face is owned by exactly ONE
+   tile, and each tile's TYPE fully defines its behaviour.
+   No overlapping polygons. No KEEP-OUT layer duplicating faces.
+   No anti-stick gates — none are needed when geometry is
+   single-owned and resolution is one-axis-at-a-time.
+
+   Tile types (the whole vocabulary):
+     0 AIR          — nothing
+     1 SOLID        — collides on all four faces (wall/floor/ceiling)
+     2 ONEWAY       — collides only landing on top; pass up through
+     3 DESTRUCTIBLE — SOLID until smashed, then the cell becomes AIR
+                      (this is your omniblock: walk on top, wall on
+                      the side, smash to air — ONE tile, not three)
+   ============================================================ */
+
+const TILE = 32;                 // grid cell size (px)
+const AIR=0, SOLID=1, ONEWAY=2, DESTRUCT=3;
+
+// ---- MIND's real proportions, mirrored from physics.js -------
+// SW=64 SH=96 body ~52x70, wheel radius 20. We use a single AABB
+// for the body here (the clean core is about geometry, not the
+// soft-body wheel — that layer bolts on AFTER faces are honest).
+const P_W = 40;                  // body collision width
+const P_H = 64;               // 2 tiles exactly — grid-clean, verified
+const GRAV = 0.52;               // ← your real GRAV
+const MOVE = 3.4;                // horizontal speed (tuned for TILE)
+const ACCEL = 0.7, FRIC = 0.72;
+const JUMP = 11.6;               // ← derived from your JMX/JMH feel
+const MAX_FALL = 16;
+
+// ---------------- The level (one grid, one authority) ---------
+// A compact ASCII map → single tile-type grid. This is the House-2
+// shape: a flat run of ground with a stack of omniblocks (o) you
+// can stand ON and smash THROUGH, a one-way ledge (=), and tight
+// corners that used to snag. '.'=air  '#'=solid  'o'=destruct  '='=oneway
+const MAP = [
+  "............................................",
+  "............................................",
+  "............................................",
+  "..........................=====.............",
+  "............................................",
+  "...............ooo..........................",
+  "...............ooo.................###.......",
+  ".......=====...ooo........===......###.......",
+  "...............ooo.................###.......",
+  "....o..........ooo..........................",
+  "....o.....................................o.",
+  "....o..###................................o.",
+  "#############.......########.....###########",
+  "#############.......########.....###########",
+  "#############.......########.....###########",
+];
+const CH = {'.':AIR,'#':SOLID,'o':DESTRUCT,'=':ONEWAY};
+const COLS = MAP[0].length, ROWS = MAP.length;
+let grid;                        // Int grid, THE single source of solidity
+function buildGrid(){
+  grid = [];
+  for(let y=0;y<ROWS;y++){ grid[y]=[];
+    for(let x=0;x<COLS;x++) grid[y][x] = CH[MAP[y][x]] ?? AIR; }
+}
+buildGrid();
+
+// solidity queries — the ONLY authority anything asks
+function cellAt(cx,cy){
+  if(cx<0||cy<0||cx>=COLS||cy>=ROWS) return SOLID; // world border = solid
+  return grid[cy][cx];
+}
+// Is this cell solid for a body moving with vy, testing against `fromTop`?
+function solidFull(cx,cy){ const t=cellAt(cx,cy); return t===SOLID||t===DESTRUCT; }
+
+// ---------------- Player ----------------
+const spawn = {x: 2*TILE, y: 6*TILE};
+let pl;
+function resetPlayer(){
+  pl = {x:spawn.x, y:spawn.y, vx:0, vy:0, onGround:false, face:1};
+  buildGrid();
+}
+resetPlayer();
+
+// ---------------- Input ----------------
+const keys={};
+addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='KeyR') resetPlayer();
+  if(['ArrowLeft','ArrowRight','ArrowUp','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup',e=>keys[e.code]=false);
+
+// ============================================================
+//  THE COLLISION CORE — single axis at a time.
+//  This is the whole trick for corners: move X, resolve X,
+//  THEN move Y, resolve Y. Never diagonally at once. A body
+//  can never be simultaneously ejected on two axes, so corners
+//  cannot spaz, and flat runs cannot catch on seams (there are
+//  no seams — a run of SOLID cells is queried per-cell but each
+//  face is owned once).
+// ============================================================
+
+function tilesSpanned(px, pw){
+  const c0 = Math.floor(px / TILE);
+  const c1 = Math.floor((px + pw - 1) / TILE);
+  return [c0, c1];
+}
+
+function moveX(dx){
+  pl.x += dx;
+  const [r0,r1] = tilesSpanned(pl.y, P_H);       // rows the body covers
+  if(dx > 0){                                    // moving right → check right edge
+    const col = Math.floor((pl.x + P_W - 1)/TILE);
+    for(let r=r0;r<=r1;r++) if(solidFull(col,r)){
+      pl.x = col*TILE - P_W; pl.vx = 0; break; }
+  } else if(dx < 0){                             // moving left → check left edge
+    const col = Math.floor(pl.x / TILE);
+    for(let r=r0;r<=r1;r++) if(solidFull(col,r)){
+      pl.x = (col+1)*TILE; pl.vx = 0; break; }
+  }
+}
+
+function moveY(dy){
+  const prevFeet = pl.y + P_H;                   // feet BEFORE moving (for one-way)
+  pl.y += dy;
+  const [c0,c1] = tilesSpanned(pl.x, P_W);       // cols the body covers
+  pl.onGround = false;
+  if(dy > 0){                                    // falling → check feet
+    const row = Math.floor((pl.y + P_H - 1)/TILE);
+    for(let c=c0;c<=c1;c++){
+      const t = cellAt(c,row);
+      const isSolid = (t===SOLID||t===DESTRUCT);
+      // ONE-WAY: only collide if feet were above the tile top before this move
+      const isOneway = (t===ONEWAY) && (prevFeet <= row*TILE);
+      if(isSolid || isOneway){
+        pl.y = row*TILE - P_H; pl.vy = 0; pl.onGround = true; break; }
+    }
+  } else if(dy < 0){                             // rising → check head
+    const row = Math.floor(pl.y / TILE);
+    for(let c=c0;c<=c1;c++) if(solidFull(c,row)){
+      pl.y = (row+1)*TILE; pl.vy = 0; break; }   // ONEWAY never blocks upward
+  }
+}
+
+// ---------------- Smash (destructible → air) ----------------
+function smash(){
+  // target the cell in front of MIND at body-center height
+  const cx = Math.floor((pl.x + P_W/2 + pl.face*(P_W/2+2))/TILE);
+  const cyTop = Math.floor((pl.y + 4)/TILE);
+  const cyBot = Math.floor((pl.y + P_H - 4)/TILE);
+  let hit=false;
+  for(let cy=cyTop;cy<=cyBot;cy++){
+    if(cellAt(cx,cy)===DESTRUCT){ grid[cy][cx]=AIR; hit=true; }
+  }
+  // also smash the tile directly under the feet (dig down)
+  const fc = Math.floor((pl.x+P_W/2)/TILE), fr = Math.floor((pl.y+P_H+2)/TILE);
+  if(cellAt(fc,fr)===DESTRUCT){ grid[fr][fc]=AIR; hit=true; }
+  return hit;
+}
+let smashCooldown=0;
+
+// ---------------- Update ----------------
+function update(){
+  // horizontal intent
+  let ax=0;
+  if(keys['ArrowLeft']){ ax=-ACCEL; pl.face=-1; }
+  if(keys['ArrowRight']){ ax= ACCEL; pl.face= 1; }
+  if(ax!==0) pl.vx += ax; else pl.vx *= FRIC;
+  pl.vx = Math.max(-MOVE, Math.min(MOVE, pl.vx));
+  if(Math.abs(pl.vx)<0.02) pl.vx=0;
+
+  // jump
+  if((keys['KeyZ']||keys['Space']) && pl.onGround){ pl.vy = -JUMP; pl.onGround=false; }
+
+  // gravity
+  pl.vy = Math.min(MAX_FALL, pl.vy + GRAV);
+
+  // smash
+  if(smashCooldown>0) smashCooldown--;
+  if(keys['KeyX'] && smashCooldown===0){ if(smash()) smashCooldown=8; else smashCooldown=6; }
+
+  // ── resolve one axis at a time ──
+  moveX(pl.vx);
+  moveY(pl.vy);
+
+  // fell out of world → respawn
+  if(pl.y > ROWS*TILE + 200) resetPlayer();
+}
+
+// ---------------- Render ----------------
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+function resize(){ c.width=c.clientWidth; c.height=c.clientHeight; }
+addEventListener('resize',resize); resize();
+
+const COL = {
+  [SOLID]:'#3a3a4a', [DESTRUCT]:'#7a5a2a', [ONEWAY]:'#2a5a4a'
+};
+const EDGE = {
+  [SOLID]:'#50506a', [DESTRUCT]:'#c89a4a', [ONEWAY]:'#4aa88a'
+};
+
+function draw(){
+  const worldW=COLS*TILE, worldH=ROWS*TILE;
+  const scale = Math.min(c.width/worldW, c.height/worldH)*0.96;
+  const ox = (c.width - worldW*scale)/2;
+  const oy = (c.height - worldH*scale)/2;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.save(); ctx.translate(ox,oy); ctx.scale(scale,scale);
+
+  // grid tiles
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const t=grid[y][x]; if(t===AIR) continue;
+    ctx.fillStyle=COL[t]; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    ctx.strokeStyle=EDGE[t]; ctx.lineWidth=1;
+    if(t===ONEWAY){ ctx.beginPath(); ctx.moveTo(x*TILE,y*TILE+1);
+      ctx.lineTo(x*TILE+TILE,y*TILE+1); ctx.stroke(); }        // top-only hint
+    else ctx.strokeRect(x*TILE+0.5,y*TILE+0.5,TILE-1,TILE-1);
+    if(t===DESTRUCT){ ctx.strokeStyle='#5a3f1a';
+      ctx.beginPath(); ctx.moveTo(x*TILE+6,y*TILE+6); ctx.lineTo(x*TILE+TILE-6,y*TILE+TILE-6);
+      ctx.moveTo(x*TILE+TILE-6,y*TILE+6); ctx.lineTo(x*TILE+6,y*TILE+TILE-6); ctx.stroke(); }
+  }
+
+  // MIND — body AABB + wheel + lightbulb head (schematic, but his shape)
+  const bx=pl.x, by=pl.y;
+  ctx.fillStyle='#8ab4ff';
+  ctx.fillRect(bx,by+8,P_W,P_H-20);                            // HS8 body
+  ctx.fillStyle='#5a7fd6'; ctx.fillRect(bx+4,by+14,P_W-8,10);  // speaker cone
+  ctx.fillStyle='#ffd479';                                     // lightbulb head
+  ctx.beginPath(); ctx.arc(bx+P_W/2,by+6,8,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#111'; ctx.lineWidth=2;                     // wheel
+  ctx.beginPath(); ctx.arc(bx+P_W/2,by+P_H-4,12,0,Math.PI*2); ctx.stroke();
+  // facing nib
+  ctx.fillStyle='#ff7b72';
+  ctx.fillRect(bx+(pl.face>0?P_W-3:0),by+P_H/2,3,8);
+
+  ctx.restore();
+
+  // HUD probes
+  document.getElementById('stat').innerHTML =
+    (pl.onGround?'<span class="g">GROUNDED</span>':'<span class="r">AIRBORNE</span>')+
+    ` vx ${pl.vx.toFixed(2)} vy ${pl.vy.toFixed(2)}`;
+  // "ghost-vertex probe": are we stuck (grounded but vx intent blocked with no movement)?
+  document.getElementById('probe').textContent =
+    `x ${pl.x|0} y ${pl.y|0}  cell(${Math.floor((pl.x+P_W/2)/TILE)},${Math.floor((pl.y+P_H/2)/TILE)})`;
+}
+
+// ---------------- Loop ----------------
+function frame(){ update(); draw(); requestAnimationFrame(frame); }
+frame();
+</script>
+</body>
+</html>
