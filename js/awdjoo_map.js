@@ -449,11 +449,11 @@ window.MV_STAGE0_MAP = { "compressionlevel":-1,
                          "y":-64
                         }, 
                         {
-                         "x":-72,
+                         "x":-88,
                          "y":-56
                         }, 
                         {
-                         "x":-72,
+                         "x":-88,
                          "y":-40
                         }, 
                         {
@@ -598,11 +598,11 @@ window.MV_STAGE0_MAP = { "compressionlevel":-1,
                          "y":8
                         }, 
                         {
-                         "x":224,
+                         "x":208,
                          "y":16
                         }, 
                         {
-                         "x":224,
+                         "x":208,
                          "y":32
                         }, 
                         {

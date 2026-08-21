@@ -81,6 +81,55 @@
     if(typeof GOALPL!=='undefined'&&GOALPL.x!=null&&GOALPL.x<2800) rec('goalNotHouse5',{x:GOALPL.x});
   }
 
+  function checkSlopeAndOpening(){
+    if(lf!==90) return;
+    if(typeof _gridReady!=='function'||!_gridReady()||!MV_GRID) return;
+    var t=MV_GRID.tile, found=null, slopeCount=0;
+    for(var r=0;r<MV_GRID.rows;r++){
+      for(var c=0;c<MV_GRID.cols;c++){
+        if(gridCell(c,r)!==MV_GRID_SLOPE) continue;
+        slopeCount++;
+        if(!found) found={c:c,r:r,s:gridSlopeAt(c,r)};
+      }
+    }
+    if(slopeCount<8) rec('slopeMissing',{count:slopeCount});
+    var ride=null;
+    for(r=0;r<MV_GRID.rows;r++){
+      for(c=0;c<MV_GRID.cols;c++){
+        if(gridCell(c,r)!==MV_GRID_SLOPE) continue;
+        var ss=gridSlopeAt(c,r); if(!ss) continue;
+        var mx=(ss.x1+ss.x2)*0.5, my=(ss.y1+ss.y2)*0.5;
+        if(mx>620&&mx<920&&my>2140&&my<2460){ ride={c:c,r:r,s:ss}; break; }
+      }
+      if(ride) break;
+    }
+    if(!ride) ride=found;
+    if(ride&&ride.s){
+      var s=ride.s, wx=(s.x1+s.x2)*0.5, sy=gridSlopeY(ride.c,ride.r,wx);
+      var hbw=(typeof HBW!=='undefined')?HBW:52;
+      var stand=(typeof STAND_H!=='undefined')?STAND_H:70;
+      var wr=(typeof WHEEL_R!=='undefined')?WHEEL_R:20;
+      var hullH=stand+wr;
+      function tryRide(dx){
+        var body={x:wx-hbw*0.5, y:sy-hullH, w:hbw, h:hullH, feetY:sy, vx:0, vy:0, onGround:true, slopeAng:0, _hitX:false, _hitY:false};
+        gridMoveSwept(body, dx, Math.abs(dx)*0.8);
+        return body;
+      }
+      var right=tryRide(16), left=tryRide(-16);
+      var moved=Math.max(right.x-(wx-hbw*0.5), (wx-hbw*0.5)-left.x);
+      if(moved<4) rec('slopeBlocked',{x0:Math.round(wx), right:Math.round(right.x), left:Math.round(left.x)});
+      var nsy=gridSlopeY(Math.floor((right.x+right.w*0.5)/t), Math.floor((right.feetY-0.001)/t), right.x+right.w*0.5);
+      if(nsy!=null && Math.abs(right.feetY-nsy)>6 && moved>=4) rec('slopeMiss',{feet:Math.round(right.feetY), surf:Math.round(nsy)});
+    }
+    var doorX=848, doorY=2240, gap=0, guard=0;
+    var col=Math.floor(doorX/t), row=Math.floor(doorY/t);
+    while(!gridSolid(col,row) && col<MV_GRID.cols && guard++<64){ gap+=t; col++; }
+    col=Math.floor(doorX/t)-1;
+    while(col>=0 && !gridSolid(col,row) && guard++<128){ gap+=t; col--; }
+    var need=(typeof HBW!=='undefined')?HBW:52;
+    if(gap<need) rec('openingTooTight',{gap:gap, need:need});
+  }
+
   function checkOmniblockCorner(){
     if(lf<400||lf%30!==0) return;
     var pl=(typeof p!=='undefined')?p:null;
@@ -140,15 +189,22 @@
       try{
         if(typeof gridPlayerOverlapsSolid==='function') embedded=gridPlayerOverlapsSolid(pl);
         var wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):null;
-        intoWall=!!(wt&&wt.touch&&((phase==='walkR'&&wt.dir>0)||(phase==='walkL'&&wt.dir<0)));
+        intoWall=!!(wt&&wt.touch);
       }catch(e){}
       pl._inputStuck=(pl._inputStuck||0)+1;
       if(Math.abs(pl.x-(pl._stuckX0!=null?pl._stuckX0:pl.x))>4){ pl._inputStuck=0; pl._stuckX0=pl.x; }
       else if(pl._stuckX0==null) pl._stuckX0=pl.x;
-      if((pl._inputStuck||0)>20 && Math.abs(pl.vx||0)<0.15 && embedded){
-        rec('frozenInput',{frames:pl._inputStuck, embedded:true});
+      if((pl._inputStuck||0)>18 && Math.abs(pl.vx||0)<0.15 && (embedded || (!intoWall && !!pl.og && !pl._onSlope))){
+        rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
       }
     }else{ pl._inputStuck=0; pl._stuckX0=undefined; }
+    if(pl.og && Math.abs(pl.vy||0)<0.3 && typeof gridStandY==='function' && typeof _gridReady==='function' && _gridReady()){
+      try{
+        var feetY=pl.y+FO;
+        var surf=gridStandY(pl.x+(typeof SW!=='undefined'?SW:64)*0.5, feetY, {maxUp:8,maxDrop:8});
+        if(surf!=null && Math.abs(feetY-surf)>1.5) rec('floatFeet',{gap:+(feetY-surf).toFixed(2), feet:Math.round(feetY), top:Math.round(surf)});
+      }catch(e){}
+    }
     if(lf===240 && typeof _gridReady==='function'&&_gridReady()){
       var oldY=pl.y;
       pl.vy=16;
@@ -267,7 +323,7 @@
     var dt=((typeof performance!=='undefined')?performance.now():Date.now())-ts;
     if(dt>perf.maxUpdateMs) perf.maxUpdateMs=+dt.toFixed(2);
     if(dt>SLOW_MS) perf.slowFrames++;
-    try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); }catch(e){}
+    try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); checkSlopeAndOpening(); }catch(e){}
     if(typeof p!=='undefined'&&p&&(p._grindF||0)>=4&&phaseFrame>36){
       phaseIdx++; phaseFrame=0; baselineY=null; idleMaxDev=0; xHist.length=0;
     }else advancePhase();

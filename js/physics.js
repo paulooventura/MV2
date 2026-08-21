@@ -1909,6 +1909,11 @@ function _stabilizePlayerCollision(pl){
       const body=gridPlayerBody(pl);
       if(gridDepenetrate(body)) gridWritePlayer(pl, body);
     }
+    if(pl.og&&(pl.vy||0)>=-0.2&&typeof gridStandY==='function'){
+      const feet=pl.y+FEET_OFF;
+      const surf=gridStandY(pl.x+SW*0.5,feet,{maxUp:12,maxDrop:12,pl});
+      if(surf!=null) pl.y=surf-FEET_OFF;
+    }
     _validateGroundFlag(pl);
     if(pl===p) _applySlopePhysics(pl);
     return;

@@ -65,6 +65,10 @@ function evaluatePass(report) {
   if (counts.spawnNotHouse2) failReasons.push('spawn not in house 2');
   if (counts.basementUnreachable) failReasons.push('bot did not reach basement RCA zone');
   if (counts.omniblockCorner) failReasons.push('wedged at house-2 omniblock corner');
+  if (counts.floatFeet) failReasons.push('wheel not on tile top');
+  if (counts.frozenInput) failReasons.push('frozen while input applied');
+  if (counts.slopeMissing || counts.slopeBlocked || counts.slopeMiss) failReasons.push('diagonal slope not walkable');
+  if (counts.openingTooTight) failReasons.push('opening narrower than HBW');
   if (counts.airLaunch) failReasons.push('unexpected air launch on flat floor');
   if (counts.groundSnap) failReasons.push('large ground Y snap');
   const health = report.health || {};
