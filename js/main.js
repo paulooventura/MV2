@@ -393,6 +393,7 @@ function _safeApplyTmjMap(data){ try{applyTmjMap(data);}catch(err){console.error
 function _clearTiledState(){
   _tmjDraw=null; _mapApplied=false; _mapKnowlDefs=[]; _mapMinionDefs=[]; _mapEnemyDefs=[]; _mapSignolDefs=[]; _mapRopePickup=null; _mapLaituSpawn=null; _laitu=null; _candleLights=[];
   COLL_SEGS=[]; COLL_WALL_SEGS=[]; COLL_POLYS=[]; IMMERSED_POLYS=[]; _useSegGround=false; BWALLS.length=0;
+  if(typeof gridClear==='function') gridClear();
 }
 
 function applyTmjMap(data){
@@ -409,7 +410,6 @@ function applyTmjMap(data){
   GOALPL={x:WW-50,y:0,w:50,h:WH};
   _mapKnowlDefs=[]; _mapMinionDefs=[]; _mapEnemyDefs=[]; _mapSignolDefs=[]; _mapRopePickup=null; _mapLaituSpawn=null; _mapBWalls=[];
   let tileData=null,bgData=null,fgData=null,destructData=null,spawnData=null,canvasData=null;
-  const collRects=[],collPolys=[];
   for(const layer of layers){
     const lname=(layer.name||'').toLowerCase();
     if(layer.type==='tilelayer'){
@@ -420,20 +420,11 @@ function applyTmjMap(data){
       else if(lname==='spawns'||lname==='spawn') spawnData=d;
       else if(lname==='canvas'||lname==='grass stuff'||lname==='grass') canvasData=d;
       else if(!tileData) tileData=d;
-      if(_isCollLayerName(lname)){
-        for(let row=0;row<mh;row++){for(let col=0;col<mw;col++){
-          const gid=_tmjGid(d[row*mw+col]);
-          if(!gid||TMJ_NOSOLID_GIDS.has(gid)) continue;
-          collRects.push({x:col*tw*sc,y:row*th*sc,w:tw*sc,h:th*sc,tp:'solid',mv:null,mp:null});
-        }}
-      }
+      // KEEP OUT / collision tile layers are not ingested — the typed grid owns faces.
     }else if(layer.type==='objectgroup'){
       const objects=layer.objects||[];
       if(_isKeepOutLayerName(layer.name||'')){
-        for(const o of objects){
-          if(o.polygon){ const pts=_tmjPolyWorldPts(o,sc); if(pts.length>=3) collPolys.push(pts); }
-          else if((o.width||0)>0&&(o.height||0)>0) collRects.push(_snapTmjRect(o,sc));
-        }
+        // discarded: SOLID tiles absorb KEEP OUT's job
       }
       if(_isImmersedLayerName(layer.name||'')){
         for(const o of objects){
@@ -458,27 +449,11 @@ function applyTmjMap(data){
       }
     }
   }
-  // ── Collision geometry ────────────────────────────────────────
-  // KEEP OUT polygons → solid barriers only. Walk surfaces come from tile tops.
-  // Skip merged TR rects when polygon keep-out is present (they create phantom floors).
-  if(!collPolys.length&&collRects.length){
-    const merged=_mergeCollRects(collRects);
-    TR.push(...merged);
-  }
-  for(const pts of collPolys){
-    COLL_POLYS.push(pts);
-    const segs=_buildPolyColliderSegs(pts);
-    COLL_SEGS.push(...segs.walk);
-    COLL_WALL_SEGS.push(...segs.barriers);
-  }
+  // ── Collision: ONE typed grid. No TR-merge, tile-grass segs, or KEEP OUT polys.
   _spawnBwallsFromDestructTiles(destructData,canvasData,bgData,mw,mh,tw,th,sc);
-  if(canvasData){
-    const tileSegs=_buildExposedTileTopSegs(canvasData,bgData,tileData,destructData,mw,mh,tw,th,sc);
-    if(tileSegs.length) COLL_SEGS.push(...tileSegs);
-  }
-  if(COLL_SEGS.length){ _rebuildCollSegBuckets(); _useSegGround=true; }
   _filterMapBWallsToZones();
   _restoreMapBWalls();
+  if(typeof buildCollisionGridFromTmj==='function') buildCollisionGridFromTmj(data, sc);
   const mainCanvas=canvasData||tileData;
   _tmjDraw={data:mainCanvas,canvasData,bgData,fgData,destructData,spawnData,mw,mh,tw,th,sc};
   if(typeof _scanCandleLights==='function') _scanCandleLights(data);
@@ -493,9 +468,9 @@ function applyTmjMap(data){
   if(p){ _placePlayerAtSpawn(); _spawnMapEnemies(); }
   else if(typeof _spawnX==='number'){ /* spawn vars ready for next boot */ }
   if(p&&_zoneIdx===0&&!_battleTestMode&&!_runTestMode) _snapCameraToPlayer(p);
-  console.info('MV applyTmjMap:',WW+'x'+WH,TR.length,'rects,',COLL_SEGS.length,'segs,',
+  console.info('MV applyTmjMap:',WW+'x'+WH,'grid',typeof _gridReady==='function'&&_gridReady()?'on':'off',
     BWALLS.length,'bwalls',_mapKnowlDefs.length,'knowls',
-    '| keep-out',COLL_POLYS.length,'walls',COLL_WALL_SEGS.length,'immersed',IMMERSED_POLYS.length,
+    '| keep-out discarded, immersed',IMMERSED_POLYS.length,
     IMMERSED_POLYS.length?'':'(export IMMERSED polygons in Tiled for zone gating)',
     '| canvas',!!mainCanvas,'bg',!!bgData,
     '| spawn',_spawnX,_spawnY+FEET_OFF,'| enemies',_mapEnemyDefs.length,'| tilesets',TMJ_TILESET_DEFS.map(t=>t.firstGid+(t.img?'✓':'×')).join(','));
@@ -982,6 +957,7 @@ function update(){
     else p.vy=Math.min(p.vy+(isJump()&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
     _movePlayerWithColl(p,p.vx,p.vy);
+    if(!_gridReady()){
     const _moveDir=_moveInputX();
     if(_moveDir&&_playerOnGround(p)){
       const _moved=Math.abs(p.x-p._ux0);
@@ -997,6 +973,7 @@ function update(){
         }
       }else if(_moved>=Math.max(1.2,_vx*0.45)){ p._grindF=0; p._moveBlocked=false; }
     }else if(!_moveDir) p._moveBlocked=false;
+    }
   }else if(p.hook.st!=='on'&&p.wallGrip>0){ _movePlayerWithColl(p,p.vx,p.vy); }
   if(p.y<20){p.y=20;p.vy=Math.max(0,p.vy);}
   p.x=Math.max(0,Math.min(WW-SW,p.x));
@@ -1021,7 +998,7 @@ function update(){
 
   updateBWalls();
   _stabilizePlayerCollision(p); if(p2)_stabilizePlayerCollision(p2);
-  if(typeof _syncPushGrind==='function') _syncPushGrind(p);
+  if(!_gridReady() && typeof _syncPushGrind==='function') _syncPushGrind(p);
   _wheelEdgeRoll(p); if(p2)_wheelEdgeRoll(p2);
   _updateWheelSuspension(p,p._prevVx||0); if(p2)_updateWheelSuspension(p2,p2._prevVx||0);
   _rollWheelFromTravel(p,_pRollX0,_pRollY0); if(p2)_rollWheelFromTravel(p2,_coopRollX0,_coopRollY0);

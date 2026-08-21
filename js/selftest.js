@@ -122,7 +122,9 @@
     }
     pl._prevCheckY=pl.y;
     try{
-      if(typeof playerCoreHB==='function'){
+      if(typeof _gridReady==='function'&&_gridReady()&&typeof gridPlayerOverlapsSolid==='function'){
+        if(gridPlayerOverlapsSolid(pl)) rec('embeddedSolid',{});
+      }else if(typeof playerCoreHB==='function'){
         var b=playerCoreHB(pl), bx=b.x+b.w/2, by=b.y+b.h/2, S=solids();
         for(var i=0;i<S.length;i++){
           var r=S[i];
@@ -133,6 +135,40 @@
         }
       }
     }catch(e){}
+    if((phase==='walkR'||phase==='walkL') && (K[codes().R]||K[codes().L])){
+      var embedded=false, intoWall=false;
+      try{
+        if(typeof gridPlayerOverlapsSolid==='function') embedded=gridPlayerOverlapsSolid(pl);
+        var wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):null;
+        intoWall=!!(wt&&wt.touch&&((phase==='walkR'&&wt.dir>0)||(phase==='walkL'&&wt.dir<0)));
+      }catch(e){}
+      pl._inputStuck=(pl._inputStuck||0)+1;
+      if(Math.abs(pl.x-(pl._stuckX0!=null?pl._stuckX0:pl.x))>4){ pl._inputStuck=0; pl._stuckX0=pl.x; }
+      else if(pl._stuckX0==null) pl._stuckX0=pl.x;
+      if((pl._inputStuck||0)>20 && Math.abs(pl.vx||0)<0.15 && embedded){
+        rec('frozenInput',{frames:pl._inputStuck, embedded:true});
+      }
+    }else{ pl._inputStuck=0; pl._stuckX0=undefined; }
+    if(lf===240 && typeof _gridReady==='function'&&_gridReady()){
+      var oldY=pl.y;
+      pl.vy=16;
+      try{ if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(pl,0,16); }catch(e){}
+      if(typeof gridPlayerOverlapsSolid==='function'&&gridPlayerOverlapsSolid(pl)) rec('tunnelFall',{});
+      if(pl.y>oldY+400) rec('tunnelFall',{dy:Math.round(pl.y-oldY)});
+    }
+    if(lf===260 && typeof _gridReady==='function'&&_gridReady()&&typeof MV_GRID!=='undefined'&&MV_GRID){
+      var t=MV_GRID.tile, col=Math.floor((pl.x+(typeof SW!=='undefined'?SW:64)*0.5)/t);
+      var row=Math.floor((pl.y+FO)/t);
+      pl.y=row*t-(typeof FEET_OFF!=='undefined'?FEET_OFF:88)+8;
+      try{
+        if(typeof gridDepenetrate==='function'){
+          var body=gridPlayerBody(pl);
+          gridDepenetrate(body);
+          gridWritePlayer(pl, body);
+        }
+      }catch(e){}
+      if(typeof gridPlayerOverlapsSolid==='function'&&gridPlayerOverlapsSolid(pl)) rec('embedRecoverFail',{});
+    }
     if(phase==='idle' && pl.og && (pl._grindF||0)<1 && Math.abs(pl.vy||0)<0.25){
       if(baselineY==null && phaseFrame>12) baselineY=pl.y;
       if(baselineY!=null){

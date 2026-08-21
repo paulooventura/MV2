@@ -79,14 +79,14 @@ function _damageBwall(bw,kind,fx){
     if(bw.movable){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
     spawnDebris(bw,4+Math.ceil(pct/15)); sfx('hit');
-    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('stomp');}
+    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
     return;
   }
   const dmg=typeof kind==='number'?kind:(kind==='punchCharged'?2:1);
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
   spawnDebris(bw,4+dmg*2); sfx('hit');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp');}
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallApplyImpact(bw,speed){
   if(speed<BWALL_IMPACT_DMG) return;
@@ -96,7 +96,7 @@ function _bwallApplyImpact(bw,speed){
   const dmg=speed>=BWALL_IMPACT_HARD?2:1;
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   spawnDebris(bw,4+dmg*3); sfx('hit');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp');}
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallSolids(skip){
   const out=TR.map(_normPlat);
@@ -213,6 +213,14 @@ function updatePlayerShots(){
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
+    if(typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y)){
+      const prevX=s.x-s.vx, prevY=s.y-s.vy;
+      if(gridWorldSolid(s.x,prevY)&&!gridWorldSolid(prevX,s.y)) s.vx*=-0.76;
+      else s.vy*=-0.76;
+      s.power=(s.power||1)*0.7; s.bounces=(s.bounces||0)+1;
+      spawnSpark(s.x,s.y,s.vx,s.vy);
+      if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
+    }
     for(const q of pl){
       if(!ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h)) continue;
       const bounces=s.bounces||0;
@@ -396,6 +404,13 @@ function updateCrates(){
   for(const c of CRATES){
     c.vy=Math.min(c.vy+GRAV*0.7,12); c.vx*=0.85;
     c.x+=c.vx; c.y+=c.vy; c.og=false;
+    if(typeof _gridReady==='function'&&_gridReady()){
+      const body={x:c.x,y:c.y,w:c.w,h:c.h,vx:c.vx,vy:c.vy,onGround:false,_hitX:false,_hitY:false};
+      if(typeof gridOverlaps==='function'&&gridOverlaps(body)){
+        gridDepenetrate(body);
+        c.x=body.x; c.y=body.y; c.vy=0; c.og=true;
+      }
+    }
     for(const q of pl){
       if(ov(c.x,c.y,c.w,c.h,q.x,q.y,q.w,q.h)){
         if(c.vy>=0&&c.y+c.h<=q.y+6+Math.abs(c.vy)+2){c.y=q.y-c.h;c.vy=0;c.og=true;c.vx*=0.7;}

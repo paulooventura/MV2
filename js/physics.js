@@ -244,7 +244,16 @@ function _normTR(){
 function allP(){
   if(_allPCacheFr===fr) return _allPCache;
   const out=_normTR().slice();
-  for(const bw of BWALLS){ if(bw.hp>0) out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid',mv:null,mp:null,bw}); }
+  const gridOn=typeof _gridReady==='function'&&_gridReady();
+  if(!gridOn){
+    for(const bw of BWALLS){ if(bw.hp>0) out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid',mv:null,mp:null,bw}); }
+  }else{
+    for(const bw of BWALLS){
+      if(bw.hp<=0) continue;
+      if(typeof _bwallMovedFromHome==='function'&&_bwallMovedFromHome(bw))
+        out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid',mv:null,mp:null,bw});
+    }
+  }
   for(const m of MPLAT) out.push({x:m.x,y:m.y,w:m.w,h:m.h,tp:'oneway',mv:null,mp:m});
   for(const a of APLAT) out.push({x:a.x,y:a.y,w:a.w,h:a.h,tp:'oneway',mv:a,mp:null});
   _allPCache=out; _allPCacheFr=fr;
@@ -269,6 +278,9 @@ function _bwallTopYNear(cx,feetY,opts){
   return best;
 }
 function _pickWalkSurfaceY(cx,feetY,opts){
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridStandY==='function'){
+    return gridStandY(cx,feetY,opts||{});
+  }
   opts=opts||{};
   const maxUp=opts.maxUp!=null?opts.maxUp:24;
   const maxDrop=opts.maxDrop!=null?opts.maxDrop:(GROUND_SINK_MAX+56);
@@ -479,6 +491,11 @@ function _handleBwallRideRelease(pl){
 }
 function _wheelSupportAt(cx,feetY,opts){
   opts=opts||{};
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridStandY==='function'){
+    const y=gridStandY(cx,feetY,opts);
+    if(y==null) return null;
+    return {y,frac:1,kind:'grid'};
+  }
   const maxUp=opts.maxUp!=null?opts.maxUp:24;
   const maxDrop=opts.maxDrop!=null?opts.maxDrop:(GROUND_SINK_MAX+72);
   const minFrac=opts.minFrac!=null?opts.minFrac:0.08;
@@ -833,7 +850,7 @@ function _applySlopePhysics(pl){
   const slopeCap=RUN*(1.05+mom*0.08);
   pl.vx=Math.max(-slopeCap,Math.min(slopeCap,pl.vx));
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
-  if(wt.touch){
+  if(!(typeof _gridReady==='function'&&_gridReady()) && wt.touch){
     if(wt.dir>0&&(pl.vx||0)>0) pl.vx=0;
     if(wt.dir<0&&(pl.vx||0)<0) pl.vx=0;
   }
@@ -1365,6 +1382,7 @@ function _syncPushGrind(pl){
   if((pl._grindF||0)>=8) pl.vx=0;
 }
 function _haltBlockedMove(pl,x0,y0,vx,vy){
+  if(typeof _gridReady==='function'&&_gridReady()) return;
   if(!pl) return;
   const input=pl===p&&typeof _moveInputX==='function'?_moveInputX():0;
   const dx=pl.x-x0, dy=pl.y-y0;
@@ -1394,8 +1412,8 @@ function _haltVelocityAtContacts(pl){
 }
 
 function _cornerStepResolve(pl){
-  if(!pl||pl.hook&&pl.hook.st==='on'||pl.wallGrip>0) return false;
-  if(!_playerOnGround(pl)) return false;
+  if(typeof _gridReady==='function'&&_gridReady()) return false;
+  if(!pl||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0) return false;
   const input=pl===p&&typeof _moveInputX==='function'?_moveInputX():0;
   if(!input) return false;
   const wt=_wallTouchInfo(pl);
@@ -1434,6 +1452,13 @@ function _unstickWallCorner(pl){
 
 // ── Multi-step player move ────────────────────────────────────
 function _movePlayerWithColl(pl,vx,vy){
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function'){
+    gridResolvePlayer(pl,vx,vy);
+    if(pl.x<0){pl.x=0;pl.vx=0;}
+    if(typeof WW!=='undefined'&&typeof SW!=='undefined'&&pl.x>WW-SW){pl.x=WW-SW;pl.vx=0;}
+    pl._prevLandFeet=pl.y+FEET_OFF;
+    return;
+  }
   const x0=pl.x, y0=pl.y;
   const stepSz=(pl===p&&(Math.abs(vx)>WLK+0.5||Math.abs(vy)>8))?2:COLL_MOVE_STEP;
   const steps=Math.max(1,Math.ceil(Math.max(Math.abs(vx),Math.abs(vy))/stepSz));
@@ -1517,6 +1542,11 @@ function _resolveActorPlatY(a,prevFeet,feetOff){
   }
 }
 function _moveActorWithColl(a,vx,vy,feetOff){
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolveActor==='function'){
+    gridResolveActor(a,vx,vy,feetOff);
+    if(typeof WW!=='undefined') a.x=Math.max(0,Math.min(WW-a.w,a.x));
+    return;
+  }
   const steps=Math.max(1,Math.ceil(Math.max(Math.abs(vx),Math.abs(vy))/COLL_MOVE_STEP));
   for(let i=0;i<steps;i++){
     const sx2=vx/steps, sy2=vy/steps;
@@ -1591,7 +1621,7 @@ function _pointOnWalkableGround(cx,cy){
   return surf!=null&&cy>=surf-14&&cy<=surf+36;
 }
 function _isInKeepOutForbidden(cx,cy){
-  if(_isPastKeepOutBarrier(cx,cy)) return true;
+  if(typeof _gridReady==='function'&&_gridReady()) return false;
   if(COLL_POLYS.length&&!_isInsidePlayBoundary(cx,cy)){
     if(_pointOnWalkableGround(cx,cy)) return false;
     return true;
@@ -1874,6 +1904,15 @@ function _stabilizePlayerCollision(pl){
   if(!pl) return;
   if(pl.hook&&pl.hook.st==='on') return;
   if(pl.wallGrip>0) return;
+  if(typeof _gridReady==='function'&&_gridReady()){
+    if(typeof gridDepenetrate==='function'){
+      const body=gridPlayerBody(pl);
+      if(gridDepenetrate(body)) gridWritePlayer(pl, body);
+    }
+    _validateGroundFlag(pl);
+    if(pl===p) _applySlopePhysics(pl);
+    return;
+  }
   if(pl._bwallFallGrace>0) pl._bwallFallGrace--;
   _handleBwallRideRelease(pl);
   const riding=_ridingBwallTop(pl);
@@ -2336,6 +2375,9 @@ function _surfaceYAt(cx,feetY,maxDrop=96){
   return best;
 }
 function _spawnFloorBelow(cx,markerFeet,maxDrop){
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridFloorBelow==='function'){
+    return gridFloorBelow(cx,markerFeet,maxDrop);
+  }
   const dropLim=Math.max(maxDrop,480);
   let best=null, bestDrop=1e9;
   const consider=(y)=>{
@@ -2373,7 +2415,17 @@ function _snapSpawnToSolid(cx,feetY,maxDrop=40){
 // ── Wall touch / jump ─────────────────────────────────────────
 let _wallTouchCacheFr=-1, _wallTouchCache=null;
 function _wallTouchInfo(pl){
-  if(pl===p&&typeof fr!=='undefined'&&_wallTouchCacheFr===fr) return _wallTouchCache;
+  if(typeof _gridReady==='function'&&_gridReady()){
+    const h=playerCoreHB(pl);
+    const t=MV_GRID.tile;
+    const midY=h.y+h.h*0.5;
+    const row=Math.floor(midY/t);
+    const left=Math.floor((h.x-2)/t), right=Math.floor((h.x+h.w+1)/t);
+    let touch=false, dir=0;
+    if(gridSolid(left,row)){ touch=true; dir=-1; }
+    if(gridSolid(right,row)){ touch=true; dir=1; }
+    return {touch,dir,pen:0};
+  }
   const h=playerCoreHB(pl);
   const bodyL=h.x, bodyR=h.x+h.w, bodyT=h.y+8, bodyB=h.y+h.h-8;
   const midY=(bodyT+bodyB)*0.5;
@@ -2478,6 +2530,7 @@ function _drawEntityHpBar(bx,by,bw,hp,mhp,col){
 // ── Zero vx into wall (sprint hold) ──────────────────────────
 function _zeroVxIntoWall(pl){
   if(!pl) return;
+  if(typeof _gridReady==='function'&&_gridReady()) return;
   const wall=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
   if(wall.touch){
     if(wall.dir>0&&(pl.vx||0)>0) pl.vx=0;

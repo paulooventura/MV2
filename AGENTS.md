@@ -12,7 +12,8 @@ whole tree to "see what's up" — use this map.
 | `js/save.js` | localStorage save/load |
 | `js/audio.js` | SFX + music synth (`sfx()`) |
 | `js/player.js` | Player factory `mkP()`, **horizontal movement `_updatePlayerMoveX`**, jump, hook control, connector-arm pose |
-| `js/physics.js` | Collision, **wheel/slope movement physics**, `MOVE_*`/`WHEEL_*` constants, ground detection, spawn snap, rope colliders. `MOVE_BUILD` lives here |
+| `js/collision_grid.js` | **Typed tile grid + X-then-Y resolver** (AIR/SOLID/ONEWAY/DESTRUCT). Keep Out / TR-merge / tile-grass segs are not authorities. |
+| `js/physics.js` | Wheel/slope **feel** on top of the grid. `MOVE_*`/`WHEEL_*`/`GRAV`/`JI`. Player move goes through `gridResolvePlayer`. |
 | `js/weapons.js` | Items TRS/RCA/XLR/MAG, **RCA grappling-hook**, rope pickup |
 | `js/enemies.js` | Enemy AI, mind-enemy, body separation |
 | `js/render.js` | All drawing (sprites, world, HUD shapes) |
@@ -30,8 +31,7 @@ whole tree to "see what's up" — use this map.
   `MOVE_STOP` (release decel), `MOVE_TURN` (skid/turn accel), `MOVE_RUN_RAMP`,
   `WHEEL_*` (slope grip/coast/torque), `GRAV`, `JI/JMH/JHH` (jump).
 - `js/player.js` `_updatePlayerMoveX`: turn-slash, accel curve, cap easing.
-- Collision/anti-stick gates (`_moveBlocked`, `_grindF`, `_cornerStepResolve`,
-  `_wallTouchInfo`) are in `physics.js` — keep them; tune *velocity*, not collision.
+- Collision/anti-stick gates are **gone** when the typed grid is active. If the player wedges, the grid/resolver is wrong — do not tune velocity.
 
 ## Automated QA (use this — do NOT ask the user to paste reports)
 

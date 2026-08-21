@@ -210,11 +210,12 @@ function _updatePlayerMoveX(pl){
   if(pl.hook&&pl.hook.st==='on') return;
   if(pl.wallGrip>0) return;
   const dir=_moveInputX();
-  if(pl._moveBlocked&&dir){ pl.vx=0; return; }
-  if((pl._grindF||0)>=8 && dir){ pl.vx=0; return; }
+  const gridOn=typeof _gridReady==='function'&&_gridReady();
+  if(!gridOn && pl._moveBlocked&&dir){ pl.vx=0; return; }
+  if(!gridOn && (pl._grindF||0)>=8 && dir){ pl.vx=0; return; }
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
-  const pushIntoWall=!!(wt.touch&&dir&&wt.dir===dir);
-  if(pushIntoWall&&(pl._grindF||0)>=2){ pl.vx=0; return; }
+  const pushIntoWall=!!(!gridOn && wt.touch&&dir&&wt.dir===dir);
+  if(!gridOn && pushIntoWall&&(pl._grindF||0)>=2){ pl.vx=0; return; }
   const grounded=!!_playerOnGround(pl);
   const onSlope=!!(grounded&&pl._onSlope);
   const sprint=isSprintHeld()&&grounded&&dir!==0;
@@ -272,7 +273,7 @@ function _updatePlayerMoveX(pl){
   else             pl.vx+=dir*accel;
   if(dir>0) pl.vx=Math.min(pl.vx,cap);
   else       pl.vx=Math.max(pl.vx,-cap);
-  if(pushIntoWall){
+  if(!gridOn && pushIntoWall){
     if(dir>0) pl.vx=Math.min(pl.vx,0);
     else pl.vx=Math.max(pl.vx,0);
   }
