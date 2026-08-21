@@ -419,11 +419,8 @@ function _bwallOwnsTileCell(col,row){
   }
   return false;
 }
-function _tileGrassSegUsable(seg){
-  if(!seg||seg.walkKind!=='tile-grass') return true;
-  if(seg.col==null||seg.row==null) return true;
-  return !_bwallOwnsTileCell(seg.col,seg.row);
-}
+function _tileGrassSegUsable(){ return true; }
+function _keepOutBarrierRedundantWithBwall(){ return false; }
 // Bwall AABB top is plat.y; bottom is plat.y+plat.h. Skip side shove when feet are on top or floor lip.
 function _bwallFeetSideClear(pl,plat,fL,fR,feet){
   if(!plat||!plat.bw||!pl) return false;
@@ -436,21 +433,6 @@ function _bwallFeetSideClear(pl,plat,fL,fR,feet){
     const penL=(h.x+h.w)-plat.x, penR=(plat.x+plat.w)-h.x;
     const xPen=Math.min(Math.max(0,penL),Math.max(0,penR));
     if(xPen<=18) return true;
-  }
-  return false;
-}
-// KEEP OUT vertical barriers duplicate omniblock faces — resolve one authority only.
-function _keepOutBarrierRedundantWithBwall(pl,seg){
-  if(!seg||seg.nx==null||Math.abs(seg.nx)<0.55||Math.abs(seg.ny)>0.45) return false;
-  const feet=pl.y+FEET_OFF, cx=pl.x+SW*0.5;
-  for(const bw of BWALLS){
-    if(!bw||bw.hp<=0) continue;
-    if(feet<bw.y-14||feet>bw.y+bw.h+14) continue;
-    const faceX=seg.nx>0?bw.x:bw.x+bw.w;
-    const cp=_segClosestPoint(seg,faceX,feet);
-    if(Math.abs(cp.x-faceX)>12||Math.abs(cp.y-feet)>28) continue;
-    if(seg.nx>0&&faceX>=cx-12) return true;
-    if(seg.nx<0&&faceX<=cx+12) return true;
   }
   return false;
 }
@@ -1368,18 +1350,7 @@ function _pushGrindBlocked(pl){
   return !!(pl&&(pl._grindF||0)>=8);
 }
 function _syncPushGrind(pl){
-  if(!pl||pl!==p) return;
-  const dir=typeof _moveInputX==='function'?_moveInputX():0;
-  if(!dir||!pl.og){ pl._grindF=0; return; }
-  const ux=pl._ux0;
-  if(ux==null){ pl._grindF=0; return; }
-  const d=pl.x-ux;
-  const stalled=(dir>0&&d<1.5)||(dir<0&&d>-1.5);
-  if(stalled) pl._grindF=(pl._grindF||0)+1;
-  else if(Math.abs(d)>=4) pl._grindF=0;
-  else pl._grindF=Math.max(0,(pl._grindF||0)-1);
-  if((pl._grindF||0)>=3&&_cornerStepResolve(pl)){ pl._grindF=0; return; }
-  if((pl._grindF||0)>=8) pl.vx=0;
+  if(pl) pl._grindF=0;
 }
 function _haltBlockedMove(pl,x0,y0,vx,vy){
   if(typeof _gridReady==='function'&&_gridReady()) return;
@@ -1412,42 +1383,10 @@ function _haltVelocityAtContacts(pl){
 }
 
 function _cornerStepResolve(pl){
-  if(typeof _gridReady==='function'&&_gridReady()) return false;
-  if(!pl||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0) return false;
-  const input=pl===p&&typeof _moveInputX==='function'?_moveInputX():0;
-  if(!input) return false;
-  const wt=_wallTouchInfo(pl);
-  const stalled=(pl._grindF||0)>=2;
-  const blockedIntoWall=wt.touch&&wt.dir===input;
-  if(!blockedIntoWall&&!stalled) return false;
-  const x0=pl.x, y0=pl.y;
-  const lifts=_tileCampaignActive()?[4,8,12,16,24,32,40]:[4,7,11,16,22];
-  for(const lift of lifts){
-    pl.y=y0-lift;
-    pl.x=x0+input*3;
-    resolveBodyX(pl);
-    if(Math.abs(pl.x-x0)>=1){
-      const prevFeet=y0+FEET_OFF;
-      resolvePlatY(pl,prevFeet);
-      if(_playerOnGround(pl)){ pl._groundHold=Math.max(pl._groundHold||0,6); return true; }
-    }
-    pl.x=x0; pl.y=y0;
-  }
   return false;
 }
 function _unstickWallCorner(pl){
-  if(!pl) return;
-  _cornerStepResolve(pl);
-  if(!_playerOnGround(pl)) return;
-  const input=pl===p&&typeof _moveInputX==='function'?_moveInputX():0;
-  if(!input) return;
-  const x0=pl.x;
-  pl.x+=input*2;
-  resolveBodyX(pl);
-  if(Math.abs(pl.x-x0)<0.4){
-    pl.x=x0;
-    _cornerStepResolve(pl);
-  }
+  return;
 }
 
 // ── Multi-step player move ────────────────────────────────────
@@ -1621,11 +1560,6 @@ function _pointOnWalkableGround(cx,cy){
   return surf!=null&&cy>=surf-14&&cy<=surf+36;
 }
 function _isInKeepOutForbidden(cx,cy){
-  if(typeof _gridReady==='function'&&_gridReady()) return false;
-  if(COLL_POLYS.length&&!_isInsidePlayBoundary(cx,cy)){
-    if(_pointOnWalkableGround(cx,cy)) return false;
-    return true;
-  }
   return false;
 }
 function _isInKeepOutSolid(cx,cy){

@@ -23,7 +23,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='100';</script>
+<script>window.MV_BUILD='101';</script>
 <script src="js/ab-switch.js?v=1"></script>
 <script>
 if(location.protocol==='file:'){
@@ -115,8 +115,8 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/core.js?v=25"></script>
 <script src="js/audio.js?v=25"></script>
 <script src="js/enemies.js?v=33"></script>
-<script src="js/collision_grid.js?v=100"></script>
-<script src="js/physics.js?v=100"></script>
+<script src="js/collision_grid.js?v=101"></script>
+<script src="js/physics.js?v=101"></script>
 <script src="js/player.js?v=99"></script>
 <script src="js/weapons.js?v=99"></script>
 <script src="js/ui.js?v=94"></script>
@@ -126,12 +126,12 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/awdjoo_level.js?v=1"></script>
 <script src="js/healthwatch.js?v=1"></script>
 <script src="js/awdjoo_map.js?v=100"></script>
-<script src="js/main.js?v=99"></script>
-<script src="js/selftest.js?v=100"></script>
+<script src="js/main.js?v=101"></script>
+<script src="js/selftest.js?v=101"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    var SW_BUILD=String(window.MV_BUILD||'100');
+    var SW_BUILD=String(window.MV_BUILD||'101');
     if(/[?&](selftest|ci)=/i.test(location.search)) return;
     var stored=localStorage.getItem('mv_sw_build');
     if(stored!==SW_BUILD){

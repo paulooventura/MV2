@@ -87,7 +87,7 @@
     var t=MV_GRID.tile, found=null, slopeCount=0;
     for(var r=0;r<MV_GRID.rows;r++){
       for(var c=0;c<MV_GRID.cols;c++){
-        if(gridCell(c,r)!==MV_GRID_SLOPE) continue;
+        if(gridCell(c,r)!==MV_GRID_SLOPE_L&&gridCell(c,r)!==MV_GRID_SLOPE_R) continue;
         slopeCount++;
         if(!found) found={c:c,r:r,s:gridSlopeAt(c,r)};
       }
@@ -96,7 +96,7 @@
     var ride=null;
     for(r=0;r<MV_GRID.rows;r++){
       for(c=0;c<MV_GRID.cols;c++){
-        if(gridCell(c,r)!==MV_GRID_SLOPE) continue;
+        if(gridCell(c,r)!==MV_GRID_SLOPE_L&&gridCell(c,r)!==MV_GRID_SLOPE_R) continue;
         var ss=gridSlopeAt(c,r); if(!ss) continue;
         var mx=(ss.x1+ss.x2)*0.5, my=(ss.y1+ss.y2)*0.5;
         if(mx>620&&mx<920&&my>2140&&my<2460){ ride={c:c,r:r,s:ss}; break; }
@@ -195,7 +195,8 @@
       if(Math.abs(pl.x-(pl._stuckX0!=null?pl._stuckX0:pl.x))>4){ pl._inputStuck=0; pl._stuckX0=pl.x; }
       else if(pl._stuckX0==null) pl._stuckX0=pl.x;
       if((pl._inputStuck||0)>18 && Math.abs(pl.vx||0)<0.15 && (embedded || (!intoWall && !!pl.og && !pl._onSlope))){
-        rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
+        var atEdge=(typeof WW!=='undefined')&&(pl.x<6||pl.x>WW-(typeof SW!=='undefined'?SW:64)-2);
+        if(!atEdge) rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
       }
     }else{ pl._inputStuck=0; pl._stuckX0=undefined; }
     if(pl.og && Math.abs(pl.vy||0)<0.3 && typeof gridStandY==='function' && typeof _gridReady==='function' && _gridReady()){

@@ -12,7 +12,7 @@ whole tree to "see what's up" — use this map.
 | `js/save.js` | localStorage save/load |
 | `js/audio.js` | SFX + music synth (`sfx()`) |
 | `js/player.js` | Player factory `mkP()`, **horizontal movement `_updatePlayerMoveX`**, jump, hook control, connector-arm pose |
-| `js/collision_grid.js` | **Typed tile grid + X-then-Y resolver** (AIR/SOLID/ONEWAY/DESTRUCT). Keep Out / TR-merge / tile-grass segs are not authorities. |
+| `js/collision_grid.js` | **Typed tile grid + X-then-Y resolver** (AIR/SOLID/ONEWAY/DESTRUCT/SLOPE_L/SLOPE_R). KEEP OUT is discarded. |
 | `js/physics.js` | Wheel/slope **feel** on top of the grid. `MOVE_*`/`WHEEL_*`/`GRAV`/`JI`. Player move goes through `gridResolvePlayer`. |
 | `js/weapons.js` | Items TRS/RCA/XLR/MAG, **RCA grappling-hook**, rope pickup |
 | `js/enemies.js` | Enemy AI, mind-enemy, body separation |

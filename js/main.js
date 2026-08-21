@@ -490,39 +490,7 @@ function _tmjOmniblockAnimGid(gid){
   const frame=Math.floor(tick/4)%TMJ_OMNIBLOCK_FRAMES;
   return ts.firstGid+frame;
 }
-function _buildExposedTileTopSegs(canvasData,bgData,tileData,destructData,mw,mh,tw,th,sc){
-  if(!canvasData||!mw) return [];
-  const structSolid=(col,row)=>{
-    if(row<0||row>=mh||col<0||col>=mw) return false;
-    for(const data of [canvasData,bgData,tileData]){
-      if(data&&_tmjTileSolidAt(data,mw,mh,col,row)) return true;
-    }
-    return false;
-  };
-  const skipOmniblockCell=(col,row)=>{
-    if(destructData&&row>=0&&row<mh&&col>=0&&col<mw){
-      const dg=_tmjGid(destructData[row*mw+col]);
-      if(dg&&_isOmniblockGid(dg)) return true;
-    }
-    for(const bw of _mapBWalls){
-      if(bw.homeCol===col&&bw.homeRow===row&&_isOmniblockGid(bw.tileGid)) return true;
-    }
-    return false;
-  };
-  const segs=[];
-  for(let row=0;row<mh;row++){
-    for(let col=0;col<mw;col++){
-      if(skipOmniblockCell(col,row)) continue;
-      const gid=_tmjCanvasGidRaw(canvasData,mw,mh,col,row);
-      if(!gid||!_isCanvasWalkFloorGid(gid)) continue;
-      if(_tmjCanvasGidRaw(canvasData,mw,mh,col,row-1)) continue;
-      if(_isWallCapCell(col,row,structSolid)) continue;
-      const x1=col*tw*sc, x2=x1+tw*sc, y=row*th*sc;
-      segs.push({id:COLL_SEGS.length+segs.length,x1,y1:y,x2,y2:y,len:x2-x1,angle:0,ux:1,uy:0,walkKind:'tile-grass',col,row});
-    }
-  }
-  return segs;
-}
+function _buildExposedTileTopSegs(){ return []; }
 function _blitTmjTile(hit,gid,tw,th,px,py,dw,dh,fh,fv,fd){
   const sx0=(hit.tid%hit.cols)*tw, sy0=(hit.tid/hit.cols|0)*th;
   const chroma=_tmjChromaKey(gid);
