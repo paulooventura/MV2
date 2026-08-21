@@ -77,6 +77,19 @@ Manual visual check only when needed: `TEST.bat` (opens browser).
 
 ---
 
+## A/B labs (do not get stuck)
+
+Keep the **live game (A)** and any **experiment (B)** both playable. Never replace Awdjoo physics with a lab until Wall says promote.
+
+| Slot | What | URL |
+|------|------|-----|
+| **A** | Live Awdjoo (`index.html`) | `index.html?ab=a` |
+| **B** | Clean collision lab | `clean-collision-core.html?ab=b` |
+
+The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
+
+---
+
 ## Auto commit & deploy
 
 After completing substantive work in this repo, **commit and push to `main` without asking**.
