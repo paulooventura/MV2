@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-/** Stamp Awdjoo campaign floors + knowl seeds. Source of truth: assets/Awdjoo/Awdjoo.json */
+/** DO NOT re-stamp fake street grass. Paulo rejected those platforms.
+ *  Dirt/grass already in Tiled are the floors. This script only notes spawn. */
 import { readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
+
+console.error('Refused: do not stamp extra grass platforms. Tiled dirt/grass are the floors.');
+process.exit(1);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_PATH = join(ROOT, 'assets', 'Awdjoo', 'Awdjoo.json');

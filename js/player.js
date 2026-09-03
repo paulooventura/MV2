@@ -136,6 +136,8 @@ function isPunch(){ return _bindDown('punch'); }
 
 let _punchHoldF=0, _punchHoldFr=-1;
 function isSprintHeld(){
+  if(typeof _bindDown==='function'&&_bindDown('sprint')) return true;
+  if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
   if(fr!==_punchHoldFr){ _punchHoldFr=fr; _punchHoldF=isPunch()?_punchHoldF+1:0; }
   return _punchHoldF>10&&((isRt()&&!isLf())||(isLf()&&!isRt()));
 }

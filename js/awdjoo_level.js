@@ -3,8 +3,8 @@
 //  House 2 spawn → basement RCA → exit at house 5 east.
 // ============================================================
 
-const AWdjoo_HOUSE2_SPAWN_COL = 31;
-const AWdjoo_HOUSE2_SPAWN_ROW = 72;
+const AWdjoo_HOUSE2_SPAWN_COL = 29;
+const AWdjoo_HOUSE2_SPAWN_ROW = 67;
 const AWdjoo_RCA_COL = 30;
 const AWdjoo_RCA_ROW = 85;
 const AWdjoo_HOUSE5_GOAL_COL = 97;

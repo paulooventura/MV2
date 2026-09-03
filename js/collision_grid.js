@@ -11,7 +11,7 @@ const MV_GRID_AIR=0, MV_GRID_SOLID=1, MV_GRID_ONEWAY=2, MV_GRID_DESTRUCT=3;
 const MV_GRID_SLOPE_L=4, MV_GRID_SLOPE_R=5;
 const MV_GRID_STEP=2;
 let MV_GRID=null;
-const MV_GRID_SLOPE_GIDS={31:'L',44:'L'};
+const MV_GRID_SLOPE_GIDS={31:'L',44:'R'};
 
 function _gridReady(){ return !!(MV_GRID&&MV_GRID.ready&&MV_GRID.tile>0); }
 
@@ -223,8 +223,7 @@ function buildCollisionGridFromTmj(data, sc){
     }
   }
 
-  // Grass + dirt tiles are SOLID. Interior dirt fill (no empty neighbor) stays AIR
-  // so rooms exist without KEEP OUT polygons. Exposed faces are walls/floors.
+  // Grass + dirt tiles are SOLID. Dirt fill is solid — you walk ON it, not through it.
   if(grassData){
     for(let i=0;i<grassData.length && i<cols*rows;i++){
       const gid=_gridGid(grassData[i]);
@@ -240,19 +239,16 @@ function buildCollisionGridFromTmj(data, sc){
       for(let c=0;c<cols;c++){
         if(!hasGid(dirtData,c,r)) continue;
         if(grid[r][c]===MV_GRID_DESTRUCT||grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) continue;
-        const exposedTop=!hasGid(dirtData,c,r-1)&&!hasGid(grassData,c,r-1);
-        const wallFace=emptyOfTerrain(c-1,r)||emptyOfTerrain(c+1,r)||emptyOfTerrain(c,r+1)||emptyOfTerrain(c,r-1);
-        if(exposedTop||wallFace) stampCell(c,r,MV_GRID_SOLID);
+        stampCell(c,r,MV_GRID_SOLID);
       }
     }
   }
-  // Staircase grass with no slope GID still becomes SLOPE_L / SLOPE_R.
+  // Neighbor stairs own the kind. A leftover GID map must not keep a flipped roof.
   if(grassData){
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         if(!hasGid(grassData,c,r)) continue;
         if(grid[r][c]===MV_GRID_DESTRUCT) continue;
-        if(grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) continue;
         const downR=hasGid(grassData,c+1,r+1)&&!hasGid(grassData,c+1,r);
         const downL=hasGid(grassData,c-1,r+1)&&!hasGid(grassData,c-1,r);
         if(downR) stampSlopeCell(c,r,'L');

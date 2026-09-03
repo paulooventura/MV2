@@ -17,6 +17,7 @@ const DEFAULT_OPTS={
     use:   ['KeyE'],
     swap:  ['KeyQ'],
     punch: ['KeyF'],
+    sprint:['ShiftLeft','ShiftRight'],
   }
 };
 let OPT=JSON.parse(JSON.stringify(DEFAULT_OPTS));
@@ -27,6 +28,7 @@ function _loadOpts(){
     if(!raw) return;
     const o=JSON.parse(raw);
     OPT={...DEFAULT_OPTS,...o,binds:{...DEFAULT_OPTS.binds,...(o.binds||{})}};
+    if(!OPT.binds.sprint||!OPT.binds.sprint.length) OPT.binds.sprint=['ShiftLeft','ShiftRight'];
   }catch(e){}
 }
 function _saveOpts(){
@@ -51,9 +53,9 @@ try{
 // ── Keybind helpers ──────────────────────────────────────────
 const BIND_LABELS={
   up:'Move Up', down:'Move Down', left:'Move Left', right:'Move Right',
-  jump:'Jump',  use:'Use Item',   swap:'Swap Item', punch:'Punch / Sprint'
+  jump:'Jump',  use:'Use Item',   swap:'Swap Item', punch:'Punch', sprint:'Sprint'
 };
-const BIND_ORDER=['up','down','left','right','jump','use','swap','punch'];
+const BIND_ORDER=['up','down','left','right','jump','use','swap','punch','sprint'];
 function _codeLabel(c){
   return c.replace('Key','').replace('Arrow','').replace('Numpad','Num').replace('Digit','');
 }
