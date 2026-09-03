@@ -9,6 +9,9 @@ import { spawn } from 'child_process';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const PORT = Number(process.env.MV_PLAY_PORT || 8765);
 const BUILD = process.env.MV_BUILD || '97';
+const NO_OPEN =
+  process.env.MV_PLAY_NOOPEN === '1' ||
+  process.env.MV_PLAY_NOOPEN === 'true';
 // Single query param only — ampersands break Windows cmd "start".
 const url = `http://127.0.0.1:${PORT}/index.html?b=${BUILD}-${Date.now()}`;
 
@@ -23,6 +26,10 @@ const MIME = {
 };
 
 function openBrowser(target) {
+  if (NO_OPEN) {
+    console.error('MV_PLAY_NOOPEN set — not opening another browser tab.');
+    return;
+  }
   if (process.platform === 'win32') {
     spawn('cmd', ['/c', 'start', '', target], { detached: true, stdio: 'ignore' }).unref();
     return;
@@ -50,8 +57,9 @@ const srv = createServer(async (req, res) => {
 srv.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use (server already running?).`);
-    console.error('Opening browser to existing server...');
-    openBrowser(`http://127.0.0.1:${PORT}/index.html?b=${BUILD}-${Date.now()}`);
+    console.error(
+      'Reuse the open tab or run scripts/stop-play.ps1 — not opening another browser (avoids stacked soundtracks).'
+    );
     process.exit(1);
   }
   throw err;
