@@ -9,9 +9,9 @@ import { spawn } from 'child_process';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const PORT = Number(process.env.MV_PLAY_PORT || 8765);
 const BUILD = process.env.MV_BUILD || '97';
-const NO_OPEN =
-  process.env.MV_PLAY_NOOPEN === '1' ||
-  process.env.MV_PLAY_NOOPEN === 'true';
+const OPEN =
+  process.env.MV_PLAY_OPEN === '1' ||
+  process.env.MV_PLAY_OPEN === 'true';
 // Single query param only — ampersands break Windows cmd "start".
 const url = `http://127.0.0.1:${PORT}/index.html?b=${BUILD}-${Date.now()}`;
 
@@ -26,8 +26,8 @@ const MIME = {
 };
 
 function openBrowser(target) {
-  if (NO_OPEN) {
-    console.error('MV_PLAY_NOOPEN set — not opening another browser tab.');
+  if (!OPEN) {
+    console.log('Not opening a browser (set MV_PLAY_OPEN=1 / use PLAY.bat). Reuse one tab only.');
     return;
   }
   if (process.platform === 'win32') {

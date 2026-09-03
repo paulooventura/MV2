@@ -1,0 +1,12 @@
+---
+description: One MV2 play tab only — never stack BGM via extra servers or Simple Browser
+alwaysApply: true
+---
+
+# One play session
+
+Do not start `python -m http.server`, extra `PLAY.bat`, or Simple Browser to
+`:8765` unless the user asked to play **and** nothing is already on 8765.
+
+Use `npm run selftest` for QA. If 8765 is taken: `scripts/stop-play.ps1` first.
+`play-local.mjs` must not open a browser unless `MV_PLAY_OPEN=1`.

@@ -73,7 +73,10 @@ Quick mode (~40s): `npm run selftest:quick`
 
 **Demo level:** `demo_level.js` seeds 3 knowls, 2 mind-enemies, 1 minion, and an east exit when the map is sparse. Collect all knowls → exit opens → reach exit to advance.
 
-Manual visual check only when needed: `TEST.bat` (opens browser).
+Manual visual check only when needed: `PLAY.bat` **once** (opens **one** tab).
+**Never** `python -m http.server 8765`, never Simple Browser to `:8765`, never
+a second `PLAY.bat` while one is running — each tab plays its own BGM.
+Port busy: `scripts/stop-play.ps1` then one PLAY. Agents: `npm run selftest`.
 
 ---
 
