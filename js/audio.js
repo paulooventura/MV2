@@ -15,6 +15,7 @@ let _activeBgmType=null;
 let _gameLivesFrac=1;
 let _healFrac=1;
 let _titleMusicPlaying=false;
+let _bgmHeldHidden=false;
 
 const _mp3Pool={title:null,story:null,game:null};
 const _mp3Failed={title:false,story:false,game:false};
@@ -313,6 +314,10 @@ function _startProcBgm(type,vol){
 function _playBGM(type,vol=0.7){
   _unlockAudio();
   _activeBgmType=type;
+  if(typeof document!=='undefined'&&document.hidden&&!/[?&]selftest=/.test(location.search||'')){
+    _bgmHeldHidden=true;
+    return;
+  }
   const useProc=()=>_startProcBgm(type,vol);
   if(OPT.musicMode==='psg'){ useProc(); return; }
   if(_mp3Failed[type]){ useProc(); return; }
@@ -400,6 +405,37 @@ function _switchMusicMode(){
   const vol=_activeBgmType==='story'?mv*0.55:_activeBgmType==='game'?mv*0.75:mv;
   _stopBGM(_activeBgmType);
   _playBGM(_activeBgmType,vol);
+}
+
+function _holdBgmHidden(){
+  if(_bgmHeldHidden) return;
+  _bgmHeldHidden=true;
+  [_openingAudioEl,_storyAudioEl,_gameAudioEl].forEach((el)=>{
+    if(!el) return;
+    try{ if(!el.paused) el.pause(); }catch(e){}
+  });
+  if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
+  if(_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
+  if(_bgmAC&&_bgmAC.state==='running') _bgmAC.suspend().catch(()=>{});
+}
+function _releaseBgmVisible(){
+  if(!_bgmHeldHidden) return;
+  _bgmHeldHidden=false;
+  if(_bgmAC&&_bgmAC.state==='suspended') _bgmAC.resume().catch(()=>{});
+  if(!_audioUnlocked||!_activeBgmType) return;
+  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const vol=_activeBgmType==='story'?mv*0.55:_activeBgmType==='game'?mv*0.75:mv;
+  _playBGM(_activeBgmType,vol);
+}
+function _syncBgmVisibility(){
+  if(typeof document==='undefined') return;
+  if(document.hidden) _holdBgmHidden();
+  else _releaseBgmVisible();
+}
+if(typeof document!=='undefined'){
+  document.addEventListener('visibilitychange',_syncBgmVisibility);
+  window.addEventListener('pagehide',_holdBgmHidden);
+  window.addEventListener('pageshow',_syncBgmVisibility);
 }
 
 // ── SFX SAMPLES ──────────────────────────────────────────────

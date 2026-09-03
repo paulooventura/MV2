@@ -33,3 +33,4 @@ if ($firefox) {
 }
 
 Log "Done. Close any visible MV2 tab manually if audio continues."
+Log "Cursor Simple Browser is a hidden tab — agents must not reopen :8765."
