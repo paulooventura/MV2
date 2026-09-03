@@ -448,29 +448,72 @@ function _titleBgRect(im){
   const w=Math.round(im.naturalWidth*s), h=Math.round(im.naturalHeight*s);
   return {dx:(W-w>>1),dy:(H-h>>1),w,h};
 }
+function _drawSnesStarfield(){
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#050218'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#1a0848'; ctx.fillRect(0,0,W,3); ctx.fillRect(0,H-3,W,3);
+  ctx.fillStyle='#120838';
+  for(let y=24;y<H-24;y+=48) ctx.fillRect(0,y,W,2);
+  ctx.fillStyle='#2a1460';
+  for(let y=40;y<H-24;y+=96) ctx.fillRect(0,y+2,W,1);
+  const n=110;
+  for(let i=0;i<n;i++){
+    const twinkle=((fr>>3)+i*13)&7;
+    const x=(i*97+((fr*(1+(i%3)))>>2))%W;
+    const y=(i*53+(i*17))%H;
+    if(y<4||y>H-6) continue;
+    ctx.fillStyle=twinkle===0?'#ffffff':(i%4===0?'#a8d8ff':(i%3===0?'#e0c8ff':'#8890c8'));
+    const s=i%11===0?2:1;
+    ctx.fillRect(x,y,s,s);
+    if(i%19===0){ ctx.fillRect(x-1,y,3,1); ctx.fillRect(x,y-1,1,3); }
+  }
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  for(let y=0;y<H;y+=2) ctx.fillRect(0,y,W,1);
+}
+function _drawSnesWindow(x,y,w,h,opts){
+  const sel=!!(opts&&opts.sel), locked=!!(opts&&opts.locked);
+  const fill=locked?'#140c1c':(sel?'#24104a':'#0c0818');
+  const edge=locked?C.GREY_D:(sel?'#f0d070':'#7868c0');
+  const inner=locked?'#2a2030':(sel?'#fff4c0':'#3a2878');
+  ctx.fillStyle='#000'; ctx.fillRect(x-2,y-2,w+4,h+4);
+  ctx.fillStyle=edge; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=fill; ctx.fillRect(x+2,y+2,w-4,h-4);
+  ctx.fillStyle=inner; ctx.fillRect(x+2,y+2,w-4,1); ctx.fillRect(x+2,y+2,1,h-4);
+  if(sel&&!locked&&(fr&16)){ ctx.fillStyle='#fff8d0'; ctx.fillRect(x,y,w,1); ctx.fillRect(x,y+h-1,w,1); }
+}
 function drawTitle(){
-  ctx.fillStyle='#04020a'; ctx.fillRect(0,0,W,H);
+  ctx.imageSmoothingEnabled=false;
+  _drawSnesStarfield();
   const im=_titleBgImage(fr), ar=_titleBgRect(im);
-  if(ar){ ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high'; ctx.drawImage(im,ar.dx,ar.dy,ar.w,ar.h); }
-  else if(!_titleStaticReady){ drawTextC('LOADING...',W/2,H/2-4,C.GREY); if(!TITLE_STATIC.complete) _initTitleFrames(); }
-  else{ ctx.fillStyle=C.VOID;ctx.fillRect(0,0,W,64);ctx.fillStyle=C.TEAL_D;ctx.fillRect(0,64,W,H-64);drawTextC('MIND & VENTURE',W/2,48,C.TEAL_L,2); }
-  ctx.globalAlpha=1;
+  if(ar){
+    ctx.globalAlpha=0.88;
+    ctx.drawImage(im,ar.dx,ar.dy,ar.w,ar.h);
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(5,2,24,0.42)'; ctx.fillRect(0,0,W,H);
+  }else if(!_titleStaticReady){
+    drawTextC('LOADING...',W/2,H/2-4,C.LILAC);
+    if(!TITLE_STATIC.complete) _initTitleFrames();
+  }
+  _drawSnesWindow(W/2-220, 28, 440, 86, {sel:true});
+  drawTextC('MIND & VENTURE',W/2,44,C.WHITE,3);
+  drawTextC('AWDJOO',W/2,74,C.LILAC,2);
+  drawTextC('SONNATA  ·  8-BIT CAMPAIGN',W/2,92,C.SAND,1);
   const rows=_titleMenuGeom();
-  const panelX=W/2-152, panelY=rows[0].y-12, panelW=304;
-  const panelH=rows[rows.length-1].y+rows[rows.length-1].h-rows[0].y+24;
-  ctx.fillStyle='rgba(6,12,10,0.72)'; ctx.fillRect(panelX,panelY,panelW,panelH);
-  ctx.strokeStyle='rgba(88,208,176,0.35)'; ctx.lineWidth=1; ctx.strokeRect(panelX+0.5,panelY+0.5,panelW-1,panelH-1);
+  const panelX=W/2-168, panelY=rows[0].y-16, panelW=336;
+  const panelH=rows[rows.length-1].y+rows[rows.length-1].h-rows[0].y+32;
+  _drawSnesWindow(panelX,panelY,panelW,panelH,{sel:false});
   for(let i=0;i<rows.length;i++){
     const r=rows[i], sel=i===_titleMenuIdx, locked=!!r.locked;
-    if(sel&&!locked){ctx.fillStyle='rgba(24,72,48,0.82)';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle=C.GLOW_L;ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);drawText('>',r.x+10,r.ty-5,C.WHITE,2);}
-    else if(sel&&locked){ctx.fillStyle='rgba(32,24,32,0.82)';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle=C.GREY_D;ctx.lineWidth=1;ctx.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);}
-    const col=locked?(sel?C.GREY:C.GREY_D):(sel?C.WHITE:C.MINT);
+    _drawSnesWindow(r.x, r.y, r.w, r.h, {sel, locked});
+    if(sel&&!locked) drawText('>',r.x+12,r.ty-5,C.YELLOW,2);
+    const col=locked?(sel?C.GREY:C.GREY_D):(sel?C.WHITE:C.LILAC);
     drawTextC(r.label,W/2,r.ty,col,2);
     if(locked) drawTextC('BEAT STORY TO UNLOCK',W/2,r.ty+10,C.GREY_D,1);
   }
   _drawUiToast();
-  if(!_titleMusicPlaying&&fr%36<24) drawTextC('CLICK OR PRESS ENTER',W/2,H*0.66,C.GREY);
-  drawTextC('(C) 1989 SONNATA GAMES',W/2,H-6,C.GREEN_L);
+  if(!_titleMusicPlaying&&fr%36<24) drawTextC('PRESS START',W/2,H-28,C.YELLOW);
+  drawTextC('(C) 1989 SONNATA GAMES',W/2,H-8,C.PURPLE_L);
+  ctx.imageSmoothingEnabled=true;
 }
 
 function drawLevelSelect(){
@@ -565,25 +608,19 @@ function drawCutscene(){
 
 function drawSelect(){
   const fs=3,fsSm=2;
-  ctx.fillStyle='#04020a';ctx.fillRect(0,0,W,H);
-  const vg=ctx.createLinearGradient(0,0,0,H);vg.addColorStop(0,'rgba(32,64,96,0.35)');vg.addColorStop(0.45,'rgba(6,12,10,0)');vg.addColorStop(1,'rgba(24,96,88,0.28)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(88,208,176,0.12)';ctx.fillRect(0,0,W,3);ctx.fillRect(0,H-3,W,3);
-  ctx.fillStyle='rgba(104,184,208,0.08)';for(let sy=0;sy<H;sy+=4)ctx.fillRect(0,sy,W,1);
+  ctx.imageSmoothingEnabled=false;
+  _drawSnesStarfield();
   const padX=72,panelW=W-padX*2,panelH=_selectStep===0?Math.floor(H*0.62):Math.floor(H*0.68);
   const panelX=padX,panelY=Math.round((H-panelH)/2)-12;
-  ctx.fillStyle='rgba(6,10,18,0.92)';ctx.fillRect(panelX,panelY,panelW,panelH);
-  ctx.strokeStyle='rgba(88,208,176,0.42)';ctx.lineWidth=2;ctx.strokeRect(panelX+1,panelY+1,panelW-2,panelH-2);
-  ctx.strokeStyle='rgba(152,112,208,0.22)';ctx.lineWidth=1;ctx.strokeRect(panelX+8,panelY+8,panelW-16,panelH-16);
-  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.TEAL_L,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':'WHO IS PLAYER 1?',W/2,titleY+fs*10,C.LILAC,fsSm);
+  _drawSnesWindow(panelX,panelY,panelW,panelH,{sel:false});
+  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.WHITE,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':'WHO IS PLAYER 1?',W/2,titleY+fs*10,C.LILAC,fsSm);
   const _drawCard=(cx,cy,cw,ch,sel,accent,disabled,title,subs)=>{
-    const x=Math.round(cx-cw/2),y=cy,pulse=sel&&!disabled&&(fr&16)?1:0;
-    if(sel&&!disabled){ctx.fillStyle=accent+'44';ctx.fillRect(x-4-pulse,y-4-pulse,cw+8+pulse*2,ch+8+pulse*2);ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.strokeRect(x-2-pulse,y-2-pulse,cw+4+pulse*2,ch+4+pulse*2);}
-    ctx.fillStyle=disabled?'rgba(20,16,32,0.85)':(sel?'rgba(24,48,40,0.95)':'rgba(14,20,32,0.88)');ctx.fillRect(x,y,cw,ch);
-    ctx.strokeStyle=disabled?'rgba(40,32,48,0.9)':(sel?accent:'rgba(64,136,176,0.55)');ctx.lineWidth=sel?2:1;ctx.strokeRect(x+0.5,y+0.5,cw-1,ch-1);
-    if(sel&&!disabled){ctx.fillStyle=C.WHITE;drawText('>',x+14,y+Math.floor(ch*0.22),C.WHITE,fsSm);}
+    const x=Math.round(cx-cw/2),y=cy;
+    _drawSnesWindow(x,y,cw,ch,{sel:sel&&!disabled,locked:disabled});
+    if(sel&&!disabled) drawText('>',x+14,y+Math.floor(ch*0.22),C.YELLOW,fsSm);
     const tCol=disabled?C.GREY_D:(sel?C.WHITE:accent);drawTextC(title,cx,y+Math.floor(ch*0.28),tCol,fs);
     let sy2=y+Math.floor(ch*0.28)+fs*9;
-    (subs||[]).forEach(line=>{drawTextC(line,cx,sy2,disabled?C.GREY_D:(sel?C.MINT:C.GREY),fsSm);sy2+=fsSm*8;});
+    (subs||[]).forEach(line=>{drawTextC(line,cx,sy2,disabled?C.GREY_D:(sel?C.SAND:C.GREY),fsSm);sy2+=fsSm*8;});
   };
   const cardsY=panelY+Math.floor(panelH*0.38),cardH=_selectStep===0?132:168;
   const cardW=_selectStep===0?Math.floor((panelW-64)/3)-8:Math.floor((panelW-48)/2)-8;
@@ -610,6 +647,7 @@ function drawSelect(){
   const footY=panelY+panelH-18;ctx.fillStyle='rgba(16,24,32,0.75)';ctx.fillRect(panelX+24,footY-6,panelW-48,fsSm*8+8);
   drawTextC(`MODE: ${modeLbl}   ·   HERO: ${_heroChoice==='mind'?'MIND':'VENTURE'}`,W/2,footY,C.SAND,fsSm);
   _drawUiToast();
+  ctx.imageSmoothingEnabled=true;
 }
 
 // ── Version bar update (called from draw()) ───────────────────

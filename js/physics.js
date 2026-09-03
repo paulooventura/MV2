@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=42;
+const MOVE_BUILD=43;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -1940,6 +1940,12 @@ function _segBarrierHit(x1,y1,x2,y2,seg){
 }
 function _hookRayHit(x1,y1,x2,y2){
   let best=null, bestD=1e9;
+  const consider=(hit)=>{
+    if(!hit) return;
+    const d=Math.hypot(hit.tx-x1,hit.ty-y1);
+    if(d<bestD){ bestD=d; best={tx:hit.tx,ty:hit.ty,nx:hit.nx||0,ny:hit.ny||0,enemy:false,tgt:null}; }
+  };
+  if(typeof gridRayHit==='function') consider(gridRayHit(x1,y1,x2,y2));
   for(const q of allP()){
     if(q.tp!=='solid'&&q.tp!=='ceil') continue;
     const hit=_segAabbHit(x1,y1,x2,y2,q);

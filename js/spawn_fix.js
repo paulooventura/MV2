@@ -2,10 +2,10 @@
 //  Mind & Venture — spawn_fix.js
 //  Tiled spawn / marker resolution (loaded before main.js).
 //  Awdjoo spawns tile layer (col, row):
-//    player gid 169 @ 31, 73
+//    player gid 169 @ 32, 72
 //    mind   gid 223 @ 13, 65
 //    RCA    gid 187 @ 30, 85
-//  Object layer "spawns" (id 15 @ x248 y576, id 16 RCA, id 17 enemy).
+//  Object layer "spawns" (id 15 @ x256 y576, id 16 RCA, id 17 enemy).
 // ============================================================
 
 function _isSpawnLayerName(name){

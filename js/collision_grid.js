@@ -106,6 +106,30 @@ function gridWorldSolid(wx,wy){
   return gridSolid(Math.floor(wx/t), Math.floor(wy/t));
 }
 
+function gridRayHit(x1,y1,x2,y2){
+  if(!_gridReady()) return null;
+  const tile=MV_GRID.tile;
+  const dx=x2-x1, dy=y2-y1;
+  const dist=Math.hypot(dx,dy);
+  if(dist<0.5) return null;
+  const ux=dx/dist, uy=dy/dist;
+  const step=Math.max(1, tile/8);
+  const startC=Math.floor(x1/tile), startR=Math.floor(y1/tile);
+  let seenAir=false;
+  for(let s=0;s<=dist;s+=step){
+    const x=x1+ux*s, y=y1+uy*s;
+    const c=Math.floor(x/tile), r=Math.floor(y/tile);
+    const type=gridCell(c,r);
+    const blocked=type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R;
+    if(!blocked){ seenAir=true; continue; }
+    if(c===startC&&r===startR&&!seenAir) continue;
+    const nx=Math.abs(ux)>=Math.abs(uy)?(ux>0?-1:1):0;
+    const ny=nx===0?(uy>0?-1:1):0;
+    return {tx:x, ty:y, nx, ny};
+  }
+  return null;
+}
+
 function gridSpan(px, pw, tile){
   const c0=Math.floor(px/tile);
   const c1=Math.floor((px+pw-1)/tile);
@@ -234,6 +258,20 @@ function buildCollisionGridFromTmj(data, sc){
         if(downR) stampSlopeCell(c,r,'L');
         else if(downL) stampSlopeCell(c,r,'R');
       }
+    }
+  }
+
+  // Omni blocks (any tile layer) are ceiling/wall — never pass-through.
+  for(const layer of layers){
+    if(layer.type!=='tilelayer') continue;
+    const arr=layer.data||[];
+    for(let i=0;i<arr.length && i<cols*rows;i++){
+      const gid=_gridGid(arr[i]);
+      if(!gid) continue;
+      if(typeof _isOmniblockGid!=='function'||!_isOmniblockGid(gid)) continue;
+      const c=i%cols, r=(i/cols)|0;
+      if(grid[r][c]===MV_GRID_DESTRUCT) continue;
+      stampCell(c,r,MV_GRID_SOLID);
     }
   }
 
