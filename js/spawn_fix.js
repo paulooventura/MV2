@@ -192,7 +192,7 @@ function _dispatchSpawnGid(gid,col,row,tw,th,sc,mw){
     _mapRopePickup=r;
     return;
   }
-  if(gid===TMJ_KNOWL_GID){
+  if((typeof TMJ_KNOWL_GIDS!=='undefined'&&TMJ_KNOWL_GIDS.has(gid))||gid===TMJ_KNOWL_GID){
     _mapKnowlDefs.push({x:wx+tw*sc*0.5,y:wy+th*sc*0.5});
     return;
   }
@@ -287,10 +287,17 @@ function _pickPlayerSpawn(data,tw,th,sc,spawnData,mw,spawnObjects){
 
 function _applySpawnFeetSnap(spawnPt){
   const cx=spawnPt.x+(typeof SW!=='undefined'?SW:64)*0.5;
+  const head=spawnPt.headTopY!=null?spawnPt.headTopY:null;
   let feet=spawnPt.feetY!=null?spawnPt.feetY:(spawnPt.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88));
-  const dropLim=Math.max(640,typeof WH!=='undefined'?WH*0.45:720);
-  const floor=typeof _spawnFloorBelow==='function'?_spawnFloorBelow(cx,feet,dropLim):null;
-  if(floor!=null&&floor>=feet-8) feet=floor;
+  const near=96;
+  let floor=null;
+  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
+    floor=gridStandY(cx, head!=null?head:feet, {maxUp:48, maxDrop:near});
+  }
+  if(floor==null&&typeof _spawnFloorBelow==='function'){
+    floor=_spawnFloorBelow(cx, head!=null?head:feet, near);
+  }
+  if(floor!=null) feet=floor;
   return feet;
 }
 
@@ -304,10 +311,14 @@ function _spawnPtNeedsFallback(pt){
   const feetY=pt.feetY!=null?pt.feetY:(pt.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88));
   const headTopY=pt.headTopY!=null?pt.headTopY:feetY-_spawnHeadTopDy();
   if(typeof _spawnMarkerZoneOk==='function'&&!_spawnMarkerZoneOk(cx,headTopY,feetY)) return true;
-  const dropLim=Math.max(640,typeof WH!=='undefined'?WH*0.45:720);
-  const floor=typeof _spawnFloorBelow==='function'?_spawnFloorBelow(cx,feetY,dropLim):null;
+  const near=96;
+  let floor=null;
+  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
+    floor=gridStandY(cx, headTopY, {maxUp:48, maxDrop:near});
+  }
+  if(floor==null&&typeof _spawnFloorBelow==='function') floor=_spawnFloorBelow(cx,headTopY,near);
   if(floor==null) return true;
-  if(floor<feetY-8) return true;
+  if(Math.abs(floor-headTopY)>near+8 && Math.abs(floor-feetY)>near+8) return true;
   return false;
 }
 

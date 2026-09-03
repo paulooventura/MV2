@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=41;
+const MOVE_BUILD=42;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -1787,9 +1787,13 @@ function _enforceGroundContact(pl){
 function _resolveSpawnPlacement(pl){
   if(!pl) return;
   const cx=pl.x+SW*0.5, feet=pl.y+FEET_OFF;
-  const dropLim=Math.max(640,typeof WH!=='undefined'?WH*0.45:720);
-  const floor=typeof _spawnFloorBelow==='function'?_spawnFloorBelow(cx,feet,dropLim):null;
-  if(floor!=null&&floor>=feet-8){
+  const near=96;
+  let floor=null;
+  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
+    floor=gridStandY(cx, feet, {maxUp:64, maxDrop:near});
+  }
+  if(floor==null&&typeof _spawnFloorBelow==='function') floor=_spawnFloorBelow(cx,feet,near);
+  if(floor!=null&&Math.abs(floor-feet)<=near+8){
     pl.y=floor-FEET_OFF;
     pl.og=true;
     pl._groundHold=16;
@@ -1843,10 +1847,22 @@ function _stabilizePlayerCollision(pl){
       const body=gridPlayerBody(pl);
       if(gridDepenetrate(body)) gridWritePlayer(pl, body);
     }
-    if(pl.og&&(pl.vy||0)>=-0.2&&typeof gridStandY==='function'){
+    if((pl.vy||0)>=-0.2){
       const feet=pl.y+FEET_OFF;
-      const surf=gridStandY(pl.x+SW*0.5,feet,{maxUp:12,maxDrop:12,pl});
-      if(surf!=null) pl.y=surf-FEET_OFF;
+      const cx=pl.x+SW*0.5;
+      const hit=typeof gridStandHit==='function'
+        ?gridStandHit(cx,feet,{maxUp:16,maxDrop:pl.og?48:16})
+        :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop:pl.og?48:16}),ang:0,kind:'solid'}:null);
+      if(hit&&hit.y!=null){
+        pl.y=hit.y-FEET_OFF;
+        if(hit.kind==='slope'&&Math.abs(hit.ang||0)>0.06){
+          pl.og=true;
+          pl._onSlope=true;
+          pl._slopeAngle=hit.ang;
+          pl._groundSeg={angle:hit.ang};
+          if(pl.vy>0) pl.vy=0;
+        }
+      }
     }
     _validateGroundFlag(pl);
     if(pl===p) _applySlopePhysics(pl);

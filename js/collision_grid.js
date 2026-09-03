@@ -372,26 +372,21 @@ function gridMoveX(body, dx){
 function gridBestFloor(body, prevFeet){
   const t=MV_GRID.tile;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
-  const [c0,c1]=gridSpan(body.x, body.w, t);
+  const wx=body.x+body.w*0.5;
+  const c=Math.floor(wx/t);
   let best=null, bestAng=0;
-  for(let c=c0;c<=c1;c++){
-    const row=Math.floor((feet-0.001)/t);
+  const row0=Math.floor((feet-0.001)/t);
+  for(let row=row0;row<=row0+2;row++){
     const type=gridCell(c,row);
-    if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT){
+    if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_ONEWAY){
       const top=row*t;
-      if(prevFeet<=top+0.001 && feet>=top){
-        if(best==null||top<best){ best=top; bestAng=0; }
-      }
-    }else if(type===MV_GRID_ONEWAY){
-      const top=row*t;
-      if(prevFeet<=top+0.001 && feet>=top){
+      if(prevFeet<=top+0.001 && feet>=top-0.5){
         if(best==null||top<best){ best=top; bestAng=0; }
       }
     }else if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
-      const wx=body.x+body.w*0.5;
       const sy=gridSlopeY(c,row,wx);
       if(sy==null) continue;
-      if(prevFeet<=sy+0.5 && feet>=sy){
+      if(prevFeet<=sy+2 && feet>=sy-1){
         if(best==null||sy<best){
           best=sy;
           const s=gridSlopeAt(c,row);
@@ -403,20 +398,48 @@ function gridBestFloor(body, prevFeet){
   return best==null?null:{y:best, ang:bestAng};
 }
 
+/** Seat the wheel on a downhill under its center. Adjacent ledge tiles do not count. */
+function gridFollowSlope(body, wasGrounded){
+  if(!_gridReady()||!body) return false;
+  if((body.vy||0)<-0.35) return false;
+  const t=MV_GRID.tile;
+  const wx=body.x+body.w*0.5;
+  const c=Math.floor(wx/t);
+  const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const maxDrop=wasGrounded?t*2.5:t;
+  const r0=Math.floor((feet-6)/t);
+  const r1=Math.floor((feet+maxDrop)/t);
+  let best=null, bestAng=0, bestDrop=1e9;
+  for(let r=r0;r<=r1;r++){
+    if(!gridIsSlope(c,r)) continue;
+    const sy=gridSlopeY(c,r,wx);
+    if(sy==null||sy<feet-6||sy>feet+maxDrop) continue;
+    const drop=sy-feet;
+    if(drop<bestDrop){
+      bestDrop=drop;
+      best=sy;
+      const s=gridSlopeAt(c,r);
+      bestAng=s?s.angle:0;
+    }
+  }
+  if(best==null) return false;
+  gridSetFeet(body, best, bestAng);
+  return true;
+}
+
 function gridFeetGrounded(body){
   if(!_gridReady()) return false;
   const t=MV_GRID.tile;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const hit=gridBestFloor(body, feet);
   if(hit && Math.abs(feet-hit.y)<=2.5) return true;
-  const [c0,c1]=gridSpan(body.x, body.w, t);
+  const wx=body.x+body.w*0.5;
+  const c=Math.floor(wx/t);
   const row=Math.floor((feet+0.5)/t);
-  for(let c=c0;c<=c1;c++){
-    if(gridSolid(c,row) && Math.abs(feet-row*t)<=2.5) return true;
-    if(gridIsSlope(c,row)){
-      const sy=gridSlopeY(c,row,body.x+body.w*0.5);
-      if(sy!=null && Math.abs(feet-sy)<=2.5) return true;
-    }
+  if(gridSolid(c,row) && Math.abs(feet-row*t)<=2.5) return true;
+  if(gridIsSlope(c,row)){
+    const sy=gridSlopeY(c,row,wx);
+    if(sy!=null && Math.abs(feet-sy)<=2.5) return true;
   }
   return false;
 }
@@ -497,10 +520,12 @@ function gridDepenetrate(body){
 
 function gridResolvePlayer(pl, vx, vy){
   if(!_gridReady()||!pl) return false;
+  const wasGrounded=!!pl.og;
   const body=gridPlayerBody(pl);
   body.vx=vx||0; body.vy=vy||0;
   gridMoveSwept(body, vx||0, vy||0);
   gridDepenetrate(body);
+  if((vy||0)>=-0.2) gridFollowSlope(body, wasGrounded||body.onGround);
   if(body.onGround){
     const hit=gridBestFloor(body, body.feetY);
     if(hit && Math.abs((body.feetY)-hit.y)<=MV_GRID.tile){
@@ -523,33 +548,39 @@ function gridResolveActor(a, vx, vy, feetOff){
   return true;
 }
 
-function gridStandY(cx, feetY, opts){
+function gridStandHit(cx, feetY, opts){
   if(!_gridReady()) return null;
   opts=opts||{};
   const maxUp=opts.maxUp!=null?opts.maxUp:24;
   const maxDrop=opts.maxDrop!=null?opts.maxDrop:64;
   const t=MV_GRID.tile;
-  const pad=opts.pad!=null?opts.pad:((typeof WHEEL_R!=='undefined'?WHEEL_R:20)*0.6);
-  const c0=Math.floor((cx-pad)/t), c1=Math.floor((cx+pad)/t);
+  const col=Math.floor(cx/t);
   const r0=Math.floor((feetY-maxUp)/t)-1;
   const r1=Math.floor((feetY+maxDrop)/t)+1;
   let best=null, bestAbs=1e9;
+  const consider=(y,ang,kind)=>{
+    if(y==null||y<feetY-maxUp||y>feetY+maxDrop) return;
+    const d=Math.abs(y-feetY);
+    const adj=kind==='slope'?d-4:d;
+    if(adj<bestAbs){ bestAbs=adj; best={y, ang:ang||0, kind}; }
+  };
   for(let r=r0;r<=r1;r++){
-    for(let c=c0;c<=c1;c++){
-      const type=gridCell(c,r);
-      if(type!==MV_GRID_SOLID&&type!==MV_GRID_DESTRUCT&&type!==MV_GRID_ONEWAY&&type!==MV_GRID_SLOPE_L&&type!==MV_GRID_SLOPE_R) continue;
-      let top=r*t;
-      if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
-        const sy=gridSlopeY(c,r,cx);
-        if(sy==null) continue;
-        top=sy;
-      }else if(type===MV_GRID_ONEWAY && feetY>top+4) continue;
-      if(top<feetY-maxUp||top>feetY+maxDrop) continue;
-      const d=Math.abs(top-feetY);
-      if(d<bestAbs){ bestAbs=d; best=top; }
+    const type=gridCell(col,r);
+    if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
+      const sy=gridSlopeY(col,r,cx);
+      const s=gridSlopeAt(col,r);
+      consider(sy, s?s.angle:0, 'slope');
+    }else if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_ONEWAY){
+      if(type===MV_GRID_ONEWAY && feetY>r*t+4) continue;
+      consider(r*t, 0, type===MV_GRID_ONEWAY?'oneway':'solid');
     }
   }
   return best;
+}
+
+function gridStandY(cx, feetY, opts){
+  const hit=gridStandHit(cx, feetY, opts);
+  return hit?hit.y:null;
 }
 
 function gridFloorBelow(cx, markerFeet, maxDrop){
