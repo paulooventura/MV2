@@ -20,6 +20,46 @@ function _gridGid(raw){
   return (raw|0)&0x1FFFFFFF;
 }
 
+function _gridFlipKind(kind, raw){
+  if(!kind) return null;
+  const r=raw|0;
+  const flipH=!!(r&0x80000000);
+  const flipV=!!(r&0x40000000);
+  const flipD=!!(r&0x20000000);
+  if((flipH!==flipV)!==flipD) return kind==='L'?'R':'L';
+  return kind;
+}
+
+function _gridKindFromRaw(raw, slopeGids){
+  const gid=_gridGid(raw);
+  if(!gid||!slopeGids) return null;
+  return _gridFlipKind(slopeGids[gid]||null, raw);
+}
+
+/** Dirt/omni fill under a slope must not act as a vertical wall. */
+function gridSolidBlocksX(c,r,body){
+  if(!gridSolid(c,r)) return false;
+  if(gridIsSlope(c,r)) return false;
+  const t=MV_GRID.tile;
+  const wx=body?body.x+body.w*0.5:(c+0.5)*t;
+  const feet=body&&body.feetY!=null?body.feetY:null;
+  // Dirt/grass are floors. A tile at or below the wheel is not a wall.
+  if(feet!=null && r*t>=feet-4) return false;
+  // Down-right / down-left stair: same-row dirt is hillside, not a wall.
+  if(gridSlopeKind(c-1,r)==='L'||gridSlopeKind(c+1,r)==='R') return false;
+  if(gridSlopeKind(c-1,r+1)==='L'||gridSlopeKind(c+1,r+1)==='R') return false;
+  if(gridSlopeKind(c,r+1)) return false;
+  for(let sr=r+1;sr>=r-3;sr--){
+    if(!gridIsSlope(c,sr)&&!gridIsSlope(c-1,sr)&&!gridIsSlope(c+1,sr)) continue;
+    const sc=gridIsSlope(c,sr)?c:gridIsSlope(c-1,sr)?c-1:c+1;
+    const sy=gridSlopeY(sc,sr,wx);
+    if(sy==null) continue;
+    if(r*t>=sy-2) return false;
+    if(feet!=null&&r*t>=feet-2) return false;
+  }
+  return true;
+}
+
 function _gridLayerName(layer){
   return String((layer&&layer.name)||'').toLowerCase().replace(/!/g,'').trim();
 }
@@ -223,13 +263,18 @@ function buildCollisionGridFromTmj(data, sc){
     }
   }
 
-  // Grass + dirt tiles are SOLID. Dirt fill is solid — you walk ON it, not through it.
+  // Only Tiled tiles collide. Empty cells stay air. No carved openings.
   if(grassData){
     for(let i=0;i<grassData.length && i<cols*rows;i++){
-      const gid=_gridGid(grassData[i]);
+      const raw=grassData[i]|0;
+      const gid=_gridGid(raw);
       if(!gid) continue;
       const c=i%cols, r=(i/cols)|0;
-      const kind=slopeGids[gid];
+      let kind=_gridKindFromRaw(raw, slopeGids);
+      const downR=hasGid(grassData,c+1,r+1)&&!hasGid(grassData,c+1,r);
+      const downL=hasGid(grassData,c-1,r+1)&&!hasGid(grassData,c-1,r);
+      if(downR) kind='L';
+      else if(downL) kind='R';
       if(kind) stampSlopeCell(c,r,kind);
       else stampCell(c,r,MV_GRID_SOLID);
     }
@@ -240,19 +285,6 @@ function buildCollisionGridFromTmj(data, sc){
         if(!hasGid(dirtData,c,r)) continue;
         if(grid[r][c]===MV_GRID_DESTRUCT||grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) continue;
         stampCell(c,r,MV_GRID_SOLID);
-      }
-    }
-  }
-  // Neighbor stairs own the kind. A leftover GID map must not keep a flipped roof.
-  if(grassData){
-    for(let r=0;r<rows;r++){
-      for(let c=0;c<cols;c++){
-        if(!hasGid(grassData,c,r)) continue;
-        if(grid[r][c]===MV_GRID_DESTRUCT) continue;
-        const downR=hasGid(grassData,c+1,r+1)&&!hasGid(grassData,c+1,r);
-        const downL=hasGid(grassData,c-1,r+1)&&!hasGid(grassData,c-1,r);
-        if(downR) stampSlopeCell(c,r,'L');
-        else if(downL) stampSlopeCell(c,r,'R');
       }
     }
   }
@@ -268,23 +300,6 @@ function buildCollisionGridFromTmj(data, sc){
       const c=i%cols, r=(i/cols)|0;
       if(grid[r][c]===MV_GRID_DESTRUCT) continue;
       stampCell(c,r,MV_GRID_SOLID);
-    }
-  }
-
-  const minOpen=Math.max(2, Math.ceil(((typeof HBW!=='undefined'?HBW:52))/tile));
-  for(let r=0;r<rows;r++){
-    let c=0;
-    while(c<cols){
-      if(grid[r][c]!==MV_GRID_AIR){ c++; continue; }
-      const start=c;
-      while(c<cols && grid[r][c]===MV_GRID_AIR) c++;
-      const w=c-start;
-      if(w>0 && w<minOpen){
-        let extra=minOpen-w;
-        while(extra>0 && c<cols && grid[r][c]===MV_GRID_SOLID){ grid[r][c]=MV_GRID_AIR; extra--; c++; }
-        let L=start-1;
-        while(extra>0 && L>=0 && grid[r][L]===MV_GRID_SOLID){ grid[r][L]=MV_GRID_AIR; extra--; L--; }
-      }
     }
   }
 
@@ -392,15 +407,16 @@ function gridMoveX(body, dx){
   const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
   if(dx>0){
     const col=Math.floor((body.x+body.w-1)/t);
-    for(let r=r0;r<=r1;r++) if(gridSolid(col,r)){
+    for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(col,r,body)){
       body.x=col*t-body.w; body.vx=0; body._hitX=true; return;
     }
   }else{
     const col=Math.floor(body.x/t);
-    for(let r=r0;r<=r1;r++) if(gridSolid(col,r)){
+    for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(col,r,body)){
       body.x=(col+1)*t; body.vx=0; body._hitX=true; return;
     }
   }
+  if(body.onGround) gridFollowSlope(body, true);
 }
 
 function gridBestFloor(body, prevFeet){
@@ -517,7 +533,7 @@ function gridOverlaps(body){
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const [c0,c1]=gridSpan(body.x, body.w, t);
   const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
-  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolid(c,r)) return true;
+  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(c,r,body)) return true;
   for(let c=c0;c<=c1;c++){
     const row=Math.floor((feet-0.001)/t);
     if(gridIsSlope(c,row)){

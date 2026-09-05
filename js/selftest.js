@@ -145,6 +145,16 @@
     if(typeof _mapRopePickup==='undefined'||!_mapRopePickup) return;
     var r=_mapRopePickup, pl=(typeof p!=='undefined')?p:null;
     if(!pl||!r) return;
+    if(typeof _gridReady==='function'&&_gridReady()&&typeof gridSolid==='function'){
+      var t=MV_GRID.tile, col=Math.floor((pl.x+(typeof SW!=='undefined'?SW:64)*0.5)/t);
+      var from=Math.floor((pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88))/t);
+      var to=Math.floor((r.y+(r.h||0)*0.5)/t);
+      var shaft=false;
+      for(var rr=from;rr<to;rr++){
+        if(!gridSolid(col,rr)&&!gridIsSlope(col,rr)){ shaft=true; break; }
+      }
+      if(!shaft) return;
+    }
     var rx=r.x+(r.w||0)*0.5, ry=r.y+(r.h||0)*0.5;
     var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
     var px=pl.x+(typeof SW!=='undefined'?SW:64)*0.5, py=pl.y+FO;
@@ -246,7 +256,15 @@
         var atEdge = (typeof WW!=='undefined') && (pl.x<6 || pl.x>WW-64);
         var pushing=(phase.indexOf('R')>=0&&K[codes().R])||(phase.indexOf('L')>=0&&K[codes().L]);
         var grinding=((pl._grindF||0)>=4)||(pushing && Math.abs(pl.vx||0)>1.8 && dx<3);
-        if(grinding && !atEdge && dx<STUCK_DX && Math.abs(pl.vy||0)<0.5) rec('stuckWalking',{dir:(phase.indexOf('R')>=0?'right':'left'), dx:Math.round(dx), vx:+(pl.vx||0).toFixed(2)});
+        var huntingDrop=false;
+        try{
+          var rca=(typeof _mapRopePickup!=='undefined')?_mapRopePickup:null;
+          if(rca&&lf>280){
+            var rcy=rca.y+(rca.h||0)*0.5;
+            huntingDrop=(pl.y+FO)<rcy-72;
+          }
+        }catch(e){}
+        if(grinding && !atEdge && !huntingDrop && dx<STUCK_DX && Math.abs(pl.vy||0)<0.5) rec('stuckWalking',{dir:(phase.indexOf('R')>=0?'right':'left'), dx:Math.round(dx), vx:+(pl.vx||0).toFixed(2)});
       }
     }else xHist.length=0;
   }
