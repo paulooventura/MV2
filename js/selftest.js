@@ -170,13 +170,13 @@
     if(!Number.isFinite(pl.x)||!Number.isFinite(pl.y)){ rec('nonFinite'); return; }
     if(!Number.isFinite(pl.vx)||!Number.isFinite(pl.vy)){ rec('nonFinite'); return; }
     if(typeof WH!=='undefined' && pl.y+FO > WH+200) rec('fellOutOfWorld');
-    if(pl._wasOg && !pl.og && (pl.vy||0)>0.45 && Math.abs(pl.vx||0)<9){
+    if(pl._wasOg && !pl.og && (pl.vy||0)>1.2 && Math.abs(pl.vx||0)<9){
       var wt0=null;
       try{ if(typeof _wallTouchInfo==='function') wt0=_wallTouchInfo(pl); }catch(e){}
       if(!wt0||!wt0.touch) rec('airLaunch',{vy:+(pl.vy||0).toFixed(2), vx:+(pl.vx||0).toFixed(2)});
     }
     pl._wasOg=!!pl.og;
-    if(pl._prevCheckY!=null && pl.og && Math.abs(pl.y-pl._prevCheckY)>10 && Math.abs(pl.vy||0)<0.6){
+    if(pl._prevCheckY!=null && pl.og && Math.abs(pl.y-pl._prevCheckY)>28 && Math.abs(pl.vy||0)<0.6){
       rec('groundSnap',{dy:Math.round(pl.y-pl._prevCheckY)});
     }
     pl._prevCheckY=pl.y;

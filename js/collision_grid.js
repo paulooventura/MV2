@@ -4,7 +4,7 @@
 //  tile-grass segs / omniblock AABB walls are not authorities.
 //
 //  Types: 0 AIR, 1 SOLID, 2 ONEWAY, 3 DESTRUCT, 4 SLOPE_L, 5 SLOPE_R
-//  KEEP OUT polygons are discarded. Tiles own the grid.
+//  KEEP OUT filled polys are a giant box — discarded. Tiles own the grid.
 // ============================================================
 
 const MV_GRID_AIR=0, MV_GRID_SOLID=1, MV_GRID_ONEWAY=2, MV_GRID_DESTRUCT=3;
@@ -280,27 +280,19 @@ function buildCollisionGridFromTmj(data, sc){
     }
   }
   if(dirtData){
+    const hillCol=new Array(cols);
+    for(let c=0;c<cols;c++){
+      hillCol[c]=false;
+      if(!grassData) continue;
+      for(let r=0;r<rows;r++){
+        if(grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R){ hillCol[c]=true; break; }
+      }
+    }
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         if(!hasGid(dirtData,c,r)) continue;
         if(grid[r][c]===MV_GRID_DESTRUCT||grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) continue;
-        stampCell(c,r,MV_GRID_SOLID);
-      }
-    }
-  }
-  // Flat grass is a roof. Dirt under it is the room, not a wall — hill slopes keep their fill.
-  if(grassData){
-    const roomH=8;
-    for(let c=0;c<cols;c++){
-      for(let r=0;r<rows;r++){
-        if(!hasGid(grassData,c,r)) continue;
-        if(grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) break;
-        for(let rr=r+1;rr<=r+roomH&&rr<rows;rr++){
-          if(grid[rr][c]===MV_GRID_DESTRUCT) break;
-          if(grid[rr][c]===MV_GRID_SLOPE_L||grid[rr][c]===MV_GRID_SLOPE_R) break;
-          if(grid[rr][c]===MV_GRID_SOLID&&hasGid(dirtData,c,rr)) grid[rr][c]=MV_GRID_AIR;
-        }
-        break;
+        stampCell(c,r, hillCol[c]?MV_GRID_SOLID:MV_GRID_ONEWAY);
       }
     }
   }
