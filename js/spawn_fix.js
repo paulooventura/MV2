@@ -292,10 +292,10 @@ function _applySpawnFeetSnap(spawnPt){
   const near=96;
   let floor=null;
   if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
-    floor=gridStandY(cx, head!=null?head:feet, {maxUp:48, maxDrop:near});
+    floor=gridStandY(cx, feet, {maxUp:12, maxDrop:Math.max(near, MV_GRID&&MV_GRID.tile?MV_GRID.tile*10:320)});
   }
   if(floor==null&&typeof _spawnFloorBelow==='function'){
-    floor=_spawnFloorBelow(cx, head!=null?head:feet, near);
+    floor=_spawnFloorBelow(cx, feet, Math.max(near,320));
   }
   if(floor!=null) feet=floor;
   return feet;
@@ -314,9 +314,9 @@ function _spawnPtNeedsFallback(pt){
   const near=96;
   let floor=null;
   if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
-    floor=gridStandY(cx, headTopY, {maxUp:48, maxDrop:near});
+    floor=gridStandY(cx, feetY, {maxUp:16, maxDrop:Math.max(near, MV_GRID&&MV_GRID.tile?MV_GRID.tile*10:320)});
   }
-  if(floor==null&&typeof _spawnFloorBelow==='function') floor=_spawnFloorBelow(cx,headTopY,near);
+  if(floor==null&&typeof _spawnFloorBelow==='function') floor=_spawnFloorBelow(cx,feetY,Math.max(near,320));
   if(floor==null) return true;
   if(Math.abs(floor-headTopY)>near+8 && Math.abs(floor-feetY)>near+8) return true;
   return false;

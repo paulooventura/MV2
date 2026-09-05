@@ -288,6 +288,22 @@ function buildCollisionGridFromTmj(data, sc){
       }
     }
   }
+  // Flat grass is a roof. Dirt under it is the room, not a wall — hill slopes keep their fill.
+  if(grassData){
+    const roomH=8;
+    for(let c=0;c<cols;c++){
+      for(let r=0;r<rows;r++){
+        if(!hasGid(grassData,c,r)) continue;
+        if(grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) break;
+        for(let rr=r+1;rr<=r+roomH&&rr<rows;rr++){
+          if(grid[rr][c]===MV_GRID_DESTRUCT) break;
+          if(grid[rr][c]===MV_GRID_SLOPE_L||grid[rr][c]===MV_GRID_SLOPE_R) break;
+          if(grid[rr][c]===MV_GRID_SOLID&&hasGid(dirtData,c,rr)) grid[rr][c]=MV_GRID_AIR;
+        }
+        break;
+      }
+    }
+  }
 
   // Omni blocks (any tile layer) are ceiling/wall — never pass-through.
   for(const layer of layers){

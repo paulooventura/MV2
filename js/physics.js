@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=45;
+const MOVE_BUILD=46;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -30,6 +30,8 @@ const WHEEL_ROLL_RESIST=0.011;
 const WHEEL_DRIVE_TORQUE=0.68;
 const WHEEL_COAST_FRIC=0.987;
 const WHEEL_GRADE_RESIST=0.38;
+const WHEEL_SLOPE_COMMIT=0.55;
+const WHEEL_SLOPE_GRAV=0.26;
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
@@ -790,46 +792,82 @@ function _onWalkableTop(pl,plat){
   const fL=pl.x+FEET_L, fR=fL+FEET_W;
   return _feetSpanOver(plat,fL,fR,4)&&feet>=plat.y-8&&feet<=plat.y+plat.h+10;
 }
+function _wheelSlopeWeight(pl){
+  const cx=pl.x+(typeof SW!=='undefined'?SW:64)*0.5;
+  const feet=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+  const wr=typeof WHEEL_R!=='undefined'?WHEEL_R:20;
+  let ang=0;
+  const seg=pl._groundSeg;
+  if(seg) ang=seg.angle!=null?seg.angle:Math.atan2(seg.y2-seg.y1,seg.x2-seg.x1);
+  else ang=pl._slopeAngle||0;
+  if(!Number.isFinite(ang)) ang=0;
+  if(typeof _gridReady!=='function'||!_gridReady()||typeof gridIsSlope!=='function'){
+    return {frac:Math.abs(ang)>0.06?1:0, ang};
+  }
+  const t=MV_GRID.tile;
+  const n=7;
+  let slopeN=0, angSum=0;
+  for(let i=0;i<n;i++){
+    const u=n===1?0:i/(n-1)*2-1;
+    const wx=cx+u*wr;
+    const c=Math.floor(wx/t);
+    const r0=Math.floor((feet-0.001)/t);
+    let hit=false, a=0;
+    for(let r=r0-1;r<=r0+2;r++){
+      if(!gridIsSlope(c,r)) continue;
+      const sy=typeof gridSlopeY==='function'?gridSlopeY(c,r,wx):null;
+      if(sy==null||Math.abs(sy-feet)>12) continue;
+      hit=true;
+      const s=typeof gridSlopeAt==='function'?gridSlopeAt(c,r):null;
+      a=s&&s.angle!=null?s.angle:0;
+      break;
+    }
+    if(hit){ slopeN++; angSum+=a; }
+  }
+  return {frac:slopeN/n, ang:slopeN?angSum/slopeN:ang};
+}
 function _applySlopePhysics(pl){
   if(!pl||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0||_playerAirborne(pl)) return;
   if(_ridingBwallTop(pl)) return;
   if(pl._bwallFallGrace>0) return;
   if(!pl.og) return;
-  const seg=pl._groundSeg;
-  let ang=0;
-  if(seg) ang=seg.angle!=null?seg.angle:Math.atan2(seg.y2-seg.y1,seg.x2-seg.x1);
-  else ang=pl._slopeAngle||0;
-  if(!Number.isFinite(ang)) ang=0;
-  const isSlope=Math.abs(ang)>0.06;
-  if(!isSlope){
+  const w=_wheelSlopeWeight(pl);
+  pl._slopeWeight=w.frac;
+  const ang=w.ang;
+  if(!Number.isFinite(ang)||w.frac<WHEEL_SLOPE_COMMIT||Math.abs(ang)<0.06){
     pl._onSlope=false;
-    pl._slopeAngle=0;
+    if(w.frac<WHEEL_SLOPE_COMMIT) pl._slopeAngle=0;
+    pl._slopeRollT=0;
     pl._prevSlopeVx=pl.vx||0;
     return;
   }
   pl._onSlope=true;
   pl._slopeAngle=ang;
+  const commit=Math.max(0,Math.min(1,(w.frac-WHEEL_SLOPE_COMMIT)/(1-WHEEL_SLOPE_COMMIT)));
+  const ease=commit*commit;
   const sinA=Math.sin(ang);
-  const gravAlong=GRAV*sinA*0.9;
-  const mom=Math.min(1.2,(pl.momentum||0)+Math.abs(pl.vx||0)/RUN*0.4);
+  const pull=GRAV*sinA*WHEEL_SLOPE_GRAV*ease;
+  if(!(pl._slopeRollT>0)&&Math.abs(pull)>0.002){
+    const down=Math.sign(sinA)||1;
+    if(Math.sign(pl.vx||0)===down) pl.vx*=0.82;
+  }
+  pl._slopeRollT=(pl._slopeRollT||0)+1;
   const grip=_wheelGripMul(pl,ang);
   const input=pl===p?_moveInputX():0;
   const driving=!!input;
   const uphill=driving&&input*sinA<-0.03;
-  const downhill=driving&&input*sinA>0.03;
-  pl.vx+=gravAlong;
-  const rollMul=1-WHEEL_ROLL_RESIST*(driving?0.35:1)*(1-mom*0.5)/grip;
-  pl.vx*=Math.max(0.94,rollMul);
+  pl.vx+=pull;
+  const resist=WHEEL_ROLL_RESIST*(driving?0.45:1.15)/Math.max(0.5,grip);
+  pl.vx*=Math.max(0.96,1-resist);
   if(driving){
-    const torque=WHEEL_DRIVE_TORQUE*(1+mom*0.5)*(uphill?1.4:1);
+    const torque=WHEEL_DRIVE_TORQUE*(uphill?1.15:0.55)*ease;
     pl.vx+=input*torque;
-    if(uphill) pl.vx-=Math.sign(pl.vx||input)*Math.abs(gravAlong)*WHEEL_GRADE_RESIST*(1-mom*0.45);
-    else if(downhill) pl.vx+=input*Math.abs(gravAlong)*0.18;
-  }else{
-    pl.vx*=WHEEL_COAST_FRIC;
-    if(Math.abs(pl.vx)<0.07&&Math.abs(gravAlong)<0.015) pl.vx=0;
+    if(uphill) pl.vx-=Math.sign(pl.vx||input)*Math.abs(pull)*WHEEL_GRADE_RESIST;
+  }else if(Math.abs(pl.vx)<0.05&&Math.abs(pull)<0.008){
+    pl.vx=0;
   }
-  const slopeCap=RUN*(1.05+mom*0.08);
+  const built=Math.min(1,(pl._slopeRollT||0)/90);
+  const slopeCap=MOVE_WALK*(0.55+0.35*ease+0.25*built);
   pl.vx=Math.max(-slopeCap,Math.min(slopeCap,pl.vx));
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
   if(!(typeof _gridReady==='function'&&_gridReady()) && wt.touch){
