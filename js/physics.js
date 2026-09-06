@@ -79,7 +79,7 @@ const CSPD=11, CMAX=400;
 const ROPE_REEL_IN=3.6;
 const ROPE_REEL_OUT=2.8;
 const ROPE_RL_MIN=28;
-const ROPE_MAX_PIVOTS=6;
+const ROPE_MAX_PIVOTS=14;
 const ROPE_SNAP_STRETCH=0.45;
 const ROPE_SNAP_MIN=64;
 const ROPE_GIVE=12;
@@ -1572,6 +1572,33 @@ function _applyActorGravity(a,feetOff,gravMul=0.55){
   a.vy=Math.min((a.vy||0)+GRAV*gravMul,11);
   _moveActorWithColl(a,a.vx||0,a.vy,feetOff);
 }
+function _pinActorToFloor(e, opts){
+  if(!e||typeof _gridReady!=='function'||!_gridReady()) return false;
+  opts=opts||{};
+  const stomp=!!(e._stompDuck||opts.stomp);
+  const force=!!(opts.force||stomp);
+  const cx=e.x+SW*0.5, feet=e.y+FEET_OFF;
+  const maxUp=opts.maxUp!=null?opts.maxUp:(stomp?16:10);
+  const maxDrop=opts.maxDrop!=null?opts.maxDrop:(stomp?96:(e.og?36:16));
+  const hit=typeof gridStandBest==='function'
+    ?gridStandBest(cx, feet, {maxUp, maxDrop, span:18})
+    :null;
+  const stand=hit?hit.y:(typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp,maxDrop}):null);
+  if(stand!=null&&stand<=feet+maxDrop&&stand>=feet-maxUp-4){
+    e.y=stand-FEET_OFF;
+    if((e.vy||0)>0) e.vy=0;
+    e.og=true;
+    e._floorY=stand;
+    return true;
+  }
+  if(stomp&&e._floorY!=null&&feet>e._floorY-2&&feet<e._floorY+120){
+    e.y=e._floorY-FEET_OFF;
+    e.vy=0;
+    e.og=true;
+    return true;
+  }
+  return false;
+}
 function _applyMindEnemyPhysics(e){
   if(!e.crouchAmt) e.crouchAmt=0;
   if(!e.hook) e.hook={st:'idle'};
@@ -1579,20 +1606,13 @@ function _applyMindEnemyPhysics(e){
   if((e._stompDuck||0)>0){
     e._stompDuck--;
     e.crouchAmt=1;
-    e.vy=Math.min(e.vy||0, 2);
+    e.vy=Math.min(e.vy||0, 0.4);
   }else if(e.crouchAmt>0.05&&!e.crouchInput){
     e.crouchAmt+=(0-e.crouchAmt)*0.18;
   }
-  _movePlayerWithColl(e,e.vx||0,e.vy||0);
-  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
-    const feet=e.y+FEET_OFF;
-    const stand=gridStandY(e.x+SW*0.5, feet, {maxUp:10, maxDrop:(e._stompDuck||e.og)?28:12});
-    if(stand!=null&&Math.abs(feet-stand)<((e._stompDuck||e.og)?28:14)){
-      e.y=stand-FEET_OFF;
-      if((e.vy||0)>0) e.vy=0;
-      e.og=true;
-    }
-  }
+  const stomp=!!e._stompDuck;
+  _movePlayerWithColl(e,e.vx||0, stomp?Math.min(e.vy||0,0.6):(e.vy||0));
+  _pinActorToFloor(e,{stomp});
 }
 
 // ── Polygon helpers ───────────────────────────────────────────
@@ -2075,7 +2095,7 @@ function _hookRayHit(x1,y1,x2,y2){
 }
 function _segPathBlocked(x1,y1,x2,y2){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
-    return !!gridRayHit(x1,y1,x2,y2,{skipStart:true});
+    return !!gridRayHit(x1,y1,x2,y2);
   }
   for(const q of allP()){
     if(q.tp!=='solid'&&q.tp!=='ceil') continue;
@@ -2191,20 +2211,40 @@ function _applyPullPlayerTug(pl,centerX,centerY,fx,fy,ox,oy,w,h,range,blockedOnl
 function _ropePathLen(pts){ let len=0; for(let i=1;i<pts.length;i++) len+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y); return len; }
 function _segPathClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<4) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return !_segPathBlocked(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2); }
 function _ropeNearestCorner(rect,hx,hy){
-  const cs=[{x:rect.x,y:rect.y},{x:rect.x+rect.w,y:rect.y},{x:rect.x,y:rect.y+rect.h},{x:rect.x+rect.w,y:rect.y+rect.h}];
-  let best=cs[0], bd=1e18;
-  for(const c of cs){ const d=(c.x-hx)**2+(c.y-hy)**2; if(d<bd){bd=d;best=c;} }
-  const cx=rect.x+rect.w*0.5, cy=rect.y+rect.h*0.5;
-  return {x:best.x+(best.x>cx?2.5:-2.5), y:best.y+(best.y>cy?2.5:-2.5)};
+  return _ropeOutsideCorner({x:hx,y:hy},{x:hx,y:hy},{tx:hx,ty:hy,nx:0,ny:0},rect);
+}
+function _ropeOutsideCorner(base, to, hit, rect){
+  const pad=3.5;
+  let box=rect;
+  if(!box&&typeof MV_GRID!=='undefined'&&MV_GRID){
+    const t=MV_GRID.tile;
+    const hx=hit.tx-(hit.nx||0)*0.4, hy=hit.ty-(hit.ny||0)*0.4;
+    const c=Math.floor(hx/t), r=Math.floor(hy/t);
+    box={x:c*t,y:r*t,w:t,h:t};
+  }
+  if(!box) return {x:hit.tx,y:hit.ty};
+  const left=box.x-pad, right=box.x+box.w+pad, top=box.y-pad, bot=box.y+box.h+pad;
+  const corners=[{x:left,y:top},{x:right,y:top},{x:left,y:bot},{x:right,y:bot}];
+  let best=null, bestS=1e18;
+  for(const q of corners){
+    if(!_ropeSegClear(base.x,base.y,q.x,q.y)) continue;
+    const s=Math.hypot(q.x-base.x,q.y-base.y)+Math.hypot(to.x-q.x,to.y-q.y);
+    if(s<bestS){ bestS=s; best=q; }
+  }
+  if(best) return best;
+  if(Math.abs(hit.nx||0)>=Math.abs(hit.ny||0)&&hit.nx){
+    return {x:hit.nx<0?left:right, y:to.y<(box.y+box.h*0.5)?top:bot};
+  }
+  return {x:to.x<(box.x+box.w*0.5)?left:right, y:(hit.ny||0)<0?top:bot};
 }
 function _ropeFirstHit(x1,y1,x2,y2){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
-    const g=gridRayHit(x1,y1,x2,y2,{skipStart:true});
+    const g=gridRayHit(x1,y1,x2,y2);
     if(g){
       const tile=MV_GRID.tile;
-      const c=Math.floor(g.tx/tile), r=Math.floor(g.ty/tile);
+      const c=Math.floor((g.tx-(g.nx||0)*0.6)/tile), r=Math.floor((g.ty-(g.ny||0)*0.6)/tile);
       return {hit:g, rect:{x:c*tile,y:r*tile,w:tile,h:tile,tp:'solid'}};
     }
     for(const bw of BWALLS){
@@ -2235,14 +2275,19 @@ function _ropeFirstHit(x1,y1,x2,y2){
   }
   return best;
 }
-function _ropeSegClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<4) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return _segPathClear(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2); }
+function _ropeSegClear(x1,y1,x2,y2){
+  const d=Math.hypot(x2-x1,y2-y1);
+  if(d<3) return true;
+  const ux=(x2-x1)/d, uy=(y2-y1)/d;
+  return !_segPathBlocked(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2);
+}
 function _ropeUpdatePivots(h,tx,ty){
   if(!h.pivots) h.pivots=[];
-  for(let g=0;g<4&&h.pivots.length;g++){
+  for(let g=0;g<ROPE_MAX_PIVOTS&&h.pivots.length;g++){
     const n=h.pivots.length, base=n>=2?h.pivots[n-2]:{x:h.ax,y:h.ay};
     if(_ropeSegClear(base.x,base.y,tx,ty)) h.pivots.pop(); else break;
   }
-  for(let g=0;g<5;g++){
+  for(let g=0;g<ROPE_MAX_PIVOTS;g++){
     const base=h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
     if(_ropeSegClear(base.x,base.y,tx,ty)) break;
     if(h.pivots.length>=ROPE_MAX_PIVOTS) break;
@@ -2250,22 +2295,42 @@ function _ropeUpdatePivots(h,tx,ty){
     const ux=(tx-base.x)/d, uy=(ty-base.y)/d;
     const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2);
     if(!fh) break;
-    const c=_ropeNearestCorner(fh.rect,fh.hit.tx,fh.hit.ty);
-    if(Math.hypot(c.x-base.x,c.y-base.y)<3) break;
+    const c=_ropeOutsideCorner(base,{x:tx,y:ty},fh.hit,fh.rect);
+    if(!c||Math.hypot(c.x-base.x,c.y-base.y)<2.5) break;
+    if(h.pivots.some(pv=>Math.hypot(pv.x-c.x,pv.y-c.y)<2)) break;
     h.pivots.push(c);
     if(typeof p!=='undefined'&&p&&p.hook===h){
       const nx=fh.hit.nx||0, ny=fh.hit.ny||0;
       const vn=(p.vx||0)*nx+(p.vy||0)*ny;
-      if(vn<0){ p.vx-=nx*vn*1.7; p.vy-=ny*vn*1.7; }
-      else { p.vx+=nx*1.15; p.vy+=ny*1.15; }
+      if(vn<0){ p.vx-=nx*vn*1.85; p.vy-=ny*vn*1.85; }
+      else { p.vx+=nx*1.2; p.vy+=ny*1.2; }
     }
   }
+}
+function _ropeSanitizePath(pts){
+  if(!pts||pts.length<2) return pts||[];
+  const out=[pts[0]];
+  for(let i=1;i<pts.length;i++){
+    let a=out[out.length-1], b=pts[i];
+    for(let g=0;g<8&&!_ropeSegClear(a.x,a.y,b.x,b.y);g++){
+      const d=Math.hypot(b.x-a.x,b.y-a.y)||1;
+      const ux=(b.x-a.x)/d, uy=(b.y-a.y)/d;
+      const fh=_ropeFirstHit(a.x+ux*2,a.y+uy*2,b.x-ux*2,b.y-uy*2);
+      if(!fh) break;
+      const c=_ropeOutsideCorner(a,b,fh.hit,fh.rect);
+      if(!c||Math.hypot(c.x-a.x,c.y-a.y)<2) break;
+      out.push(c);
+      a=c;
+    }
+    out.push(b);
+  }
+  return out;
 }
 function _ropePathPts(h,tx,ty){
   const pts=[{x:h.ax,y:h.ay}];
   if(h.pivots) for(const pv of h.pivots) pts.push({x:pv.x,y:pv.y});
   pts.push({x:tx,y:ty});
-  return pts;
+  return _ropeSanitizePath(pts);
 }
 function _ropeSolidFloor(pl,prevFeet){
   if(pl.vy<0) return;
@@ -2605,7 +2670,8 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     if(e.hook) e.hook.st='idle';
     e._shutSettled=false; e._offAnchorX=null; e._offAnchorY=null; e._cooldownEnd=0; e._rebootFill=0;
     e._shutLean=e.mind?((e.vx||0)<-0.2?-0.18:((e.vx||0)>0.2?0.18:(e.fc?0.14:-0.14))):(e.dir>0?0.14:-0.14);
-    e.vx=(e.vx||0)*0.35; e.vy=Math.max((e.vy||0),0.8); e.og=false;
+    e.vx=(e.vx||0)*0.35; e.vy=0; e.og=true;
+    if(typeof _pinActorToFloor==='function') _pinActorToFloor(e,{force:true,maxDrop:160});
     e._itemForceF=0; e._kbF=0;
     if(p&&p.hook&&p.hook.tgt===e){
       if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);

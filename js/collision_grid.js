@@ -995,6 +995,18 @@ function gridStandY(cx, feetY, opts){
   return hit?hit.y:null;
 }
 
+/** Highest stand under a wheel-wide span so a rim on floor still counts. */
+function gridStandBest(cx, feetY, opts){
+  opts=opts||{};
+  const span=opts.span!=null?opts.span:18;
+  let best=null;
+  for(const x of [cx-span, cx, cx+span]){
+    const hit=gridStandHit(x, feetY, opts);
+    if(hit&&(best==null||hit.y<best.y)) best=hit;
+  }
+  return best;
+}
+
 function gridFloorBelow(cx, markerFeet, maxDrop){
   if(!_gridReady()) return null;
   const t=MV_GRID.tile;

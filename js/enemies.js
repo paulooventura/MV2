@@ -402,10 +402,14 @@ function _applyBodySeparation(pl,e,sep){
     if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
     moved=true;
   }
-  if(sep.by&&!(e._stompDuck>0)){
-    e.y+=sep.by;
-    if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
-    moved=true;
+  if(sep.by){
+    // Never shove a grounded / stomped enemy down through the floor.
+    const down=sep.by>0&&(e.og||e._stompDuck||e._floorY!=null);
+    if(!down){
+      e.y+=sep.by;
+      if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
+      moved=true;
+    }
   }
   return moved;
 }
@@ -417,6 +421,7 @@ function _resolvePlayerEnemySeparation(pl,e,maxPasses=12){
     const sep=_separateTwoBodyHB(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h,pl,e);
     if(!sep) break;
     _applyBodySeparation(pl,e,sep);
+    if(typeof _pinActorToFloor==='function') _pinActorToFloor(e,{force:true,maxDrop:96});
   }
 }
 function _resolveAllPlayerEnemyCollisions(pl){
@@ -691,7 +696,11 @@ function _updateMindEnemyShutFall(e){
   e.x+=e.vx||0; e.y+=e.vy||0;
   if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
   else e.x=Math.max(0,Math.min(WW-e.w,e.x));
-  _resolveActorPlatY(e,prevFeet,FEET_OFF);
+  if(typeof _pinActorToFloor==='function'&&_pinActorToFloor(e,{force:true,maxDrop:160})){
+    e.og=true;
+  }else{
+    _resolveActorPlatY(e,prevFeet,FEET_OFF);
+  }
   if(e.og){
     e._shutSettled=true; e.vx*=0.45; e.vy=0;
     if(!e._shutLean) e._shutLean=e.fc?0.14:-0.14;

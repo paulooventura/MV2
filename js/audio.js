@@ -22,42 +22,31 @@ const _mp3Failed={title:false,story:false,game:false};
 const _bgmFailTries={title:0,story:0,game:0};
 let _titleMusicPath=null,_storyMusicPath=null,_gameMusicPath=null;
 
-// ── Track lists ─────────────────────────────────────────────
+// Web BGM lives in assets/bgm/*.mp3 as regular git files.
+// The WAV masters stay in Git LFS — GitHub Pages cannot serve LFS, so the
+// online build must use these MP3s or it falls back to the PSG chip.
 const NEW_MUSIC_TRACKS=[
-  'assets/new music/Arcade Apron SILVER BOSS.wav',
-  'assets/new music/Canopy Quest GOLD.wav',
-  'assets/new music/Canopy Quest.wav',
-  'assets/new music/Cartridge Cannon BRONZE.wav',
-  'assets/new music/Crystal Cavern Drift GOLD.wav',
-  'assets/new music/Crystal Cavern Drift.wav',
-  'assets/new music/Crystal Memory Gate PLAT OPEN.wav',
-  'assets/new music/Jungle Byte Trek (1).wav',
-  'assets/new music/Jungle Byte Trek.mp3',
-  'assets/new music/Jungle Byte Trek.wav',
-  'assets/new music/Jungle Pixel Drift (1).wav',
-  'assets/new music/Jungle Pixel Drift.wav',
-  'assets/new music/Lost Save Shrine DIAM CHILL.wav',
-  'assets/new music/Lost Save Shrine PLAT STORY.wav',
-  'assets/new music/Pixel Quasar GOLD BOSS .wav',
-  'assets/new music/Skyforge Quest (1).wav',
-  'assets/new music/Skyforge Quest (2).wav',
-  'assets/new music/Skyforge Quest.wav',
-  'assets/new music/Temple Canopy Drift PLATINUM.wav',
-  'assets/new music/Temple Canopy Drift SILVER.wav',
-  'assets/new music/Underground Crown GOLD CHILL.wav',
-  'assets/new music/Underground Crown PLAT CHILL.wav',
-  'assets/new music/__Cache Fever__.wav',
-  'assets/new music/__Cache Fever__GOLD TECH.wav',
+  'assets/bgm/canopy-quest-gold.mp3',
+  'assets/bgm/cartridge-cannon-bronze.mp3',
+  'assets/bgm/crystal-cavern-drift-gold.mp3',
+  'assets/bgm/crystal-memory-gate.mp3',
+  'assets/bgm/lost-save-shrine-diam.mp3',
+  'assets/bgm/lost-save-shrine-story.mp3',
+  'assets/bgm/pixel-quasar-gold-boss.mp3',
+  'assets/bgm/temple-canopy-drift.mp3',
+  'assets/bgm/underground-crown-gold.mp3',
+  'assets/bgm/underground-crown-plat.mp3',
+  'assets/bgm/cache-fever-gold.mp3',
 ];
 const TITLE_MUSIC_TRACKS=[
-  'assets/new music/Crystal Memory Gate PLAT OPEN.wav',
-  'assets/new music/__Cache Fever__.wav',
-  'assets/new music/Temple Canopy Drift PLATINUM.wav',
+  'assets/bgm/crystal-memory-gate.mp3',
+  'assets/bgm/cache-fever-gold.mp3',
+  'assets/bgm/temple-canopy-drift.mp3',
 ];
 const STORY_MUSIC_TRACKS=[
-  'assets/new music/Lost Save Shrine PLAT STORY.wav',
-  'assets/new music/Underground Crown PLAT CHILL.wav',
-  'assets/new music/Lost Save Shrine DIAM CHILL.wav',
+  'assets/bgm/lost-save-shrine-story.mp3',
+  'assets/bgm/underground-crown-plat.mp3',
+  'assets/bgm/lost-save-shrine-diam.mp3',
 ];
 
 // ── Zone definitions (also used by PSG sequencer) ───────────
