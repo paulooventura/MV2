@@ -53,7 +53,7 @@ function _initTouchButtons(){
     const b=document.getElementById(id);
     const code=['KeyW','KeyA','KeyS','KeyD','Space','KeyE','KeyQ','KeyF'][i];
     if(!b) return;
-    const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; e.preventDefault(); };
+    const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; e.preventDefault(); e.stopPropagation(); };
     const off=()=>K[code]=false;
     b.addEventListener('mousedown',on);
     b.addEventListener('touchstart',on,{passive:false});
@@ -62,7 +62,7 @@ function _initTouchButtons(){
   const testBtn=document.getElementById('bTest');
   if(testBtn){ testBtn.addEventListener('click',()=>{ TEST_MODE=!TEST_MODE; testBtn.style.background=TEST_MODE?'#003300':'#001800'; testBtn.style.borderColor=TEST_MODE?'#00aa00':'#0a4400'; initWorld(); }); }
   const rstBtn=document.getElementById('bRst');
-  if(rstBtn){ rstBtn.addEventListener('click',()=>{Kj['Tab']=true;}); rstBtn.addEventListener('touchstart',e=>{Kj['Tab']=true;e.preventDefault();},{passive:false}); }
+  if(rstBtn){ rstBtn.addEventListener('click',()=>{Kj['Tab']=true;}); rstBtn.addEventListener('touchstart',e=>{Kj['Tab']=true;e.preventDefault();e.stopPropagation();},{passive:false}); }
 }
 
 // ── Gamepad ───────────────────────────────────────────────────

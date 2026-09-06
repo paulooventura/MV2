@@ -20,7 +20,8 @@
     'color:#e0c8ff;text-decoration:none;background:#120828;border-radius:0}' +
     '#mvAbBar a.on{background:#24104a;color:#fff4c0;border-color:#f0d070}' +
     '#mvAbBar a:not(.on):hover{border-color:#c8a0e8;color:#fff}' +
-    'body{padding-top:0}';
+    'body{padding-top:0}' +
+    'html.phone-play #mvAbBar{display:none!important}';
   document.head.appendChild(css);
 
   var bar = document.createElement('div');

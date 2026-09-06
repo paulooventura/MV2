@@ -688,4 +688,5 @@ function updateVersionBar(){
       inf.style.color='';
     }
   }
+  if(typeof _syncPhoneHud==='function') _syncPhoneHud();
 }

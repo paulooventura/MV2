@@ -23,8 +23,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='128';</script>
-<script src="js/ab-switch.js?v=103"></script>
+<script>window.MV_BUILD='129';</script>
+<script src="js/phone.js?v=129"></script>
+<script src="js/ab-switch.js?v=129"></script>
 <script>
 if(location.protocol==='file:'){
   document.addEventListener('DOMContentLoaded',function(){
@@ -44,9 +45,14 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;
   -ms-interpolation-mode:nearest-neighbor;max-width:100%;width:100%;height:auto;
   border:1px solid #1a1a30;cursor:crosshair;touch-action:none;}
 .row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.acts-row{display:flex;gap:6px;align-items:center;}
+.devrow{display:flex;gap:6px;align-items:center;}
+.ph{display:none;}
 button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
   border-radius:2px;font:13px/1.2 ui-monospace,Consolas,monospace;cursor:pointer;touch-action:none;user-select:none;}
 .dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(2,30px);gap:2px;}
+#rotateHint{display:none;}
 @media (max-width:1100px){
   body{padding:4px;gap:3px;}
   button{padding:8px 12px;font-size:11px;min-height:44px;}
@@ -64,10 +70,94 @@ button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
 #battleHud .bh-hp{color:#fff;text-shadow:0 1px 4px #000;}
 #battleHud .bh-rival{margin-top:12px;text-align:center;font-size:clamp(28px,6vw,44px);font-weight:800;color:#fc8;text-shadow:0 2px 6px #000;}
 #gameWrap{position:relative;display:inline-block;max-width:100%;}
+
+/* Phone landscape play — full viewport canvas, overlay pads, portrait rotate */
+html.phone-play,html.phone-play body{
+  width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
+  padding:0;gap:0;touch-action:none;-webkit-user-select:none;user-select:none;
+}
+html.phone-play body{position:fixed;inset:0;}
+html.phone-play #mvVer,html.phone-play #inf,html.phone-play #helpLine{display:none!important;}
+html.phone-play .desk{display:none;}
+html.phone-play .ph{display:inline;}
+html.phone-play.land #gameWrap{
+  position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+}
+html.phone-play.land canvas{
+  width:min(100vw,calc(100dvh * 1024 / 768));
+  height:min(100dvh,calc(100vw * 768 / 1024));
+  max-width:100%;max-height:100%;border:none;
+}
+html.phone-play.land #touchHud{
+  position:fixed;inset:0;z-index:30;display:block;pointer-events:none;
+  background:none;gap:0;flex-wrap:nowrap;
+}
+html.phone-play.land #touchHud:not(.in-game){display:none;}
+html.phone-play.land #padLeft{
+  position:absolute;left:max(10px,env(safe-area-inset-left,0px));
+  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+}
+html.phone-play.land #padRight{
+  position:absolute;right:max(10px,env(safe-area-inset-right,0px));
+  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:flex;flex-direction:column;align-items:flex-end;gap:10px;
+}
+html.phone-play.land .acts-row{gap:8px;}
+html.phone-play.land .devrow{
+  position:absolute;top:max(8px,env(safe-area-inset-top,0px));
+  right:max(8px,env(safe-area-inset-right,0px));pointer-events:auto;
+}
+html.phone-play.land .desk-only{display:none!important;}
+html.phone-play.land .dpad{
+  grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;
+}
+html.phone-play.land #touchHud button{
+  background:rgba(12,10,28,.72);border:2px solid rgba(180,160,220,.45);
+  color:#eee8ff;min-width:56px;min-height:56px;padding:0 8px;font-weight:800;
+  font-size:15px;border-radius:12px;-webkit-tap-highlight-color:transparent;
+}
+html.phone-play.land #bSp{
+  min-width:96px;min-height:72px;font-size:18px;letter-spacing:.04em;
+  background:rgba(48,24,80,.82);border-color:rgba(220,190,255,.65);
+}
+html.phone-play.land #bE{color:#7ef;}
+html.phone-play.land #bQ{color:#fc8;}
+html.phone-play.land #bF{color:#f88;}
+html.phone-play.land #bRst{
+  min-width:44px;min-height:36px;font-size:11px;opacity:.8;padding:0 10px;
+}
+html.phone-play.port #rotateHint{
+  display:flex;position:fixed;inset:0;z-index:100000;background:#04020a;
+  color:#e8d0ff;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;text-align:center;padding:max(24px,env(safe-area-inset-top)) 28px;
+}
+html.phone-play.port #rotateHint .rh-glyph{
+  width:64px;height:108px;border:3px solid #c8a0e8;border-radius:14px;
+  position:relative;animation:rh-spin 1.8s ease-in-out infinite;
+}
+html.phone-play.port #rotateHint .rh-glyph:after{
+  content:"";position:absolute;left:50%;bottom:10px;width:16px;height:4px;
+  margin-left:-8px;border-radius:2px;background:#c8a0e8;
+}
+html.phone-play.port #rotateHint .rh-msg{
+  font:800 22px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em;
+}
+html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,monospace;color:#9a88b8;}
+@keyframes rh-spin{
+  0%,18%{transform:rotate(0deg);}
+  45%,70%{transform:rotate(90deg);}
+  100%{transform:rotate(0deg);}
+}
+@media (max-height:380px){
+  html.phone-play.land .dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:4px;}
+  html.phone-play.land #touchHud button{min-width:48px;min-height:48px;font-size:13px;}
+  html.phone-play.land #bSp{min-width:80px;min-height:60px;font-size:16px;}
+}
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 128</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 129</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -81,22 +171,37 @@ button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
 <canvas id="c" width="1024" height="768"></canvas>
 </div>
 <div id="inf" style="font-size:14px;color:#8f8;min-height:20px;word-break:break-all;"></div>
-<div class="row">
-  <div class="dpad">
-    <div></div><button id="bU">W↑</button><div></div>
-    <button id="bL">A←</button><button id="bDn">S↓</button><button id="bR">D→</button>
+<div id="touchHud" class="row">
+  <div class="dpad" id="padLeft">
+    <div></div>
+    <button id="bU" type="button" aria-label="Up"><span class="desk">W↑</span><span class="ph">↑</span></button>
+    <div></div>
+    <button id="bL" type="button" aria-label="Left"><span class="desk">A←</span><span class="ph">←</span></button>
+    <button id="bDn" type="button" aria-label="Down"><span class="desk">S↓</span><span class="ph">↓</span></button>
+    <button id="bR" type="button" aria-label="Right"><span class="desk">D→</span><span class="ph">→</span></button>
   </div>
-  <button id="bSp" style="height:30px;padding:0 12px;font-weight:700;">SPACE</button>
-  <button id="bE" style="height:30px;padding:0 10px;color:#0ff;">E</button>
-  <button id="bQ" style="height:30px;padding:0 10px;color:#f90;">Q</button>
-  <button id="bF" style="height:30px;padding:0 10px;color:#f66;">F</button>
-  <button id="bTest" style="height:30px;padding:0 12px;color:#0f0;background:#001800;border-color:#0a4400;font-weight:700;">🔬 TEST</button>
-  <button id="bRst" style="height:30px;padding:0 12px;font-weight:700;color:#ff0;background:#221100;border-color:#554400;">↺ RESET</button>
-  <button id="bEdit" style="height:30px;padding:0 12px;font-weight:700;color:#8cf;background:#001428;border-color:#246;">EDIT</button>
+  <div class="acts" id="padRight">
+    <button id="bSp" type="button" style="height:30px;padding:0 12px;font-weight:700;"><span class="desk">SPACE</span><span class="ph">JUMP</span></button>
+    <div class="acts-row">
+      <button id="bE" type="button" style="height:30px;padding:0 10px;color:#0ff;"><span class="desk">E</span><span class="ph">ITEM</span></button>
+      <button id="bQ" type="button" style="height:30px;padding:0 10px;color:#f90;"><span class="desk">Q</span><span class="ph">SWAP</span></button>
+      <button id="bF" type="button" style="height:30px;padding:0 10px;color:#f66;"><span class="desk">F</span><span class="ph">PUNCH</span></button>
+    </div>
+  </div>
+  <div class="devrow">
+    <button id="bTest" class="desk-only" type="button" style="height:30px;padding:0 12px;color:#0f0;background:#001800;border-color:#0a4400;font-weight:700;">🔬 TEST</button>
+    <button id="bRst" type="button" style="height:30px;padding:0 12px;font-weight:700;color:#ff0;background:#221100;border-color:#554400;">↺ RESET</button>
+    <button id="bEdit" class="desk-only" type="button" style="height:30px;padding:0 12px;font-weight:700;color:#8cf;background:#001428;border-color:#246;">EDIT</button>
+  </div>
 </div>
-<p style="font-size:13px;color:#889;margin-top:4px;letter-spacing:0.02em;">
+<p id="helpLine" style="font-size:13px;color:#889;margin-top:4px;letter-spacing:0.02em;">
   WASD/Arrows move+aim · Space jump · S duck · E use item · Q swap · F punch · Tab reset · ` / F2 edit Awdjoo
 </p>
+<div id="rotateHint">
+  <div class="rh-glyph" aria-hidden="true"></div>
+  <div class="rh-msg">TURN THE PHONE SIDEWAYS</div>
+  <div class="rh-sub">Landscape is the play view</div>
+</div>
 <script>
 window.onerror=function(msg,src,line,col,err){
   var s=src?String(src):'';
@@ -117,9 +222,9 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/enemies.js?v=123"></script>
 <script src="js/collision_grid.js?v=124"></script>
 <script src="js/physics.js?v=120"></script>
-<script src="js/player.js?v=120"></script>
+<script src="js/player.js?v=129"></script>
 <script src="js/weapons.js?v=120"></script>
-<script src="js/ui.js?v=125"></script>
+<script src="js/ui.js?v=129"></script>
 <script src="js/render.js?v=128"></script>
 <script src="js/editor.js?v=125"></script>
 <script src="js/map_edit.js?v=127"></script>
