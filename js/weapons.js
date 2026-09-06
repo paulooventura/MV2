@@ -171,6 +171,7 @@ function updateBWalls(){
       if(d.y>WH||d.life<=0) bw.debris.splice(i,1);
     }
     if(bw.hp<=0&&bw._destroyFr!=null&&fr-bw._destroyFr>22) bw.debris.length=0;
+    if(typeof gridSyncBwallOccupancy==='function') gridSyncBwallOccupancy(bw);
   }
 }
 

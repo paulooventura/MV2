@@ -386,10 +386,9 @@ function gridClear(){ MV_GRID=null; }
 function gridSmashCell(c,r){
   if(!_gridReady()) return false;
   if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return false;
-  const t=gridCell(c,r);
-  if(t===MV_GRID_AIR) return false;
+  if(gridCell(c,r)===MV_GRID_AIR) return false;
+  if(gridIsSlope(c,r)) return false;
   gridSet(c,r,MV_GRID_AIR);
-  if(MV_GRID.slope) delete MV_GRID.slope[r*MV_GRID.cols+c];
   return true;
 }
 
@@ -403,32 +402,57 @@ function gridSmashWorldRect(x,y,w,h){
   return hit;
 }
 
-function gridSyncDestroyedBwall(bw){
-  if(!bw||!_gridReady()) return;
-  if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol, bw.homeRow);
-  gridSmashWorldRect(bw.x,bw.y,bw.w||MV_GRID.tile,bw.h||MV_GRID.tile);
-  if(bw.homeX!=null&&bw.homeY!=null) gridSmashWorldRect(bw.homeX,bw.homeY,bw.w||MV_GRID.tile,bw.h||MV_GRID.tile);
-}
-
-/** Make sure every live omniblock owns a destruct cell, even if KEEP OUT painted rock there. */
-function gridStampLiveBwalls(){
-  if(!_gridReady()||typeof BWALLS==='undefined') return;
+function _gridBwallHomeCells(bw){
+  const cells=[];
+  if(!bw||!_gridReady()) return cells;
   const t=MV_GRID.tile;
-  for(const bw of BWALLS){
-    if(!bw||bw.hp<=0) continue;
-    if(bw.homeCol!=null&&bw.homeRow!=null){
-      const cur=gridCell(bw.homeCol,bw.homeRow);
-      if(cur!==MV_GRID_SLOPE_L&&cur!==MV_GRID_SLOPE_R) gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT);
-    }
-    const x=bw.homeX!=null?bw.homeX:bw.x, y=bw.homeY!=null?bw.homeY:bw.y;
+  const seen=Object.create(null);
+  const add=(c,r)=>{
+    if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return;
+    const k=c+','+r;
+    if(seen[k]) return;
+    seen[k]=1; cells.push([c,r]);
+  };
+  if(bw.homeCol!=null&&bw.homeRow!=null) add(bw.homeCol,bw.homeRow);
+  const x=bw.homeX!=null?bw.homeX:null, y=bw.homeY!=null?bw.homeY:null;
+  if(x!=null&&y!=null){
     const w=bw.w||t, h=bw.h||t;
     const c0=Math.floor(x/t), c1=Math.floor((x+Math.max(1,w)-1)/t);
     const r0=Math.floor(y/t), r1=Math.floor((y+Math.max(1,h)-1)/t);
-    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
-      const cur=gridCell(c,r);
-      if(cur===MV_GRID_AIR||cur===MV_GRID_SOLID||cur===MV_GRID_ONEWAY) gridSet(c,r,MV_GRID_DESTRUCT);
-    }
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) add(c,r);
   }
+  return cells;
+}
+
+/** A block's home is a hole in the terrain. The block fills it; nothing else does. */
+function gridOpenBwallHole(bw){
+  for(const [c,r] of _gridBwallHomeCells(bw)) gridSmashCell(c,r);
+}
+
+function gridFillBwallHole(bw){
+  if(!bw||bw.hp<=0) return;
+  for(const [c,r] of _gridBwallHomeCells(bw)){
+    if(gridIsSlope(c,r)) continue;
+    gridSet(c,r,MV_GRID_DESTRUCT);
+  }
+}
+
+function gridSyncBwallOccupancy(bw){
+  if(!bw||!_gridReady()) return;
+  const moved=typeof _bwallMovedFromHome==='function'&&_bwallMovedFromHome(bw);
+  if(bw.hp<=0||moved) gridOpenBwallHole(bw);
+  else gridFillBwallHole(bw);
+}
+
+function gridSyncDestroyedBwall(bw){
+  if(!bw) return;
+  bw.hp=0;
+  gridOpenBwallHole(bw);
+}
+
+function gridStampLiveBwalls(){
+  if(!_gridReady()||typeof BWALLS==='undefined') return;
+  for(const bw of BWALLS) gridSyncBwallOccupancy(bw);
 }
 
 function gridPlayerBody(pl){

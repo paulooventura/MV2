@@ -132,7 +132,10 @@ async function main() {
       log.push(['east trail vs intact door', doorTrail.join(' ')]);
       await wait(4);
       for (const bw of BWALLS) {
-        if (bw.homeCol === 28) { bw.hp = 0; bw._destroyFr = fr; gridSyncDestroyedBwall(bw); }
+        if (bw.homeCol === 28) {
+          bw.hp = 3;
+          _damageBwall(bw, 99, {});
+        }
       }
       await wait(6);
       const doorCellsAfter = [72, 73, 74, 75].map((r) => gridCell(28, r));
@@ -158,7 +161,10 @@ async function main() {
       await wait(10);
       log.push(['on hatch before smash', JSON.stringify({ ...cell(), crouch: +(p.crouchAmt || 0).toFixed(2) })]);
       for (const bw of BWALLS) {
-        if (bw.homeRow === 76 && bw.homeCol >= 36 && bw.homeCol <= 38) { bw.hp = 0; bw._destroyFr = fr; gridSyncDestroyedBwall(bw); }
+        if (bw.homeRow === 76 && bw.homeCol >= 36 && bw.homeCol <= 38) {
+          bw.hp = 3;
+          _damageBwall(bw, 99, {});
+        }
       }
       await wait(120);
       log.push(['hatch grid row76', [36, 37, 38].map((c) => gridCell(c, 76)).join('')]);

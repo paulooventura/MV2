@@ -332,6 +332,16 @@ function _bwallDestructSkipCells(){
   }
   return skip;
 }
+/** Open holes: destroyed or pulled-away blocks must not still draw the brick under them. */
+function _bwallHoleSkipCells(){
+  const skip=new Set();
+  for(const bw of BWALLS){
+    if(bw.homeCol==null||bw.homeRow==null) continue;
+    if(bw.hp<=0||(typeof _bwallMovedFromHome==='function'&&_bwallMovedFromHome(bw)))
+      skip.add(bw.homeRow+'_'+bw.homeCol);
+  }
+  return skip;
+}
 function _spawnBwallsFromDestructTiles(destructData,canvasData,bgData,mw,mh,tw,th,sc){
   if(!destructData||!mw) return;
   const have=new Set(_mapBWalls.filter(b=>b.homeCol!=null).map(b=>b.homeRow+'_'+b.homeCol));
@@ -581,10 +591,10 @@ function drawTmjMap(){
   const main=canvasData||data;
   if(!main&&!bgData) return;
   drawParallax();
-  if(bgData) _drawTmjTileLayer(bgData,mw,mh,tw,th,sc,null,null,'bg');
-  if(main) _drawTmjTileLayer(main,mw,mh,tw,th,sc,null,null,'canvas');
+  const holeSkip=_bwallHoleSkipCells();
+  if(bgData) _drawTmjTileLayer(bgData,mw,mh,tw,th,sc,holeSkip,null,'bg');
+  if(main) _drawTmjTileLayer(main,mw,mh,tw,th,sc,holeSkip,null,'canvas');
   _drawTmjTileLayer(destructData,mw,mh,tw,th,sc,_bwallDestructSkipCells(),null,'destruct');
-  drawBwallHomeReveal();
 }
 function drawTmjForeground(){ if(!_tmjDraw||!_tmjDraw.fgData)return; const{fgData,mw,mh,tw,th,sc}=_tmjDraw; _drawTmjTileLayer(fgData,mw,mh,tw,th,sc,null,null,'fg'); }
 
