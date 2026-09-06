@@ -23,8 +23,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='130';</script>
-<script src="js/phone.js?v=130"></script>
+<script>window.MV_BUILD='131';</script>
+<script src="js/phone.js?v=131"></script>
 <script src="js/ab-switch.js?v=129"></script>
 <script>
 if(location.protocol==='file:'){
@@ -51,12 +51,14 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;
 .ph{display:none;}
 button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
   border-radius:2px;font:13px/1.2 ui-monospace,Consolas,monospace;cursor:pointer;touch-action:none;user-select:none;}
-.dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(2,30px);gap:2px;}
+.dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(3,28px);gap:2px;}
+.d-plus{display:none;}
+.d-hub{background:#1a1a24;border-radius:4px;}
 #rotateHint{display:none;}
 @media (max-width:1100px){
   body{padding:4px;gap:3px;}
   button{padding:8px 12px;font-size:11px;min-height:44px;}
-  .dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(2,44px);}
+  .dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px);}
 }
 @media (display-mode:standalone){
   body{padding:2px;gap:2px;}
@@ -94,39 +96,58 @@ html.phone-play.land #touchHud{
   background:none;gap:0;flex-wrap:nowrap;
 }
 html.phone-play.land #padLeft{
-  position:absolute;left:max(10px,env(safe-area-inset-left,0px));
-  bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  position:absolute;left:max(12px,env(safe-area-inset-left,0px));
+  bottom:max(18px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:block;width:156px;height:156px;
 }
+html.phone-play.land #padLeft > div:not(.d-plus){display:none;}
+html.phone-play.land #padLeft .d-plus{
+  display:block;position:absolute;inset:0;
+  background:linear-gradient(180deg,#4a4a56 0%,#2a2a34 45%,#16161e 100%);
+  clip-path:polygon(33% 0,67% 0,67% 33%,100% 33%,100% 67%,67% 67%,67% 100%,33% 100%,33% 67%,0 67%,0 33%,33% 33%);
+  filter:drop-shadow(0 4px 8px #000c);
+}
+html.phone-play.land #padLeft .d-plus:after{
+  content:"";position:absolute;left:50%;top:50%;width:22%;height:22%;
+  margin:-11% 0 0 -11%;border-radius:50%;background:#12121a;
+  box-shadow:inset 0 2px 4px #000,0 1px 0 #555;
+}
+html.phone-play.land #padLeft button{
+  position:absolute;width:34%;height:34%;margin:0;padding:0;min-width:0;min-height:0;
+  height:34%!important;background:transparent;border:none;box-shadow:none;
+  color:#d8d8e0;font-size:20px;font-weight:900;border-radius:0;
+}
+html.phone-play.land #bU{top:0;left:33%;}
+html.phone-play.land #bDn{bottom:0;left:33%;}
+html.phone-play.land #bL{left:0;top:33%;}
+html.phone-play.land #bR{right:0;top:33%;}
+html.phone-play.land #padLeft button:active{color:#fff;filter:brightness(1.35);}
 html.phone-play.land #padRight{
-  position:absolute;right:max(10px,env(safe-area-inset-right,0px));
-  bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
-  display:grid;grid-template-columns:repeat(2,72px);grid-template-rows:repeat(2,64px);
-  gap:8px;
+  position:absolute;right:max(12px,env(safe-area-inset-right,0px));
+  bottom:max(18px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:block;width:168px;height:168px;
 }
+html.phone-play.land #padRight button{
+  position:absolute;width:58px;height:58px!important;min-width:58px;min-height:58px;
+  padding:0;border-radius:50%;font-size:22px;font-weight:900;letter-spacing:0;
+  border:3px solid #0a0a10;box-shadow:0 3px 0 #000,0 6px 10px #0008;
+  -webkit-tap-highlight-color:transparent;
+}
+html.phone-play.land #bQ{top:0;left:50%;margin-left:-29px;background:radial-gradient(circle at 32% 28%,#9ad4ff,#1e5fd0);color:#fff!important;}
+html.phone-play.land #bE{top:50%;left:0;margin-top:-29px;background:radial-gradient(circle at 32% 28%,#b6f08a,#2a8a22);color:#fff!important;}
+html.phone-play.land #bSp{top:50%;right:0;margin-top:-29px;background:radial-gradient(circle at 32% 28%,#ff8a8a,#c81c1c);color:#fff!important;}
+html.phone-play.land #bF{bottom:0;left:50%;margin-left:-29px;background:radial-gradient(circle at 32% 28%,#ffe27a,#c89010);color:#221!important;}
+html.phone-play.land #padRight button:active{transform:scale(.92);filter:brightness(.85);}
 html.phone-play.land .devrow{
   position:absolute;top:max(8px,env(safe-area-inset-top,0px));
   right:max(8px,env(safe-area-inset-right,0px));pointer-events:auto;
 }
 html.phone-play.land .desk-only{display:none!important;}
-html.phone-play.land .dpad{
-  grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;
-}
-html.phone-play.land #touchHud button{
-  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
-  color:#fff;min-width:56px;min-height:56px;height:auto!important;padding:0 8px;
-  font-weight:800;font-size:15px;border-radius:12px;
-  -webkit-tap-highlight-color:transparent;box-shadow:0 2px 8px #000a;
-}
-html.phone-play.land #padRight button{min-width:0;min-height:0;width:100%;height:100%;font-size:14px;}
-html.phone-play.land #bSp{
-  font-size:16px;letter-spacing:.04em;
-  background:rgba(56,28,96,.92);border-color:#e8d0ff;
-}
-html.phone-play.land #bE{color:#7ef;}
-html.phone-play.land #bQ{color:#fc8;}
-html.phone-play.land #bF{color:#f88;}
+html.phone-play.land #touchHud button{-webkit-tap-highlight-color:transparent;}
 html.phone-play.land #bRst{
   min-width:44px;min-height:36px;font-size:11px;opacity:.8;padding:0 10px;
+  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
+  color:#ff0;border-radius:10px;
 }
 html.phone-play.port #rotateHint{
   display:flex;position:fixed;inset:0;z-index:100000;background:#04020a;
@@ -151,29 +172,16 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
   100%{transform:rotate(0deg);}
 }
 @media (max-height:380px){
-  html.phone-play.land .dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:4px;}
-  html.phone-play.land #touchHud button{min-width:48px;min-height:48px;font-size:13px;}
-  html.phone-play.land #padRight{grid-template-columns:repeat(2,60px);grid-template-rows:repeat(2,52px);gap:6px;}
-  html.phone-play.land #bSp{font-size:14px;}
-}
-@media (hover:none) and (pointer:coarse) and (orientation:landscape){
-  html:not(.phone-play) #touchHud{
-    position:fixed;inset:0;z-index:30;display:block!important;pointer-events:none;
-  }
-  html:not(.phone-play) #padLeft{
-    position:absolute;left:max(10px,env(safe-area-inset-left,0px));
-    bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
-  }
-  html:not(.phone-play) #padRight{
-    position:absolute;right:max(10px,env(safe-area-inset-right,0px));
-    bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
-    display:grid;grid-template-columns:repeat(2,72px);grid-template-rows:repeat(2,64px);gap:8px;
-  }
+  html.phone-play.land #padLeft{width:128px;height:128px;}
+  html.phone-play.land #padRight{width:140px;height:140px;}
+  html.phone-play.land #padRight button{width:48px;height:48px!important;min-width:48px;min-height:48px;font-size:18px;}
+  html.phone-play.land #bQ,html.phone-play.land #bF{margin-left:-24px;}
+  html.phone-play.land #bE,html.phone-play.land #bSp{margin-top:-24px;}
 }
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 130</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 131</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -189,18 +197,22 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
 <div id="inf" style="font-size:14px;color:#8f8;min-height:20px;word-break:break-all;"></div>
 <div id="touchHud" class="row">
   <div class="dpad" id="padLeft">
+    <div class="d-plus" aria-hidden="true"></div>
     <div></div>
     <button id="bU" type="button" aria-label="Up"><span class="desk">W↑</span><span class="ph">↑</span></button>
     <div></div>
     <button id="bL" type="button" aria-label="Left"><span class="desk">A←</span><span class="ph">←</span></button>
-    <button id="bDn" type="button" aria-label="Down"><span class="desk">S↓</span><span class="ph">↓</span></button>
+    <div class="d-hub" aria-hidden="true"></div>
     <button id="bR" type="button" aria-label="Right"><span class="desk">D→</span><span class="ph">→</span></button>
+    <div></div>
+    <button id="bDn" type="button" aria-label="Down"><span class="desk">S↓</span><span class="ph">↓</span></button>
+    <div></div>
   </div>
   <div class="acts" id="padRight">
-    <button id="bSp" type="button" style="height:30px;padding:0 12px;font-weight:700;"><span class="desk">SPACE</span><span class="ph">JUMP</span></button>
-    <button id="bE" type="button" style="height:30px;padding:0 10px;color:#0ff;"><span class="desk">E</span><span class="ph">ITEM</span></button>
-    <button id="bQ" type="button" style="height:30px;padding:0 10px;color:#f90;"><span class="desk">Q</span><span class="ph">SWAP</span></button>
-    <button id="bF" type="button" style="height:30px;padding:0 10px;color:#f66;"><span class="desk">F</span><span class="ph">PUNCH</span></button>
+    <button id="bSp" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="A jump"><span class="desk">SPACE</span><span class="ph">A</span></button>
+    <button id="bE" type="button" style="height:30px;padding:0 10px;color:#0ff;" aria-label="Y item"><span class="desk">E</span><span class="ph">Y</span></button>
+    <button id="bQ" type="button" style="height:30px;padding:0 10px;color:#f90;" aria-label="X swap"><span class="desk">Q</span><span class="ph">X</span></button>
+    <button id="bF" type="button" style="height:30px;padding:0 10px;color:#f66;" aria-label="B punch"><span class="desk">F</span><span class="ph">B</span></button>
   </div>
   <div class="devrow">
     <button id="bTest" class="desk-only" type="button" style="height:30px;padding:0 12px;color:#0f0;background:#001800;border-color:#0a4400;font-weight:700;">🔬 TEST</button>
