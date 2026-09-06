@@ -1308,9 +1308,11 @@ function _spawnMapEnemies(){
     const feetY=d.y!=null?d.y:_spawnFeetFromHeadTop(d.headTopY);
     if(feetY>=TMJ_BASEMENT_FEET_Y) continue;
     const range=Math.max(96,Math.min(200,140));
-    ENEMS.push(_mkMinion(d.x,feetY,d.kind,{
+    const m=_mkMinion(d.x,feetY,d.kind,{
       mn:Math.floor(d.x-range),mx:Math.floor(d.x+range),
-    }));
+    });
+    if(d._awdjooIsland) m._awdjooIsland=true;
+    ENEMS.push(m);
   }
 }
 function _spawnMapCrates(){

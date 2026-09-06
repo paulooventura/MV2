@@ -2036,15 +2036,16 @@ function drawFX(){
   }
   // â”€â”€ LASER SHOTS â€” fast plasma bolts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _allShots=(p2&&p2.shots&&_playerCount===2)?p.shots.concat(p2.shots):p.shots;
-  for(const s of _allShots){
+  const _laserList=_allShots.concat((typeof ESHOTS!=='undefined'?ESHOTS:[]).filter(s=>s&&s.type==='laser'));
+  for(const s of _laserList){
     const bx=sx(s.x),by=sy(s.y);
     if(bx<-24||bx>W+24||by<-24||by>H+24)continue;
     const isVenture=s.owner==='venture';
     const charged=s.charged||false;
-    const isEnemy=s.owner==='enemy'||s.col==='#ff3355'||s.col==='#ff5533';
-    const core=isEnemy?'#ffeedd':(isVenture?'#ffe0e8':'#f0e0ff');
-    const mid=isEnemy?'#ff6644':(isVenture?'#ff4466':'#bb55ff');
-    const glow=isEnemy?'#ff8844':(isVenture?'#ff2244':'#7722cc');
+    const isEnemy=s.owner==='enemy'||s.col==='#ff4400'||s.col==='#ff3355'||s.col==='#ff5533';
+    const core=isEnemy?'#ffe8e0':(isVenture?'#ffe0e8':'#f0e0ff');
+    const mid=isEnemy?'#ff3333':(isVenture?'#ff4466':'#bb55ff');
+    const glow=isEnemy?'#cc1111':(isVenture?'#ff2244':'#7722cc');
     if(s._fizzle){
       const t=s._fizzle/16;
       const shimmer=0.35+0.65*Math.abs(Math.sin(fr*0.85+(s.born||0)*0.5));
@@ -2067,11 +2068,11 @@ function drawFX(){
     }
     const sp=Math.hypot(s.vx,s.vy)||1;
     const ux=s.vx/sp,uy=s.vy/sp;
-    const spdFac=Math.min(1,sp/16);
-    const trailLen=(charged?34:20)*spdFac;
-    const headLen=(charged?10:6)*Math.max(0.45,spdFac);
+    const spdFac=isEnemy?1:Math.min(1,sp/16);
+    const trailLen=(charged?34:20)*Math.max(isEnemy?0.95:0.7,spdFac);
+    const headLen=(charged?10:6)*Math.max(0.7,spdFac);
     const pulse=0.72+0.28*Math.sin(fr*0.55+(s.born||0)*0.4);
-    const vis=Math.max(0.25,spdFac);
+    const vis=isEnemy?1:Math.max(0.45,spdFac);
     ctx.lineCap='round';
     ctx.globalAlpha=0.28*pulse*vis;
     ctx.strokeStyle=glow;ctx.lineWidth=charged?18:9;

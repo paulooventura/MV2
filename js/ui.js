@@ -330,6 +330,7 @@ function _enterZone(idx){
   if(_zoneIdx===0){
     _ensureCampaignMapApplied();
     if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
+    if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle();
     ENEMS=[]; CRATES=[];
     _restoreMapBWalls();
     _populateKnowlFromMap(); _initLaituFromMap();

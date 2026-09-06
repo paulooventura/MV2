@@ -79,14 +79,14 @@
       if(spawnCol<28||spawnCol>34) rec('spawnNotHouse2',{col:spawnCol});
     }
     if(typeof GOALPL!=='undefined'&&GOALPL.x!=null&&GOALPL.x<2800) rec('goalNotHouse5',{x:GOALPL.x});
-    var house1=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===13; });
     var slopeE=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===17; });
-    if(!house1) rec('leftHouseEnemyMissing',{});
     if(!slopeE) rec('slopeEnemyMissing',{});
+    var slopeCluster=(_mapEnemyDefs||[]).filter(function(e){ return e&&e.col>=12&&e.col<=20; }).length;
+    if(slopeCluster>1) rec('tooManySlopeEnemies',{n:slopeCluster});
     var slopeDef=(_mapEnemyDefs||[]).find(function(e){ return e&&e.col===17; });
-    var houseDef=(_mapEnemyDefs||[]).find(function(e){ return e&&e.col===13; });
     if(slopeDef&&!(slopeDef.kit&&slopeDef.kit.length===1&&slopeDef.kit[0]===0)) rec('slopeEnemyKit',{kit:slopeDef.kit});
-    if(houseDef&&!(houseDef.kit&&houseDef.kit.length===1&&houseDef.kit[0]===1)) rec('houseEnemyKit',{kit:houseDef.kit});
+    var islandCircle=(_mapMinionDefs||[]).some(function(d){ return d&&d._awdjooIsland&&d.kind==='circle'; });
+    if(!islandCircle) rec('islandCircleMissing',{});
     var islandPlat=(typeof APLAT!=='undefined'?APLAT:[]).find(function(a){ return a&&a._awdjooIsland; });
     if(!islandPlat) rec('movingIslandMissing',{});
     else if(islandPlat.y>2080) rec('islandTooLow',{y:Math.round(islandPlat.y)});

@@ -63,14 +63,58 @@ function _awdjooMindAt(col, row, patrolHalf, kit){
   return last;
 }
 
-/** First mind (slope crest, west of House 2): laser only. */
+/** First mind (slope crest, west of House 2): laser only. One only. */
 function _ensureAwdjooSlopeEnemy(){
   _awdjooMindAt(AWdjoo_SLOPE_ENEMY_COL, AWdjoo_SLOPE_ENEMY_ROW, 120, [0]);
+  if(!_mapEnemyDefs) return;
+  for(let i=_mapEnemyDefs.length-1;i>=0;i--){
+    const e=_mapEnemyDefs[i];
+    if(e&&e.col>=12&&e.col<=20&&e.col!==AWdjoo_SLOPE_ENEMY_COL) _mapEnemyDefs.splice(i,1);
+  }
 }
 
-/** Second mind on House 1's roof: grappling hook only. */
+/** House 1 roof mind used to share the slope with the crest mind. Removed. */
 function _ensureAwdjooLeftHouseEnemy(){
-  _awdjooMindAt(AWdjoo_HOUSE1_ENEMY_COL, AWdjoo_HOUSE1_ENEMY_ROW, 90, [1]);
+  if(!_mapEnemyDefs) return;
+  for(let i=_mapEnemyDefs.length-1;i>=0;i--){
+    const e=_mapEnemyDefs[i];
+    if(e&&(e.col===AWdjoo_HOUSE1_ENEMY_COL||(e.row===AWdjoo_HOUSE1_ENEMY_ROW&&e.col>=12&&e.col<=15))){
+      _mapEnemyDefs.splice(i,1);
+    }
+  }
+}
+
+/** Circle minion that rides the floating island. */
+function _ensureAwdjooIslandCircle(){
+  if(!_isAwdjooCampaignMap()) return;
+  if(typeof _battleTestMode!=='undefined'&&_battleTestMode) return;
+  if(typeof _runTestMode!=='undefined'&&_runTestMode) return;
+  const plat=(typeof APLAT!=='undefined'?APLAT:[]).find(a=>a&&a._awdjooIsland);
+  if(!plat) return;
+  if(!_mapMinionDefs) return;
+  for(let i=_mapMinionDefs.length-1;i>=0;i--){
+    if(_mapMinionDefs[i]&&_mapMinionDefs[i]._awdjooIsland) _mapMinionDefs.splice(i,1);
+  }
+  _mapMinionDefs.push({
+    kind:'circle', x:plat.x+plat.w*0.5, y:plat.y, _awdjooIsland:true,
+  });
+}
+
+function _rideAwdjooIslandMinions(){
+  const plat=(typeof APLAT!=='undefined'?APLAT:[]).find(a=>a&&a._awdjooIsland);
+  if(!plat||typeof ENEMS==='undefined') return;
+  for(const e of ENEMS){
+    if(!e||!e._awdjooIsland) continue;
+    e.mn=plat.x+4; e.mx=plat.x+plat.w-4;
+    if(e.alive){
+      e.x+=(plat.dx||0);
+      if(e.x<e.mn){ e.x=e.mn; e.dir=1; e.vx=e.spd||0.6; }
+      if(e.x+e.w>e.mx){ e.x=e.mx-e.w; e.dir=-1; e.vx=-(e.spd||0.6); }
+    }else{
+      e.x=Math.max(e.mn, Math.min(e.mx-e.w, e.x+(plat.dx||0)));
+    }
+    e.y=plat.y-e.h; e.vy=0; e.og=true;
+  }
 }
 
 /**
@@ -123,7 +167,8 @@ function _awdjooLevelSnapshot(){
     knowls:typeof kTotal!=='undefined'?kTotal:0,
     goalOpen:!!goalOpen,
     win:!!win,
-    leftHouseEnemy:!!(_mapEnemyDefs||[]).some(e=>e&&e.col===AWdjoo_HOUSE1_ENEMY_COL),
+    leftHouseEnemy:false,
+    islandCircle:!!(_mapMinionDefs||[]).some(d=>d&&d._awdjooIsland),
     island:!!island,
   };
 }
