@@ -2488,11 +2488,23 @@ function _vropeStep(h){
 
 // ── Player health / lives ─────────────────────────────────────
 const SHUTDOWN_FRAMES=72;
+const SHUT_LIMIT=5;
 let _shutdownTimer=0;
+let _playerShutCount=0;
+let _gameOver=false;
 
+function _campaignUsesLives(){
+  return !!(typeof _zoneIdx!=='undefined'&&_zoneIdx===0
+    &&!_battleTestMode&&!_runTestMode&&!_stageDesignerMode);
+}
+function _resetCombatProgress(){
+  _playerShutCount=0;
+  _gameOver=false;
+  if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.length=0;
+}
 function _syncLivesFromHp(pl){ pl.lives=Math.max(0,Math.ceil(pl.hp/PLAYER_HIT_DMG)); }
 function applyPlayerHit(knockX,knockY,dmg=PLAYER_HIT_DMG){
-  if(_shutdownTimer>0) return;
+  if(_shutdownTimer>0||_gameOver) return;
   if(_awdjooTutorial) _stageDamageFree=false;
   p.hp=Math.max(0,p.hp-dmg);
   _syncLivesFromHp(p);
@@ -2500,9 +2512,16 @@ function applyPlayerHit(knockX,knockY,dmg=PLAYER_HIT_DMG){
   p.inv=0;
   _playerHitKnock(knockX,knockY,dmg);
   p.flashF=Math.max(p.flashF,12);
-  try{sfx('player_hit',_hitSfxPitch(p.hp,p.maxHp));}catch(e){}
+  if(p.hp>0){
+    try{sfx('player_hit',_hitSfxPitch(p.hp,p.maxHp));}catch(e){}
+  }
   if(p.hp<=0){
     if(_battleTestMode){_battleTestDeaths++;_syncBattleHud();}
+    if(_campaignUsesLives()){
+      _playerShutCount=(_playerShutCount||0)+1;
+      if(typeof _dropPlayerItems==='function') _dropPlayerItems();
+      if(_playerShutCount>=SHUT_LIMIT) _gameOver=true;
+    }
     _shutdownTimer=SHUTDOWN_FRAMES;
     p.vx=0; p.vy=-2;
     try{sfx('shutdown');}catch(e){}
@@ -2746,6 +2765,11 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
       p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};
     }
     sfx('enemy_shut');
+    if(e.mind&&!e._battleAi){
+      e._shutCount=(e._shutCount||0)+1;
+      if(typeof _dropEnemyItems==='function') _dropEnemyItems(e);
+      if(e._shutCount>=SHUT_LIMIT) e._stayDown=true;
+    }
     if(_battleTestMode&&e._battleAi) _onBattleRivalDefeated();
     if(_battleTestMode&&e._battleSignol) _onBattleSignolDefeated();
     return true;

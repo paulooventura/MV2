@@ -370,33 +370,31 @@ function updateEnemyShots(){
       s.deflected=true;
       const _spd2=Math.hypot(s.vx,s.vy); if(_spd2>12){s.vx=s.vx/_spd2*12;s.vy=s.vy/_spd2*12;}
     }
+    // Friendly fire: lasers hit other enemies (skip the shooter)
+    let eHitShot=false;
+    for(const e of ENEMS){
+      if(s.src&&e===s.src) continue;
+      if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
+        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){
+          e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
+          _tryInterruptMindReboot(e); ESHOTS.splice(i,1); eHitShot=true; break;
+        }
+        continue;
+      }
+      if(!_enemyCombatActive(e)) continue;
+      if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
+        e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
+        _damageEnemy(e,Math.round(ENM_DMG.laser*(s.power||1)),s.x,s.y);
+        ESHOTS.splice(i,1); eHitShot=true; break;
+      }
+    }
+    if(eHitShot) continue;
     // Hit player
     const _pCoreS=playerCoreHB(p);
     if(_shutdownTimer<=0&&ov(s.x-6,s.y-6,12,12,_pCoreS.x,_pCoreS.y,_pCoreS.w,_pCoreS.h)){
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff4444',10);
       applyPlayerHit(s.vx*0.7,-2.4,PLAYER_HIT_DMG);
       ESHOTS.splice(i,1); continue;
-    }
-    // Deflected → damage enemies
-    if(s.deflected){
-      let killed=false;
-      for(const e of ENEMS){
-        if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-          if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){
-            e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
-            _tryInterruptMindReboot(e); ESHOTS.splice(i,1); killed=true; break;
-          }
-          continue;
-        }
-        if(!_enemyCombatActive(e)) continue;
-        if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
-          e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
-          _damageEnemy(e,Math.round(ENM_DMG.laser*(s.power||1)),s.x,s.y);
-          ESHOTS.splice(i,1); killed=true; break;
-        }
-      }
-      if(killed) continue;
-      if(i>=ESHOTS.length) continue;
     }
     // Wall ricochet
     let eHit=false;
@@ -478,16 +476,13 @@ let _ropePickupAnim=null;
 let _itemTutorial=null;
 
 function updateRopePickup(){
-  if(_mapRopePickup&&!_mapRopePickup.got&&!_ropePickupAnim){
+  if(_mapRopePickup&&!_mapRopePickup.got&&!_ropePickupAnim&&!_itemUnlocked(1)){
     const r=_mapRopePickup;
     const h=playerCoreHB(p);
     if(ov(h.x-4,h.y-4,h.w+8,h.h+8,r.x+2,r.y+2,r.w-4,r.h-4)){
       _mapRopePickup.got=true;
       _ropePickupAnim={t:0,sx:r.x+r.w*0.5,sy:r.y+r.h*0.5};
-      _unlockedMask|=ITEM_UNLOCK_BITS[1]; ITEM=1;
-      if(typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
-      _itemTutorial={title:'RCA Grappling Hook',lines:['Your shoulder cannon can now fire a grappling hook.','Q — launch hook · W/S — reel in or let out rope','Space — release to swing or catapult off walls'],t:0,maxT:320};
-      sfx('unlock');
+      _grantPlayerItem(1);
       for(let pi=0;pi<14;pi++){
         const ang=Math.random()*Math.PI*2, sp=2+Math.random()*4;
         PFXS.push({x:r.x+r.w*0.5,y:r.y+r.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-2,
@@ -504,6 +499,79 @@ function updateRopePickup(){
     if(a.t>=52){_ropePickupAnim=null;p.flashF=Math.max(p.flashF,14);}
   }
   if(_itemTutorial){ _itemTutorial.t++; if(_itemTutorial.t>=_itemTutorial.maxT) _itemTutorial=null; }
+}
+
+// ── World item drops (shutdown loot) ──────────────────────────
+let ITEM_DROPS=[];
+
+function _spawnItemDrop(item, x, y){
+  if(item<0||item>3) return;
+  let fy=y, fx=x;
+  if(typeof gridStandY==='function'){
+    const s=gridStandY(x, y+8, {maxUp:48, maxDrop:160});
+    if(s!=null) fy=s;
+  }
+  ITEM_DROPS.push({item, x:fx-10, y:fy-16, w:22, h:12, got:false, bob:Math.random()*Math.PI*2});
+}
+function _dropPlayerItems(){
+  if(!_unlockedMask) return;
+  const cx=p.x+SW/2, cy=p.y+FEET_OFF-8;
+  let n=0;
+  for(let i=0;i<4;i++){
+    if(!_itemUnlocked(i)) continue;
+    _spawnItemDrop(i, cx+(n-1)*20, cy);
+    n++;
+  }
+  _unlockedMask=0; ITEM=-1;
+  p.xlrOn=false; p.magOn=false;
+  if(p.hook) p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};
+}
+function _dropEnemyItems(e){
+  if(!e) return;
+  const held=typeof _enemyHeldItems==='function'?_enemyHeldItems(e):(e.item>=0?[e.item]:[]);
+  const cx=e.x+(e.w||SW)/2, cy=e.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-8;
+  const seen={};
+  let n=0;
+  for(let hi=0;hi<held.length;hi++){
+    const idx=held[hi];
+    if(seen[idx]||idx<0) continue;
+    seen[idx]=1;
+    _spawnItemDrop(idx, cx+(n-0.5)*18, cy);
+    n++;
+  }
+  e._held=[]; e.item=-1;
+  e.xlrOn=false; e.magOn=false;
+  if(e.hook) e.hook.st='idle';
+}
+function updateItemDrops(){
+  if(!ITEM_DROPS.length) return;
+  for(const d of ITEM_DROPS){
+    if(d.got) continue;
+    d.bob=(d.bob||0)+0.08;
+    if(_shutdownTimer<=0&&!_gameOver&&p){
+      const h=playerCoreHB(p);
+      if(ov(h.x-4,h.y-4,h.w+8,h.h+8,d.x,d.y,d.w,d.h)){
+        if(!_itemUnlocked(d.item)&&_grantPlayerItem(d.item)){
+          d.got=true;
+          for(let pi=0;pi<10;pi++){
+            const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
+            PFXS.push({x:d.x+d.w*0.5,y:d.y+d.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,
+              life:14+Math.random()*10|0,maxLife:24,r:2+Math.random()*2,col:ICOLS[d.item]||'#fff'});
+          }
+          continue;
+        }
+      }
+    }
+    for(const e of ENEMS){
+      if(!e.mind||!e.alive) continue;
+      if(typeof _enemyHasItem==='function'&&_enemyHasItem(e,d.item)) continue;
+      if(ov(e.x,e.y,e.w,e.h,d.x,d.y,d.w,d.h)){
+        if(typeof _enemyGiveItem==='function') _enemyGiveItem(e,d.item);
+        d.got=true;
+        break;
+      }
+    }
+  }
 }
 
 // ── Particles ─────────────────────────────────────────────────

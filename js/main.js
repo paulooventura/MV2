@@ -779,7 +779,7 @@ function update(){
 
   if(Kj['Tab']){
     if(_stageDesignerMode){_editorActive=false;_gameState='stagedesign';_stopBGM('game');clkj();return;}
-    win=false;_shutdownTimer=0;_resetItemProgress();
+    win=false;_shutdownTimer=0;_gameOver=false;_resetItemProgress();
     if(_battleTestMode) initBattleTestWorld();
     else if(_runTestMode) initRunTestWorld();
     else _enterZone(0);
@@ -793,9 +793,13 @@ function update(){
     p.x+=p.vx;if(p.x<0){p.x=0;p.vx=0;}if(p.x>WW-SW){p.x=WW-SW;p.vx=0;}
     resX();p.y+=p.vy;resY(pf);
     if(p.y<20){p.y=20;p.vy=Math.max(0,p.vy);}
-    if(_shutdownTimer===0) _respawnPlayer();
+    if(_shutdownTimer===0){
+      if(_gameOver){clkj();return;}
+      _respawnPlayer();
+    }
     clkj();return;
   }
+  if(_gameOver){clkj();return;}
 
   // ── Aim ──────────────────────────────────────────────────────
   const up=isUp(),dn=isDn(),lf=isLf(),rt=isRt();
@@ -884,14 +888,14 @@ function update(){
     }else if(e.type==='square'){
       if(Math.abs(e.vx)<0.1)e.vx=e.spd*e.dir;
       if(e.x<=e.mn||e.x+e.w>=e.mx){e.dir*=-1;e.vx=e.spd*e.dir;}
-      if(e.shotCd===0&&pdist<500&&e.og){ESHOTS.push({x:e.x+e.w/2+(e.dir>0?e.w/2:-e.w/2),y:e.y+e.h/2,vx:e.dir*5+(pdx/pdist)*1.5,vy:(pdy/pdist)*3-1.5,life:999,type:'laser',col:'#ff4400',bounces:0,power:0.8,born:fr,owner:'enemy'});e.shotCd=90+Math.random()*60|0;sfx('laser');}
+      if(e.shotCd===0&&pdist<500&&e.og){ESHOTS.push({x:e.x+e.w/2+(e.dir>0?e.w/2:-e.w/2),y:e.y+e.h/2,vx:e.dir*5+(pdx/pdist)*1.5,vy:(pdy/pdist)*3-1.5,life:999,type:'laser',col:'#ff4400',bounces:0,power:0.8,born:fr,owner:'enemy',src:e});e.shotCd=90+Math.random()*60|0;sfx('laser');}
       _applyActorGravity(e,e.h,0.55);
     }else if(e.type==='flyer'){
       const tx=p.x+SW/2-(e.x+e.w/2),ty=(p.y+FEET_OFF-30)-(e.y+e.h/2),td=Math.hypot(tx,ty)||1;
       if(pdist<400){e.vx+=(tx/td)*0.08;e.vy+=(ty/td)*0.06;}else{e.vx*=0.95;e.vy*=0.95;}
       e.vx=Math.max(-e.spd,Math.min(e.spd,e.vx));e.vy=Math.max(-e.spd*0.6,Math.min(e.spd*0.6,e.vy));
       e.x+=e.vx;e.y+=e.vy;e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
-      if(e.shotCd===0&&pdist<300){ESHOTS.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:(tx/td)*6,vy:(ty/td)*6,life:999,type:'laser',col:'#ff4400',bounces:0,power:0.7,born:fr,owner:'enemy'});e.shotCd=120+Math.random()*80|0;sfx('laser');}
+      if(e.shotCd===0&&pdist<300){ESHOTS.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:(tx/td)*6,vy:(ty/td)*6,life:999,type:'laser',col:'#ff4400',bounces:0,power:0.7,born:fr,owner:'enemy',src:e});e.shotCd=120+Math.random()*80|0;sfx('laser');}
     }
     if(e.type==='signol'){const sc2=_signolCenter(e);const stompFromAbove=p.vy>1.2&&p.y+FEET_OFF<=sc2.cy+6&&p.x+FEET_L+FEET_W>sc2.cx-e.r+6&&p.x+FEET_L<sc2.cx+e.r-6;if(stompFromAbove&&_shutdownTimer<=0){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}_resolvePlayerSignolSeparation(p,e);}
     else{if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+10&&fR>e.x+4&&fL<e.x+e.w-4;if(stompFromAbove&&_shutdownTimer<=0&&e.alive){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}}
@@ -900,7 +904,7 @@ function update(){
   _resolveMindEnemiesSeparation();
   if(_battleTestMode){for(const e of ENEMS){if(e.mind&&_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e,8);}}
 
-  updateEnemyShots(); updateCrates(); updateKnowls(); updateRopePickup(); updateParticles(); updateBgParticles();
+  updateEnemyShots(); updateCrates(); updateKnowls(); updateRopePickup(); updateItemDrops(); updateParticles(); updateBgParticles();
 
   // ── Player movement + wall jump ───────────────────────────────
   const _pRollX0=p.x, _pRollY0=p.y;
@@ -1033,7 +1037,7 @@ function draw(){
   drawGoal();
   for(const pf of PFXS){const t=pf.life/pf.maxLife;if(pf.shimmer){ctx.globalAlpha=Math.min(1,t*1.1);ctx.fillStyle=pf.col;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(0.6+t*0.5),0,Math.PI*2);ctx.fill();if(t>0.5){ctx.globalAlpha=(t-0.5)*0.5;ctx.strokeStyle=pf.col;ctx.lineWidth=1;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(1.2+t),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;continue;}if(t<0.4&&(fr&1))continue;ctx.fillStyle=pf.col;const pr=t>0.6?2:1;ctx.fillRect(sx(pf.x),sy(pf.y),pr,pr);}
   for(const s of ESHOTS){const bx=sx(s.x),by=sy(s.y);if(s.type==='signol_frag'){const r=sw(s.r||5),dull=s.settled,ageAfterStop=dull?(fr-(s.stopFr||fr)):0,fade=dull?Math.max(0.2,1-ageAfterStop/SIGNOL_FRAG_STOP_FADE):1,pulse=dull?0.55:0.85+0.15*Math.sin(fr*0.35+s.x*0.1);ctx.globalAlpha=fade*pulse;if(dull){ctx.fillStyle='#6a4030';ctx.fillRect(bx-r*0.6,by-r*0.4,r*1.2,r*0.9);ctx.fillStyle='#4a3028';ctx.fillRect(bx-r*0.35,by-r*0.2,r*0.7,r*0.45);}else{const ta=Math.atan2(s.vy||0,s.vx||-0.01)+Math.PI;for(let fi=0;fi<3;fi++){const d=fi*5+2;ctx.globalAlpha=fade*(0.4-fi*0.1);ctx.fillStyle=fi===0?'#ffff55':(fi===1?'#ff8800':'#ff3300');ctx.beginPath();ctx.arc(sx(s.x+Math.cos(ta)*d),sy(s.y+Math.sin(ta)*d),r*(0.38-fi*0.09),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=fade*pulse;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(bx,by,r,0,Math.PI*2);ctx.fill();ctx.fillStyle=(fr&1)?C.YELLOW:C.ORANGE;ctx.beginPath();ctx.arc(bx,by,r*0.55,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.WHITE;ctx.fillRect(bx-1,by-1,2,2);}ctx.globalAlpha=1;continue;}const sp=Math.hypot(s.vx,s.vy)||1,ux=s.vx/sp,uy=s.vy/sp;ctx.fillStyle=C.RED;ctx.fillRect(bx-1,by-1,3,2);ctx.fillStyle=(fr&1)?C.ORANGE:C.YELLOW;ctx.fillRect(bx,by-1,1,1);ctx.fillStyle=C.ORANGE;ctx.fillRect(bx-Math.round(ux*3),by-Math.round(uy*3)-1,1,1);}
-  drawKnowlTreeAura(); drawRopePickup(); drawKnowl();
+  drawKnowlTreeAura(); drawRopePickup(); drawItemDrops(); drawKnowl();
   const _bwPad=64;
   for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);
@@ -1045,8 +1049,9 @@ function draw(){
   if(_playerCount===2&&p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow(); drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
-  if(_playerCount===2&&p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,12,52,7);drawText('P2 HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,2,13,C.PINK);}
-  if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-58,H*0.40,116,22);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.42),C.LILAC);drawTextC('REBOOTING...',W/2,Math.round(H*0.42)+10,C.PURPLE_L);}}
+  if(_playerCount===2&&p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,50,140,16);drawText('P2 HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,4,52,C.PINK,2);}
+  if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-58,H*0.40,116,22);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.42),C.LILAC);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.42)+10,C.PURPLE_L);}}
+  if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-16,C.RED_L,3);drawTextC('5 SHUTDOWNS',W/2,H/2+2,C.LILAC);drawTextC('TAB TO RETRY',W/2,H/2+16,C.GREY);}
   if(_zoneCardT>0){_zoneCardT--;if(_zoneCardT>10||(fr&1)===0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,Math.round(H*0.30),W,26);drawTextC(_runTestMode?'RUN TEST GROUND':(_battleTestMode?'BATTLE PRACTICE':ZONES[_zoneIdx].name.toUpperCase()),W/2,Math.round(H*0.30)+5,C.YELLOW,2);drawTextC(_runTestMode?'ROLL OVER BUMPS — TEST SUSPENSION':(_battleTestMode?'VS SIGNOL — GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length),W/2,Math.round(H*0.30)+19,C.GREY);}}
   if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-22,C.GREEN_L,3);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2-4,C.TEAL_L);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+14,C.GREEN);}
   if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}

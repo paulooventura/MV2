@@ -34,7 +34,7 @@ function _setupAwdjooCampaignGoal(){
   GOALPL={x:AWdjoo_HOUSE5_GOAL_COL*tw*sc, y:0, w:tw*sc*2, h};
 }
 
-function _awdjooMindAt(col, row, patrolHalf){
+function _awdjooMindAt(col, row, patrolHalf, kit){
   const {tw,th,sc}=_awdjooTwSc();
   const cx=(col+0.5)*tw*sc;
   let feet=row*th*sc;
@@ -51,6 +51,7 @@ function _awdjooMindAt(col, row, patrolHalf){
     existing.col=col;
     existing.mn=mn;
     existing.mx=mx;
+    if(kit) existing.kit=kit.slice();
     return existing;
   }
   if(typeof _dispatchMindSpawnAt!=='function') return null;
@@ -58,18 +59,18 @@ function _awdjooMindAt(col, row, patrolHalf){
     +(typeof _spawnHeadTopDy==='function'?_spawnHeadTopDy():-24);
   _dispatchMindSpawnAt(cx, head, row, col, 100, tw, sc);
   const last=_mapEnemyDefs[_mapEnemyDefs.length-1];
-  if(last){ last.y=feet; last.x=Math.floor(cx); last.mn=mn; last.mx=mx; }
+  if(last){ last.y=feet; last.x=Math.floor(cx); last.mn=mn; last.mx=mx; if(kit) last.kit=kit.slice(); }
   return last;
 }
 
-/** Mind enemy on the left-slope crest (west of House 2). Does not steal House 1. */
+/** First mind (slope crest, west of House 2): laser only. */
 function _ensureAwdjooSlopeEnemy(){
-  _awdjooMindAt(AWdjoo_SLOPE_ENEMY_COL, AWdjoo_SLOPE_ENEMY_ROW, 120);
+  _awdjooMindAt(AWdjoo_SLOPE_ENEMY_COL, AWdjoo_SLOPE_ENEMY_ROW, 120, [0]);
 }
 
-/** Second mind enemy on House 1's roof (the house left of the main/spawn house). */
+/** Second mind on House 1's roof: grappling hook only. */
 function _ensureAwdjooLeftHouseEnemy(){
-  _awdjooMindAt(AWdjoo_HOUSE1_ENEMY_COL, AWdjoo_HOUSE1_ENEMY_ROW, 90);
+  _awdjooMindAt(AWdjoo_HOUSE1_ENEMY_COL, AWdjoo_HOUSE1_ENEMY_ROW, 90, [1]);
 }
 
 /**

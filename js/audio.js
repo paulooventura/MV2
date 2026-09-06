@@ -461,7 +461,7 @@ if(typeof document!=='undefined'){
 }
 
 // ── SFX SAMPLES ──────────────────────────────────────────────
-const SFX_BUILD=2;
+const SFX_BUILD=3;
 const SFX_SAMPLE_PATHS={
   enemy_shut:    'assets/SFX/enemy shut.wav',
   hit_enemy:     'assets/SFX/hit enemy.wav',
@@ -497,6 +497,7 @@ function _playSfxSample(key,pitch=1){
     el.load();
     _sfxPool[key]=el;
   }
+  if(el.readyState<2) return false;
   try{
     const inst=el.cloneNode();
     inst.volume=Math.max(0,Math.min(1,OPT.sfxVol||1));
@@ -608,5 +609,21 @@ function sfx(t){
       nz(.18,.28,false,0.38);nz(.12,.18,true,0.22,0.04);
       o(420,90,.14,.16,0,'square');o(180,48,.16,.14,0.03,'triangle');
       o(90,36,.2,.12,0.06,'sine');break;
+    // Player: long CRT / monitor power-down
+    case'shutdown':
+      nz(.28,.22,true,0.28);
+      o(420,90,.32,.2,0,'square');
+      o(220,48,.38,.16,0.04,'triangle');
+      o(110,28,.42,.14,0.08,'sine');
+      o(880,140,.1,.08,0.18,'square');
+      break;
+    // Enemy: shorter, higher rival pop — not the player shutdown
+    case'enemy_shut':
+      nz(.12,.26,false,0.85);
+      nz(.1,.16,true,0.55,0.04);
+      o(980,180,.16,.2,0,'sawtooth');
+      o(640,90,.14,.14,0.03,'square');
+      o(160,50,.12,.12,0.06,'triangle');
+      break;
   }
 }

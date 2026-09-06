@@ -1719,6 +1719,22 @@ function drawKnowlTreeAura(){
   }
 }
 
+function drawItemDrops(){
+  if(typeof ITEM_DROPS==='undefined'||!ITEM_DROPS.length) return;
+  const names=typeof INAMES!=='undefined'?INAMES:['TRS','RCA','XLR','MAG'];
+  const cols=typeof ICOLS!=='undefined'?ICOLS:['#aabbcc','#ff5533','#4488ff','#ff44ff'];
+  for(const d of ITEM_DROPS){
+    if(d.got) continue;
+    const bob=Math.sin((d.bob||0))*2;
+    const dx=sx(d.x), dy=sy(d.y+bob), dw=Math.max(sw(d.w),18), dh=Math.max(sw(d.h),10);
+    if(dx>W+20||dy>H+20||dx+dw<-20||dy+dh<-20) continue;
+    ctx.fillStyle=C.BLACK; ctx.fillRect(dx,dy,dw,dh);
+    ctx.fillStyle=cols[d.item]||C.WHITE;
+    ctx.fillRect(dx,dy,dw,1); ctx.fillRect(dx,dy+dh-1,dw,1);
+    ctx.fillRect(dx,dy,1,dh); ctx.fillRect(dx+dw-1,dy,1,dh);
+    drawText(names[d.item]||'?',dx+2,dy+3,cols[d.item]||C.WHITE);
+  }
+}
 function drawRopePickup(){
   if(!_mapRopePickup||_mapRopePickup.got) return;
   const r=_mapRopePickup;

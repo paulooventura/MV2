@@ -277,7 +277,9 @@ function _enterZone(idx){
     _restoreMapBWalls();
     _populateKnowlFromMap(); _initLaituFromMap();
     kColl=0; _stageScore=0; _stageDamageFree=true; _awdjooTutorial=true;
-    _shutdownTimer=0;
+    _resetItemProgress();
+    _shutdownTimer=0; _gameOver=false; _playerShutCount=0;
+    if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.length=0;
     p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies(); _spawnMapCrates();
     if(typeof _setupAwdjooCampaignGoal==='function') _setupAwdjooCampaignGoal();
     else GOALPL={x:-999,y:0,w:1,h:1};
@@ -350,42 +352,58 @@ function drawHUD(){
     else{ drawTextC('VS '+rivalLabel,W/2,82,C.GREY,2); drawTextC('WALK THROUGH BLUE ZONE FOR RANDOM RIVAL',W/2,H-14,C.SKY_L,2); }
     return;
   }
-  ctx.fillStyle=C.VOID; ctx.fillRect(0,0,W,12);
-  blit(_getKnowlSpr()[(fr>>4)&1],3,1);
-  drawText(kTotal>0?kColl+'/'+kTotal:'-',13,3,goalOpen?C.GREEN_L:C.WHITE);
-  if(_awdjooTutorial&&_zoneIdx===0) drawText('SC:'+_stageScore,188,3,_stageDamageFree?C.MINT:C.SAND);
+  const hudH=48;
+  ctx.fillStyle=C.VOID; ctx.fillRect(0,0,W,hudH);
+  blit(_getKnowlSpr()[(fr>>4)&1],6,6);
+  drawText(kTotal>0?kColl+'/'+kTotal:'-',24,8,goalOpen?C.GREEN_L:C.WHITE,2);
+  if(_awdjooTutorial&&_zoneIdx===0) drawText('SC '+_stageScore,24,28,_stageDamageFree?C.MINT:C.SAND,2);
   const hpSegs=10, hpFill=Math.round(p.hp/p.maxHp*hpSegs);
-  for(let i=0;i<hpSegs;i++){ const low=p.hp<=PLAYER_HIT_DMG*2; ctx.fillStyle=i<hpFill?(low&&fr%16<8?C.RED_L:C.RED):C.GREY_D; ctx.fillRect(3+i*4,10,3,1); }
-  if(_battleTestMode||_runTestMode) drawText('HP'+p.hp,28,3,p.hp<=40?C.RED_L:C.WHITE);
+  drawText('HP',70,8,C.GREY,2);
+  for(let i=0;i<hpSegs;i++){
+    const low=p.hp<=PLAYER_HIT_DMG*2;
+    ctx.fillStyle=i<hpFill?(low&&fr%16<8?C.RED_L:C.RED):C.GREY_D;
+    ctx.fillRect(90+i*14,8,12,10);
+  }
+  if(_battleTestMode||_runTestMode) drawText('HP '+p.hp,70,28,p.hp<=40?C.RED_L:C.WHITE,2);
+  else if(typeof _campaignUsesLives==='function'&&_campaignUsesLives()){
+    const left=Math.max(0,(typeof SHUT_LIMIT!=='undefined'?SHUT_LIMIT:5)-(_playerShutCount||0));
+    drawText('LIVE '+left+'/5',70,28,left<=1?C.RED_L:C.WHITE,2);
+  }
   const icols=[C.GREY,C.RED_L,C.SKY,C.LILAC];
   const inames=['TRS','RCA','XLR','MAG'];
   for(let i=0;i<4;i++){
-    const bx=46+i*22, on=_itemUnlocked(i);
-    if(i===ITEM&&on){ctx.fillStyle=icols[i];ctx.fillRect(bx-1,1,21,10);ctx.fillStyle=C.BLACK;ctx.fillRect(bx,2,19,8);}
-    else{ctx.fillStyle=C.NAVY;ctx.fillRect(bx,2,19,8);}
-    drawText(on?inames[i]:'-',bx+4,4,!on?C.GREY_D:(i===ITEM?icols[i]:C.GREY));
-    if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ctx.fillStyle=(fr&1)?C.WHITE:icols[i];ctx.fillRect(bx+16,3,2,2);}
+    const bx=248+i*52, on=_itemUnlocked(i);
+    if(i===ITEM&&on){ctx.fillStyle=icols[i];ctx.fillRect(bx-2,6,50,18);ctx.fillStyle=C.BLACK;ctx.fillRect(bx,8,46,14);}
+    else{ctx.fillStyle=C.NAVY;ctx.fillRect(bx,8,46,14);}
+    drawText(on?inames[i]:'-',bx+8,10,!on?C.GREY_D:(i===ITEM?icols[i]:C.GREY),2);
+    if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ctx.fillStyle=(fr&1)?C.WHITE:icols[i];ctx.fillRect(bx+40,10,4,4);}
   }
-  if(_nearKnowlTree(p)&&fr%18<12){ drawText('KNOWL TREE 2X',138,4,C.MINT); }
+  if(_nearKnowlTree(p)&&fr%18<12){ drawText('KNOWL TREE 2X',470,28,C.MINT,2); }
   else if(ITEM===2||ITEM===3){
     const segs=Math.round(p.itemStamina/10);
-    for(let i=0;i<10;i++){ctx.fillStyle=i<segs?(p.itemStamina>50?C.SKY:p.itemStamina>20?C.ORANGE:C.RED):C.GREY_D;ctx.fillRect(138+i*4,4,3,4);}
-    if(p.itemStamina<1&&fr%16<8) drawText('LOW',182,4,C.RED_L);
+    const pwrCol=p.itemStamina>50?C.SKY:(p.itemStamina>20?C.ORANGE:C.RED);
+    drawText('PWR',470,28,pwrCol,2);
+    for(let i=0;i<10;i++){
+      ctx.fillStyle=i<segs?pwrCol:C.GREY_D;
+      ctx.fillRect(506+i*16,26,14,12);
+    }
+    drawText(Math.round(p.itemStamina)+'%',670,28,pwrCol,2);
+    if(p.itemStamina<1&&fr%16<8) drawText('LOW',670,28,C.RED_L,2);
   }
-  if(TEST_MODE) drawText('TEST',W-36,3,C.GREEN_L);
-  drawText('M'+MOVE_BUILD,4,H-10,C.MINT);
-  if(_gameState==='game'&&Math.abs(p.vx)>0.3) drawText('SPD'+Math.round(Math.abs(p.vx)),W-58,3,C.WHITE);
-  if(_runTestMode){ctx.fillStyle=C.BLACK;ctx.fillRect(W-108,1,106,10);drawText('RUN TEST',W-104,3,C.MINT);ctx.fillStyle=C.BLACK;ctx.fillRect(W-108,12,106,8);const sc=Math.round((p.suspComp||0)*100);drawText('SUSP'+sc+'%  TAB=RESET',W-104,13,C.GREY);}
-  if(GP&&GP.pad) drawText('GP',W-14,3,C.GREEN);
+  if(TEST_MODE) drawText('TEST',W-72,8,C.GREEN_L,2);
+  drawText('M'+MOVE_BUILD,8,H-16,C.MINT,2);
+  if(_gameState==='game'&&Math.abs(p.vx)>0.3) drawText('SPD'+Math.round(Math.abs(p.vx)),W-96,8,C.WHITE,2);
+  if(_runTestMode){ctx.fillStyle=C.BLACK;ctx.fillRect(W-220,6,212,20);drawText('RUN TEST',W-212,10,C.MINT,2);ctx.fillStyle=C.BLACK;ctx.fillRect(W-220,28,212,16);const sc=Math.round((p.suspComp||0)*100);drawText('SUSP'+sc+'%  TAB=RESET',W-212,30,C.GREY,2);}
+  if(GP&&GP.pad) drawText('GP',W-28,28,C.GREEN,2);
   const prog=Math.max(0,Math.min(1,1-(p.y-360)/WH));
-  ctx.fillStyle=C.BLACK;ctx.fillRect(W-2,12,2,H-12);
-  const ph2=Math.round((H-12)*prog);
-  ctx.fillStyle=C.GREEN;ctx.fillRect(W-2,H-ph2,2,ph2);
+  ctx.fillStyle=C.BLACK;ctx.fillRect(W-4,hudH,4,H-hudH);
+  const ph2=Math.round((H-hudH)*prog);
+  ctx.fillStyle=C.GREEN;ctx.fillRect(W-4,H-ph2,4,ph2);
   const _ch=_playerChargeInfo(p), _chargeShow=_ch.chargeFrac;
   if((p.og&&_chargeShow>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||_ch.sprinting){
     const ready=p.duckBoostReady||p._wallChargeReady||_ch.ready;
     const segs=Math.round(_chargeShow*8);
-    for(let i=0;i<8;i++){ctx.fillStyle=i<segs?(ready?C.GREEN_L:C.GREEN):C.BLACK;ctx.fillRect(3+i*4,14,3,3);}
+    for(let i=0;i<8;i++){ctx.fillStyle=i<segs?(ready?C.GREEN_L:C.GREEN):C.BLACK;ctx.fillRect(6+i*12,hudH+4,10,8);}
   }
 }
 

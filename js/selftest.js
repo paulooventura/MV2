@@ -83,6 +83,10 @@
     var slopeE=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===17; });
     if(!house1) rec('leftHouseEnemyMissing',{});
     if(!slopeE) rec('slopeEnemyMissing',{});
+    var slopeDef=(_mapEnemyDefs||[]).find(function(e){ return e&&e.col===17; });
+    var houseDef=(_mapEnemyDefs||[]).find(function(e){ return e&&e.col===13; });
+    if(slopeDef&&!(slopeDef.kit&&slopeDef.kit.length===1&&slopeDef.kit[0]===0)) rec('slopeEnemyKit',{kit:slopeDef.kit});
+    if(houseDef&&!(houseDef.kit&&houseDef.kit.length===1&&houseDef.kit[0]===1)) rec('houseEnemyKit',{kit:houseDef.kit});
     var islandPlat=(typeof APLAT!=='undefined'?APLAT:[]).find(function(a){ return a&&a._awdjooIsland; });
     if(!islandPlat) rec('movingIslandMissing',{});
     else if(islandPlat.y>2080) rec('islandTooLow',{y:Math.round(islandPlat.y)});

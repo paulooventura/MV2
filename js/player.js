@@ -160,6 +160,22 @@ const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
+function _grantPlayerItem(idx){
+  if(idx<0||idx>3||_itemUnlocked(idx)) return false;
+  _unlockedMask|=ITEM_UNLOCK_BITS[idx];
+  ITEM=idx;
+  const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MAG Pull'];
+  const lines=[
+    ['Hold fire to charge a beam. Release to shoot.'],
+    ['Q — launch hook · W/S — reel in or let out rope','Space — release to swing or catapult off walls'],
+    ['Hold fire to push enemies and shots away.'],
+    ['Hold fire to pull enemies and shots in.'],
+  ];
+  _itemTutorial={title:titles[idx],lines:lines[idx],t:0,maxT:280};
+  if(idx===1&&typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
+  try{sfx('unlock');}catch(_e){}
+  return true;
+}
 function _cycleItem(){
   if(_unlockedMask===0) return;
   const start=ITEM<0?0:ITEM;
@@ -173,6 +189,7 @@ function _resetItemProgress(){
   else { _unlockedMask=15; ITEM=1; }
   _ropePickupAnim=null; _itemTutorial=null;
   if(_mapRopePickup) _mapRopePickup.got=false;
+  if(typeof _resetCombatProgress==='function') _resetCombatProgress();
 }
 
 // ── Player factory ────────────────────────────────────────────
