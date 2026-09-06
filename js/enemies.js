@@ -369,14 +369,20 @@ function _bodySepMomentum(actor,axis){
   const spd=typeof actor.spd==='number'?actor.spd:0;
   return Math.max(0.05,Math.abs(v)+mom*walk*0.42+spd*0.35);
 }
+function _actorStanding(a){
+  if(!a) return false;
+  if(a.og||a._stompDuck||a._floorY!=null) return true;
+  if((a.vy||0)<-0.35) return false;
+  return false;
+}
 function _separateTwoBodyHB(ax,ay,aw,ah,bx,by,bw,bh,aActor,bActor){
   if(!ov(ax,ay,aw,ah,bx,by,bw,bh)) return null;
   const overlapX=Math.min(ax+aw,bx+bw)-Math.max(ax,bx);
   const overlapY=Math.min(ay+ah,by+bh)-Math.max(ay,by);
   if(overlapX<=0||overlapY<=0) return null;
-  const bothGround=!!(aActor&&aActor.og)&&(bActor&&(bActor.og||bActor._stompDuck));
-  // Grounded bumps stay on X so a touch cannot launch anyone into the sky.
-  if(bothGround||overlapX<=overlapY+6){
+  const eitherGround=_actorStanding(aActor)||_actorStanding(bActor);
+  // Standing bumps stay on X — a Y shove plants a wheel inside the floor.
+  if(eitherGround||overlapX<=overlapY+6){
     const push=Math.min(5,overlapX+BODY_SEP_GAP);
     const aM=_bodySepMomentum(aActor,'x'), bM=_bodySepMomentum(bActor,'x');
     const total=Math.max(0.1,aM+bM);
@@ -391,12 +397,24 @@ function _separateTwoBodyHB(ax,ay,aw,ah,bx,by,bw,bh,aActor,bActor){
   const aFrac=bM/total, bFrac=aM/total;
   return aMid<=bMid?{ay:-push*aFrac,by:push*bFrac}:{ay:push*aFrac,by:-push*bFrac};
 }
+function _seatActorAfterBodySep(a){
+  if(!a) return;
+  if(typeof _gridReady!=='function'||!_gridReady()) return;
+  const rising=(a.vy||0)<-0.35&&!a.og;
+  if(typeof gridResolvePlayer==='function'&&(a.mind||a.hero||a===p||(typeof p2!=='undefined'&&a===p2))){
+    gridResolvePlayer(a,0,rising?(a.vy||0):0,rising?{swing:true}:{});
+    return;
+  }
+  if(!rising&&typeof _pinActorToFloor==='function')
+    _pinActorToFloor(a,{maxUp:22,maxDrop:12});
+}
 function _applyBodySeparation(pl,e,sep){
   if(!sep) return false;
   let moved=false;
   if(sep.ax){ pl.x+=sep.ax; pl.x=Math.max(0,Math.min(WW-SW,pl.x)); moved=true; }
   if(sep.ay){
-    if(!(pl.og&&sep.ay<0)){ pl.y+=sep.ay; moved=true; }
+    const stand=_actorStanding(pl);
+    if(!(stand&&sep.ay<0)&&!(stand&&sep.ay>0)){ pl.y+=sep.ay; moved=true; }
   }
   if(sep.bx){
     e.x+=sep.bx;
@@ -406,13 +424,16 @@ function _applyBodySeparation(pl,e,sep){
     moved=true;
   }
   if(sep.by){
-    const down=sep.by>0&&(e.og||e._stompDuck||e._floorY!=null);
-    const up=sep.by<0&&(e.og||e._stompDuck);
-    if(!down&&!up){
+    const stand=_actorStanding(e);
+    if(!(stand&&sep.by<0)&&!(stand&&sep.by>0)){
       e.y+=sep.by;
       if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
       moved=true;
     }
+  }
+  if(moved){
+    _seatActorAfterBodySep(pl);
+    _seatActorAfterBodySep(e);
   }
   return moved;
 }
@@ -424,8 +445,6 @@ function _resolvePlayerEnemySeparation(pl,e,maxPasses=4){
     const sep=_separateTwoBodyHB(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h,pl,e);
     if(!sep) break;
     _applyBodySeparation(pl,e,sep);
-    if(typeof _pinActorToFloor==='function'&&(e.og||e._stompDuck)&&(e.vy||0)>=-0.2)
-      _pinActorToFloor(e,{maxDrop:20});
   }
 }
 function _resolveAllPlayerEnemyCollisions(pl){
@@ -458,10 +477,7 @@ function _resolveMindEnemiesSeparation(){
         const ha=actorSeparationHB(a), hb=actorSeparationHB(b);
         const sep=_separateTwoBodyHB(ha.x,ha.y,ha.w,ha.h,hb.x,hb.y,hb.w,hb.h,a,b);
         if(!sep) break;
-        if(sep.ax){ a.x+=sep.ax; if(a.mn!=null) a.x=Math.max(a.mn,Math.min(a.mx-a.w,a.x)); }
-        if(sep.ay) a.y+=sep.ay;
-        if(sep.bx){ b.x+=sep.bx; if(b.mn!=null) b.x=Math.max(b.mn,Math.min(b.mx-b.w,b.x)); }
-        if(sep.by) b.y+=sep.by;
+        _applyBodySeparation(a,b,sep);
       }
     }
   }
@@ -636,10 +652,13 @@ function _resolvePlayerSignolSeparation(pl,e){
   const eM=_bodySepMomentum(e,'x')+_bodySepMomentum(e,'y');
   const total=Math.max(0.1,pM+eM);
   const pFrac=eM/total, eFrac=pM/total;
-  pl.x+=dx/d*push*pFrac; pl.y+=dy/d*push*pFrac*0.22;
+  pl.x+=dx/d*push*pFrac;
+  if(!_actorStanding(pl)) pl.y+=dy/d*push*pFrac*0.22;
   e.x-=dx/d*push*eFrac;
   pl.x=Math.max(0,Math.min(WW-SW,pl.x));
   if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
+  _seatActorAfterBodySep(pl);
+  _seatActorAfterBodySep(e);
 }
 
 // ── Mind-clone enemy factory ──────────────────────────────────
