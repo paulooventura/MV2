@@ -293,9 +293,9 @@ function _updatePlayerMoveX(pl){
   const onSlope=!!(grounded&&pl._onSlope);
   const sprint=isSprintHeld()&&grounded&&dir!==0;
   if(sprint) pl.runRamp=Math.min(1,(pl.runRamp||0)+MOVE_RUN_RAMP);
-  else        pl.runRamp=Math.max(0,(pl.runRamp||0)-0.1);
+  else        pl.runRamp=Math.max(0,(pl.runRamp||0)-0.028);
   if(!dir){
-    pl.movePower=Math.max(0,(pl.movePower||0)-0.22);
+    pl.movePower=Math.max(0,(pl.movePower||0)-0.08);
     if(pl.movePower<=0) pl._moveDir=0;
     pl._moveCap=0;
     if(grounded){
@@ -311,33 +311,32 @@ function _updatePlayerMoveX(pl){
   }
   if(pl._moveDir!==dir){
     pl._moveDir=dir;
-    // Keep momentum on redirect (Mario skid / Sonic carry) instead of dead-stopping.
-    // MOVE_TURN accel below still reverses promptly; this preserves flow.
-    pl.movePower=onSlope?0.6:0.45;
-    pl.vx*=onSlope?0.75:0.55;
+    // Skid: keep some spin, do not gift a chunk of cap.
+    pl.movePower=(pl.movePower||0)*(onSlope?0.72:0.55);
+    pl.vx*=onSlope?0.88:0.82;
   }
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
+  const spin=Math.min(1,pl.movePower||0);
+  const spinEase=spin*spin;
   let cap;
   if(sprint){
-    const runEase=Math.max(0.5,pl.runRamp||0);
-    cap=MOVE_WALK+(MOVE_RUN-MOVE_WALK)*runEase;
+    const run=Math.min(1,pl.runRamp||0);
+    cap=MOVE_WALK*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK)*run*spinEase;
   }else{
-    const t=Math.min(1,pl.movePower||0);
-    const ease=1-(1-t)*(1-t);
-    cap=MOVE_WALK*MOVE_PEAK*ease;
+    cap=MOVE_WALK*MOVE_PEAK*spinEase;
     if(!grounded&&dir) cap=Math.max(cap,Math.abs(pl.vx));
   }
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);
     const climbing=dir*sinA<-0.03;
     if(climbing&&!sprint) cap=Math.min(cap,MOVE_WALK*0.38);
-    else if(!climbing) cap=Math.max(cap,Math.abs(pl.vx)*0.92+MOVE_WALK*0.35);
+    else if(!climbing) cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
   pl._moveCap=cap;
   let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
-  if(!sprint&&cap>0.05){
+  if(cap>0.05){
     const ratio=Math.min(1,Math.abs(pl.vx)/cap);
-    accel*=1+MOVE_TORQUE*(1-ratio)*(1-ratio);
+    accel*=Math.max(0.12,1-ratio*ratio);
   }
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);

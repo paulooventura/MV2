@@ -13,18 +13,18 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=54;
+const MOVE_BUILD=56;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
-const MOVE_ACCEL=0.52;
-const MOVE_RUN_ACCEL=0.62;
+const MOVE_ACCEL=0.30;
+const MOVE_RUN_ACCEL=0.34;
 const MOVE_AIR=0.42;
-const MOVE_POWER=0.028;
-const MOVE_TORQUE=1.45;
-const MOVE_STOP=0.62;
-const MOVE_TURN=2.1;
-const MOVE_RUN_RAMP=0.10;
+const MOVE_POWER=0.011;
+const MOVE_TORQUE=0.38;
+const MOVE_STOP=0.86;
+const MOVE_TURN=1.18;
+const MOVE_RUN_RAMP=0.022;
 const WHEEL_GRIP_BASE=0.91;
 const WHEEL_ROLL_RESIST=0.011;
 const WHEEL_DRIVE_TORQUE=0.68;

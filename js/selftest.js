@@ -174,11 +174,12 @@
       var t=MV_GRID.tile, col=Math.floor((pl.x+(typeof SW!=='undefined'?SW:64)*0.5)/t);
       var from=Math.floor((pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88))/t);
       var to=Math.floor((r.y+(r.h||0)*0.5)/t);
-      var shaft=false;
+      var drop=0;
       for(var rr=from;rr<to;rr++){
-        if(!gridSolid(col,rr)&&!gridIsSlope(col,rr)){ shaft=true; break; }
+        if(!gridSolid(col,rr)&&!gridIsSlope(col,rr)) drop++;
+        else break;
       }
-      if(!shaft) return;
+      if(drop<3) return;
     }
     var rx=r.x+(r.w||0)*0.5, ry=r.y+(r.h||0)*0.5;
     var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
