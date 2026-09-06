@@ -74,10 +74,63 @@ const _ditherPats={};
 function _ditherPat(col,ph){ const key=col+'|'+ph; let pat=_ditherPats[key]; if(!pat){const c=document.createElement('canvas');c.width=2;c.height=2;const g=c.getContext('2d');g.fillStyle=col;if(ph){g.fillRect(1,0,1,1);g.fillRect(0,1,1,1);}else{g.fillRect(0,0,1,1);g.fillRect(1,1,1,1);}pat=_ditherPats[key]=ctx.createPattern(c,'repeat');} return pat; }
 function ditherRect(x,y,w,h,col,phase=0){ x|=0;y|=0;w|=0;h|=0; if(w<=0||h<=0)return; ctx.fillStyle=_ditherPat(col,phase&1); ctx.fillRect(x,y,w,h); }
 
-const FONT3=(()=>{const raw={A:'010101111101101',B:'110101110101110',C:'011100100100011',D:'110101101101110',E:'111100110100111',F:'111100110100100',G:'011100101101011',H:'101101111101101',I:'111010010010111',J:'001001001101010',K:'101101110101101',L:'100100100100111',M:'101111111101101',N:'110101101101101',O:'010101101101010',P:'110101110100100',Q:'010101101110011',R:'110101110110101',S:'011100010001110',T:'111010010010010',U:'101101101101111',V:'101101101101010',W:'101101111111101',X:'101101010101101',Y:'101101010010010',Z:'111001010100111',0:'111101101101111',1:'010110010010111',2:'111001111100111',3:'111001111001111',4:'101101111001001',5:'111100111001111',6:'111100111101111',7:'111001001010010',8:'111101111101111',9:'111101111001111',' ':'000000000000000','.':'000000000000010',',':'000000000010100','!':'010010010000010','?':'110001010000010',':':'000010000010000',';':'000010000010100','-':'000000111000000','+':'000010111010000','/':'001001010100100','\'':'010010000000000','"':'101101000000000','(':'001010010010001',')':'100010010010100','&':'010101010101011','%':'101001010100101','>':'100010001010100','<':'001010100010001','=':'000111000111000','*':'000101010101000','_':'000000000000111','#':'101111101111101'};const f={};for(const k in raw){const bits=raw[k],px=[];for(let i=0;i<15;i++)if(bits[i]==='1')px.push([i%3,(i/3)|0]);f[k]=px;}return f;})();
-function drawText(s,x,y,col,scl=1){ s=String(s).toUpperCase(); x|=0;y|=0; ctx.fillStyle=col; for(let i=0;i<s.length;i++){const px=FONT3[s[i]]||FONT3['.'];const gx=x+i*4*scl;for(const[cx2,cy2]of px)ctx.fillRect(gx+cx2*scl,y+cy2*scl,scl,scl);} }
-function textW(s,scl=1){ return String(s).length*4*scl-scl; }
-function drawTextC(s,cx,y,col,scl=1){ drawText(s,Math.round(cx-textW(s,scl)/2),y,col,scl); }
-function drawTextR(s,rx,y,col,scl=1){ drawText(s,Math.round(rx-textW(s,scl)),y,col,scl); }
-function wrapBitmapText(text,maxW,scl=1){ const words=String(text).toUpperCase().split(' ');const lines=[];let cur='';for(const w of words){const test=cur?(cur+' '+w):w;if(textW(test,scl)<=maxW)cur=test;else{if(cur)lines.push(cur);cur=w;}}if(cur)lines.push(cur);return lines; }
-function wrapBitmapBlocks(blocks,maxW,scl=1){ const out=[];for(const b of blocks)wrapBitmapText(b,maxW,scl).forEach(l=>out.push(l));return out; }
+// SNES Mode-1 tile font: 8x8 cells, integer scale, 1px drop shadow.
+const FONT_CELL=8;
+const FONT_SHADOW='#08060c';
+const FONT8=(()=>{
+  const hex={
+    A:'3C66667E66666600',B:'7C66667C66667C00',C:'3C66606060663C00',D:'786C6666666C7800',
+    E:'7E60607C60607E00',F:'7E60607C60606000',G:'3C66606E66663E00',H:'6666667E66666600',
+    I:'3C18181818183C00',J:'1E0C0C0C0C6C3800',K:'666C7870786C6600',L:'6060606060607E00',
+    M:'63777F6B63636300',N:'66767E7E6E666600',O:'3C66666666663C00',P:'7C66667C60606000',
+    Q:'3C666666666C3600',R:'7C66667C786C6600',S:'3C66603C06663C00',T:'7E18181818181800',
+    U:'6666666666663C00',V:'66666666663C1800',W:'6363636B7F776300',X:'66663C183C666600',
+    Y:'6666663C18181800',Z:'7E060C1830607E00',
+    0:'3C666E7666663C00',1:'1838181818183C00',2:'3C66060C18307E00',3:'3C66061C06663C00',
+    4:'0C1C3C6C7E0C0C00',5:'7E607C0606663C00',6:'3C66607C66663C00',7:'7E060C1830303000',
+    8:'3C66663C66663C00',9:'3C66663E06663C00',
+    ' ':'0000000000000000','.':'0000000000181800',',':'0000000018181000','!':'1818181800181800',
+    '?':'3C66060C18001800',':':'0000181800181800',';':'0000181800181000','-':'0000007E00000000',
+    '+':'000018187E181800','/':'0002060C18306000','\\':'006030180C060200','\'':'1818100000000000',
+    '"':'6666240000000000','(':'0C18181818180C00',')':'3018181818183000','&':'3C66603C6E663B00',
+    '%':'62640C1830264600','>':'30180C060C183000','<':'0C18306030180C00','=':'00007E007E000000',
+    '*':'00663CFF3C660000','_':'0000000000007E00','#':'24667E667E662400','^':'183C660000000000',
+  };
+  const f={};
+  for(const k in hex){
+    const h=hex[k], px=[];
+    for(let y=0;y<8;y++){
+      const row=parseInt(h.slice(y*2,y*2+2),16);
+      for(let x=0;x<8;x++) if(row&(0x80>>x)) px.push([x,y]);
+    }
+    f[k]=px;
+  }
+  return f;
+})();
+function _fontNorm(s){
+  return String(s).toUpperCase()
+    .replace(/[—–]/g,'-').replace(/[·•]/g,'*').replace(/×/g,'X')
+    .replace(/→/g,'>').replace(/←/g,'<').replace(/↑/g,'^').replace(/↓/g,'V');
+}
+function textAdv(scl=2){ return FONT_CELL*((scl|0)||1); }
+function textH(scl=2){ return FONT_CELL*((scl|0)||1); }
+function textW(s,scl=2){ const n=_fontNorm(s).length; return n?n*textAdv(scl):0; }
+function _blitFontGlyph(px,gx,y,scl,col){
+  ctx.fillStyle=col;
+  for(const[cx2,cy2] of px) ctx.fillRect(gx+cx2*scl,y+cy2*scl,scl,scl);
+}
+function drawText(s,x,y,col,scl=2){
+  s=_fontNorm(s); x|=0; y|=0; scl=(scl|0)||1;
+  const adv=FONT_CELL*scl;
+  for(let i=0;i<s.length;i++){
+    const px=FONT8[s[i]]||FONT8['.'];
+    const gx=x+i*adv;
+    if(scl>=2) _blitFontGlyph(px,gx+scl,y+scl,scl,FONT_SHADOW);
+    else _blitFontGlyph(px,gx+1,y+1,scl,FONT_SHADOW);
+    _blitFontGlyph(px,gx,y,scl,col);
+  }
+}
+function drawTextC(s,cx,y,col,scl=2){ drawText(s,Math.round(cx-textW(s,scl)/2),y,col,scl); }
+function drawTextR(s,rx,y,col,scl=2){ drawText(s,Math.round(rx-textW(s,scl)),y,col,scl); }
+function wrapBitmapText(text,maxW,scl=2){ const words=_fontNorm(text).split(' ');const lines=[];let cur='';for(const w of words){const test=cur?(cur+' '+w):w;if(textW(test,scl)<=maxW)cur=test;else{if(cur)lines.push(cur);cur=w;}}if(cur)lines.push(cur);return lines; }
+function wrapBitmapBlocks(blocks,maxW,scl=2){ const out=[];for(const b of blocks)wrapBitmapText(b,maxW,scl).forEach(l=>out.push(l));return out; }

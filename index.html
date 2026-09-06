@@ -23,7 +23,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='124';</script>
+<script>window.MV_BUILD='125';</script>
 <script src="js/ab-switch.js?v=103"></script>
 <script>
 if(location.protocol==='file:'){
@@ -39,14 +39,13 @@ if(location.protocol==='file:'){
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{min-height:100%;overscroll-behavior:none;}
 body{background:#04020a;display:flex;flex-direction:column;align-items:center;
-  padding:8px;font-family:monospace;gap:4px;}
-canvas{image-rendering:auto;
-  image-rendering:-moz-crisp-edges;image-rendering:-webkit-optimize-contrast;
+  padding:8px;font-family:ui-monospace,Consolas,monospace;gap:6px;}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;
   -ms-interpolation-mode:nearest-neighbor;max-width:100%;width:100%;height:auto;
   border:1px solid #1a1a30;cursor:crosshair;touch-action:none;}
-.row{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;}
-button{background:#111122;color:#666;border:1px solid #222;padding:5px 10px;
-  border-radius:4px;font:9px monospace;cursor:pointer;touch-action:none;user-select:none;}
+.row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
+  border-radius:2px;font:13px/1.2 ui-monospace,Consolas,monospace;cursor:pointer;touch-action:none;user-select:none;}
 .dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(2,30px);gap:2px;}
 @media (max-width:1100px){
   body{padding:4px;gap:3px;}
@@ -68,7 +67,7 @@ button{background:#111122;color:#666;border:1px solid #222;padding:5px 10px;
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:13px;color:#c8a0e8;font-weight:bold;font-family:monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 104</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 125</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -81,7 +80,7 @@ button{background:#111122;color:#666;border:1px solid #222;padding:5px 10px;
 <div id="gameWrap">
 <canvas id="c" width="1024" height="768"></canvas>
 </div>
-<div id="inf" style="font-size:10px;color:#0f0;min-height:16px;word-break:break-all;"></div>
+<div id="inf" style="font-size:14px;color:#8f8;min-height:20px;word-break:break-all;"></div>
 <div class="row">
   <div class="dpad">
     <div></div><button id="bU">W↑</button><div></div>
@@ -95,7 +94,7 @@ button{background:#111122;color:#666;border:1px solid #222;padding:5px 10px;
   <button id="bRst" style="height:30px;padding:0 12px;font-weight:700;color:#ff0;background:#221100;border-color:#554400;">↺ RESET</button>
   <button id="bEdit" style="height:30px;padding:0 12px;font-weight:700;color:#8cf;background:#001428;border-color:#246;">EDIT</button>
 </div>
-<p style="font-size:8px;color:#222;margin-top:2px;">
+<p style="font-size:13px;color:#889;margin-top:4px;letter-spacing:0.02em;">
   WASD/Arrows move+aim · Space jump · S duck · E use item · Q swap · F punch · Tab reset · ` / F2 edit Awdjoo
 </p>
 <script>
@@ -113,22 +112,22 @@ window.onerror=function(msg,src,line,col,err){
 };
 </script>
 <script src="js/save.js?v=104"></script>
-<script src="js/core.js?v=25"></script>
+<script src="js/core.js?v=125"></script>
 <script src="js/audio.js?v=121"></script>
 <script src="js/enemies.js?v=123"></script>
 <script src="js/collision_grid.js?v=124"></script>
 <script src="js/physics.js?v=120"></script>
 <script src="js/player.js?v=120"></script>
 <script src="js/weapons.js?v=120"></script>
-<script src="js/ui.js?v=122"></script>
-<script src="js/render.js?v=120"></script>
-<script src="js/editor.js?v=122"></script>
-<script src="js/map_edit.js?v=124"></script>
+<script src="js/ui.js?v=125"></script>
+<script src="js/render.js?v=125"></script>
+<script src="js/editor.js?v=125"></script>
+<script src="js/map_edit.js?v=125"></script>
 <script src="js/spawn_fix.js?v=117"></script>
 <script src="js/awdjoo_level.js?v=120"></script>
 <script src="js/healthwatch.js?v=1"></script>
 <script src="js/awdjoo_map.js?v=106"></script>
-<script src="js/main.js?v=124"></script>
+<script src="js/main.js?v=125"></script>
 <script src="js/selftest.js?v=120"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){

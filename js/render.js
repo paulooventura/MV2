@@ -1300,22 +1300,22 @@ function _drawMindEnemyOff(e){
       ctx.fillRect(px,py,2,2);
     }
     if(shutT>0.2&&fr%12<8){
-      drawText('SHUTDOWN',wcx-28,headCY-22,C.PURPLE_L);
+      drawTextC('SHUTDOWN',wcx,headCY-22,C.PURPLE_L,1);
     }
   }
   if(settled||shutT>0.65){
     if(e._mindOff==='rebooting'){
-      drawText('BOOT',wcx-10,headCY-50,C.PURPLE_L);
+      drawTextC('BOOT',wcx,headCY-50,C.PURPLE_L,1);
     }else if(e._mindOff==='cooldown'){
       ctx.fillStyle=C.BLACK;
-      ctx.fillRect(wcx-12,headCY-28,24,9);
-      drawText('OFF',wcx-8,headCY-26,C.LILAC);
+      ctx.fillRect(wcx-16,headCY-28,32,12);
+      drawTextC('OFF',wcx,headCY-26,C.LILAC,1);
       const secs=Math.max(1,Math.ceil((e._cooldownEnd-Date.now())/1000));
-      drawText(String(secs),wcx-4,headCY-40,C.YELLOW);
+      drawTextC(String(secs),wcx,headCY-40,C.YELLOW,1);
     }else{
       ctx.fillStyle=C.BLACK;
-      ctx.fillRect(wcx-12,headCY-28,24,9);
-      drawText('OFF',wcx-8,headCY-26,C.LILAC);
+      ctx.fillRect(wcx-16,headCY-28,32,12);
+      drawTextC('OFF',wcx,headCY-26,C.LILAC,1);
     }
   }
 }
@@ -1424,10 +1424,10 @@ function _drawMinionOff(e){
       ctx.fillRect(bx+ew/2+Math.cos(a)*8,by+eh*0.35+Math.sin(a)*6,2,2);
     }
   }
-  const labelX=bx+ew/2-8, labelY=by-10;
+  const labelX=bx+ew/2, labelY=by-12;
   ctx.fillStyle=C.BLACK;
-  ctx.fillRect(labelX-4,labelY-2,24,10);
-  drawText('OFF',labelX,labelY,C.LILAC);
+  ctx.fillRect(labelX-16,labelY-2,32,12);
+  drawTextC('OFF',labelX,labelY,C.LILAC,1);
 }
 function _drawSignolProcedural(cx,cy,r,charging,eyesClosed,rollAngle){
   ctx.save();
@@ -1726,13 +1726,13 @@ function drawItemDrops(){
   for(const d of ITEM_DROPS){
     if(d.got) continue;
     const bob=Math.sin((d.bob||0))*2;
-    const dx=sx(d.x), dy=sy(d.y+bob), dw=Math.max(sw(d.w),18), dh=Math.max(sw(d.h),10);
+    const dx=sx(d.x), dy=sy(d.y+bob), dw=Math.max(sw(d.w),28), dh=Math.max(sw(d.h),14);
     if(dx>W+20||dy>H+20||dx+dw<-20||dy+dh<-20) continue;
     ctx.fillStyle=C.BLACK; ctx.fillRect(dx,dy,dw,dh);
     ctx.fillStyle=cols[d.item]||C.WHITE;
     ctx.fillRect(dx,dy,dw,1); ctx.fillRect(dx,dy+dh-1,dw,1);
     ctx.fillRect(dx,dy,1,dh); ctx.fillRect(dx+dw-1,dy,1,dh);
-    drawText(names[d.item]||'?',dx+2,dy+3,cols[d.item]||C.WHITE);
+    drawText(names[d.item]||'?',dx+2,dy+2,cols[d.item]||C.WHITE,1);
   }
 }
 function drawRopePickup(){
@@ -1766,17 +1766,17 @@ function drawItemTutorial(){
   // Flicker in/out instead of alpha fades
   if(t.t<24&&(fr&1)) return;
   if(t.t>t.maxT-40&&(fr&1)) return;
-  const boxW=Math.min(W-16,200), boxH=18+t.lines.length*8;
-  const bx=(W-boxW)>>1, by=H-boxH-10;
+  const boxW=Math.min(W-24,420), boxH=28+t.lines.length*20;
+  const bx=(W-boxW)>>1, by=H-boxH-16;
   ctx.fillStyle=C.BLACK;ctx.fillRect(bx,by,boxW,boxH);
   ctx.fillStyle=C.GREEN;
-  ctx.fillRect(bx,by,boxW,1);ctx.fillRect(bx,by+boxH-1,boxW,1);
-  ctx.fillRect(bx,by,1,boxH);ctx.fillRect(bx+boxW-1,by,1,boxH);
-  drawTextC(t.title,bx+(boxW>>1),by+4,C.GREEN_L);
-  let ly=by+13;
+  ctx.fillRect(bx,by,boxW,2);ctx.fillRect(bx,by+boxH-2,boxW,2);
+  ctx.fillRect(bx,by,2,boxH);ctx.fillRect(bx+boxW-2,by,2,boxH);
+  drawTextC(t.title,bx+(boxW>>1),by+6,C.GREEN_L,2);
+  let ly=by+28;
   for(const line of t.lines){
-    drawTextC(line,bx+(boxW>>1),ly,C.MINT);
-    ly+=8;
+    drawTextC(line,bx+(boxW>>1),ly,C.MINT,2);
+    ly+=20;
   }
 }
 

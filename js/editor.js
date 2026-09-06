@@ -134,7 +134,7 @@ const ED = {
   snap: 20,
   snapEnabled: true,
   // panel UI
-  panelW: 80, // SMS px â€” keep the dev panel narrow on the 256-wide framebuffer
+  panelW: 220,
   // zoom/scroll handled via camera
   // undo stack
   undoStack: [],
@@ -408,8 +408,7 @@ function drawEditorOverlay(){
     const col = ED.tool==='bwall'?'rgba(160,60,220,0.5)':'rgba(80,200,255,0.4)';
     ctx.fillStyle=col; ctx.fillRect(px,py,pw,ph);
     ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.strokeRect(px,py,pw,ph);
-    ctx.fillStyle='#fff'; ctx.font='10px monospace';
-    ctx.fillText(pww+'Ã—'+phw, px+4, py+14);
+    drawText(pww+'X'+phw, px+4, py+4, C.WHITE, 1);
   }
 
   // Cursor crosshair
@@ -424,72 +423,61 @@ function drawEditorOverlay(){
   ctx.fillStyle='rgba(10,10,20,0.9)'; ctx.fillRect(0,0,PW,PH);
   ctx.strokeStyle='rgba(100,200,255,0.3)'; ctx.lineWidth=1; ctx.strokeRect(0,0,PW,PH);
 
-  // Panel content
-  ctx.fillStyle='#7df7ff'; ctx.font='bold 11px monospace';
-  ctx.fillText('â¬¡ LEVEL EDITOR', 10, 18);
-  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,22,PW-20,1);
+  drawText('* LEVEL EDITOR', 10, 10, C.CYAN, 2);
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,30,PW-20,1);
 
   const tools=[
-    ['P','platform',ED.platType],
-    ['N','enemy',ED.enemyType],
-    ['C','crate','28Ã—28'],
-    ['K','knowl','drop'],
-    ['B','bwall','HP:'+ED.bwallHp],
-    ['R','erase',''],
+    ['P','PLATFORM',ED.platType],
+    ['N','ENEMY',ED.enemyType],
+    ['C','CRATE','28X28'],
+    ['K','KNOWL','DROP'],
+    ['B','BWALL','HP:'+ED.bwallHp],
+    ['R','ERASE',''],
   ];
-  let ty=36;
+  let ty=38;
   for(const [key,name,sub] of tools){
-    const active=ED.tool===name;
+    const active=ED.tool===name.toLowerCase()||ED.tool===name;
     ctx.fillStyle=active?'rgba(80,200,255,0.25)':'transparent';
-    ctx.fillRect(6,ty-11,PW-12,18);
-    ctx.fillStyle=active?'#7df7ff':'#aaa';
-    ctx.font='bold 10px monospace';
-    ctx.fillText('['+key+'] '+name, 10, ty);
-    if(sub){ ctx.fillStyle='rgba(255,220,100,0.8)'; ctx.font='9px monospace'; ctx.fillText('   '+sub, 55, ty); }
-    ty+=20;
+    ctx.fillRect(6,ty-2,PW-12,22);
+    drawText('['+key+'] '+name, 10, ty+2, active?C.CYAN:C.SILVER, 1);
+    if(sub) drawText(String(sub), 118, ty+2, C.SAND, 1);
+    ty+=24;
   }
 
   ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,ty,PW-20,1); ty+=10;
 
-  ctx.fillStyle='#ccc'; ctx.font='9px monospace';
   const help=[
-    'Tab â†’ cycle type',
-    'G â†’ snap ('+( ED.snapEnabled?'ON':'OFF')+')',
-    'â† â†’ â†‘ â†“ scroll',
-    'Ctrl+Z undo',
-    'Shift+S save stage',
-    'Shift+E export JS',
-    'M â†’ rename stage',
-    (_stageDesignerMode?'T â†’ set spawn':''),
-    '` â†’ exit editor',
+    'TAB  CYCLE TYPE',
+    'G  SNAP ('+( ED.snapEnabled?'ON':'OFF')+')',
+    'ARROWS  SCROLL',
+    'CTRL+Z  UNDO',
+    'SHIFT+S  SAVE STAGE',
+    'SHIFT+E  EXPORT JS',
+    'M  RENAME STAGE',
+    (_stageDesignerMode?'T  SET SPAWN':''),
+    '`  EXIT EDITOR',
   ];
-  for(const h of help){ if(!h) continue; ctx.fillText(h, 10, ty); ty+=13; }
+  for(const h of help){ if(!h) continue; drawText(h, 10, ty, C.SILVER, 1); ty+=14; }
 
   ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,ty,PW-20,1); ty+=10;
-  ctx.fillStyle='#7df7ff'; ctx.font='9px monospace';
-  ctx.fillText('room: '+ED.roomName, 10, ty); ty+=13;
-  ctx.fillStyle='#aaa';
-  ctx.fillText('plats: '+(TR.length-4), 10, ty); ty+=13;
-  ctx.fillText('enemies: '+ENEMS.length, 10, ty); ty+=13;
-  ctx.fillText('crates: '+CRATES.length, 10, ty); ty+=13;
-  ctx.fillText('knowls: '+KDROP.length, 10, ty); ty+=13;
-  ctx.fillText('bwalls: '+BWALLS.length, 10, ty);
+  drawText('ROOM: '+ED.roomName, 10, ty, C.CYAN, 1); ty+=14;
+  drawText('PLATS: '+(TR.length-4), 10, ty, C.SILVER, 1); ty+=14;
+  drawText('ENEMIES: '+ENEMS.length, 10, ty, C.SILVER, 1); ty+=14;
+  drawText('CRATES: '+CRATES.length, 10, ty, C.SILVER, 1); ty+=14;
+  drawText('KNOWLS: '+KDROP.length, 10, ty, C.SILVER, 1); ty+=14;
+  drawText('BWALLS: '+BWALLS.length, 10, ty, C.SILVER, 1);
 
-  // World coords at cursor
-  ctx.fillStyle='rgba(255,220,100,0.9)'; ctx.font='9px monospace';
-  ctx.fillText('world: '+hw.x+','+hw.y, 10, H-18);
-  ctx.fillText('cam: '+Math.round(camX)+','+Math.round(camY), 10, H-6);
+  drawText('WORLD: '+hw.x+','+hw.y, 10, H-28, C.SAND, 1);
+  drawText('CAM: '+Math.round(camX)+','+Math.round(camY), 10, H-14, C.SAND, 1);
 
-  // Toast
   if(_edToastFr>0){
     const a=Math.min(1,_edToastFr/30);
     ctx.globalAlpha=a;
     ctx.fillStyle='rgba(20,20,40,0.85)';
-    const tw=ctx.measureText(_edToast).width+20;
-    ctx.fillRect(W/2-tw/2, H-36, tw, 22);
-    ctx.fillStyle='#7df7ff'; ctx.font='bold 11px monospace';
-    ctx.textAlign='center'; ctx.fillText(_edToast, W/2, H-20);
-    ctx.textAlign='left'; ctx.globalAlpha=1;
+    const tw=textW(_edToast,2)+24;
+    ctx.fillRect(W/2-tw/2, H-40, tw, 28);
+    drawTextC(_edToast, W/2, H-32, C.CYAN, 2);
+    ctx.globalAlpha=1;
     _edToastFr--;
   }
 

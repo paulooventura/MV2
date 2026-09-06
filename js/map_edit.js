@@ -45,8 +45,8 @@ const MAPED_COLL=[
   {id:5, label:'SL /'},
 ];
 const MAPED_ENEMIES=['ball','square','triangle','star'];
-const MAPED_PANEL=168;
-const MAPED_PAL_H=56;
+const MAPED_PANEL=208;
+const MAPED_PAL_H=64;
 
 function _mapEdSelftest(){
   return typeof location!=='undefined'&&/[?&](selftest|ci)=/i.test(location.search||'');
@@ -393,32 +393,27 @@ function drawMapEditOverlay(){
   ctx.strokeStyle='rgba(140,200,255,0.35)';
   ctx.strokeRect(0.5,0.5,MAPED_PANEL-1,H-1);
 
-  let y=16;
-  ctx.fillStyle='#7df7ff'; ctx.font='bold 12px monospace';
-  ctx.fillText('AWDJOO EDIT',10,y); y+=18;
-  ctx.fillStyle='#8ab'; ctx.font='10px monospace';
-  ctx.fillText('` / F2 exit',10,y); y+=16;
+  let y=10;
+  drawText('AWDJOO EDIT',10,y,C.CYAN,2); y+=22;
+  drawText('` / F2 EXIT',10,y,C.SILVER,1); y+=16;
 
   const btn=(label,on,fn,bw)=>{
-    const x=10, h=18, w=bw||(MAPED_PANEL-20);
+    const x=10, h=22, w=bw||(MAPED_PANEL-20);
     ctx.fillStyle=on?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
-    ctx.fillRect(x,y-12,w,h);
-    ctx.fillStyle=on?'#dff':'#99a';
-    ctx.font='bold 10px monospace';
-    ctx.fillText(label,x+6,y);
-    _mapEdHit(x,y-12,w,h,fn);
-    y+=20;
+    ctx.fillRect(x,y,w,h);
+    drawText(label,x+6,y+4,on?C.WHITE:C.SILVER,1);
+    _mapEdHit(x,y,w,h,fn);
+    y+=26;
   };
 
-  ctx.fillStyle='#789'; ctx.font='9px monospace'; ctx.fillText('TOOL',10,y); y+=14;
-  btn('PAINT tile',MAPED.tool==='paint',()=>{MAPED.tool='paint';},74);
-  y-=20; const y0=y;
-  _mapEdHit(88,y0-12,70,18,()=>{MAPED.tool='erase';});
+  drawText('TOOL',10,y,C.STEEL,1); y+=12;
+  btn('PAINT TILE',MAPED.tool==='paint',()=>{MAPED.tool='paint';},90);
+  y-=26; const y0=y;
+  _mapEdHit(104,y0,86,22,()=>{MAPED.tool='erase';});
   ctx.fillStyle=MAPED.tool==='erase'?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
-  ctx.fillRect(88,y0-12,70,18);
-  ctx.fillStyle=MAPED.tool==='erase'?'#dff':'#99a';
-  ctx.fillText('ERASE',94,y0);
-  y+=20;
+  ctx.fillRect(104,y0,86,22);
+  drawText('ERASE',110,y0+4,MAPED.tool==='erase'?C.WHITE:C.SILVER,1);
+  y+=26;
   btn('ENEMY  '+MAPED.enemy,MAPED.tool==='enemy',()=>{
     MAPED.tool='enemy';
     MAPED.enemy=MAPED_ENEMIES[(MAPED_ENEMIES.indexOf(MAPED.enemy)+1)%MAPED_ENEMIES.length];
@@ -429,23 +424,21 @@ function drawMapEditOverlay(){
     for(const it of items){
       const on=get()===it.id;
       ctx.fillStyle=on?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
-      ctx.fillRect(x,y-12,w,18);
-      ctx.fillStyle=on?'#dff':'#99a';
-      ctx.font='bold 9px monospace';
-      ctx.fillText(it.label,x+4,y);
+      ctx.fillRect(x,y,w,22);
+      drawText(it.label,x+4,y+4,on?C.WHITE:C.SILVER,1);
       const id=it.id;
-      _mapEdHit(x,y-12,w,18,()=>set(id));
+      _mapEdHit(x,y,w,22,()=>set(id));
       x+=w+4;
-      if(x>MAPED_PANEL-w){ x=10; y+=20; }
+      if(x>MAPED_PANEL-w){ x=10; y+=24; }
     }
-    y+=22;
+    y+=28;
   };
-  ctx.fillStyle='#789'; ctx.font='9px monospace'; ctx.fillText('BLOCK IS',10,y); y+=14;
-  chips(MAPED_ROLES,()=>MAPED.role,id=>{MAPED.role=id;},48);
-  ctx.fillStyle='#789'; ctx.font='9px monospace'; ctx.fillText('LAYER',10,y); y+=14;
-  chips(MAPED_LAYERS,()=>MAPED.layer,id=>{MAPED.layer=id;},72);
-  ctx.fillStyle='#789'; ctx.font='9px monospace'; ctx.fillText('COLLISION',10,y); y+=14;
-  chips(MAPED_COLL,()=>MAPED.coll,id=>{MAPED.coll=id; if(MAPED.role==='scenario') MAPED.role='both';},72);
+  drawText('BLOCK IS',10,y,C.STEEL,1); y+=12;
+  chips(MAPED_ROLES,()=>MAPED.role,id=>{MAPED.role=id;},60);
+  drawText('LAYER',10,y,C.STEEL,1); y+=12;
+  chips(MAPED_LAYERS,()=>MAPED.layer,id=>{MAPED.layer=id;},90);
+  drawText('COLLISION',10,y,C.STEEL,1); y+=12;
+  chips(MAPED_COLL,()=>MAPED.coll,id=>{MAPED.coll=id; if(MAPED.role==='scenario') MAPED.role='both';},90);
 
   btn(MAPED.showColl?'COLL TINT ON':'COLL TINT OFF',MAPED.showColl,()=>{MAPED.showColl=!MAPED.showColl;});
   btn('UNDO (Z)',false,()=>_mapEdUndo());
@@ -454,11 +447,10 @@ function drawMapEditOverlay(){
   btn('CLEAR PATCH',false,()=>_mapEdClearPatch());
 
   y+=8;
-  ctx.fillStyle='#9ab'; ctx.font='9px monospace';
-  ctx.fillText('cell '+cell.c+','+cell.r,10,y); y+=12;
-  ctx.fillText('gid '+MAPED.gid+'  hit '+MAPED.coll,10,y); y+=12;
-  ctx.fillText('click paint · alt eyedrop',10,y); y+=12;
-  ctx.fillText('right erase · WASD pan',10,y);
+  drawText('CELL '+cell.c+','+cell.r,10,y,C.SILVER,1); y+=12;
+  drawText('GID '+MAPED.gid+'  HIT '+MAPED.coll,10,y,C.SILVER,1); y+=12;
+  drawText('CLICK PAINT  ALT EYEDROP',10,y,C.SILVER,1); y+=12;
+  drawText('RIGHT ERASE  WASD PAN',10,y,C.SILVER,1);
 
   ctx.fillStyle='rgba(8,6,16,0.94)';
   ctx.fillRect(0,H-MAPED_PAL_H,W,MAPED_PAL_H);
@@ -468,8 +460,7 @@ function drawMapEditOverlay(){
   const cellS=40, pad=6;
   const startX=MAPED_PANEL+8;
   let px=startX, py=H-MAPED_PAL_H+8;
-  ctx.fillStyle='#9ab'; ctx.font='9px monospace';
-  ctx.fillText('BOX',startX,H-MAPED_PAL_H+10);
+  drawText('BOX',startX,H-MAPED_PAL_H+6,C.SILVER,1);
   py=H-MAPED_PAL_H+14;
   for(const g of gids){
     if(px+cellS>W-8) break;
@@ -487,11 +478,10 @@ function drawMapEditOverlay(){
     MAPED.toastF--;
     ctx.globalAlpha=Math.min(1,MAPED.toastF/20);
     ctx.fillStyle='rgba(12,8,24,0.88)';
-    const tw=ctx.measureText(MAPED.toast).width+24;
-    ctx.fillRect(W/2-tw/2, 10, tw, 22);
-    ctx.fillStyle='#7df7ff'; ctx.font='bold 11px monospace';
-    ctx.textAlign='center'; ctx.fillText(MAPED.toast, W/2, 26);
-    ctx.textAlign='left'; ctx.globalAlpha=1;
+    const tw=textW(MAPED.toast,2)+28;
+    ctx.fillRect(W/2-tw/2, 10, tw, 28);
+    drawTextC(MAPED.toast, W/2, 16, C.CYAN, 2);
+    ctx.globalAlpha=1;
   }
 }
 

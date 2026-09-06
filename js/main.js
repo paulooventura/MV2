@@ -1066,11 +1066,11 @@ function draw(){
   if(_playerCount===2&&p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow(); drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
-  if(_playerCount===2&&p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,50,140,16);drawText('P2 HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,4,52,C.PINK,2);}
-  if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-58,H*0.40,116,22);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.42),C.LILAC);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.42)+10,C.PURPLE_L);}}
-  if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-16,C.RED_L,3);drawTextC('5 SHUTDOWNS',W/2,H/2+2,C.LILAC);drawTextC('TAB TO RETRY',W/2,H/2+16,C.GREY);}
-  if(_zoneCardT>0){_zoneCardT--;if(_zoneCardT>10||(fr&1)===0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,Math.round(H*0.30),W,26);drawTextC(_runTestMode?'RUN TEST GROUND':(_battleTestMode?'BATTLE PRACTICE':ZONES[_zoneIdx].name.toUpperCase()),W/2,Math.round(H*0.30)+5,C.YELLOW,2);drawTextC(_runTestMode?'ROLL OVER BUMPS — TEST SUSPENSION':(_battleTestMode?'VS SIGNOL — GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length),W/2,Math.round(H*0.30)+19,C.GREY);}}
-  if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-22,C.GREEN_L,3);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2-4,C.TEAL_L);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+14,C.GREEN);}
+  if(_playerCount===2&&p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText('P2 HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
+  if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-140,H*0.40,280,48);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.41),C.LILAC,2);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.41)+22,C.PURPLE_L,2);}}
+  if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-28,C.RED_L,4);drawTextC('5 SHUTDOWNS',W/2,H/2+8,C.LILAC,3);drawTextC('TAB TO RETRY',W/2,H/2+40,C.GREY,2);}
+  if(_zoneCardT>0){_zoneCardT--;if(_zoneCardT>10||(fr&1)===0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,Math.round(H*0.30),W,52);drawTextC(_runTestMode?'RUN TEST GROUND':(_battleTestMode?'BATTLE PRACTICE':ZONES[_zoneIdx].name.toUpperCase()),W/2,Math.round(H*0.30)+8,C.YELLOW,3);drawTextC(_runTestMode?'ROLL OVER BUMPS - TEST SUSPENSION':(_battleTestMode?'VS SIGNOL - GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length),W/2,Math.round(H*0.30)+32,C.GREY,2);}}
+  if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-28,C.GREEN_L,4);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2+8,C.TEAL_L,2);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+36,C.GREEN,2);}
   if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
   updateVersionBar();
 }
@@ -1117,7 +1117,7 @@ try {
   loop();
 }catch(e){
   document.getElementById('inf').style.color='#f00';
-  document.getElementById('inf').style.fontSize='11px';
+  document.getElementById('inf').style.fontSize='14px';
   document.getElementById('inf').textContent='CRASH: '+e.message+' | '+(e.stack?e.stack.split('\n')[1]:'');
   console.error(e);
 }
