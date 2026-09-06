@@ -2,7 +2,8 @@
 
 Each background "set" is a folder here. The current map's set is chosen by the
 Tiled map custom property `bgset` (string). If the map has no `bgset` property,
-the default set `beastlands` is used.
+the default set `awdjoo` is used (Awdjoo Town painting, split into
+parallax layers with drifting clouds and birds).
 
 ## File naming
 
