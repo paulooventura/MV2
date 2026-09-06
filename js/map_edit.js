@@ -159,6 +159,42 @@ function _mapEdRecordGrid(c,r,type){
   });
 }
 
+let _mapEdSlopeGidCache=null;
+function _mapEdSlopeKindForGid(gid){
+  gid=(typeof _tmjGid==='function'?_tmjGid(gid):gid)|0;
+  if(!gid) return null;
+  if(!_mapEdSlopeGidCache){
+    const base=typeof MV_GRID_SLOPE_GIDS!=='undefined'?MV_GRID_SLOPE_GIDS:{31:'L',44:'R'};
+    _mapEdSlopeGidCache=Object.assign({},base);
+    const data=typeof window!=='undefined'?window.MV_STAGE0_MAP:null;
+    if(data&&typeof _gridReadTilesetSlopes==='function'){
+      Object.assign(_mapEdSlopeGidCache,_gridReadTilesetSlopes(data));
+    }
+  }
+  return _mapEdSlopeGidCache[gid]||null;
+}
+function _mapEdSetGid(gid){
+  MAPED.gid=gid;
+  const kind=_mapEdSlopeKindForGid(gid);
+  if(kind==='L') MAPED.coll=4;
+  else if(kind==='R') MAPED.coll=5;
+}
+function _mapEdFillSlopeCell(c,r,t,fill){
+  const x=sx(c*t), y=sy(r*t), w=sw(t), h=sw(t);
+  const typ=typeof gridCell==='function'?gridCell(c,r):MAPED.coll;
+  ctx.beginPath();
+  if(typ===5){ ctx.moveTo(x,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y); }
+  else { ctx.moveTo(x,y); ctx.lineTo(x,y+h); ctx.lineTo(x+w,y+h); }
+  ctx.closePath();
+  ctx.fillStyle=fill;
+  ctx.fill();
+  ctx.strokeStyle='rgba(255,230,90,0.9)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  if(typ===5){ ctx.moveTo(x,y+h); ctx.lineTo(x+w,y); }
+  else { ctx.moveTo(x,y); ctx.lineTo(x+w,y+h); }
+  ctx.stroke();
+}
 function _mapEdPaintAt(c,r,erase){
   const d=_tmjDraw; if(!d||c<0||r<0||c>=d.mw||r>=d.mh) return;
   const i=r*d.mw+c;
@@ -185,7 +221,11 @@ function _mapEdPaintAt(c,r,erase){
       if(arr){ arr[i]=MAPED.gid; _mapEdRecordTile(MAPED.layer,i,MAPED.gid); }
     }
     if(MAPED.role!=='scenario'&&typeof gridSet==='function'){
-      gridSet(c,r,MAPED.coll); _mapEdRecordGrid(c,r,MAPED.coll);
+      let coll=MAPED.coll;
+      const kind=_mapEdSlopeKindForGid(MAPED.gid);
+      if(kind==='L') coll=4;
+      else if(kind==='R') coll=5;
+      gridSet(c,r,coll); _mapEdRecordGrid(c,r,coll);
     }
   }
 }
@@ -336,8 +376,11 @@ function drawMapEditOverlay(){
     for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
       const typ=gridCell(c,r);
       if(!typ||!cols[typ]) continue;
-      ctx.fillStyle=cols[typ];
-      ctx.fillRect(sx(c*t),sy(r*t),t,t);
+      if(typ===4||typ===5) _mapEdFillSlopeCell(c,r,t,cols[typ]);
+      else{
+        ctx.fillStyle=cols[typ];
+        ctx.fillRect(sx(c*t),sy(r*t),sw(t),sw(t));
+      }
     }
   }
 
@@ -436,7 +479,7 @@ function drawMapEditOverlay(){
       _drawTmjTileGid(g,px+4,py+4,8,8,4);
     if(g===MAPED.gid){ ctx.strokeStyle='#ffe46a'; ctx.strokeRect(px+0.5,py+0.5,cellS-1,cellS-1); }
     const gid=g;
-    _mapEdHit(px,py,cellS,cellS,()=>{MAPED.gid=gid; MAPED.tool='paint';});
+    _mapEdHit(px,py,cellS,cellS,()=>{_mapEdSetGid(gid); MAPED.tool='paint';});
     px+=cellS+pad;
   }
 

@@ -137,6 +137,15 @@ function gridSet(c,r,type){
   if(!_gridReady()) return;
   if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return;
   MV_GRID.data[r][c]=type;
+  if(!MV_GRID.slope) return;
+  const i=r*MV_GRID.cols+c, t=MV_GRID.tile, x0=c*t, y0=r*t, x1=x0+t, y1=y0+t;
+  if(type===MV_GRID_SLOPE_L){
+    MV_GRID.slope[i]={x1:x0,y1:y0,x2:x1,y2:y1,angle:Math.atan2(t,t)};
+  }else if(type===MV_GRID_SLOPE_R){
+    MV_GRID.slope[i]={x1:x0,y1:y1,x2:x1,y2:y0,angle:Math.atan2(-t,t)};
+  }else{
+    delete MV_GRID.slope[i];
+  }
 }
 
 function gridWorldSolid(wx,wy){

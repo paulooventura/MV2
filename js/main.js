@@ -560,6 +560,20 @@ function _tmjChromaKey(gid){
   if(tid>=4308&&tid<=4448) return true;
   return false;
 }
+function _tmjClipSlopeCell(col,row,px,py,dw,dh){
+  if(typeof gridIsSlope!=='function'||!gridIsSlope(col,row)) return false;
+  const kind=typeof gridSlopeKind==='function'?gridSlopeKind(col,row):null;
+  ctx.save();
+  ctx.beginPath();
+  if(kind==='R'){
+    ctx.moveTo(px,py+dh); ctx.lineTo(px+dw,py+dh); ctx.lineTo(px+dw,py);
+  }else{
+    ctx.moveTo(px,py); ctx.lineTo(px,py+dh); ctx.lineTo(px+dw,py+dh);
+  }
+  ctx.closePath();
+  ctx.clip();
+  return true;
+}
 function _drawTmjTileLayer(data,mw,mh,tw,th,sc,skipCells,skipGids,mode){
   if(!data)return;
   const tws=tw*sc,ths=th*sc;
@@ -571,7 +585,10 @@ function _drawTmjTileLayer(data,mw,mh,tw,th,sc,skipCells,skipGids,mode){
       const gid=_tmjGid(raw); if(!gid)continue;
       if(skipGids&&skipGids.has(gid))continue;
       if(skipCells&&skipCells.has(row+'_'+col))continue;
-      _drawTmjTileRaw(raw,sx(col*tws),sy(row*ths),tw,th,sc);
+      const px=sx(col*tws), py=sy(row*ths);
+      const clipped=_tmjClipSlopeCell(col,row,px,py,tws,ths);
+      _drawTmjTileRaw(raw,px,py,tw,th,sc);
+      if(clipped) ctx.restore();
     }
   }
 }
