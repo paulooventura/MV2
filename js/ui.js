@@ -330,7 +330,6 @@ function _enterZone(idx){
   if(_zoneIdx===0){
     _ensureCampaignMapApplied();
     if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
-    if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle();
     ENEMS=[]; CRATES=[];
     _restoreMapBWalls();
     _populateKnowlFromMap(); _initLaituFromMap();
@@ -338,7 +337,9 @@ function _enterZone(idx){
     _resetItemProgress();
     _shutdownTimer=0; _gameOver=false; _playerShutCount=0;
     if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.length=0;
-    p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies(); _spawnMapCrates();
+    p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies();
+    if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle();
+    _spawnMapCrates();
     if(typeof _setupAwdjooCampaignGoal==='function') _setupAwdjooCampaignGoal();
     else GOALPL={x:-999,y:0,w:1,h:1};
     console.info('MV zone0 boot:',ENEMS.length,'enemies,',KDROP.length,'knowls');

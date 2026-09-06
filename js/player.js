@@ -31,6 +31,7 @@ window.addEventListener('keydown',e=>{
   if(!K[e.code]) Kj[e.code]=true;
   K[e.code]=true;
   if(e.code==='Space') K['Space_kb']=true;
+  if(e.code==='KeyE')  K['KeyE_kb']=true;
   if(e.code==='KeyQ')  K['KeyQ_kb']=true;
   if(e.code==='KeyF')  K['KeyF_kb']=true;
   ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&e.preventDefault();
@@ -41,6 +42,7 @@ window.addEventListener('keyup',e=>{
   }
   K[e.code]=false;
   if(e.code==='Space') K['Space_kb']=false;
+  if(e.code==='KeyE')  K['KeyE_kb']=false;
   if(e.code==='KeyQ')  K['KeyQ_kb']=false;
   if(e.code==='KeyF')  K['KeyF_kb']=false;
 });
@@ -49,9 +51,12 @@ window.addEventListener('keyup',e=>{
 function _initTouchButtons(){
   const cv=document.getElementById('c');
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
-  ['bSp','bE','bQ','bF'].forEach((id,i)=>{
+  // Phone Xbox pad: Y = item action (game bind "swap"/Q), B = item select (game bind "use"/E).
+  const _padPairs=window._phonePlay
+    ?[['bSp','Space'],['bE','KeyQ'],['bQ','KeyE'],['bF','KeyF']]
+    :[['bSp','Space'],['bE','KeyE'],['bQ','KeyQ'],['bF','KeyF']];
+  _padPairs.forEach(([id,code])=>{
     const b=document.getElementById(id);
-    const code=['Space','KeyE','KeyQ','KeyF'][i];
     if(!b) return;
     const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; if(typeof _phoneEnterPlay==='function') _phoneEnterPlay(); e.preventDefault(); e.stopPropagation(); };
     const off=()=>K[code]=false;
@@ -148,9 +153,10 @@ function readGamepad(){
   const bJump=pressed(0);
   if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
-  if(rose(3)) Kj['KeyE']=true;
-  if(rose(1)) Kj['KeyQ']=true;
-  K['KeyQ']=(K['KeyQ_kb']||pressed(1));
+  if(rose(3)) Kj['KeyQ']=true;
+  if(rose(1)) Kj['KeyE']=true;
+  K['KeyQ']=(K['KeyQ_kb']||pressed(3));
+  K['KeyE']=(K['KeyE_kb']||pressed(1));
   K['KeyF']=(K['KeyF_kb']||pressed(2));
   if(pressed(4)) K['KeyS']=true;
   if(rose(9)) Kj['Tab']=true;

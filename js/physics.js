@@ -2194,11 +2194,16 @@ function _rollWheelFromTravel(pl,x0,y0){
   if(pl.hook&&pl.hook.st==='on') return;
   if(pl.wallGrip>0) return;
   if(pl.xlrOn||pl.magOn) return;
-  if(!pl.og&&!pl._onSlope) return;
   const dx=pl.x-x0, dy=pl.y-y0;
-  if(Math.abs(dx)<0.01) return;
-  const dist=pl._onSlope?Math.hypot(dx,dy):Math.abs(dx);
-  pl.wheelAngle=(pl.wheelAngle||0)+Math.sign(dx)*dist/WHEEL_R;
+  let dist=Math.abs(dx);
+  if(pl._onSlope) dist=Math.hypot(dx,dy);
+  let dir=Math.sign(dx);
+  if(dist<0.01){
+    if(Math.abs(pl.vx||0)<0.2) return;
+    dist=Math.abs(pl.vx);
+    dir=Math.sign(pl.vx||1);
+  }
+  pl.wheelAngle=(pl.wheelAngle||0)+dir*dist/WHEEL_R;
 }
 
 // ── Push / pull (XLR/MAG) ─────────────────────────────────────

@@ -86,18 +86,23 @@ function _ensureAwdjooLeftHouseEnemy(){
 
 /** Circle minion that rides the floating island. */
 function _ensureAwdjooIslandCircle(){
-  if(!_isAwdjooCampaignMap()) return;
   if(typeof _battleTestMode!=='undefined'&&_battleTestMode) return;
   if(typeof _runTestMode!=='undefined'&&_runTestMode) return;
   const plat=(typeof APLAT!=='undefined'?APLAT:[]).find(a=>a&&a._awdjooIsland);
   if(!plat) return;
-  if(!_mapMinionDefs) return;
+  if(typeof _mapMinionDefs==='undefined'||!_mapMinionDefs) return;
   for(let i=_mapMinionDefs.length-1;i>=0;i--){
     if(_mapMinionDefs[i]&&_mapMinionDefs[i]._awdjooIsland) _mapMinionDefs.splice(i,1);
   }
+  const cx=plat.x+plat.w*0.5;
   _mapMinionDefs.push({
-    kind:'circle', x:plat.x+plat.w*0.5, y:plat.y, _awdjooIsland:true,
+    kind:'circle', x:cx, y:plat.y, row:0, col:0, _awdjooIsland:true,
   });
+  if(typeof ENEMS==='undefined'||typeof _mkMinion!=='function') return;
+  if(ENEMS.some(e=>e&&e._awdjooIsland)) return;
+  const m=_mkMinion(cx, plat.y, 'circle', {mn:plat.x, mx:plat.x+plat.w, dir:1});
+  m._awdjooIsland=true;
+  ENEMS.push(m);
 }
 
 function _rideAwdjooIslandMinions(){

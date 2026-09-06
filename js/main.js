@@ -478,7 +478,7 @@ function applyTmjMap(data){
 
   _mapApplied=true; _mapReady=true;
   if(typeof _mapEdApplySaved==='function') _mapEdApplySaved();
-  if(p){ _placePlayerAtSpawn(); _spawnMapEnemies(); }
+  if(p){ _placePlayerAtSpawn(); _spawnMapEnemies(); if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle(); }
   else if(typeof _spawnX==='number'){ /* spawn vars ready for next boot */ }
   if(p&&_zoneIdx===0&&!_battleTestMode&&!_runTestMode) _snapCameraToPlayer(p);
   console.info('MV applyTmjMap:',WW+'x'+WH,'grid',typeof _gridReady==='function'&&_gridReady()?'on':'off',
@@ -763,12 +763,13 @@ function initWorld(){
   const boot=()=>{
     _ensureCampaignMapApplied();
     if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
-    if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle();
     ENEMS=[]; CRATES=[]; _restoreMapBWalls(); _resetItemProgress();
     _populateKnowlFromMap(); _initLaituFromMap();
     kColl=0; goalOpen=false; win=false; ESHOTS=[]; PFXS=[];
     _stageScore=0; _stageDamageFree=true; _awdjooTutorial=true;
-    p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies(); _spawnMapCrates();
+    p=mkP(); _placePlayerAtSpawn(); _spawnMapEnemies();
+    if(typeof _ensureAwdjooIslandCircle==='function') _ensureAwdjooIslandCircle();
+    _spawnMapCrates();
     _zoneIdx=0; _zoneCardT=220;
     if(typeof _setupAwdjooCampaignGoal==='function') _setupAwdjooCampaignGoal();
     else GOALPL={x:-999,y:0,w:1,h:1};

@@ -87,6 +87,8 @@
     if(slopeDef&&!(slopeDef.kit&&slopeDef.kit.length===1&&slopeDef.kit[0]===0)) rec('slopeEnemyKit',{kit:slopeDef.kit});
     var islandCircle=(_mapMinionDefs||[]).some(function(d){ return d&&d._awdjooIsland&&d.kind==='circle'; });
     if(!islandCircle) rec('islandCircleMissing',{});
+    var islandLive=(typeof ENEMS!=='undefined'?ENEMS:[]).some(function(e){ return e&&e._awdjooIsland&&e.type==='circle'; });
+    if(!islandLive) rec('islandCircleNotSpawned',{});
     var islandPlat=(typeof APLAT!=='undefined'?APLAT:[]).find(function(a){ return a&&a._awdjooIsland; });
     if(!islandPlat) rec('movingIslandMissing',{});
     else if(islandPlat.y>2080) rec('islandTooLow',{y:Math.round(islandPlat.y)});
