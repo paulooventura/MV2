@@ -1,25 +1,27 @@
-// Phone landscape play shell — CSS classes + orientation + HUD vis.
-// Desktop layout is unchanged unless this script tags <html> as phone-play.
+// Phone landscape play shell — CSS classes + orientation.
+// Desktop stays unchanged unless this tags <html> as phone-play.
 (function () {
   const root = document.documentElement;
   const ua = navigator.userAgent || '';
   const ios = /iP(hone|ad|od)/.test(ua);
-  const mobileUa = /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile/i.test(ua)
-    || (/Android/i.test(ua) && /Mobile/i.test(ua));
-  const tabletUa = /iPad|Android(?!.*Mobile)/i.test(ua)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const coarse = (function () {
+
+  function forced() {
+    try { return /(?:^|[?&])phone=1(?:&|$)/i.test(location.search); }
+    catch (e) { return false; }
+  }
+  function coarsePtr() {
     try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; }
     catch (e) { return false; }
-  })();
-  const shortSide = Math.min(screen.width || 9999, screen.height || 9999);
-  const phone = mobileUa || (coarse && shortSide <= 920) || (tabletUa && coarse);
-
-  window._phonePlay = phone;
-  if (!phone) return;
-
-  root.classList.add('phone-play');
-
+  }
+  function looksPhone() {
+    if (forced()) return true;
+    const mobileUa = /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile/i.test(ua);
+    const tabletUa = /iPad|Android(?!.*Mobile)/i.test(ua)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const shortScreen = Math.min(screen.width || 9999, screen.height || 9999) <= 1024;
+    const shortView = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 540;
+    return mobileUa || tabletUa || (coarsePtr() && (shortScreen || shortView)) || shortView;
+  }
   function isLand() {
     try {
       if (window.matchMedia('(orientation: landscape)').matches) return true;
@@ -27,20 +29,26 @@
     return window.innerWidth > window.innerHeight;
   }
 
-  function syncOri() {
+  function apply() {
+    const phone = looksPhone();
     const land = isLand();
-    root.classList.toggle('land', land);
-    root.classList.toggle('port', !land);
+    window._phonePlay = phone;
+    root.classList.toggle('phone-play', phone);
+    root.classList.toggle('land', phone && land);
+    root.classList.toggle('port', phone && !land);
+    const hud = document.getElementById('touchHud');
+    if (hud) hud.classList.add('in-game');
   }
 
-  syncOri();
-  addEventListener('orientationchange', syncOri);
-  addEventListener('resize', syncOri);
-  if (window.visualViewport) visualViewport.addEventListener('resize', syncOri);
+  apply();
+  addEventListener('orientationchange', apply);
+  addEventListener('resize', apply);
+  if (window.visualViewport) visualViewport.addEventListener('resize', apply);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
 
   let entered = false;
   window._phoneEnterPlay = function () {
-    if (entered) return;
+    if (entered || !window._phonePlay) return;
     entered = true;
     try {
       if (screen.orientation && screen.orientation.lock) {
@@ -53,10 +61,7 @@
   };
 
   window._syncPhoneHud = function () {
-    const hud = document.getElementById('touchHud');
-    if (!hud) return;
-    const play = typeof _gameState !== 'undefined' && _gameState === 'game';
-    hud.classList.toggle('in-game', play);
-    if (play) window._phoneEnterPlay();
+    apply();
+    if (typeof _gameState !== 'undefined' && _gameState === 'game') window._phoneEnterPlay();
   };
 })();

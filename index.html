@@ -23,8 +23,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='129';</script>
-<script src="js/phone.js?v=129"></script>
+<script>window.MV_BUILD='130';</script>
+<script src="js/phone.js?v=130"></script>
 <script src="js/ab-switch.js?v=129"></script>
 <script>
 if(location.protocol==='file:'){
@@ -90,20 +90,19 @@ html.phone-play.land canvas{
   max-width:100%;max-height:100%;border:none;
 }
 html.phone-play.land #touchHud{
-  position:fixed;inset:0;z-index:30;display:block;pointer-events:none;
+  position:fixed;inset:0;z-index:30;display:block!important;pointer-events:none;
   background:none;gap:0;flex-wrap:nowrap;
 }
-html.phone-play.land #touchHud:not(.in-game){display:none;}
 html.phone-play.land #padLeft{
   position:absolute;left:max(10px,env(safe-area-inset-left,0px));
-  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
 }
 html.phone-play.land #padRight{
   position:absolute;right:max(10px,env(safe-area-inset-right,0px));
-  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
-  display:flex;flex-direction:column;align-items:flex-end;gap:10px;
+  bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:grid;grid-template-columns:repeat(2,72px);grid-template-rows:repeat(2,64px);
+  gap:8px;
 }
-html.phone-play.land .acts-row{gap:8px;}
 html.phone-play.land .devrow{
   position:absolute;top:max(8px,env(safe-area-inset-top,0px));
   right:max(8px,env(safe-area-inset-right,0px));pointer-events:auto;
@@ -113,13 +112,15 @@ html.phone-play.land .dpad{
   grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;
 }
 html.phone-play.land #touchHud button{
-  background:rgba(12,10,28,.72);border:2px solid rgba(180,160,220,.45);
-  color:#eee8ff;min-width:56px;min-height:56px;padding:0 8px;font-weight:800;
-  font-size:15px;border-radius:12px;-webkit-tap-highlight-color:transparent;
+  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
+  color:#fff;min-width:56px;min-height:56px;height:auto!important;padding:0 8px;
+  font-weight:800;font-size:15px;border-radius:12px;
+  -webkit-tap-highlight-color:transparent;box-shadow:0 2px 8px #000a;
 }
+html.phone-play.land #padRight button{min-width:0;min-height:0;width:100%;height:100%;font-size:14px;}
 html.phone-play.land #bSp{
-  min-width:96px;min-height:72px;font-size:18px;letter-spacing:.04em;
-  background:rgba(48,24,80,.82);border-color:rgba(220,190,255,.65);
+  font-size:16px;letter-spacing:.04em;
+  background:rgba(56,28,96,.92);border-color:#e8d0ff;
 }
 html.phone-play.land #bE{color:#7ef;}
 html.phone-play.land #bQ{color:#fc8;}
@@ -152,12 +153,27 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
 @media (max-height:380px){
   html.phone-play.land .dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:4px;}
   html.phone-play.land #touchHud button{min-width:48px;min-height:48px;font-size:13px;}
-  html.phone-play.land #bSp{min-width:80px;min-height:60px;font-size:16px;}
+  html.phone-play.land #padRight{grid-template-columns:repeat(2,60px);grid-template-rows:repeat(2,52px);gap:6px;}
+  html.phone-play.land #bSp{font-size:14px;}
+}
+@media (hover:none) and (pointer:coarse) and (orientation:landscape){
+  html:not(.phone-play) #touchHud{
+    position:fixed;inset:0;z-index:30;display:block!important;pointer-events:none;
+  }
+  html:not(.phone-play) #padLeft{
+    position:absolute;left:max(10px,env(safe-area-inset-left,0px));
+    bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  }
+  html:not(.phone-play) #padRight{
+    position:absolute;right:max(10px,env(safe-area-inset-right,0px));
+    bottom:max(16px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+    display:grid;grid-template-columns:repeat(2,72px);grid-template-rows:repeat(2,64px);gap:8px;
+  }
 }
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 129</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 130</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -182,11 +198,9 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
   </div>
   <div class="acts" id="padRight">
     <button id="bSp" type="button" style="height:30px;padding:0 12px;font-weight:700;"><span class="desk">SPACE</span><span class="ph">JUMP</span></button>
-    <div class="acts-row">
-      <button id="bE" type="button" style="height:30px;padding:0 10px;color:#0ff;"><span class="desk">E</span><span class="ph">ITEM</span></button>
-      <button id="bQ" type="button" style="height:30px;padding:0 10px;color:#f90;"><span class="desk">Q</span><span class="ph">SWAP</span></button>
-      <button id="bF" type="button" style="height:30px;padding:0 10px;color:#f66;"><span class="desk">F</span><span class="ph">PUNCH</span></button>
-    </div>
+    <button id="bE" type="button" style="height:30px;padding:0 10px;color:#0ff;"><span class="desk">E</span><span class="ph">ITEM</span></button>
+    <button id="bQ" type="button" style="height:30px;padding:0 10px;color:#f90;"><span class="desk">Q</span><span class="ph">SWAP</span></button>
+    <button id="bF" type="button" style="height:30px;padding:0 10px;color:#f66;"><span class="desk">F</span><span class="ph">PUNCH</span></button>
   </div>
   <div class="devrow">
     <button id="bTest" class="desk-only" type="button" style="height:30px;padding:0 12px;color:#0f0;background:#001800;border-color:#0a4400;font-weight:700;">🔬 TEST</button>
