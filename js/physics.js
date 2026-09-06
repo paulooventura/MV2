@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=47;
+const MOVE_BUILD=48;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -2370,17 +2370,16 @@ function measureHeadroom(pl=p){
     const gap=bodyTop-ceilB;
     if(gap<=STAND_H+4&&gap<minGap) minGap=gap;
   }
-  // Typed grid is the campaign authority. Use the standing hull and look a
-  // couple of tiles ahead so a lintel tucks the wheel before it wedges.
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridHeadroom==='function'){
     const t=MV_GRID.tile;
     const standTop=feet-STAND_H-WHEEL_R;
     const hbx=typeof HBX!=='undefined'?HBX:6;
     const hbw=typeof HBW!=='undefined'?HBW:BODY_W;
-    const dir=Math.sign(pl.vx||0)||(pl.fc?1:-1);
-    const look=t*2;
+    const moving=Math.abs(pl.vx||0)>0.35;
+    const dir=moving?Math.sign(pl.vx):(pl.fc?1:-1);
+    const look=moving?t*2:0;
     const x=dir>=0?pl.x+hbx:pl.x+hbx-look;
-    const gap=gridHeadroom(standTop, x, hbw+look);
+    const gap=gridHeadroom(standTop, x, hbw+look, feet);
     if(gap<minGap) minGap=gap;
   }
   return minGap;

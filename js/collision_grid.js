@@ -384,8 +384,13 @@ function buildCollisionGridFromTmj(data, sc){
 function gridClear(){ MV_GRID=null; }
 
 function gridSmashCell(c,r){
-  if(gridCell(c,r)===MV_GRID_DESTRUCT){ gridSet(c,r,MV_GRID_AIR); return true; }
-  return false;
+  if(!_gridReady()) return false;
+  if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return false;
+  const t=gridCell(c,r);
+  if(t===MV_GRID_AIR) return false;
+  gridSet(c,r,MV_GRID_AIR);
+  if(MV_GRID.slope) delete MV_GRID.slope[r*MV_GRID.cols+c];
+  return true;
 }
 
 function gridSmashWorldRect(x,y,w,h){
@@ -402,6 +407,28 @@ function gridSyncDestroyedBwall(bw){
   if(!bw||!_gridReady()) return;
   if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol, bw.homeRow);
   gridSmashWorldRect(bw.x,bw.y,bw.w||MV_GRID.tile,bw.h||MV_GRID.tile);
+  if(bw.homeX!=null&&bw.homeY!=null) gridSmashWorldRect(bw.homeX,bw.homeY,bw.w||MV_GRID.tile,bw.h||MV_GRID.tile);
+}
+
+/** Make sure every live omniblock owns a destruct cell, even if KEEP OUT painted rock there. */
+function gridStampLiveBwalls(){
+  if(!_gridReady()||typeof BWALLS==='undefined') return;
+  const t=MV_GRID.tile;
+  for(const bw of BWALLS){
+    if(!bw||bw.hp<=0) continue;
+    if(bw.homeCol!=null&&bw.homeRow!=null){
+      const cur=gridCell(bw.homeCol,bw.homeRow);
+      if(cur!==MV_GRID_SLOPE_L&&cur!==MV_GRID_SLOPE_R) gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT);
+    }
+    const x=bw.homeX!=null?bw.homeX:bw.x, y=bw.homeY!=null?bw.homeY:bw.y;
+    const w=bw.w||t, h=bw.h||t;
+    const c0=Math.floor(x/t), c1=Math.floor((x+Math.max(1,w)-1)/t);
+    const r0=Math.floor(y/t), r1=Math.floor((y+Math.max(1,h)-1)/t);
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
+      const cur=gridCell(c,r);
+      if(cur===MV_GRID_AIR||cur===MV_GRID_SOLID||cur===MV_GRID_ONEWAY) gridSet(c,r,MV_GRID_DESTRUCT);
+    }
+  }
 }
 
 function gridPlayerBody(pl){
@@ -635,11 +662,6 @@ function gridMoveY(body, dy){
   if(dy>0){
     const hit=gridBestFloor(body, prevFeet);
     if(hit){ gridSetFeet(body, hit.y, hit.ang); return; }
-    const row=Math.floor((body.feetY-0.001)/t);
-    const [c0,c1]=gridSpan(body.x, body.w, t);
-    for(let c=c0;c<=c1;c++){
-      if(gridSolid(c,row)){ gridSetFeet(body, row*t, 0); return; }
-    }
   }else{
     const row=Math.floor(body.y/t);
     const [c0,c1]=gridSpan(body.x, body.w, t);
@@ -778,17 +800,20 @@ function gridFloorBelow(cx, markerFeet, maxDrop){
 }
 
 /** Pixels between the head and the lowest solid underside above it. Negative = already in the rock. */
-function gridHeadroom(bodyTop, x, w){
+function gridHeadroom(bodyTop, x, w, feetY){
   if(!_gridReady()) return 999;
   const t=MV_GRID.tile;
   const [c0,c1]=gridSpan(x,w,t);
   const start=Math.floor((bodyTop-0.001)/t);
+  const floorCut=(feetY!=null?feetY:bodyTop+t*4)-2;
   let best=999;
-  for(let r=start+3;r>=start-12;r--){
+  for(let r=start+2;r>=start-12;r--){
     for(let c=c0;c<=c1;c++){
       if(!gridSolid(c,r)||gridIsSlope(c,r)) continue;
       if(gridSolid(c,r+1)) continue;
-      const gap=bodyTop-(r+1)*t;
+      const underside=(r+1)*t;
+      if(underside>floorCut) continue;
+      const gap=bodyTop-underside;
       if(gap<best) best=gap;
     }
   }

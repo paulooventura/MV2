@@ -77,7 +77,7 @@ async function main() {
       await wait(40);
 
       // ── 1. Spawn ────────────────────────────────────────────────
-      log.push(['spawn', JSON.stringify({ ...cell(), x: Math.round(p.x), feet: Math.round(feet()), og: !!p.og })]);
+      log.push(['spawn', JSON.stringify({ ...cell(), x: Math.round(p.x), feet: Math.round(feet()), og: !!p.og, crouch: +(p.crouchAmt || 0).toFixed(2) })]);
 
       // ── 2. Free roll down the 45° hill ──────────────────────────
       put(22, 70);
@@ -145,17 +145,24 @@ async function main() {
       log.push(['door grid before/after', doorCellsBefore.join('') + ' -> ' + doorCellsAfter.join('')]);
       log.push(['walk east, door intact', JSON.stringify(blockedAt)]);
       log.push(['walk east, door smashed', JSON.stringify(throughAt)]);
+      put(31, 76);
+      clearKeys();
+      K['KeyA'] = true;
+      for (let i = 0; i < 120; i++) await wait(1);
+      clearKeys();
+      log.push(['walk west out the door', JSON.stringify(cell())]);
 
-      // ── 5. Floor hatch at cols 36-38, row 76 ────────────────────
+      // ── 5. Floor hatch: stand on it, then smash, then fall ──────
+      put(37, 76);
+      clearKeys();
+      await wait(10);
+      log.push(['on hatch before smash', JSON.stringify({ ...cell(), crouch: +(p.crouchAmt || 0).toFixed(2) })]);
       for (const bw of BWALLS) {
         if (bw.homeRow === 76 && bw.homeCol >= 36 && bw.homeCol <= 38) { bw.hp = 0; bw._destroyFr = fr; gridSyncDestroyedBwall(bw); }
       }
-      await wait(6);
-      put(37, 76, { above: 8 });
-      clearKeys();
       await wait(120);
       log.push(['hatch grid row76', [36, 37, 38].map((c) => gridCell(c, 76)).join('')]);
-      log.push(['drop through hatch', JSON.stringify(cell())]);
+      log.push(['drop through hatch', JSON.stringify({ ...cell(), og: !!p.og, crouch: +(p.crouchAmt || 0).toFixed(2) })]);
 
       // ── 6. Can we reach the basement RCA cell on foot? ──────────
       clearKeys();

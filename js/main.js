@@ -455,6 +455,7 @@ function applyTmjMap(data){
   _filterMapBWallsToZones();
   _restoreMapBWalls();
   if(typeof buildCollisionGridFromTmj==='function') buildCollisionGridFromTmj(data, sc);
+  if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
   const mainCanvas=canvasData||tileData;
   _tmjDraw={data:mainCanvas,canvasData,bgData,fgData,destructData,spawnData,mw,mh,tw,th,sc};
   if(typeof _scanCandleLights==='function') _scanCandleLights(data);
