@@ -350,7 +350,9 @@ function _resolveAndApplySpawn(data,tw,th,sc,spawnData,mw){
   }
 
   if(!_mapRopePickup&&typeof _ensureAwdjooRcaPickup==='function') _ensureAwdjooRcaPickup();
+  if(typeof _ensureAwdjooLeftHouseEnemy==='function') _ensureAwdjooLeftHouseEnemy();
   if(typeof _ensureAwdjooSlopeEnemy==='function') _ensureAwdjooSlopeEnemy();
+  if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
 
   const spawnPt=_pickPlayerSpawn(data,tw,th,sc,spawnData,mw,spawnObjects);
   _mapPlayerSpawnPt=spawnPt;

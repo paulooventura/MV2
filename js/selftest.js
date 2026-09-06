@@ -79,6 +79,12 @@
       if(spawnCol<28||spawnCol>34) rec('spawnNotHouse2',{col:spawnCol});
     }
     if(typeof GOALPL!=='undefined'&&GOALPL.x!=null&&GOALPL.x<2800) rec('goalNotHouse5',{x:GOALPL.x});
+    var house1=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===13; });
+    var slopeE=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===17; });
+    if(!house1) rec('leftHouseEnemyMissing',{});
+    if(!slopeE) rec('slopeEnemyMissing',{});
+    var island=(typeof APLAT!=='undefined'?APLAT:[]).some(function(a){ return a&&a._awdjooIsland; });
+    if(!island) rec('movingIslandMissing',{});
   }
 
   function checkSlopeAndOpening(){
@@ -120,6 +126,18 @@
       if(moved<4) rec('slopeBlocked',{x0:Math.round(wx), right:Math.round(right.x), left:Math.round(left.x)});
       var nsy=gridSlopeY(Math.floor((right.x+right.w*0.5)/t), Math.floor((right.feetY-0.001)/t), right.x+right.w*0.5);
       if(nsy!=null && Math.abs(right.feetY-nsy)>6 && moved>=4) rec('slopeMiss',{feet:Math.round(right.feetY), surf:Math.round(nsy)});
+      var drop={x:wx-hbw*0.5, y:sy-hullH, w:hbw, h:hullH, feetY:sy, vx:0, vy:8, onGround:true, slopeAng:0, _hitX:false, _hitY:false, wheelR:wr};
+      if(typeof gridResolvePlayer==='function'){
+        // Resolve a raw body through the same sweep the living actors use.
+        gridMoveSwept(drop, 2, 8);
+        if(typeof gridFollowSlope==='function') gridFollowSlope(drop, true);
+      }else{
+        gridMoveSwept(drop, 2, 8);
+      }
+      var dropSurf=gridSlopeY(Math.floor((drop.x+drop.w*0.5)/t), Math.floor((drop.feetY-0.001)/t), drop.x+drop.w*0.5);
+      if(!drop.onGround || (dropSurf!=null && drop.feetY>dropSurf+10) || drop.feetY>sy+t*2){
+        rec('slopeFallThrough',{feet:Math.round(drop.feetY), surf:dropSurf!=null?Math.round(dropSurf):null, start:Math.round(sy)});
+      }
     }
     var doorX=848, doorY=2240, gap=0, guard=0;
     var col=Math.floor(doorX/t), row=Math.floor(doorY/t);

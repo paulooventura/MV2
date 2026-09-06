@@ -1037,6 +1037,39 @@ function drawPlat(pl){
   }
 }
 
+function drawAwdjooIsland(a){
+  const bx=sx(a.x),by=sy(a.y),pw=sw(a.w),ph=sw(a.h);
+  if(bx>W+8||bx+pw<-8||by>H+8||by+ph<-8) return;
+  ctx.fillStyle=C.BROWN_D; ctx.fillRect(bx,by,pw,ph);
+  ctx.fillStyle=C.BROWN; ctx.fillRect(bx,by+3,pw,ph-3);
+  ctx.fillStyle=C.TAN; ctx.fillRect(bx+1,by+5,pw-2,2);
+  ctx.fillStyle=C.GREEN_D; ctx.fillRect(bx,by,pw,4);
+  ctx.fillStyle=C.GREEN; ctx.fillRect(bx+1,by,pw-2,3);
+  ctx.fillStyle=C.GREEN_L; ctx.fillRect(bx+3,by,pw-6,2);
+  ctx.fillStyle=C.BROWN_D;
+  for(let i=10;i<pw-8;i+=16) ctx.fillRect(bx+i,by+ph-7,4,3);
+  const cxm=bx+(pw>>1), cym=by+(ph>>1)+2;
+  ctx.fillStyle=C.SAND;
+  if((a.dx||0)>0.2){
+    ctx.fillRect(cxm-1,cym-2,1,1);ctx.fillRect(cxm,cym-1,1,1);
+    ctx.fillRect(cxm+1,cym,1,1);ctx.fillRect(cxm,cym+1,1,1);ctx.fillRect(cxm-1,cym+2,1,1);
+  }else if((a.dx||0)<-0.2){
+    ctx.fillRect(cxm+1,cym-2,1,1);ctx.fillRect(cxm,cym-1,1,1);
+    ctx.fillRect(cxm-1,cym,1,1);ctx.fillRect(cxm,cym+1,1,1);ctx.fillRect(cxm+1,cym+2,1,1);
+  }
+}
+
+function drawCampaignPlats(){
+  if(typeof APLAT==='undefined') return;
+  for(const a of APLAT){
+    if(a&&a._awdjooIsland) drawAwdjooIsland(a);
+  }
+  if(typeof MPLAT==='undefined') return;
+  for(const m of MPLAT){
+    if(m&&m._awdjooIsland) drawMovPlat(m);
+  }
+}
+
 function drawMovPlat(m){
   const bx=sx(m.x),by=sy(m.y),pw=sw(m.w),ph=sw(m.h);
   ctx.fillStyle=C.CYAN_D;ctx.fillRect(bx,by,pw,ph);

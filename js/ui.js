@@ -272,6 +272,7 @@ function _enterZone(idx){
   win=false; goalOpen=false; ESHOTS=[]; PFXS=[];
   if(_zoneIdx===0){
     _ensureCampaignMapApplied();
+    if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
     ENEMS=[]; CRATES=[];
     _restoreMapBWalls();
     _populateKnowlFromMap(); _initLaituFromMap();

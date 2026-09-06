@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=52;
+const MOVE_BUILD=53;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -1456,11 +1456,39 @@ function _unstickWallCorner(pl){
 }
 
 // ── Multi-step player move ────────────────────────────────────
+function _rideMovingPlats(pl, prevFeet){
+  if(!pl||(pl.hook&&pl.hook.st==='on')) return;
+  if(typeof allP!=='function') return;
+  const feet=pl.y+FEET_OFF;
+  const fL=pl.x+FEET_L, fR=fL+FEET_W;
+  const was=prevFeet!=null?prevFeet:feet;
+  for(const plat of allP()){
+    if(plat.tp!=='oneway') continue;
+    if(!_feetSpanOver(plat,fL,fR)) continue;
+    const top=plat.y;
+    const comingDown=(pl.vy||0)>=-0.15;
+    const near=feet>=top-6&&feet<=top+14;
+    const wasAbove=was<=top+16;
+    if((comingDown||pl.og)&&near&&(wasAbove||pl.og)){
+      const dx=(plat.mv&&plat.mv.dx)||(plat.mp&&plat.mp.vx)||0;
+      pl.y=top-FEET_OFF;
+      pl.vy=0;
+      pl.og=true;
+      pl._onSlope=false;
+      pl._slopeAngle=0;
+      pl._groundSeg=null;
+      pl.x+=dx;
+    }
+  }
+}
+
 function _movePlayerWithColl(pl,vx,vy){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function'){
+    const prevFeet=pl._prevLandFeet!=null?pl._prevLandFeet:pl.y+FEET_OFF;
     gridResolvePlayer(pl,vx,vy, pl===p?{}:{noCrest:true});
     if(pl.x<0){pl.x=0;pl.vx=0;}
     if(typeof WW!=='undefined'&&typeof SW!=='undefined'&&pl.x>WW-SW){pl.x=WW-SW;pl.vx=0;}
+    _rideMovingPlats(pl, prevFeet);
     pl._prevLandFeet=pl.y+FEET_OFF;
     return;
   }
@@ -1579,7 +1607,7 @@ function _pinActorToFloor(e, opts){
   const force=!!(opts.force||stomp);
   const cx=e.x+SW*0.5, feet=e.y+FEET_OFF;
   const maxUp=opts.maxUp!=null?opts.maxUp:(stomp?16:10);
-  const maxDrop=opts.maxDrop!=null?opts.maxDrop:(stomp?96:(e.og?36:16));
+  const maxDrop=opts.maxDrop!=null?opts.maxDrop:(stomp?96:(e.og?56:24));
   const hit=typeof gridStandBest==='function'
     ?gridStandBest(cx, feet, {maxUp, maxDrop, span:18})
     :null;
@@ -1963,10 +1991,15 @@ function _stabilizePlayerCollision(pl){
       const feet=pl.y+FEET_OFF;
       const cx=pl.x+SW*0.5;
       const t=MV_GRID&&MV_GRID.tile?MV_GRID.tile:32;
-      const overAir=typeof gridCell==='function'&&gridCell(Math.floor(cx/t),Math.floor((feet+2)/t))===0;
-      const hit=typeof gridStandHit==='function'
-        ?gridStandHit(cx,feet,{maxUp:16,maxDrop:overAir?8:(pl.og?28:12)})
-        :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop:overAir?8:(pl.og?28:12)}),ang:0,kind:'solid'}:null);
+      const nearSlope=typeof gridNearSlope==='function'&&gridNearSlope(cx,feet);
+      const cell=typeof gridCell==='function'?gridCell(Math.floor(cx/t),Math.floor((feet+2)/t)):0;
+      const overAir=cell===0&&!nearSlope;
+      const maxDrop=overAir?8:((nearSlope||pl.og)?40:16);
+      const hit=typeof gridStandBest==='function'
+        ?gridStandBest(cx,feet,{maxUp:16,maxDrop,span:18})
+        :(typeof gridStandHit==='function'
+          ?gridStandHit(cx,feet,{maxUp:16,maxDrop})
+          :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop}),ang:0,kind:'solid'}:null));
       if(hit&&hit.y!=null){
         pl.y=hit.y-FEET_OFF;
         if(hit.kind==='slope'&&Math.abs(hit.ang||0)>0.06){

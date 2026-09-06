@@ -744,6 +744,7 @@ function initWorld(){
   _battleTestMode=false; _syncBattleHud(); _runTestMode=false; _stageDesignerMode=false;
   const boot=()=>{
     _ensureCampaignMapApplied();
+    if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();
     ENEMS=[]; CRATES=[]; _restoreMapBWalls(); _resetItemProgress();
     _populateKnowlFromMap(); _initLaituFromMap();
     kColl=0; goalOpen=false; win=false; ESHOTS=[]; PFXS=[];
@@ -1019,6 +1020,7 @@ function draw(){
   if(_gameState==='select'){drawSelect();return;}
   _snapRenderCam();
   if(_tmjDraw) drawTmjMap();
+  if(typeof drawCampaignPlats==='function') drawCampaignPlats();
   drawBGParticles(); drawCandleLights();
   if(!_tmjDraw){
     drawParallax();
