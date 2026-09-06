@@ -14,7 +14,9 @@ const MAPED={
   coll:1,
   gid:1,
   enemy:'ball',
-  showColl:true,
+  showColl:false,
+  pick:-1,
+  spawnOff:0,
   mx:0, my:0,
   hoverC:0, hoverR:0,
   painting:false,
@@ -44,9 +46,18 @@ const MAPED_COLL=[
   {id:4, label:'SL \\'},
   {id:5, label:'SL /'},
 ];
-const MAPED_ENEMIES=['ball','square','triangle','star'];
-const MAPED_PANEL=208;
-const MAPED_PAL_H=64;
+const MAPED_ENEMIES=[
+  {id:'ball', label:'BALL'},
+  {id:'square', label:'SQR'},
+  {id:'triangle', label:'TRI'},
+  {id:'star', label:'STAR'},
+];
+const MAPED_PANEL=236;
+const MAPED_PAL_H=72;
+const MAPED_PIN={
+  mind:'#e8a0ff', signol:'#ff8844', minion:'#66e0a8',
+  player:'#6cff7a', laitu:'#a8d4ff',
+};
 
 function _mapEdSelftest(){
   return typeof location!=='undefined'&&/[?&](selftest|ci)=/i.test(location.search||'');
@@ -109,7 +120,7 @@ function _mapEdToggle(force){
   }
   _mapEdActive=true;
   if(typeof _editorActive!=='undefined') _editorActive=false;
-  _mapEdToast('AWDJOO EDIT — paint tiles · ` exit');
+  _mapEdToast('EDIT — PAINT tiles or SPAWN actors');
 }
 
 function _mapEdApplySaved(){
@@ -230,6 +241,95 @@ function _mapEdPaintAt(c,r,erase){
   }
 }
 
+function _mapEdEnemyLabel(id){
+  const it=MAPED_ENEMIES.find(e=>e.id===id);
+  return it?it.label:String(id||'?').toUpperCase().slice(0,4);
+}
+function _mapEdFocus(wx,wy){
+  if(typeof camClampX==='function') camX=camClampX(wx-(typeof camViewW==='function'?camViewW():W)/2);
+  if(typeof camClampY==='function') camY=camClampY(wy-(typeof camViewH==='function'?camViewH():H)/2);
+  if(typeof _snapRenderCam==='function') _snapRenderCam();
+}
+function _mapEdListSpawns(){
+  const t=_mapEdTile();
+  const out=[], seen=new Set();
+  const add=(kind,label,wx,wy,col,row,src,idx)=>{
+    if(!isFinite(wx)||!isFinite(wy)) return;
+    const key=kind+','+Math.round(wx/8)+','+Math.round(wy/8);
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({kind,label,wx,wy,col,row,src,idx});
+  };
+  if(typeof _mapEnemyDefs!=='undefined'){
+    for(let i=0;i<_mapEnemyDefs.length;i++){
+      const d=_mapEnemyDefs[i]; if(!d) continue;
+      const wx=d.x!=null?d.x+(typeof SW!=='undefined'?SW/2:32):((d.col+0.5)*t);
+      const wy=d.y!=null?d.y:((d.row+1)*t);
+      add('mind',_mapEdEnemyLabel(d.shape),wx,wy,d.col,d.row,'edef',i);
+    }
+  }
+  if(typeof _mapSignolDefs!=='undefined'){
+    for(let i=0;i<_mapSignolDefs.length;i++){
+      const d=_mapSignolDefs[i]; if(!d) continue;
+      add('signol','SIG',d.x,d.y||0,d.col,d.row,'sdef',i);
+    }
+  }
+  if(typeof _mapMinionDefs!=='undefined'){
+    for(let i=0;i<_mapMinionDefs.length;i++){
+      const d=_mapMinionDefs[i]; if(!d) continue;
+      add('minion',String(d.kind||'MIN').toUpperCase().slice(0,4),d.x,d.y||0,d.col,d.row,'mdef',i);
+    }
+  }
+  if(typeof ENEMS!=='undefined'){
+    for(let i=0;i<ENEMS.length;i++){
+      const e=ENEMS[i]; if(!e) continue;
+      const wx=e.x+(e.w||64)*0.5;
+      const wy=e.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+      const kind=e._battleSignol||e.signol?'signol':(e.mind?'mind':'minion');
+      add(kind,e.mind?_mapEdEnemyLabel(e.shape):(e.signol||e._battleSignol?'SIG':'MIN'),wx,wy,null,null,'live',i);
+    }
+  }
+  if(typeof _spawnX==='number'){
+    add('player','YOU',_spawnX+(typeof SW!=='undefined'?SW/2:32),_spawnY+(typeof FEET_OFF!=='undefined'?FEET_OFF:88),null,null,'player',0);
+  }
+  if(typeof _mapLaituSpawn==='object'&&_mapLaituSpawn){
+    add('laitu','LAI',_mapLaituSpawn.x,_mapLaituSpawn.feetY||_mapLaituSpawn.y,null,null,'laitu',0);
+  }
+  return out;
+}
+function _mapEdHitSpawn(wx,wy,list){
+  let best=null, bestD=42*42;
+  for(const sp of list){
+    const dx=wx-sp.wx, dy=wy-sp.wy;
+    const d=dx*dx+dy*dy;
+    if(d<bestD){ bestD=d; best=sp; }
+  }
+  return best;
+}
+function _mapEdDrawPin(sp,sel){
+  const x=sx(sp.wx), y=sy(sp.wy);
+  if(x<-40||x>W+40||y<-50||y>H+40) return;
+  const col=MAPED_PIN[sp.kind]||'#ffe46a';
+  const pulse=sel||MAPED.tool==='enemy';
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(x-6,y-36,44,20);
+  ctx.fillStyle=col;
+  ctx.fillRect(x-1,y-32,3,32);
+  ctx.fillRect(x-5,y-36,40,16);
+  ctx.fillStyle='#0a0810';
+  drawText(sp.label,x-3,y-33,C.BLACK,1);
+  ctx.fillStyle=col;
+  ctx.beginPath();
+  ctx.moveTo(x,y+3); ctx.lineTo(x-5,y-5); ctx.lineTo(x+5,y-5);
+  ctx.closePath(); ctx.fill();
+  if(pulse){
+    ctx.strokeStyle=col;
+    ctx.lineWidth=sel?3:2;
+    const r=10+((fr>>2)&3);
+    ctx.strokeRect((x-r)|0,(y-r)|0,r*2,r*2);
+  }
+}
+
 function _mapEdPlaceEnemy(c,r){
   const d=_tmjDraw; if(!d) return;
   const t=_mapEdTile();
@@ -258,21 +358,25 @@ function _mapEdPlaceEnemy(c,r){
   _mapEdToast('Enemy '+shape+' @ '+c+','+r);
 }
 function _mapEdRemoveEnemyAt(wx,wy){
-  for(let i=ENEMS.length-1;i>=0;i--){
-    const e=ENEMS[i];
-    if(!e||!e.mind) continue;
-    const ex=e.x+(e.w||64)*0.5, ey=e.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-30;
-    if(Math.abs(wx-ex)<36&&Math.abs(wy-ey)<50){
-      ENEMS.splice(i,1);
-      _mapEdWritePatch(p=>{
-        p.enemies=p.enemies||[];
-        p.enemies.push({op:'remove',x:Math.round(ex),y:Math.round(ey)});
-      });
-      _mapEdToast('Enemy removed');
-      return true;
+  const hit=_mapEdHitSpawn(wx,wy,_mapEdListSpawns());
+  if(!hit||hit.kind==='player'||hit.kind==='laitu') return false;
+  if(hit.src==='edef'&&typeof _mapEnemyDefs!=='undefined') _mapEnemyDefs.splice(hit.idx,1);
+  if(hit.src==='sdef'&&typeof _mapSignolDefs!=='undefined') _mapSignolDefs.splice(hit.idx,1);
+  if(hit.src==='mdef'&&typeof _mapMinionDefs!=='undefined') _mapMinionDefs.splice(hit.idx,1);
+  if(typeof ENEMS!=='undefined'){
+    for(let i=ENEMS.length-1;i>=0;i--){
+      const e=ENEMS[i]; if(!e) continue;
+      const ex=e.x+(e.w||64)*0.5, ey=e.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+      if(Math.abs(wx-ex)<48&&Math.abs(wy-ey)<56) ENEMS.splice(i,1);
     }
   }
-  return false;
+  _mapEdWritePatch(p=>{
+    p.enemies=p.enemies||[];
+    p.enemies.push({op:'remove',x:Math.round(hit.wx),y:Math.round(hit.wy)});
+  });
+  MAPED.pick=-1;
+  _mapEdToast('Removed '+hit.label);
+  return true;
 }
 
 function _mapEdEyedrop(c,r){
@@ -326,7 +430,7 @@ function _mapEdPaletteGids(){
 }
 
 function _mapEdInUi(mx,my){
-  return mx<MAPED_PANEL || my>H-MAPED_PAL_H;
+  return mx<MAPED_PANEL || (MAPED.tool!=='enemy'&&my>H-MAPED_PAL_H);
 }
 
 function _mapEdClickUi(mx,my){
@@ -342,9 +446,17 @@ function _mapEdPaintFromMouse(mx,my,erase,eyedrop){
   const w=_mapEdWorld(mx,my);
   const cell=_mapEdCell(w.x,w.y);
   MAPED.hoverC=cell.c; MAPED.hoverR=cell.r;
-  if(eyedrop){ _mapEdEyedrop(cell.c,cell.r); return; }
+  if(eyedrop&&MAPED.tool!=='enemy'){ _mapEdEyedrop(cell.c,cell.r); return; }
   if(MAPED.tool==='enemy'){
-    if(erase||_mapEdRemoveEnemyAt(w.x,w.y)) return;
+    if(erase||(eyedrop&&_mapEdRemoveEnemyAt(w.x,w.y))) return;
+    const hit=_mapEdHitSpawn(w.x,w.y,_mapEdListSpawns());
+    if(hit&&(hit.kind==='mind'||hit.kind==='signol'||hit.kind==='minion')){
+      if(erase){ _mapEdRemoveEnemyAt(w.x,w.y); return; }
+      const list=_mapEdListSpawns();
+      MAPED.pick=list.indexOf(list.find(s=>s.wx===hit.wx&&s.wy===hit.wy)||hit);
+      _mapEdToast(hit.label+' @ '+Math.round(hit.wx)+','+Math.round(hit.wy));
+      return;
+    }
     _mapEdPlaceEnemy(cell.c,cell.r);
     return;
   }
@@ -384,94 +496,131 @@ function drawMapEditOverlay(){
     }
   }
 
-  const hx=sx(cell.c*t), hy=sy(cell.r*t);
-  ctx.strokeStyle='#ffe46a'; ctx.lineWidth=2;
-  ctx.strokeRect(hx+0.5,hy+0.5,t-1,t-1);
+  const spawns=_mapEdListSpawns();
+  const hoverSpawn=_mapEdHitSpawn(w.x,w.y,spawns);
+  for(let i=0;i<spawns.length;i++){
+    _mapEdDrawPin(spawns[i], i===MAPED.pick || spawns[i]===hoverSpawn);
+  }
 
-  ctx.fillStyle='rgba(8,6,16,0.92)';
+  const hx=sx(cell.c*t), hy=sy(cell.r*t);
+  ctx.strokeStyle=MAPED.tool==='enemy'?'#e8a0ff':'#ffe46a'; ctx.lineWidth=2;
+  ctx.strokeRect(hx+0.5,hy+0.5,t-1,t-1);
+  if(MAPED.tool==='enemy'){
+    _mapEdDrawPin({kind:'mind',label:_mapEdEnemyLabel(MAPED.enemy),wx:(cell.c+0.5)*t,wy:(cell.r+1)*t},true);
+  }
+
+  ctx.fillStyle='rgba(8,6,16,0.94)';
   ctx.fillRect(0,0,MAPED_PANEL,H);
-  ctx.strokeStyle='rgba(140,200,255,0.35)';
+  ctx.strokeStyle='rgba(140,200,255,0.4)';
   ctx.strokeRect(0.5,0.5,MAPED_PANEL-1,H-1);
 
   let y=10;
-  drawText('AWDJOO EDIT',10,y,C.CYAN,2); y+=22;
+  drawText('AWDJOO EDIT',10,y,C.CYAN,2); y+=20;
   drawText('` / F2 EXIT',10,y,C.SILVER,1); y+=16;
 
-  const btn=(label,on,fn,bw)=>{
-    const x=10, h=22, w=bw||(MAPED_PANEL-20);
-    ctx.fillStyle=on?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
-    ctx.fillRect(x,y,w,h);
-    drawText(label,x+6,y+4,on?C.WHITE:C.SILVER,1);
-    _mapEdHit(x,y,w,h,fn);
-    y+=26;
+  const btn=(label,on,fn,x,bw,h)=>{
+    const xx=x==null?10:x, hh=h||24, ww=bw||(MAPED_PANEL-20);
+    ctx.fillStyle=on?'rgba(80,200,255,0.4)':'rgba(255,255,255,0.06)';
+    ctx.fillRect(xx,y,ww,hh);
+    if(on){ ctx.strokeStyle='#9ef'; ctx.strokeRect(xx+0.5,y+0.5,ww-1,hh-1); }
+    drawText(label,xx+6,y+5,on?C.WHITE:C.SILVER,1);
+    _mapEdHit(xx,y,ww,hh,fn);
+    return hh;
   };
-
-  drawText('TOOL',10,y,C.STEEL,1); y+=12;
-  btn('PAINT TILE',MAPED.tool==='paint',()=>{MAPED.tool='paint';},90);
-  y-=26; const y0=y;
-  _mapEdHit(104,y0,86,22,()=>{MAPED.tool='erase';});
-  ctx.fillStyle=MAPED.tool==='erase'?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
-  ctx.fillRect(104,y0,86,22);
-  drawText('ERASE',110,y0+4,MAPED.tool==='erase'?C.WHITE:C.SILVER,1);
-  y+=26;
-  btn('ENEMY  '+MAPED.enemy,MAPED.tool==='enemy',()=>{
-    MAPED.tool='enemy';
-    MAPED.enemy=MAPED_ENEMIES[(MAPED_ENEMIES.indexOf(MAPED.enemy)+1)%MAPED_ENEMIES.length];
-  });
+  const tools=[{id:'paint',label:'PAINT'},{id:'erase',label:'ERASE'},{id:'enemy',label:'SPAWN'}];
+  let tx=10;
+  for(const it of tools){
+    btn(it.label,MAPED.tool===it.id,()=>{MAPED.tool=it.id;},tx,70);
+    tx+=74;
+  }
+  y+=30;
 
   const chips=(items,get,set,w)=>{
     let x=10;
     for(const it of items){
       const on=get()===it.id;
-      ctx.fillStyle=on?'rgba(80,200,255,0.35)':'rgba(255,255,255,0.06)';
+      ctx.fillStyle=on?'rgba(80,200,255,0.4)':'rgba(255,255,255,0.06)';
       ctx.fillRect(x,y,w,22);
+      if(on){ ctx.strokeStyle='#9ef'; ctx.strokeRect(x+0.5,y+0.5,w-1,21); }
       drawText(it.label,x+4,y+4,on?C.WHITE:C.SILVER,1);
       const id=it.id;
       _mapEdHit(x,y,w,22,()=>set(id));
       x+=w+4;
       if(x>MAPED_PANEL-w){ x=10; y+=24; }
     }
-    y+=28;
+    y+=26;
   };
-  drawText('BLOCK IS',10,y,C.STEEL,1); y+=12;
-  chips(MAPED_ROLES,()=>MAPED.role,id=>{MAPED.role=id;},60);
-  drawText('LAYER',10,y,C.STEEL,1); y+=12;
-  chips(MAPED_LAYERS,()=>MAPED.layer,id=>{MAPED.layer=id;},90);
-  drawText('COLLISION',10,y,C.STEEL,1); y+=12;
-  chips(MAPED_COLL,()=>MAPED.coll,id=>{MAPED.coll=id; if(MAPED.role==='scenario') MAPED.role='both';},90);
 
-  btn(MAPED.showColl?'COLL TINT ON':'COLL TINT OFF',MAPED.showColl,()=>{MAPED.showColl=!MAPED.showColl;});
-  btn('UNDO (Z)',false,()=>_mapEdUndo());
-  btn('SAVE PATCH',false,()=>{_mapEdWritePatch(()=>{}); _mapEdToast('Saved in this browser');});
-  btn('EXPORT JSON',false,()=>_mapEdExport());
-  btn('CLEAR PATCH',false,()=>_mapEdClearPatch());
+  if(MAPED.tool==='enemy'){
+    drawText('PLACE  '+_mapEdEnemyLabel(MAPED.enemy),10,y,C.LILAC,1); y+=14;
+    chips(MAPED_ENEMIES,()=>MAPED.enemy,id=>{MAPED.enemy=id; MAPED.tool='enemy';},52);
+    drawText(spawns.length+' MARKED ON MAP',10,y,C.SAND,1); y+=16;
+    const vis=Math.min(spawns.length,9);
+    if(MAPED.spawnOff>Math.max(0,spawns.length-vis)) MAPED.spawnOff=Math.max(0,spawns.length-vis);
+    for(let i=0;i<vis;i++){
+      const si=i+MAPED.spawnOff, sp=spawns[si];
+      const on=si===MAPED.pick;
+      const col=MAPED_PIN[sp.kind]||C.WHITE;
+      ctx.fillStyle=on?'rgba(232,160,255,0.28)':'rgba(255,255,255,0.04)';
+      ctx.fillRect(8,y-2,MAPED_PANEL-16,20);
+      drawText(sp.label,12,y+1,col,1);
+      const loc=(sp.col!=null&&sp.row!=null)?(sp.col+','+sp.row):Math.round(sp.wx)+','+Math.round(sp.wy);
+      drawText(loc,56,y+1,on?C.WHITE:C.SILVER,1);
+      _mapEdHit(8,y-2,MAPED_PANEL-16,20,()=>{
+        MAPED.pick=si; MAPED.tool='enemy'; _mapEdFocus(sp.wx,sp.wy);
+      });
+      y+=22;
+    }
+    if(spawns.length>vis){
+      btn('MORE',false,()=>{MAPED.spawnOff=(MAPED.spawnOff+vis)%spawns.length;},10,MAPED_PANEL-20);
+      y+=28;
+    }
+    drawText('CLICK MAP TO DROP',10,y,C.SILVER,1); y+=12;
+    drawText('RIGHT CLICK REMOVES',10,y,C.SILVER,1); y+=16;
+  }else{
+    drawText('BLOCK IS',10,y,C.STEEL,1); y+=14;
+    chips(MAPED_ROLES,()=>MAPED.role,id=>{MAPED.role=id;},68);
+    drawText('LAYER',10,y,C.STEEL,1); y+=14;
+    chips(MAPED_LAYERS,()=>MAPED.layer,id=>{MAPED.layer=id;},52);
+    drawText('COLLISION',10,y,C.STEEL,1); y+=14;
+    chips(MAPED_COLL,()=>MAPED.coll,id=>{MAPED.coll=id; if(MAPED.role==='scenario') MAPED.role='both';},70);
+    btn(MAPED.showColl?'HITS ON':'HITS OFF',MAPED.showColl,()=>{MAPED.showColl=!MAPED.showColl;});
+    y+=30;
+    drawText(spawns.length+' SPAWNS ON MAP',10,y,C.LILAC,1); y+=12;
+    drawText('CLICK PAINT  ALT PICK',10,y,C.SILVER,1); y+=12;
+    drawText('RIGHT ERASE  WASD PAN',10,y,C.SILVER,1); y+=16;
+  }
 
-  y+=8;
-  drawText('CELL '+cell.c+','+cell.r,10,y,C.SILVER,1); y+=12;
-  drawText('GID '+MAPED.gid+'  HIT '+MAPED.coll,10,y,C.SILVER,1); y+=12;
-  drawText('CLICK PAINT  ALT EYEDROP',10,y,C.SILVER,1); y+=12;
-  drawText('RIGHT ERASE  WASD PAN',10,y,C.SILVER,1);
+  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(10,y,MAPED_PANEL-20,1); y+=10;
+  btn('UNDO',false,()=>_mapEdUndo(),10,104);
+  btn('SAVE',false,()=>{_mapEdWritePatch(()=>{}); _mapEdToast('Saved in this browser');},122,104);
+  y+=28;
+  btn('EXPORT',false,()=>_mapEdExport(),10,104);
+  btn('CLEAR',false,()=>_mapEdClearPatch(),122,104);
+  y+=32;
+  drawText('CELL '+cell.c+','+cell.r,10,y,C.SILVER,1);
 
-  ctx.fillStyle='rgba(8,6,16,0.94)';
-  ctx.fillRect(0,H-MAPED_PAL_H,W,MAPED_PAL_H);
-  ctx.strokeStyle='rgba(140,200,255,0.3)';
-  ctx.strokeRect(0.5,H-MAPED_PAL_H+0.5,W-1,MAPED_PAL_H-1);
-  const gids=_mapEdPaletteGids();
-  const cellS=40, pad=6;
-  const startX=MAPED_PANEL+8;
-  let px=startX, py=H-MAPED_PAL_H+8;
-  drawText('BOX',startX,H-MAPED_PAL_H+6,C.SILVER,1);
-  py=H-MAPED_PAL_H+14;
-  for(const g of gids){
-    if(px+cellS>W-8) break;
-    ctx.fillStyle=g===MAPED.gid?'rgba(255,228,100,0.35)':'rgba(255,255,255,0.06)';
-    ctx.fillRect(px,py,cellS,cellS);
-    if(typeof _drawTmjTileGid==='function')
-      _drawTmjTileGid(g,px+4,py+4,8,8,4);
-    if(g===MAPED.gid){ ctx.strokeStyle='#ffe46a'; ctx.strokeRect(px+0.5,py+0.5,cellS-1,cellS-1); }
-    const gid=g;
-    _mapEdHit(px,py,cellS,cellS,()=>{_mapEdSetGid(gid); MAPED.tool='paint';});
-    px+=cellS+pad;
+  if(MAPED.tool!=='enemy'){
+    ctx.fillStyle='rgba(8,6,16,0.94)';
+    ctx.fillRect(0,H-MAPED_PAL_H,W,MAPED_PAL_H);
+    ctx.strokeStyle='rgba(140,200,255,0.3)';
+    ctx.strokeRect(0.5,H-MAPED_PAL_H+0.5,W-1,MAPED_PAL_H-1);
+    const gids=_mapEdPaletteGids();
+    const cellS=44, pad=6;
+    const startX=MAPED_PANEL+8;
+    let px=startX, py=H-MAPED_PAL_H+16;
+    drawText('TILES',startX,H-MAPED_PAL_H+4,C.SILVER,1);
+    for(const g of gids){
+      if(px+cellS>W-8) break;
+      ctx.fillStyle=g===MAPED.gid?'rgba(255,228,100,0.35)':'rgba(255,255,255,0.06)';
+      ctx.fillRect(px,py,cellS,cellS);
+      if(typeof _drawTmjTileGid==='function')
+        _drawTmjTileGid(g,px+6,py+6,8,8,4);
+      if(g===MAPED.gid){ ctx.strokeStyle='#ffe46a'; ctx.strokeRect(px+0.5,py+0.5,cellS-1,cellS-1); }
+      const gid=g;
+      _mapEdHit(px,py,cellS,cellS,()=>{_mapEdSetGid(gid); MAPED.tool='paint';});
+      px+=cellS+pad;
+    }
   }
 
   if(MAPED.toastF>0){
@@ -519,7 +668,17 @@ function _mapEdBind(){
     if((e.ctrlKey||e.metaKey)&&e.code==='KeyS'){ _mapEdWritePatch(()=>{}); _mapEdToast('Saved'); e.preventDefault(); return; }
     if(e.code==='KeyP'){ MAPED.tool='paint'; _mapEdToast('Paint'); }
     if(e.code==='KeyR'){ MAPED.tool='erase'; _mapEdToast('Erase'); }
-    if(e.code==='KeyN'){ MAPED.tool='enemy'; _mapEdToast('Enemy '+MAPED.enemy); }
+    if(e.code==='KeyN'){ MAPED.tool='enemy'; _mapEdToast('Spawn '+_mapEdEnemyLabel(MAPED.enemy)); }
+    if(e.code==='BracketLeft'||e.code==='Comma'){
+      const i=MAPED_ENEMIES.findIndex(it=>it.id===MAPED.enemy);
+      MAPED.enemy=MAPED_ENEMIES[(i-1+MAPED_ENEMIES.length)%MAPED_ENEMIES.length].id;
+      MAPED.tool='enemy'; _mapEdToast('Spawn '+_mapEdEnemyLabel(MAPED.enemy));
+    }
+    if(e.code==='BracketRight'||e.code==='Period'){
+      const i=MAPED_ENEMIES.findIndex(it=>it.id===MAPED.enemy);
+      MAPED.enemy=MAPED_ENEMIES[(i+1)%MAPED_ENEMIES.length].id;
+      MAPED.tool='enemy'; _mapEdToast('Spawn '+_mapEdEnemyLabel(MAPED.enemy));
+    }
     if(e.code==='KeyG'){ MAPED.showColl=!MAPED.showColl; }
     if(e.code==='Tab'){
       const i=MAPED_ROLES.findIndex(r=>r.id===MAPED.role);
