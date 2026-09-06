@@ -27,6 +27,63 @@
 
 // ── UI state ──────────────────────────────────────────────────
 let _gameState='title';
+let _paused=false;
+function _togglePause(){
+  if(_gameState!=='game') return;
+  if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
+  _paused=!_paused;
+  if(_paused){
+    try{ if(typeof _gameAudioEl!=='undefined'&&_gameAudioEl) _gameAudioEl.pause(); }catch(e){}
+  }else if(typeof _playBGM==='function'){
+    _playBGM('game',OPT.musicVol);
+  }
+}
+function _driveMenusFromPads(){
+  const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
+  const ok=!!Kj['Space'], back=!!Kj['Escape'];
+  if(!(up||dn||lf||rt||ok||back)) return;
+  if(_gameState==='title'){
+    _ensureTitleMusic();
+    if(up) _titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;
+    if(dn) _titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;
+    if(ok) _titleMenuActivate();
+    return;
+  }
+  if(_gameState==='story'&&ok){ startGame(); return; }
+  if(_gameState==='select'){
+    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
+    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
+    if(ok) startGame();
+    if(back){ if(_selectStep===1) _selectStep=0; else { _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
+    return;
+  }
+  if(_gameState==='options'){
+    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back});
+    return;
+  }
+  if(_gameState==='tutorial'&&(ok||back)){ _gameState='title'; return; }
+  if(_gameState==='levels'){
+    if(back){ _gameState='title'; return; }
+    if(up) _levelSelIdx=(_levelSelIdx+ZONES.length-1)%ZONES.length;
+    if(dn) _levelSelIdx=(_levelSelIdx+1)%ZONES.length;
+    if(ok) _startGameAtZone(_levelSelIdx);
+    return;
+  }
+  if(_gameState==='stagedesign'){
+    const items=_stageDesignItems();
+    if(back){ _gameState='title'; return; }
+    if(up) _stageDesignSelIdx=(_stageDesignSelIdx+items.length-1)%items.length;
+    if(dn) _stageDesignSelIdx=(_stageDesignSelIdx+1)%items.length;
+    if(ok){
+      const sel=items[_stageDesignSelIdx];
+      if(sel.action==='new') startStageDesignerNew();
+      else if(sel.action==='stage') startStageDesignerEdit(getCustomStages()[sel.idx]);
+      else if(sel.action==='back') _gameState='title';
+    }
+    return;
+  }
+  if(_gameState==='cutscene'&&ok) _advanceCutscene();
+}
 let _cutscenePhase=0, _cutsceneFr=0, _cutscenePage=0;
 let _stageScore=0, _stageDamageFree=true, _awdjooTutorial=true;
 let _editorActive=false;

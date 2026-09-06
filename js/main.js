@@ -786,8 +786,22 @@ const _ngCheckInterval=setInterval(()=>{ if(win&&_gameState==='game'){_winCount+
 
 // ── Main update loop ──────────────────────────────────────────
 function update(){
-  readGamepad(); fr++;
-  if(_gameState!=='game') return;
+  readGamepad();
+  if(typeof _driveMenusFromPads==='function') _driveMenusFromPads();
+  if(_gameState==='game'&&Kj['Escape']&&typeof _togglePause==='function') _togglePause();
+  fr++;
+  if(_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
+  if(_paused){
+    if(Kj['Tab']){
+      _paused=false;
+      if(_stageDesignerMode){_editorActive=false;_gameState='stagedesign';_stopBGM('game');clkj();return;}
+      win=false;_shutdownTimer=0;_gameOver=false;_resetItemProgress();
+      if(_battleTestMode) initBattleTestWorld();
+      else if(_runTestMode) initRunTestWorld();
+      else _enterZone(0);
+    }
+    clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return;
+  }
   if(!p) p=mkP();
   if(!isFinite(p.x)) p.x=_spawnX;
   if(!isFinite(p.y)) p.y=_spawnY;
@@ -1072,6 +1086,11 @@ function draw(){
   if(_zoneCardT>0){_zoneCardT--;if(_zoneCardT>10||(fr&1)===0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,Math.round(H*0.30),W,52);drawTextC(_runTestMode?'RUN TEST GROUND':(_battleTestMode?'BATTLE PRACTICE':ZONES[_zoneIdx].name.toUpperCase()),W/2,Math.round(H*0.30)+8,C.YELLOW,3);drawTextC(_runTestMode?'ROLL OVER BUMPS - TEST SUSPENSION':(_battleTestMode?'VS SIGNOL - GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length),W/2,Math.round(H*0.30)+32,C.GREY,2);}}
   if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-28,C.GREEN_L,4);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2+8,C.TEAL_L,2);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+36,C.GREEN,2);}
   if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
+  if(_paused){
+    ctx.fillStyle='rgba(4,2,10,0.55)'; ctx.fillRect(0,0,W,H);
+    drawTextC('PAUSED',W/2,H/2-16,'#fff',3);
+    drawTextC('MENU TO RESUME',W/2,H/2+20,'#ccc',2);
+  }
   updateVersionBar();
 }
 

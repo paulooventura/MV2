@@ -53,7 +53,7 @@ function _initTouchButtons(){
     const b=document.getElementById(id);
     const code=['Space','KeyE','KeyQ','KeyF'][i];
     if(!b) return;
-    const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; e.preventDefault(); e.stopPropagation(); };
+    const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; if(typeof _phoneEnterPlay==='function') _phoneEnterPlay(); e.preventDefault(); e.stopPropagation(); };
     const off=()=>K[code]=false;
     b.addEventListener('mousedown',on);
     b.addEventListener('touchstart',on,{passive:false});
@@ -64,6 +64,12 @@ function _initTouchButtons(){
   if(testBtn){ testBtn.addEventListener('click',()=>{ TEST_MODE=!TEST_MODE; testBtn.style.background=TEST_MODE?'#003300':'#001800'; testBtn.style.borderColor=TEST_MODE?'#00aa00':'#0a4400'; initWorld(); }); }
   const rstBtn=document.getElementById('bRst');
   if(rstBtn){ rstBtn.addEventListener('click',()=>{Kj['Tab']=true;}); rstBtn.addEventListener('touchstart',e=>{Kj['Tab']=true;e.preventDefault();e.stopPropagation();},{passive:false}); }
+  const pauseBtn=document.getElementById('bPause');
+  if(pauseBtn){
+    const poke=e=>{ Kj['Escape']=true; if(typeof _phoneEnterPlay==='function') _phoneEnterPlay(); e.preventDefault(); e.stopPropagation(); };
+    pauseBtn.addEventListener('click',poke);
+    pauseBtn.addEventListener('touchstart',poke,{passive:false});
+  }
 }
 
 function _initDpadEightWay(){
@@ -93,7 +99,7 @@ function _initDpadEightWay(){
   });
   pad.addEventListener('touchstart',e=>{
     const t=e.changedTouches[0]; if(!t) return;
-    tid=t.identifier; read(t.clientX,t.clientY); e.preventDefault(); e.stopPropagation();
+    tid=t.identifier; read(t.clientX,t.clientY); if(typeof _phoneEnterPlay==='function') _phoneEnterPlay(); e.preventDefault(); e.stopPropagation();
   },{passive:false});
   addEventListener('mousemove',e=>{ if(tid==='mouse') read(e.clientX,e.clientY); });
   addEventListener('touchmove',e=>{
@@ -142,9 +148,9 @@ function readGamepad(){
   const bJump=pressed(0);
   if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
-  if(rose(1)) Kj['KeyE']=true;
-  if(rose(3)) Kj['KeyQ']=true;
-  K['KeyQ']=(K['KeyQ_kb']||pressed(3));
+  if(rose(3)) Kj['KeyE']=true;
+  if(rose(1)) Kj['KeyQ']=true;
+  K['KeyQ']=(K['KeyQ_kb']||pressed(1));
   K['KeyF']=(K['KeyF_kb']||pressed(2));
   if(pressed(4)) K['KeyS']=true;
   if(rose(9)) Kj['Tab']=true;
