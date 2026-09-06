@@ -657,7 +657,7 @@ function updateVersionBar(){
   const mvVer=document.getElementById('mvVer');
   if(mvVer){
     if(_gameState==='game'&&_battleTestMode){ mvVer.style.fontSize='13px';mvVer.textContent='BATTLE PRACTICE — stats in panel above canvas';mvVer.style.color='#6f6'; }
-    else if(_gameState==='game'){ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+MOVE_WALK; mvVer.style.color=spd>=6?'#6f6':(spd>=2?'#ff6':'#f66'); }
+    else if(_gameState==='game'){ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); const b=window.MV_BUILD||'?'; const ed=(typeof _mapEdActive!=='undefined'&&_mapEdActive)?'  |  EDIT AWDJOO':''; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+MOVE_WALK+ed; mvVer.style.color=ed?'#8cf':(spd>=6?'#6f6':(spd>=2?'#ff6':'#f66')); }
     else{ mvVer.style.fontSize='13px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/(?:new music|bgm)\//,''):''; const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+(track?'  |  ♪ '+track:'')+' — click to start'; mvVer.style.color='#6f6'; }
   }
   if(inf){

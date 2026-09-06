@@ -273,6 +273,7 @@ function edUndo(){
 /* â”€â”€ EDITOR MOUSE HANDLING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 let _edMouseDown=false;
 cv.addEventListener('mousedown', e=>{
+  if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(!_editorActive) return;
   const rect=cv.getBoundingClientRect();
   const scaleX=W/rect.width, scaleY=H/rect.height;
@@ -289,6 +290,7 @@ cv.addEventListener('mousedown', e=>{
   } else if(ED.tool==='erase'){ edErase(w.x,w.y); }
 });
 cv.addEventListener('mousemove', e=>{
+  if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(!_editorActive) return;
   const rect=cv.getBoundingClientRect();
   const scaleX=W/rect.width, scaleY=H/rect.height;
@@ -300,6 +302,7 @@ cv.addEventListener('mousemove', e=>{
   }
 });
 cv.addEventListener('mouseup', e=>{
+  if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(!_editorActive) return;
   if(ED.dragging){
     const x=Math.min(ED.dragStart.x,ED.dragEnd.x);
@@ -315,18 +318,23 @@ cv.addEventListener('mouseup', e=>{
 
 /* â”€â”€ EDITOR KEYBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 document.addEventListener('keydown', e=>{
-  // Toggle editor with backtick (unlocked after beating the game, or in Stage Designer)
+  // Toggle: Awdjoo Town map edit, or the blank stage designer after a win.
   if(e.code==='Backquote'){
     if(_gameState==='game'){
-      if(_stageDesignerMode||_gameBeaten){
+      if(typeof _mapEdActive!=='undefined'&&_mapEdActive){
+        if(typeof _mapEdToggle==='function') _mapEdToggle(false);
+      }else if(typeof _mapEdCan==='function'&&_mapEdCan()){
+        if(typeof _mapEdToggle==='function') _mapEdToggle(true);
+      }else if(_stageDesignerMode||_gameBeaten){
         _editorActive=!_editorActive;
-        edShowToast(_editorActive?'EDITOR ON â€” ` to exit':'EDITOR OFF');
+        edShowToast(_editorActive?'EDITOR ON — ` to exit':'EDITOR OFF');
       }else{
         edShowToast('Beat Story Mode to unlock Creative Mode');
       }
     }
     e.preventDefault(); return;
   }
+  if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(!_editorActive) return;
   // Save
   if(e.shiftKey&&e.code==='KeyS'){

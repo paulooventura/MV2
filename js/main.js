@@ -477,6 +477,7 @@ function applyTmjMap(data){
   _resolveAndApplySpawn(data,tw,th,sc,spawnData,mw);
 
   _mapApplied=true; _mapReady=true;
+  if(typeof _mapEdApplySaved==='function') _mapEdApplySaved();
   if(p){ _placePlayerAtSpawn(); _spawnMapEnemies(); }
   else if(typeof _spawnX==='number'){ /* spawn vars ready for next boot */ }
   if(p&&_zoneIdx===0&&!_battleTestMode&&!_runTestMode) _snapCameraToPlayer(p);
@@ -1072,7 +1073,7 @@ function loop(ts){
   // 0-step and 2-step frames (the main source of standing-still judder).
   const _snap=Math.round(frameT/_FIXED_DT)*_FIXED_DT;
   if(_snap>0&&Math.abs(_snap-frameT)<2) frameT=_snap;
-  if(!_editorActive){
+  if(!_editorActive&&!(typeof _mapEdActive!=='undefined'&&_mapEdActive)){
     _loopAccT+=frameT;
     let steps=0;
     while(_loopAccT>=_FIXED_DT&&steps<_MAX_CATCHUP){
@@ -1081,9 +1082,13 @@ function loop(ts){
     }
     if(steps>=_MAX_CATCHUP) _loopAccT=0; // drop backlog, avoid spiral of death
     _syncGameCamera();
-  }else{ _loopAccT=0; }
+  }else{
+    _loopAccT=0;
+    if(typeof _mapEdActive!=='undefined'&&_mapEdActive&&typeof _mapEdUpdate==='function') _mapEdUpdate();
+  }
   try{draw();}catch(err){console.error('draw error',err);const inf=document.getElementById('inf');if(inf){inf.style.color='#f00';inf.textContent='DRAW: '+err.message;}}
   try{drawEditorOverlay();}catch(err){console.error('editor overlay error',err);}
+  try{if(typeof drawMapEditOverlay==='function') drawMapEditOverlay();}catch(err){console.error('map edit overlay',err);}
   requestAnimationFrame(loop);
 }
 try {
