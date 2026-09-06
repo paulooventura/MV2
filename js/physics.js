@@ -2237,12 +2237,21 @@ function _ropeOutsideCorner(base, to, hit, rect){
   }
   return {x:to.x<(box.x+box.w*0.5)?left:right, y:(hit.ny||0)<0?top:bot};
 }
-function _ropeFirstHit(x1,y1,x2,y2){
+function _ropeHitsLatch(hit, h){
+  if(!hit||!h||!isFinite(h.ax)||!isFinite(h.ay)) return false;
+  if(Math.hypot(hit.tx-h.ax,hit.ty-h.ay)<16) return true;
+  if(typeof _gridReady!=='function'||!_gridReady()) return false;
+  const t=MV_GRID.tile;
+  const c=Math.floor((hit.tx-(hit.nx||0)*0.6)/t);
+  const r=Math.floor((hit.ty-(hit.ny||0)*0.6)/t);
+  return c===Math.floor(h.ax/t)&&r===Math.floor(h.ay/t);
+}
+function _ropeFirstHit(x1,y1,x2,y2,h){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
     const g=gridRayHit(x1,y1,x2,y2);
-    if(g){
+    if(g&&!_ropeHitsLatch(g,h)){
       const tile=MV_GRID.tile;
       const c=Math.floor((g.tx-(g.nx||0)*0.6)/tile), r=Math.floor((g.ty-(g.ny||0)*0.6)/tile);
       return {hit:g, rect:{x:c*tile,y:r*tile,w:tile,h:tile,tp:'solid'}};
@@ -2275,25 +2284,25 @@ function _ropeFirstHit(x1,y1,x2,y2){
   }
   return best;
 }
-function _ropeSegClear(x1,y1,x2,y2){
+function _ropeSegClear(x1,y1,x2,y2,h){
   const d=Math.hypot(x2-x1,y2-y1);
   if(d<3) return true;
   const ux=(x2-x1)/d, uy=(y2-y1)/d;
-  return !_segPathBlocked(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2);
+  return !_ropeFirstHit(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2,h);
 }
 function _ropeUpdatePivots(h,tx,ty){
   if(!h.pivots) h.pivots=[];
   for(let g=0;g<ROPE_MAX_PIVOTS&&h.pivots.length;g++){
     const n=h.pivots.length, base=n>=2?h.pivots[n-2]:{x:h.ax,y:h.ay};
-    if(_ropeSegClear(base.x,base.y,tx,ty)) h.pivots.pop(); else break;
+    if(_ropeSegClear(base.x,base.y,tx,ty,h)) h.pivots.pop(); else break;
   }
   for(let g=0;g<ROPE_MAX_PIVOTS;g++){
     const base=h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
-    if(_ropeSegClear(base.x,base.y,tx,ty)) break;
+    if(_ropeSegClear(base.x,base.y,tx,ty,h)) break;
     if(h.pivots.length>=ROPE_MAX_PIVOTS) break;
     const d=Math.hypot(tx-base.x,ty-base.y)||1;
     const ux=(tx-base.x)/d, uy=(ty-base.y)/d;
-    const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2);
+    const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2,h);
     if(!fh) break;
     const c=_ropeOutsideCorner(base,{x:tx,y:ty},fh.hit,fh.rect);
     if(!c||Math.hypot(c.x-base.x,c.y-base.y)<2.5) break;
@@ -2307,15 +2316,15 @@ function _ropeUpdatePivots(h,tx,ty){
     }
   }
 }
-function _ropeSanitizePath(pts){
+function _ropeSanitizePath(pts,h){
   if(!pts||pts.length<2) return pts||[];
   const out=[pts[0]];
   for(let i=1;i<pts.length;i++){
     let a=out[out.length-1], b=pts[i];
-    for(let g=0;g<8&&!_ropeSegClear(a.x,a.y,b.x,b.y);g++){
+    for(let g=0;g<8&&!_ropeSegClear(a.x,a.y,b.x,b.y,h);g++){
       const d=Math.hypot(b.x-a.x,b.y-a.y)||1;
       const ux=(b.x-a.x)/d, uy=(b.y-a.y)/d;
-      const fh=_ropeFirstHit(a.x+ux*2,a.y+uy*2,b.x-ux*2,b.y-uy*2);
+      const fh=_ropeFirstHit(a.x+ux*2,a.y+uy*2,b.x-ux*2,b.y-uy*2,h);
       if(!fh) break;
       const c=_ropeOutsideCorner(a,b,fh.hit,fh.rect);
       if(!c||Math.hypot(c.x-a.x,c.y-a.y)<2) break;
@@ -2330,7 +2339,22 @@ function _ropePathPts(h,tx,ty){
   const pts=[{x:h.ax,y:h.ay}];
   if(h.pivots) for(const pv of h.pivots) pts.push({x:pv.x,y:pv.y});
   pts.push({x:tx,y:ty});
-  return _ropeSanitizePath(pts);
+  return _ropeSanitizePath(pts,h);
+}
+function _ropeSlackDrawPts(path, rl){
+  if(!path||path.length<2) return path||[];
+  const plen=_ropePathLen(path);
+  const slack=(rl||plen)-plen;
+  if(slack<8) return path;
+  const sag=Math.min(52,slack*0.4);
+  const n=Math.max(8,Math.min(16,6+((slack/8)|0)));
+  const out=[];
+  for(let i=0;i<n;i++){
+    const t=i/(n-1);
+    const q=_pathPointAt(path,plen,plen*t);
+    out.push({x:q.x, y:q.y+sag*Math.sin(Math.PI*t)});
+  }
+  return out;
 }
 function _ropeSolidFloor(pl,prevFeet){
   if(pl.vy<0) return;

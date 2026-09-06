@@ -85,6 +85,25 @@ function _bgmPathFor(type){
 }
 
 // ── Audio element management ─────────────────────────────────
+function _silenceBgmEl(el){
+  if(!el) return;
+  try{ el.pause(); el.currentTime=0; }catch(e){}
+}
+function _stopProcBgm(){
+  if(_titleSrc){try{_titleSrc.stop();}catch(e){}_titleSrc=null;}
+  if(_gameSrc){try{_gameSrc.stop();}catch(e){}_gameSrc=null;}
+}
+function _stopAllBgm(){
+  _stopProcBgm();
+  _silenceBgmEl(_openingAudioEl);
+  _silenceBgmEl(_storyAudioEl);
+  _silenceBgmEl(_gameAudioEl);
+  if(_mp3Pool){
+    _silenceBgmEl(_mp3Pool.title);
+    _silenceBgmEl(_mp3Pool.story);
+    _silenceBgmEl(_mp3Pool.game);
+  }
+}
 function _wireBgmElement(type,el){
   if(el._mvEndedFn) el.removeEventListener('ended',el._mvEndedFn);
   el.loop=(type==='title'||type==='story');
@@ -105,6 +124,10 @@ function _loadBgmElement(type,path){
   if(type==='game') _gameMusicPath=path;
   else if(type==='story') _storyMusicPath=path;
   else _titleMusicPath=path;
+  _silenceBgmEl(_mp3Pool[type]);
+  if(type==='game') _silenceBgmEl(_gameAudioEl);
+  else if(type==='story') _silenceBgmEl(_storyAudioEl);
+  else _silenceBgmEl(_openingAudioEl);
   const el=new Audio();
   el.preload='auto';
   el.src=_musicUrl(path);
@@ -112,9 +135,9 @@ function _loadBgmElement(type,path){
   el.addEventListener('error',()=>_onBgmTrackError(type,path),{once:true});
   el.load();
   _mp3Pool[type]=el;
-  if(type==='game') _gameAudioEl=null;
-  else if(type==='story') _storyAudioEl=null;
-  else _openingAudioEl=null;
+  if(type==='game') _gameAudioEl=el;
+  else if(type==='story') _storyAudioEl=el;
+  else _openingAudioEl=el;
   _mp3Failed[type]=false;
   return el;
 }
@@ -280,6 +303,9 @@ function _procBuf(type){
 // ── BGM playback ─────────────────────────────────────────────
 function _startProcBgm(type,vol){
   if(!_audioUnlocked) return;
+  _silenceBgmEl(_openingAudioEl);
+  _silenceBgmEl(_storyAudioEl);
+  _silenceBgmEl(_gameAudioEl);
   const ac=_ensureAC(); if(!ac)return;
   const isGame=type==='game';
   if(isGame){
@@ -300,8 +326,11 @@ function _startProcBgm(type,vol){
   node.start(0);
   if(isGame)_gameSrc=node; else _titleSrc=node;
 }
+let _bgmPlayGen=0;
 function _playBGM(type,vol=0.7){
   _unlockAudio();
+  const playGen=++_bgmPlayGen;
+  _stopAllBgm();
   _activeBgmType=type;
   if(typeof document!=='undefined'&&document.hidden&&!/[?&]selftest=/.test(location.search||'')){
     _bgmHeldHidden=true;
@@ -311,7 +340,7 @@ function _playBGM(type,vol=0.7){
   if(OPT.musicMode==='psg'){ useProc(); return; }
   if(_mp3Failed[type]){ useProc(); return; }
   const playReadyEl=(el)=>{
-    if(_activeBgmType!==type) return;
+    if(playGen!==_bgmPlayGen||_activeBgmType!==type) return;
     if(type==='game'&&_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
     else if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
     el.loop=(type==='title'||type==='story');
@@ -344,7 +373,7 @@ function _playBGM(type,vol=0.7){
     else _openingAudioEl=el;
     if(el.readyState>=2) playReadyEl(el);
     else{
-      const ready=()=>{ el.removeEventListener('canplay',ready); el.removeEventListener('error',fail); playReadyEl(el); };
+      const ready=()=>{ el.removeEventListener('canplay',ready); el.removeEventListener('error',fail); if(playGen!==_bgmPlayGen) return; playReadyEl(el); };
       const fail=()=>{ el.removeEventListener('canplay',ready); _onBgmTrackError(type,el.src); };
       el.addEventListener('canplay',ready,{once:true});
       el.addEventListener('error',fail,{once:true});
@@ -354,17 +383,21 @@ function _playBGM(type,vol=0.7){
   useProc();
 }
 function _stopBGM(type){
+  if(!type){ _stopAllBgm(); return; }
   if(type==='title'){
     if(_titleSrc){try{_titleSrc.stop();}catch(e){}_titleSrc=null;}
-    if(_openingAudioEl){_openingAudioEl.pause();_openingAudioEl.currentTime=0;}
+    _silenceBgmEl(_openingAudioEl);
+    _silenceBgmEl(_mp3Pool.title);
   }
   if(type==='story'){
     if(_titleSrc){try{_titleSrc.stop();}catch(e){}_titleSrc=null;}
-    if(_storyAudioEl){_storyAudioEl.pause();_storyAudioEl.currentTime=0;}
+    _silenceBgmEl(_storyAudioEl);
+    _silenceBgmEl(_mp3Pool.story);
   }
   if(type==='game'){
     if(_gameSrc){try{_gameSrc.stop();}catch(e){}_gameSrc=null;}
-    if(_gameAudioEl){_gameAudioEl.pause();_gameAudioEl.currentTime=0;}
+    _silenceBgmEl(_gameAudioEl);
+    _silenceBgmEl(_mp3Pool.game);
   }
 }
 function updateGameBgm(){

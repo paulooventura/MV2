@@ -1983,11 +1983,7 @@ function drawFX(){
     const bx=sx(_ap.noseX), by=sy(_ap.noseY);
     if(p.hook.st==='ext'){
       ctx.strokeStyle=_ropeDash;ctx.lineWidth=3;ctx.setLineDash([5,3]);
-      const wrap=typeof _ropeWrapPts==='function'?_ropeWrapPts(_ap.noseX,_ap.noseY,p.hook.ex,p.hook.ey):null;
-      ctx.beginPath();ctx.moveTo(bx,by);
-      if(wrap&&wrap.length>1){ for(let i=1;i<wrap.length;i++) ctx.lineTo(sx(wrap[i].x),sy(wrap[i].y)); }
-      else ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));
-      ctx.stroke();
+      ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath();ctx.arc(sx(p.hook.ex),sy(p.hook.ey),5,0,Math.PI*2);
       ctx.fillStyle=_ropeGlow;ctx.fill();
@@ -1995,7 +1991,8 @@ function drawFX(){
       ctx.fillStyle='#ffffff';ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;
     }else{
       const end=ropePlayerEndWorld();
-      const path=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
+      const taut=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
+      const path=typeof _ropeSlackDrawPts==='function'?_ropeSlackDrawPts(taut,p.hook.rl):taut;
       const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
       ctx.lineCap='round';ctx.lineJoin='round';
       const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
