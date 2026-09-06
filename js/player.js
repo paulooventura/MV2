@@ -49,9 +49,9 @@ window.addEventListener('keyup',e=>{
 function _initTouchButtons(){
   const cv=document.getElementById('c');
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
-  ['bU','bL','bDn','bR','bSp','bE','bQ','bF'].forEach((id,i)=>{
+  ['bSp','bE','bQ','bF'].forEach((id,i)=>{
     const b=document.getElementById(id);
-    const code=['KeyW','KeyA','KeyS','KeyD','Space','KeyE','KeyQ','KeyF'][i];
+    const code=['Space','KeyE','KeyQ','KeyF'][i];
     if(!b) return;
     const on=e=>{ if(!K[code]) Kj[code]=true; K[code]=true; e.preventDefault(); e.stopPropagation(); };
     const off=()=>K[code]=false;
@@ -59,10 +59,52 @@ function _initTouchButtons(){
     b.addEventListener('touchstart',on,{passive:false});
     ['mouseup','mouseleave','touchend','touchcancel'].forEach(v=>b.addEventListener(v,off));
   });
+  _initDpadEightWay();
   const testBtn=document.getElementById('bTest');
   if(testBtn){ testBtn.addEventListener('click',()=>{ TEST_MODE=!TEST_MODE; testBtn.style.background=TEST_MODE?'#003300':'#001800'; testBtn.style.borderColor=TEST_MODE?'#00aa00':'#0a4400'; initWorld(); }); }
   const rstBtn=document.getElementById('bRst');
   if(rstBtn){ rstBtn.addEventListener('click',()=>{Kj['Tab']=true;}); rstBtn.addEventListener('touchstart',e=>{Kj['Tab']=true;e.preventDefault();e.stopPropagation();},{passive:false}); }
+}
+
+function _initDpadEightWay(){
+  const pad=document.getElementById('padLeft');
+  if(!pad) return;
+  const codes=['KeyW','KeyA','KeyS','KeyD'];
+  let tid=null;
+  const set=(code,on)=>{ if(on&&!K[code]) Kj[code]=true; K[code]=!!on; };
+  const clear=()=>{ codes.forEach(c=>K[c]=false); tid=null; };
+  const read=(x,y)=>{
+    const r=pad.getBoundingClientRect();
+    const dx=x-(r.left+r.width/2), dy=y-(r.top+r.height/2);
+    const rad=Math.min(r.width,r.height)/2;
+    if(Math.hypot(dx,dy)<rad*0.12){ codes.forEach(c=>K[c]=false); return; }
+    const t=rad*0.20;
+    set('KeyW',dy<=-t); set('KeyA',dx<=-t); set('KeyS',dy>=t); set('KeyD',dx>=t);
+  };
+  const pick=(e)=>{
+    if(tid==='mouse') return e;
+    const list=e.touches||e.changedTouches;
+    if(!list) return null;
+    for(let i=0;i<list.length;i++) if(list[i].identifier===tid) return list[i];
+    return null;
+  };
+  pad.addEventListener('mousedown',e=>{
+    tid='mouse'; read(e.clientX,e.clientY); e.preventDefault(); e.stopPropagation();
+  });
+  pad.addEventListener('touchstart',e=>{
+    const t=e.changedTouches[0]; if(!t) return;
+    tid=t.identifier; read(t.clientX,t.clientY); e.preventDefault(); e.stopPropagation();
+  },{passive:false});
+  addEventListener('mousemove',e=>{ if(tid==='mouse') read(e.clientX,e.clientY); });
+  addEventListener('touchmove',e=>{
+    const t=pick(e); if(!t) return; read(t.clientX,t.clientY); e.preventDefault();
+  },{passive:false});
+  addEventListener('mouseup',()=>{ if(tid==='mouse') clear(); });
+  addEventListener('touchend',e=>{
+    if(tid==null||tid==='mouse') return;
+    for(let i=0;i<e.changedTouches.length;i++) if(e.changedTouches[i].identifier===tid){ clear(); return; }
+  });
+  addEventListener('touchcancel',()=>{ if(tid!=null&&tid!=='mouse') clear(); });
 }
 
 // ── Gamepad ───────────────────────────────────────────────────
