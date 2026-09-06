@@ -23,6 +23,35 @@ function _setupAwdjooCampaignGoal(){
   GOALPL={x:AWdjoo_HOUSE5_GOAL_COL*tw*sc, y:0, w:tw*sc*2, h};
 }
 
+/** Mind enemy on the left-slope crest (west of House 2). */
+function _ensureAwdjooSlopeEnemy(){
+  const col=17, row=68;
+  const {tw,th,sc}=_awdjooTwSc();
+  const cx=(col+0.5)*tw*sc;
+  let feet=row*th*sc;
+  if(typeof gridStandY==='function'){
+    const s=gridStandY(cx, feet+4, {maxUp:24, maxDrop:80});
+    if(s!=null) feet=s;
+  }
+  const left=(_mapEnemyDefs||[]).filter(e=>e&&e.x<900);
+  if(left.length){
+    const e=left[0];
+    e.x=Math.floor(cx);
+    e.y=feet;
+    e.row=row;
+    e.col=col;
+    e.mn=Math.floor(cx-140);
+    e.mx=Math.floor(cx+140);
+    return;
+  }
+  if(typeof _dispatchMindSpawnAt!=='function') return;
+  const head=feet-(typeof FEET_OFF!=='undefined'?FEET_OFF:88)
+    +(typeof _spawnHeadTopDy==='function'?_spawnHeadTopDy():-24);
+  _dispatchMindSpawnAt(cx, head, row, col, 100, tw, sc);
+  const last=_mapEnemyDefs[_mapEnemyDefs.length-1];
+  if(last){ last.y=feet; last.x=Math.floor(cx); }
+}
+
 /** Guaranteed RCA pickup in house-2 basement (Tiled object id 16 @ 240,680). */
 function _ensureAwdjooRcaPickup(){
   if(typeof _mapApplied==='undefined'||!_mapApplied) return;

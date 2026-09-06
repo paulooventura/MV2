@@ -64,7 +64,12 @@ function _inferSpawnGidFromObject(o,tw,th){
 }
 function _resolveSpawnGid(col,row,spawnData,mw,o,tw,th){
   let gid=_spawnGidNearCell(spawnData,mw,col,row);
-  if(!gid&&o) gid=_inferSpawnGidFromObject(o,tw,th);
+  const inferred=o?_inferSpawnGidFromObject(o,tw,th):0;
+  const first=typeof TMJ_SPAWN_FIRST_GID!=='undefined'?TMJ_SPAWN_FIRST_GID:162;
+  // The spawn-tileset first gid is a generic pin, not a kind — trusted
+  // objects (player / RCA / mind) must win over that pin.
+  if(gid===first&&inferred) gid=inferred;
+  if(!gid&&inferred) gid=inferred;
   return gid;
 }
 
@@ -345,6 +350,7 @@ function _resolveAndApplySpawn(data,tw,th,sc,spawnData,mw){
   }
 
   if(!_mapRopePickup&&typeof _ensureAwdjooRcaPickup==='function') _ensureAwdjooRcaPickup();
+  if(typeof _ensureAwdjooSlopeEnemy==='function') _ensureAwdjooSlopeEnemy();
 
   const spawnPt=_pickPlayerSpawn(data,tw,th,sc,spawnData,mw,spawnObjects);
   _mapPlayerSpawnPt=spawnPt;

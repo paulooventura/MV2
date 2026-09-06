@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=49;
+const MOVE_BUILD=50;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -107,9 +107,13 @@ const _COLL_BUCKET_W=256;
 let _useSegGround=false;
 
 // ── Camera ────────────────────────────────────────────────────
-const CAM_LERP=0.11;
+const CAM_LERP_X=0.075;
+const CAM_LERP_Y=0.048;
+const CAM_LOOK_X=10;
+const CAM_LOOK_SMOOTH=0.07;
 let camX=0, camY=0;
 let _rcamX=0, _rcamY=0;
+let _camLookX=0;
 let camZoom, camZoomTgt;
 
 function _initCamZoom(){
@@ -141,6 +145,7 @@ function _snapCameraToPlayer(pl){
   const t=_cameraFollowTarget(pl);
   camX=camClampX(t.x);
   camY=camClampY(t.y);
+  _camLookX=0;
   _camSettle=10;
   _snapRenderCam();
 }
@@ -155,19 +160,18 @@ function _syncGameCamera(){
   if(_gameState!=='game'||!p) return;
   if(!isFinite(p.x)) p.x=_spawnX;
   if(!isFinite(p.y)) p.y=_spawnY;
+  const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X;
+  _camLookX+= (lookTgt-_camLookX)*CAM_LOOK_SMOOTH;
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
-  const tx=camClampX(t.x), ty=camClampY(t.y);
+  const tx=camClampX(t.x+_camLookX), ty=camClampY(t.y);
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;
-  }else if(_mapApplied&&_zoneIdx===0&&!_battleTestMode&&!_runTestMode&&
-    (Math.abs(camX-tx)>120||Math.abs(camY-ty)>120)){
-    camX=tx; camY=ty; _camSettle=4;
   }else{
-    camX+=(tx-camX)*CAM_LERP;
-    camY+=(ty-camY)*CAM_LERP;
+    camX+=(tx-camX)*CAM_LERP_X;
+    camY+=(ty-camY)*CAM_LERP_Y;
   }
 }
 
@@ -2002,8 +2006,19 @@ function _hookRayHit(x1,y1,x2,y2){
   const consider=(hit)=>{
     if(!hit) return;
     const d=Math.hypot(hit.tx-x1,hit.ty-y1);
+    if(d<6) return;
     if(d<bestD){ bestD=d; best={tx:hit.tx,ty:hit.ty,nx:hit.nx||0,ny:hit.ny||0,enemy:false,tgt:null}; }
   };
+  const gridOn=typeof _gridReady==='function'&&_gridReady();
+  if(gridOn){
+    if(typeof gridRayHit==='function') consider(gridRayHit(x1,y1,x2,y2));
+    for(const bw of BWALLS){
+      if(!bw||bw.hp<=0) continue;
+      if(typeof _bwallMovedFromHome==='function'&&!_bwallMovedFromHome(bw)) continue;
+      consider(_segAabbHit(x1,y1,x2,y2,{x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'}));
+    }
+    return best;
+  }
   if(typeof gridRayHit==='function') consider(gridRayHit(x1,y1,x2,y2));
   for(const q of allP()){
     if(q.tp!=='solid'&&q.tp!=='ceil') continue;
@@ -2028,6 +2043,9 @@ function _hookRayHit(x1,y1,x2,y2){
   return best;
 }
 function _segPathBlocked(x1,y1,x2,y2){
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
+    return !!gridRayHit(x1,y1,x2,y2);
+  }
   for(const q of allP()){
     if(q.tp!=='solid'&&q.tp!=='ceil') continue;
     if(_segAabbHit(x1,y1,x2,y2,q)) return true;
@@ -2151,6 +2169,23 @@ function _ropeNearestCorner(rect,hx,hy){
 function _ropeFirstHit(x1,y1,x2,y2){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
+    const g=gridRayHit(x1,y1,x2,y2);
+    if(g){
+      const tile=MV_GRID.tile;
+      const c=Math.floor(g.tx/tile), r=Math.floor(g.ty/tile);
+      return {hit:g, rect:{x:c*tile,y:r*tile,w:tile,h:tile,tp:'solid'}};
+    }
+    for(const bw of BWALLS){
+      if(!bw||bw.hp<=0) continue;
+      if(typeof _bwallMovedFromHome==='function'&&!_bwallMovedFromHome(bw)) continue;
+      const hit=_segAabbHit(x1,y1,x2,y2,{x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'});
+      if(!hit) continue;
+      const t=Math.hypot(hit.tx-x1,hit.ty-y1)/segLen;
+      if(t<bt){bt=t;best={hit,rect:{x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'}};}
+    }
+    return best;
+  }
   for(const q of _ropeColliders()){
     const hit=_segAabbHit(x1,y1,x2,y2,q);
     if(!hit) continue;

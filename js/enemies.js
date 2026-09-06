@@ -770,6 +770,14 @@ function _updateMinionShut(e){
 }
 
 // ── Mind-clone AI ─────────────────────────────────────────────
+function _enemyLineClear(e){
+  if(typeof gridRayHit!=='function'||typeof _gridReady!=='function'||!_gridReady()) return true;
+  const x1=e.x+SW*0.5, y1=e.y+FEET_OFF-STAND_H*0.45;
+  const x2=p.x+SW*0.5, y2=p.y+FEET_OFF-STAND_H*0.45;
+  const hit=gridRayHit(x1,y1,x2,y2);
+  if(!hit) return true;
+  return Math.hypot(hit.tx-x1,hit.ty-y1)+8>=Math.hypot(x2-x1,y2-y1);
+}
 function _enemyPlayerThreat(){
   return p.pt>0||(p.laserCharging&&p.laserCharge>8)||p.xlrOn||p.magOn||(p.hook&&p.hook.st!=='idle');
 }
@@ -893,7 +901,8 @@ function _updateMindEnemy(e){
   if(e.jumpCd>0) e.jumpCd--;
   if(e.flashF>0) e.flashF--;
   if(e.itemBurst>0){e.itemBurst--;if(e.itemBurst<=0){e.xlrOn=false;e.magOn=false;}}
-  const aggro=pdist<(bt?580:480);
+  const aggroRange=e._battleAi?580:(e._campaignAi?240:480);
+  const aggro=pdist<aggroRange&&(!e._campaignAi||_enemyLineClear(e));
   _enemyAiPickTool(e,pdist,pdx,pdy,aggro);
   const moveAccel=bt?0.36:0.22, drag=bt?0.94:0.9;
   const bodyGap=_horizBodyGap(p,e);

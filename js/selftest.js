@@ -206,7 +206,15 @@
       else if(pl._stuckX0==null) pl._stuckX0=pl.x;
       if((pl._inputStuck||0)>18 && Math.abs(pl.vx||0)<0.15 && (embedded || (!intoWall && !!pl.og && !pl._onSlope))){
         var atEdge=(typeof WW!=='undefined')&&(pl.x<6||pl.x>WW-(typeof SW!=='undefined'?SW:64)-2);
-        if(!atEdge) rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
+        var huntingDrop=false;
+        try{
+          var rca=(typeof _mapRopePickup!=='undefined')?_mapRopePickup:null;
+          if(rca&&lf>280){
+            var rcy=rca.y+(rca.h||0)*0.5;
+            huntingDrop=(pl.y+FO)<rcy-72;
+          }
+        }catch(e2){}
+        if(!atEdge&&!huntingDrop) rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
       }
     }else{ pl._inputStuck=0; pl._stuckX0=undefined; }
     if(pl.og && Math.abs(pl.vy||0)<0.3 && typeof gridStandY==='function' && typeof _gridReady==='function' && _gridReady()){

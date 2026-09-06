@@ -469,6 +469,15 @@ function updateHook(){
       const d=Math.hypot(hit.tx-px,hit.ty-py);
       if(!best||d<Math.hypot(best.tx-px,best.ty-py)){best={...hit,enemy:true,tgt:e};}
     }
+    if(best&&!best.enemy){
+      const a0=ropePlayerEndWorld();
+      const latchD=Math.hypot(best.tx-a0.x,best.ty-a0.y);
+      const core=playerCoreHB(p);
+      const feet=p.y+FEET_OFF;
+      const inBody=best.tx>core.x-6&&best.tx<core.x+core.w+6&&best.ty>core.y-6&&best.ty<core.y+core.h+6;
+      const floorUnderfoot=(best.ny||0)<-0.35&&Math.abs(best.ty-feet)<22;
+      if(latchD<36||inBody||floorUnderfoot) best=null;
+    }
     if(best){
       h.ax=best.tx+(best.nx||0)*2; h.ay=best.ty+(best.ny||0)*2;
       h.ex=best.tx; h.ey=best.ty;
@@ -513,14 +522,21 @@ function updateHook(){
     p.vx=Math.max(-14,Math.min(14,p.vx));
     p.vx*=0.999; p.vy*=0.999;
     const _rSteps=Math.max(1,Math.ceil(Math.max(Math.abs(p.vx),Math.abs(p.vy))/3));
+    const gridOn=typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function';
     for(let _ri=0;_ri<_rSteps;_ri++){
-      p.x+=p.vx/_rSteps;
+      if(gridOn){
+        gridResolvePlayer(p, p.vx/_rSteps, p.vy/_rSteps);
+      }else{
+        p.x+=p.vx/_rSteps;
+        resX();
+        const _pf=p.y+FEET_OFF; p.y+=p.vy/_rSteps;
+        _ropeSolidFloor(p,_pf); _resolveHeadCeiling(p);
+      }
       if(p.x<0){p.x=0;p.vx=0;} if(p.x>WW-SW){p.x=WW-SW;p.vx=0;}
-      resX();
-      const _pf=p.y+FEET_OFF; p.y+=p.vy/_rSteps;
-      _ropeSolidFloor(p,_pf); _resolveHeadCeiling(p);
     }
-    _ropeApplyTension(h); resX();
+    _ropeApplyTension(h);
+    if(gridOn) gridResolvePlayer(p,0,0);
+    else resX();
     if(h._grace>0) h._grace--;
     else if(h._tension>Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)){
       _releaseHookAim(h.ax,h.ay); _hookOff(); sfx('ropeBreak'); return;

@@ -591,10 +591,12 @@ function drawTmjMap(){
   const main=canvasData||data;
   if(!main&&!bgData) return;
   drawParallax();
-  const holeSkip=_bwallHoleSkipCells();
-  if(bgData) _drawTmjTileLayer(bgData,mw,mh,tw,th,sc,holeSkip,null,'bg');
-  if(main) _drawTmjTileLayer(main,mw,mh,tw,th,sc,holeSkip,null,'canvas');
+  // Open omniblock cells stay house-painted: Dirt/canvas tiles remain.
+  // Only the live destruct sprite is skipped (drawn as the block itself).
+  if(bgData) _drawTmjTileLayer(bgData,mw,mh,tw,th,sc,null,null,'bg');
+  if(main) _drawTmjTileLayer(main,mw,mh,tw,th,sc,null,null,'canvas');
   _drawTmjTileLayer(destructData,mw,mh,tw,th,sc,_bwallDestructSkipCells(),null,'destruct');
+  drawBwallHomeReveal();
 }
 function drawTmjForeground(){ if(!_tmjDraw||!_tmjDraw.fgData)return; const{fgData,mw,mh,tw,th,sc}=_tmjDraw; _drawTmjTileLayer(fgData,mw,mh,tw,th,sc,null,null,'fg'); }
 

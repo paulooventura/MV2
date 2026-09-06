@@ -152,19 +152,41 @@ function gridRayHit(x1,y1,x2,y2){
   const dist=Math.hypot(dx,dy);
   if(dist<0.5) return null;
   const ux=dx/dist, uy=dy/dist;
-  const step=Math.max(1, tile/8);
-  const startC=Math.floor(x1/tile), startR=Math.floor(y1/tile);
-  let seenAir=false;
-  for(let s=0;s<=dist;s+=step){
-    const x=x1+ux*s, y=y1+uy*s;
-    const c=Math.floor(x/tile), r=Math.floor(y/tile);
+  let c=Math.floor(x1/tile), r=Math.floor(y1/tile);
+  const startC=c, startR=r;
+  const startType=gridCell(startC,startR);
+  let seenAir=startType!==MV_GRID_SOLID&&startType!==MV_GRID_DESTRUCT;
+  const stepC=ux<0?-1:ux>0?1:0;
+  const stepR=uy<0?-1:uy>0?1:0;
+  const inf=1e12;
+  const invX=ux!==0?1/ux:inf;
+  const invY=uy!==0?1/uy:inf;
+  let tMaxX=ux>0?((c+1)*tile-x1)*invX:ux<0?(c*tile-x1)*invX:inf;
+  let tMaxY=uy>0?((r+1)*tile-y1)*invY:uy<0?(r*tile-y1)*invY:inf;
+  const tDeltaX=stepC!==0?Math.abs(tile*invX):inf;
+  const tDeltaY=stepR!==0?Math.abs(tile*invY):inf;
+  const maxSteps=MV_GRID.cols+MV_GRID.rows+4;
+  for(let i=0;i<maxSteps;i++){
+    let nx=0, ny=0, tEnter;
+    if(tMaxX<tMaxY){
+      tEnter=tMaxX;
+      nx=stepC>0?-1:1;
+      c+=stepC;
+      tMaxX+=tDeltaX;
+    }else{
+      tEnter=tMaxY;
+      ny=stepR>0?-1:1;
+      r+=stepR;
+      tMaxY+=tDeltaY;
+    }
+    if(tEnter>dist+0.01) break;
+    if(c===startC&&r===startR) continue;
     const type=gridCell(c,r);
-    const blocked=type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R;
+    const blocked=type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT;
     if(!blocked){ seenAir=true; continue; }
-    if(c===startC&&r===startR&&!seenAir) continue;
-    const nx=Math.abs(ux)>=Math.abs(uy)?(ux>0?-1:1):0;
-    const ny=nx===0?(uy>0?-1:1):0;
-    return {tx:x, ty:y, nx, ny};
+    if(!seenAir) continue;
+    const t=Math.max(0, tEnter);
+    return {tx:x1+ux*t, ty:y1+uy*t, nx, ny};
   }
   return null;
 }
