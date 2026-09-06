@@ -312,16 +312,16 @@ function _updatePlayerMoveX(pl){
   if(pl._moveDir!==dir){
     pl._moveDir=dir;
     // Skid: keep some spin, do not gift a chunk of cap.
-    pl.movePower=(pl.movePower||0)*(onSlope?0.72:0.55);
-    pl.vx*=onSlope?0.88:0.82;
+    pl.movePower=(pl.movePower||0)*(onSlope?0.78:0.70);
+    pl.vx*=onSlope?0.90:0.86;
   }
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
   const spin=Math.min(1,pl.movePower||0);
-  const spinEase=spin*spin;
+  const spinEase=0.34+0.66*spin;
   let cap;
   if(sprint){
     const run=Math.min(1,pl.runRamp||0);
-    cap=MOVE_WALK*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK)*run*spinEase;
+    cap=MOVE_WALK*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK)*run;
   }else{
     cap=MOVE_WALK*MOVE_PEAK*spinEase;
     if(!grounded&&dir) cap=Math.max(cap,Math.abs(pl.vx));
@@ -336,7 +336,7 @@ function _updatePlayerMoveX(pl){
   let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
   if(cap>0.05){
     const ratio=Math.min(1,Math.abs(pl.vx)/cap);
-    accel*=Math.max(0.12,1-ratio*ratio);
+    accel*=Math.max(0.30,1-0.50*ratio*ratio);
   }
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);

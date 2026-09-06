@@ -13,8 +13,8 @@
 const MV_GRID_AIR=0, MV_GRID_SOLID=1, MV_GRID_ONEWAY=2, MV_GRID_DESTRUCT=3;
 const MV_GRID_SLOPE_L=4, MV_GRID_SLOPE_R=5;
 const MV_GRID_STEP=2;
-/** A wheel rolls over a low lip but not a wall — keep this under one tile. */
-const MV_GRID_STEP_UP=20;
+/** A wheel rolls a one-tile kerb (House 2 roof lips). Two tiles is a wall. */
+const MV_GRID_STEP_UP=34;
 let MV_GRID=null;
 const MV_GRID_SLOPE_GIDS={31:'L',44:'R'};
 
@@ -945,6 +945,33 @@ function gridWheelWedge(body){
   if(gap>=wr*2-1) return null;
   return {left, right, gap};
 }
+function gridUnwedge(body, preferDir){
+  const wedge=gridWheelWedge(body);
+  if(!wedge) return false;
+  const wr=body.wheelR||20;
+  const cx=body.x+body.w*0.5;
+  const dir=preferDir||Math.sign(body.vx||0);
+  const tryCx=target=>{
+    const dx=target-cx;
+    body.x+=dx;
+    if(body.wheelCx!=null) body.wheelCx+=dx;
+    if(gridOverlaps(body)||gridWheelWedge(body)){
+      body.x-=dx;
+      if(body.wheelCx!=null) body.wheelCx-=dx;
+      return false;
+    }
+    return true;
+  };
+  const rightCx=wedge.right+wr+0.6, leftCx=wedge.left-wr-0.6;
+  const first=dir>0?rightCx:(dir<0?leftCx:((cx-wedge.left)<=(wedge.right-cx)?leftCx:rightCx));
+  const second=first===rightCx?leftCx:rightCx;
+  if(!tryCx(first)&&!tryCx(second)) return false;
+  const hit=gridBestFloor(body, (body.feetY!=null?body.feetY:body.y+body.h)+6);
+  if(hit) gridSetFeet(body, hit.y, hit.ang);
+  body._wedged=false;
+  body._hitX=false;
+  return true;
+}
 
 function gridResolvePlayer(pl, vx, vy, opts){
   if(!_gridReady()||!pl) return false;
@@ -959,15 +986,20 @@ function gridResolvePlayer(pl, vx, vy, opts){
   gridMoveSwept(body, vx||0, vy||0);
   const wedge=gridWheelWedge(body);
   if(wedge&&(vy||0)>=0){
-    body._wedged=true;
-    body.onGround=true;
-    if(!torque){
-      body.vx*=0.12;
-      if(Math.abs(body.vx)<0.7){ body.vx=0; body._hitX=true; }
-      body.vy=0; body._hitY=true;
+    const dir=Math.sign(body.vx||0);
+    if(gridUnwedge(body, dir)){
+      if(dir) body.vx=dir*Math.max(Math.abs(body.vx||0),1.15);
     }else{
-      body.vy=Math.min(body.vy||0,-1.4);
-      body._hitY=false;
+      body._wedged=true;
+      body.onGround=true;
+      if(!torque){
+        body.vx*=0.12;
+        if(Math.abs(body.vx)<0.7){ body.vx=0; body._hitX=true; }
+        body.vy=0; body._hitY=true;
+      }else{
+        body.vy=Math.min(body.vy||0,-1.4);
+        body._hitY=false;
+      }
     }
   }
   gridDepenetrate(body, {swing});

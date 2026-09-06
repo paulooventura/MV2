@@ -146,6 +146,17 @@
         rec('slopeFallThrough',{feet:Math.round(drop.feetY), surf:dropSurf!=null?Math.round(dropSurf):null, start:Math.round(sy)});
       }
     }
+    var roofFeet=2176, roofWx=1088, wr=(typeof WHEEL_R!=='undefined')?WHEEL_R:20;
+    var roofH=(typeof STAND_H!=='undefined'?STAND_H:70)+wr;
+    var roof0=roofWx-wr;
+    var roofBody={x:roof0,y:roofFeet-roofH,w:wr*2,h:roofH,feetY:roofFeet,vx:0,vy:0,onGround:true,slopeAng:0,wheelR:wr,wheelCx:roofWx};
+    if(typeof gridMoveSwept==='function'){
+      gridMoveSwept(roofBody, 40, 1);
+      if(roofBody.x<roof0+6) rec('roofStuckRight',{x:Math.round(roofBody.x),x0:Math.round(roof0)});
+      roofBody.x=roof0; roofBody.feetY=roofFeet; roofBody.y=roofFeet-roofH; roofBody._hitX=false;
+      gridMoveSwept(roofBody, -40, 1);
+      if(roofBody.x>roof0-6) rec('roofStuckLeft',{x:Math.round(roofBody.x),x0:Math.round(roof0)});
+    }
     var doorX=848, doorY=2240, gap=0, guard=0;
     var col=Math.floor(doorX/t), row=Math.floor(doorY/t);
     while(!gridSolid(col,row) && col<MV_GRID.cols && guard++<64){ gap+=t; col++; }
