@@ -581,5 +581,10 @@ function sfx(t){
     case'click':o(980,980,.03,.06);break;
     case'chargeReady':o(392,392,.07,.11);o(523,523,.09,.1,.07);break;
     case'unlock':[523,659,784,1047,1319].forEach((f,i)=>o(f,f,.1,.1,i*.09));break;
+    case'omniblock_chip':nz(.05,.14,false,0.55);o(210,70,.05,.08,0,'triangle');break;
+    case'omniblock_shatter':
+      nz(.18,.28,false,0.38);nz(.12,.18,true,0.22,0.04);
+      o(420,90,.14,.16,0,'square');o(180,48,.16,.14,0.03,'triangle');
+      o(90,36,.2,.12,0.06,'sine');break;
   }
 }

@@ -402,7 +402,7 @@ function _applyBodySeparation(pl,e,sep){
     if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
     moved=true;
   }
-  if(sep.by){
+  if(sep.by&&!(e._stompDuck>0)){
     e.y+=sep.by;
     if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
     moved=true;

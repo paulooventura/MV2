@@ -861,7 +861,7 @@ function update(){
   _purgeMinions();
   for(const e of ENEMS){
     if(e.mind){
-      if(e.alive){if(e.hitF>0)e.hitF--;_updateMindEnemy(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}}
+      if(e.alive){if(e.hitF>0)e.hitF--;_updateMindEnemy(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;e._stompDuck=28;e.crouchAmt=1;e.vy=0;e.og=true;}}
       else{_updateMindEnemyOff(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0&&e._mindOff==='rebooting'){_tryInterruptMindReboot(e);p.vy=-9;}}
       if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e,8);
       continue;

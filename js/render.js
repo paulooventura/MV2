@@ -820,7 +820,7 @@ function drawCharacter(){
   const visualCa2=ca2;
 
   // â”€â”€ WORLD-SPACE anatomy (identical formulas to the original) â”€â”€
-  const wWcx=p.x+SW/2, wWcy=p.y+FEET_OFF-WHEEL_R-2;
+  const wWcx=p.x+SW/2, wWcy=p.y+FEET_OFF-WHEEL_R;
   const standBodyCY=p.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wWcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
@@ -1226,7 +1226,7 @@ function _drawMindEnemyOff(e){
   const lean=e._shutLean||(e.fc?0.14:-0.14);
   const fc=e.fc;
   const ca2=slump;
-  const wWcx=e.x+SW/2, wWcy=e.y+FEET_OFF-WHEEL_R-2;
+  const wWcx=e.x+SW/2, wWcy=e.y+FEET_OFF-WHEEL_R;
   const standBodyCY=e.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wWcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
@@ -1296,7 +1296,7 @@ function drawMindEnemy(e){
   const bx=sx(e.x), by=sy(e.y);
   if(bx>W+80||bx+sw(SW)<-80||by>H+80) return;
   const fc=e.fc;
-  const wWcx=e.x+SW/2, wWcy=e.y+FEET_OFF-WHEEL_R-2;
+  const wWcx=e.x+SW/2, wWcy=e.y+FEET_OFF-WHEEL_R;
   const bodyCY=e.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const bodyTop=bodyCY;
   const shoulderY=bodyTop+BODY_H*0.22;
@@ -1751,7 +1751,7 @@ function _clampSegFrom(shX,shY,tx,ty){
 function computeConnectorArmPose(pl=p){
   const ca2=pl.crouchAmt, fc=pl.fc;
   const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R-2;
+  const wcy=py+FEET_OFF-WHEEL_R;
   const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
   const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
@@ -1983,7 +1983,11 @@ function drawFX(){
     const bx=sx(_ap.noseX), by=sy(_ap.noseY);
     if(p.hook.st==='ext'){
       ctx.strokeStyle=_ropeDash;ctx.lineWidth=3;ctx.setLineDash([5,3]);
-      ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));ctx.stroke();
+      const wrap=typeof _ropeWrapPts==='function'?_ropeWrapPts(_ap.noseX,_ap.noseY,p.hook.ex,p.hook.ey):null;
+      ctx.beginPath();ctx.moveTo(bx,by);
+      if(wrap&&wrap.length>1){ for(let i=1;i<wrap.length;i++) ctx.lineTo(sx(wrap[i].x),sy(wrap[i].y)); }
+      else ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));
+      ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath();ctx.arc(sx(p.hook.ex),sy(p.hook.ey),5,0,Math.PI*2);
       ctx.fillStyle=_ropeGlow;ctx.fill();
@@ -1992,9 +1996,7 @@ function drawFX(){
     }else{
       const end=ropePlayerEndWorld();
       const path=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
-      const vr=p.hook.vr;
-      const bent=path&&path.length>2;
-      const wpts=(bent?path:(vr&&vr.length>2?vr:path)).map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
+      const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
       ctx.lineCap='round';ctx.lineJoin='round';
       const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
       for(const L of layers){

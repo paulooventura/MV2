@@ -54,7 +54,7 @@ function _mkBwall(x,y,w,h,opts){
 function _wakeBwall(bw){ if(!bw||!bw.movable||bw.hp<=0) return; bw._awake=true; bw.og=false; }
 function _bwallMovedFromHome(bw){ if(bw.homeX==null||bw.homeY==null) return false; return Math.abs(bw.x-bw.homeX)>4||Math.abs(bw.y-bw.homeY)>4; }
 
-const _OMNI_SHARD_COLS=['#f4eefc','#e4d8f4','#d0c4e8','#c4b0e0','#eee8ff','#b8a4d6'];
+const _OMNI_SHARD_COLS=['#1a0428','#2a0840','#3d0a5c','#4a148c','#6a1b9a','#7b1fa2','#4a0e6a'];
 function spawnDebris(bw,count){
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
@@ -95,16 +95,16 @@ function _damageBwall(bw,kind,fx){
     if(bw.movable){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
     bw.hitGlow=16;
-    spawnDebris(bw,4+Math.ceil(pct/15)); sfx('hit');
-    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+    spawnDebris(bw,4+Math.ceil(pct/15)); sfx('omniblock_chip');
+    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
     return;
   }
   const dmg=typeof kind==='number'?kind:(kind==='punchCharged'?2:1);
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
   bw.hitGlow=16;
-  spawnDebris(bw,4+dmg*2); sfx('hit');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  spawnDebris(bw,4+dmg*2); sfx('omniblock_chip');
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallApplyImpact(bw,speed){
   if(speed<BWALL_IMPACT_DMG) return;
@@ -113,8 +113,8 @@ function _bwallApplyImpact(bw,speed){
   if(bw.movable) return;
   const dmg=speed>=BWALL_IMPACT_HARD?2:1;
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
-  spawnDebris(bw,4+dmg*3); sfx('hit');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  spawnDebris(bw,4+dmg*3); sfx('omniblock_chip');
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallSolids(skip){
   const out=TR.map(_normPlat);

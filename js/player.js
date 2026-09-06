@@ -305,7 +305,7 @@ function _clampSegFrom(shX,shY,tx,ty){
 function computeConnectorArmPose(pl=p){
   const ca2=pl.crouchAmt, fc=pl.fc;
   const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R-2;
+  const wcy=py+FEET_OFF-WHEEL_R;
   const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
   const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
@@ -474,9 +474,14 @@ function updateHook(){
       const latchD=Math.hypot(best.tx-a0.x,best.ty-a0.y);
       const core=playerCoreHB(p);
       const feet=p.y+FEET_OFF;
+      const cx=p.x+SW*0.5;
       const inBody=best.tx>core.x-4&&best.tx<core.x+core.w+4&&best.ty>core.y-4&&best.ty<core.y+core.h+4;
       const floorUnderfoot=(best.ny||0)<-0.55&&Math.abs(best.ty-feet)<14&&latchD<28;
       if(latchD<12||inBody||floorUnderfoot) best=null;
+      else if(p.og&&best.ty>feet+8){
+        const stand=typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp:8,maxDrop:10}):null;
+        if(stand!=null){ best.tx=cx; best.ty=stand; best.nx=0; best.ny=-1; }
+      }
     }
     if(best){
       h.ax=best.tx+(best.nx||0)*2; h.ay=best.ty+(best.ny||0)*2;

@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=51;
+const MOVE_BUILD=52;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -31,9 +31,9 @@ const WHEEL_DRIVE_TORQUE=0.68;
 const WHEEL_COAST_FRIC=0.987;
 const WHEEL_GRADE_RESIST=0.38;
 // Weight on the slope before the wheel commits and starts to roll.
-const WHEEL_SLOPE_COMMIT=0.55;
+const WHEEL_SLOPE_COMMIT=0.40;
 // Share of gravity that reaches the contact patch — sets how hard it pulls.
-const WHEEL_SLOPE_GRAV=0.62;
+const WHEEL_SLOPE_GRAV=0.82;
 // Quadratic drag: this, not a hard clamp, is what gives a downhill terminal speed.
 const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
@@ -107,10 +107,10 @@ const _COLL_BUCKET_W=256;
 let _useSegGround=false;
 
 // ── Camera ────────────────────────────────────────────────────
-const CAM_LERP_X=0.075;
-const CAM_LERP_Y=0.048;
-const CAM_LOOK_X=10;
-const CAM_LOOK_SMOOTH=0.07;
+const CAM_LERP_X=0.22;
+const CAM_LERP_Y=0.18;
+const CAM_LOOK_X=8;
+const CAM_LOOK_SMOOTH=0.16;
 let camX=0, camY=0;
 let _rcamX=0, _rcamY=0;
 let _camLookX=0;
@@ -146,7 +146,7 @@ function _snapCameraToPlayer(pl){
   camX=camClampX(t.x);
   camY=camClampY(t.y);
   _camLookX=0;
-  _camSettle=10;
+  _camSettle=1;
   _snapRenderCam();
 }
 function _snapRenderCam(){
@@ -170,8 +170,11 @@ function _syncGameCamera(){
     camX=tx; camY=ty;
     _camSettle--;
   }else{
-    camX+=(tx-camX)*CAM_LERP_X;
-    camY+=(ty-camY)*CAM_LERP_Y;
+    const spd=Math.hypot(p.vx||0,p.vy||0);
+    const lx=CAM_LERP_X+Math.min(0.18,spd*0.014);
+    const ly=CAM_LERP_Y+Math.min(0.14,spd*0.010);
+    camX+=(tx-camX)*lx;
+    camY+=(ty-camY)*ly;
   }
 }
 
@@ -183,7 +186,7 @@ function cpt(){ return {x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5}; }
 
 function playerCoreHB(pl){
   const ca2=pl.crouchAmt||0;
-  const wcy=pl.y+FEET_OFF-WHEEL_R-2;
+  const wcy=pl.y+FEET_OFF-WHEEL_R;
   const standBodyCY=pl.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
@@ -206,7 +209,7 @@ function playerWheelCol(pl){ return {cx:pl.x+SW/2, cy:pl.y+FEET_OFF-WHEEL_R, r:W
 function playerHeadWorld(pl){
   const ca2=pl.crouchAmt||0;
   const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R-2;
+  const wcy=py+FEET_OFF-WHEEL_R;
   const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
   const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
@@ -1455,7 +1458,7 @@ function _unstickWallCorner(pl){
 // ── Multi-step player move ────────────────────────────────────
 function _movePlayerWithColl(pl,vx,vy){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function'){
-    gridResolvePlayer(pl,vx,vy);
+    gridResolvePlayer(pl,vx,vy, pl===p?{}:{noCrest:true});
     if(pl.x<0){pl.x=0;pl.vx=0;}
     if(typeof WW!=='undefined'&&typeof SW!=='undefined'&&pl.x>WW-SW){pl.x=WW-SW;pl.vx=0;}
     pl._prevLandFeet=pl.y+FEET_OFF;
@@ -1573,12 +1576,21 @@ function _applyMindEnemyPhysics(e){
   if(!e.crouchAmt) e.crouchAmt=0;
   if(!e.hook) e.hook={st:'idle'};
   if(!e.wallGrip) e.wallGrip=0;
+  if((e._stompDuck||0)>0){
+    e._stompDuck--;
+    e.crouchAmt=1;
+    e.vy=Math.min(e.vy||0, 2);
+  }else if(e.crouchAmt>0.05&&!e.crouchInput){
+    e.crouchAmt+=(0-e.crouchAmt)*0.18;
+  }
   _movePlayerWithColl(e,e.vx||0,e.vy||0);
-  if(!e.og&&typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
+  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
     const feet=e.y+FEET_OFF;
-    const stand=gridStandY(e.x+SW*0.5, feet, {maxUp:20, maxDrop:40});
-    if(stand!=null&&stand<=feet+10){
-      e.y=stand-FEET_OFF; e.vy=0; e.og=true;
+    const stand=gridStandY(e.x+SW*0.5, feet, {maxUp:10, maxDrop:(e._stompDuck||e.og)?28:12});
+    if(stand!=null&&Math.abs(feet-stand)<((e._stompDuck||e.og)?28:14)){
+      e.y=stand-FEET_OFF;
+      if((e.vy||0)>0) e.vy=0;
+      e.og=true;
     }
   }
 }
@@ -1712,20 +1724,26 @@ function _isValidEntityZone(cx,feetY){
 function _enforceValidZone(pl){
   if(!pl) return;
   if(_entityInValidZone(pl)) return;
+  // Grid resolver owns clips. A wide Y search here is the house-roof teleport.
+  if(typeof _gridReady==='function'&&_gridReady()){
+    if(typeof gridResolvePlayer==='function') gridResolvePlayer(pl,0,0);
+    return;
+  }
   const ox=pl.x, oy=pl.y;
   let bestX=ox, bestY=oy, bestScore=-1e9;
-  for(let dy=-80;dy<=80;dy+=4){
-    for(let dx=-80;dx<=80;dx+=4){
+  for(let dy=-6;dy<=28;dy+=4){
+    for(let dx=-40;dx<=40;dx+=4){
       pl.x=ox+dx; pl.y=oy+dy;
       if(!_entityInValidZone(pl)) continue;
-      const score=-(dx*dx+dy*dy);
+      const lift=dy<0?dy*dy*6:0;
+      const score=-(dx*dx+dy*dy)-lift;
       if(score>bestScore){bestScore=score; bestX=pl.x; bestY=pl.y;}
     }
   }
   if(bestScore>-1e9){
     pl.x=bestX; pl.y=bestY;
     if(Math.hypot(bestX-ox,bestY-oy)>6){ pl.vx=0; pl.vy=0; }
-    _wheelSettle(pl,{maxUp:40,maxDrop:96});
+    _wheelSettle(pl,{maxUp:8,maxDrop:48});
     if(pl.og) pl._groundHold=8;
     return;
   }
@@ -1860,7 +1878,7 @@ function _resolveSpawnPlacement(pl){
   const near=96;
   let floor=null;
   if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
-    floor=gridStandY(cx, feet, {maxUp:64, maxDrop:near});
+    floor=gridStandY(cx, feet, {maxUp:8, maxDrop:near});
   }
   if(floor==null&&typeof _spawnFloorBelow==='function') floor=_spawnFloorBelow(cx,feet,near);
   if(floor!=null&&Math.abs(floor-feet)<=near+8){
@@ -1876,6 +1894,10 @@ function _resolveSpawnPlacement(pl){
   _pushPlayerOutOfKeepOut(pl);
   _enforceValidZone(pl);
   _resolvePlayerInSolids(pl);
+  if(typeof gridResolvePlayer==='function'&&typeof _gridReady==='function'&&_gridReady()){
+    gridResolvePlayer(pl, 0, 1);
+    pl.vx=0; pl.vy=0; pl.og=true;
+  }
 }
 function _validateGroundFlag(pl){
   if(!pl) return;
@@ -2053,7 +2075,7 @@ function _hookRayHit(x1,y1,x2,y2){
 }
 function _segPathBlocked(x1,y1,x2,y2){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
-    return !!gridRayHit(x1,y1,x2,y2);
+    return !!gridRayHit(x1,y1,x2,y2,{skipStart:true});
   }
   for(const q of allP()){
     if(q.tp!=='solid'&&q.tp!=='ceil') continue;
@@ -2179,7 +2201,7 @@ function _ropeFirstHit(x1,y1,x2,y2){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
-    const g=gridRayHit(x1,y1,x2,y2);
+    const g=gridRayHit(x1,y1,x2,y2,{skipStart:true});
     if(g){
       const tile=MV_GRID.tile;
       const c=Math.floor(g.tx/tile), r=Math.floor(g.ty/tile);
@@ -2231,6 +2253,12 @@ function _ropeUpdatePivots(h,tx,ty){
     const c=_ropeNearestCorner(fh.rect,fh.hit.tx,fh.hit.ty);
     if(Math.hypot(c.x-base.x,c.y-base.y)<3) break;
     h.pivots.push(c);
+    if(typeof p!=='undefined'&&p&&p.hook===h){
+      const nx=fh.hit.nx||0, ny=fh.hit.ny||0;
+      const vn=(p.vx||0)*nx+(p.vy||0)*ny;
+      if(vn<0){ p.vx-=nx*vn*1.7; p.vy-=ny*vn*1.7; }
+      else { p.vx+=nx*1.15; p.vy+=ny*1.15; }
+    }
   }
 }
 function _ropePathPts(h,tx,ty){
@@ -2253,6 +2281,11 @@ function _ropeSolidFloor(pl,prevFeet){
     if(bestTop===null||plat.y<bestTop) bestTop=plat.y;
   }
   if(bestTop!==null&&feet>bestTop){ pl.y=bestTop-FEET_OFF; if(pl.vy>0) pl.vy=0; }
+}
+function _ropeWrapPts(x1,y1,x2,y2){
+  const h={ax:x1,ay:y1,pivots:[]};
+  _ropeUpdatePivots(h,x2,y2);
+  return _ropePathPts(h,x2,y2);
 }
 function _ropeRefreshPath(h){ const end=ropePlayerEndWorld(); _ropeUpdatePivots(h,end.x,end.y); const path=_ropePathPts(h,end.x,end.y); h._path=path; return path; }
 function _ropeApplyTension(h){
