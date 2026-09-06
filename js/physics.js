@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=50;
+const MOVE_BUILD=51;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -1574,6 +1574,13 @@ function _applyMindEnemyPhysics(e){
   if(!e.hook) e.hook={st:'idle'};
   if(!e.wallGrip) e.wallGrip=0;
   _movePlayerWithColl(e,e.vx||0,e.vy||0);
+  if(!e.og&&typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
+    const feet=e.y+FEET_OFF;
+    const stand=gridStandY(e.x+SW*0.5, feet, {maxUp:20, maxDrop:40});
+    if(stand!=null&&stand<=feet+10){
+      e.y=stand-FEET_OFF; e.vy=0; e.og=true;
+    }
+  }
 }
 
 // ── Polygon helpers ───────────────────────────────────────────
@@ -1913,9 +1920,11 @@ function _stabilizePlayerCollision(pl){
     if((pl.vy||0)>=-0.2){
       const feet=pl.y+FEET_OFF;
       const cx=pl.x+SW*0.5;
+      const t=MV_GRID&&MV_GRID.tile?MV_GRID.tile:32;
+      const overAir=typeof gridCell==='function'&&gridCell(Math.floor(cx/t),Math.floor((feet+2)/t))===0;
       const hit=typeof gridStandHit==='function'
-        ?gridStandHit(cx,feet,{maxUp:16,maxDrop:pl.og?48:16})
-        :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop:pl.og?48:16}),ang:0,kind:'solid'}:null);
+        ?gridStandHit(cx,feet,{maxUp:16,maxDrop:overAir?8:(pl.og?28:12)})
+        :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop:overAir?8:(pl.og?28:12)}),ang:0,kind:'solid'}:null);
       if(hit&&hit.y!=null){
         pl.y=hit.y-FEET_OFF;
         if(hit.kind==='slope'&&Math.abs(hit.ang||0)>0.06){
@@ -2158,7 +2167,7 @@ function _applyPullPlayerTug(pl,centerX,centerY,fx,fy,ox,oy,w,h,range,blockedOnl
 
 // ── Rope path helpers ─────────────────────────────────────────
 function _ropePathLen(pts){ let len=0; for(let i=1;i<pts.length;i++) len+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y); return len; }
-function _segPathClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<8) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return !_segPathBlocked(x1+ux*3,y1+uy*3,x2-ux*3,y2-uy*3); }
+function _segPathClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<4) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return !_segPathBlocked(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2); }
 function _ropeNearestCorner(rect,hx,hy){
   const cs=[{x:rect.x,y:rect.y},{x:rect.x+rect.w,y:rect.y},{x:rect.x,y:rect.y+rect.h},{x:rect.x+rect.w,y:rect.y+rect.h}];
   let best=cs[0], bd=1e18;
@@ -2204,20 +2213,20 @@ function _ropeFirstHit(x1,y1,x2,y2){
   }
   return best;
 }
-function _ropeSegClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<8) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return _segPathClear(x1+ux*3,y1+uy*3,x2-ux*3,y2-uy*3); }
+function _ropeSegClear(x1,y1,x2,y2){ const d=Math.hypot(x2-x1,y2-y1); if(d<4) return true; const ux=(x2-x1)/d,uy=(y2-y1)/d; return _segPathClear(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2); }
 function _ropeUpdatePivots(h,tx,ty){
   if(!h.pivots) h.pivots=[];
-  for(let g=0;g<3&&h.pivots.length;g++){
+  for(let g=0;g<4&&h.pivots.length;g++){
     const n=h.pivots.length, base=n>=2?h.pivots[n-2]:{x:h.ax,y:h.ay};
     if(_ropeSegClear(base.x,base.y,tx,ty)) h.pivots.pop(); else break;
   }
-  for(let g=0;g<3;g++){
+  for(let g=0;g<5;g++){
     const base=h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
     if(_ropeSegClear(base.x,base.y,tx,ty)) break;
     if(h.pivots.length>=ROPE_MAX_PIVOTS) break;
     const d=Math.hypot(tx-base.x,ty-base.y)||1;
     const ux=(tx-base.x)/d, uy=(ty-base.y)/d;
-    const fh=_ropeFirstHit(base.x+ux*3,base.y+uy*3,tx-ux*3,ty-uy*3);
+    const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2);
     if(!fh) break;
     const c=_ropeNearestCorner(fh.rect,fh.hit.tx,fh.hit.ty);
     if(Math.hypot(c.x-base.x,c.y-base.y)<3) break;
@@ -2406,15 +2415,10 @@ function measureHeadroom(pl=p){
     if(gap<=STAND_H+4&&gap<minGap) minGap=gap;
   }
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridHeadroom==='function'){
-    const t=MV_GRID.tile;
-    const standTop=feet-STAND_H-WHEEL_R;
-    const hbx=typeof HBX!=='undefined'?HBX:6;
-    const hbw=typeof HBW!=='undefined'?HBW:BODY_W;
-    const moving=Math.abs(pl.vx||0)>0.35;
-    const dir=moving?Math.sign(pl.vx):(pl.fc?1:-1);
-    const look=moving?t*2:0;
-    const x=dir>=0?pl.x+hbx:pl.x+hbx-look;
-    const gap=gridHeadroom(standTop, x, hbw+look, feet);
+    const wr=typeof WHEEL_R!=='undefined'?WHEEL_R:20;
+    const standTop=feet-STAND_H-wr;
+    const x=pl.x+SW*0.5-wr;
+    const gap=gridHeadroom(standTop, x, wr*2, feet);
     if(gap<minGap) minGap=gap;
   }
   return minGap;

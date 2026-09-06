@@ -1084,7 +1084,11 @@ function drawBreakWall(bw){
     const {tw,th,sc}=_tmjDraw;
     const animGid=typeof _tmjOmniblockAnimGid==='function'?_tmjOmniblockAnimGid(bw.tileGid):bw.tileGid;
     _drawTmjTileGid(animGid,bx,by,tw,th,sc);
-    if(recentHit){ctx.fillStyle=C.WHITE;ctx.fillRect(bx,by,bws,1);ctx.fillRect(bx,by+bhs-1,bws,1);}
+    if(recentHit||(bw.hitGlow||0)>0){
+      const g=Math.min(1,((bw.hitGlow||0)/16)*0.55+(recentHit?0.25:0));
+      ctx.fillStyle=`rgba(244,236,255,${g})`;
+      ctx.fillRect(bx,by,bws,bhs);
+    }
     if(frac>=0.99) return;
   }else if(isRed){
     const tws=_tmjDraw?(_tmjDraw.tw*_tmjDraw.sc):bw.w;
@@ -1319,8 +1323,8 @@ function drawMindEnemy(e){
   if(e.hook&&e.hook.st!=='idle'&&eItem===1){
     const hk=e.hook;
     const nx=sx(pose.noseX), ny=sy(pose.noseY);
-    const tx=hk.st==='on'?sx(hk.ax):sx(hk.ex+Math.cos(ca)*hk.len*0.55);
-    const ty=hk.st==='on'?sy(hk.ay):sy(hk.ey+Math.sin(ca)*hk.len*0.55);
+    const tx=hk.st==='on'?sx(hk.ax):sx(hk.ex);
+    const ty=hk.st==='on'?sy(hk.ay):sy(hk.ey);
     ctx.strokeStyle='rgba(180,120,60,0.85)';ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(nx,ny);ctx.lineTo(tx,ty);ctx.stroke();
   }
@@ -1989,7 +1993,8 @@ function drawFX(){
       const end=ropePlayerEndWorld();
       const path=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
       const vr=p.hook.vr;
-      const wpts=(vr&&vr.length>2?vr:path).map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
+      const bent=path&&path.length>2;
+      const wpts=(bent?path:(vr&&vr.length>2?vr:path)).map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
       ctx.lineCap='round';ctx.lineJoin='round';
       const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
       for(const L of layers){

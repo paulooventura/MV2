@@ -54,18 +54,34 @@ function _mkBwall(x,y,w,h,opts){
 function _wakeBwall(bw){ if(!bw||!bw.movable||bw.hp<=0) return; bw._awake=true; bw.og=false; }
 function _bwallMovedFromHome(bw){ if(bw.homeX==null||bw.homeY==null) return false; return Math.abs(bw.x-bw.homeX)>4||Math.abs(bw.y-bw.homeY)>4; }
 
+const _OMNI_SHARD_COLS=['#f4eefc','#e4d8f4','#d0c4e8','#c4b0e0','#eee8ff','#b8a4d6'];
 function spawnDebris(bw,count){
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
-    const angle=Math.random()*Math.PI*2, spd=2+Math.random()*5;
+    const angle=Math.random()*Math.PI*2, spd=1.6+Math.random()*4.2;
     bw.debris.push({
       x:bw.x+Math.random()*bw.w, y:bw.y+Math.random()*bw.h,
-      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2,
+      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2.4,
       rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.3,
-      w:4+Math.random()*10, h:4+Math.random()*8,
-      life:40+Math.random()*30, maxLife:70,
-      col:`hsl(${20+Math.random()*20},${40+Math.random()*20}%,${30+Math.random()*20}%)`
+      w:3+Math.random()*8, h:3+Math.random()*7,
+      life:55+Math.random()*40, maxLife:95,
+      col:_OMNI_SHARD_COLS[(Math.random()*_OMNI_SHARD_COLS.length)|0]
     });
+  }
+}
+function _debrisCollide(d){
+  if(typeof _gridReady!=='function'||!_gridReady()) return;
+  const t=MV_GRID.tile;
+  const px=d.x+d.w*0.5, py=d.y+d.h;
+  if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,py+1)){
+    const r=Math.floor((py+1)/t);
+    d.y=r*t-d.h;
+    d.vy=Math.abs(d.vy)>1.2?-d.vy*0.28:0;
+    d.vx*=0.72;
+  }
+  if(typeof gridWorldSolid==='function'&&(gridWorldSolid(d.x-1,d.y+d.h*0.4)||gridWorldSolid(d.x+d.w+1,d.y+d.h*0.4))){
+    d.vx*=-0.45;
+    d.x+=d.vx;
   }
 }
 function _damageBwall(bw,kind,fx){
@@ -78,6 +94,7 @@ function _damageBwall(bw,kind,fx){
     bw.cracked=bw.hp<bw.maxHp;
     if(bw.movable){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
+    bw.hitGlow=16;
     spawnDebris(bw,4+Math.ceil(pct/15)); sfx('hit');
     if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
     return;
@@ -85,13 +102,14 @@ function _damageBwall(bw,kind,fx){
   const dmg=typeof kind==='number'?kind:(kind==='punchCharged'?2:1);
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
+  bw.hitGlow=16;
   spawnDebris(bw,4+dmg*2); sfx('hit');
   if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('stomp'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallApplyImpact(bw,speed){
   if(speed<BWALL_IMPACT_DMG) return;
   if((bw._impactCd||0)>0) return;
-  bw._impactCd=14; bw.shakeX=(Math.random()-0.5)*5; bw.shakeY=-2;
+  bw._impactCd=14; bw.shakeX=(Math.random()-0.5)*5; bw.shakeY=-2; bw.hitGlow=16;
   if(bw.movable) return;
   const dmg=speed>=BWALL_IMPACT_HARD?2:1;
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
@@ -164,13 +182,14 @@ function updateBWalls(){
         }
       }
     }
+    if(bw.hitGlow>0) bw.hitGlow--;
     if(bw.shakeX){bw.shakeX*=0.6;bw.shakeY*=0.6;if(Math.abs(bw.shakeX)<0.3){bw.shakeX=0;bw.shakeY=0;}}
     for(let i=bw.debris.length-1;i>=0;i--){
       const d=bw.debris[i];
-      d.x+=d.vx;d.y+=d.vy;d.vy+=0.18;d.vx*=0.96;d.rot+=d.rotSpd;d.life--;
+      d.x+=d.vx;d.y+=d.vy;d.vy+=0.26;d.vx*=0.985;d.rot+=d.rotSpd;d.life--;
+      _debrisCollide(d);
       if(d.y>WH||d.life<=0) bw.debris.splice(i,1);
     }
-    if(bw.hp<=0&&bw._destroyFr!=null&&fr-bw._destroyFr>22) bw.debris.length=0;
     if(typeof gridSyncBwallOccupancy==='function') gridSyncBwallOccupancy(bw);
   }
 }

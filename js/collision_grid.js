@@ -155,7 +155,8 @@ function gridRayHit(x1,y1,x2,y2){
   let c=Math.floor(x1/tile), r=Math.floor(y1/tile);
   const startC=c, startR=r;
   const startType=gridCell(startC,startR);
-  let seenAir=startType!==MV_GRID_SOLID&&startType!==MV_GRID_DESTRUCT;
+  const startBlocked=startType===MV_GRID_SOLID||startType===MV_GRID_DESTRUCT
+    ||startType===MV_GRID_SLOPE_L||startType===MV_GRID_SLOPE_R;
   const stepC=ux<0?-1:ux>0?1:0;
   const stepR=uy<0?-1:uy>0?1:0;
   const inf=1e12;
@@ -166,6 +167,30 @@ function gridRayHit(x1,y1,x2,y2){
   const tDeltaX=stepC!==0?Math.abs(tile*invX):inf;
   const tDeltaY=stepR!==0?Math.abs(tile*invY):inf;
   const maxSteps=MV_GRID.cols+MV_GRID.rows+4;
+  const latch=(c,r,tEnter,nx,ny)=>{
+    const type=gridCell(c,r);
+    const t=Math.max(0,tEnter);
+    const tx=x1+ux*t, ty=y1+uy*t;
+    if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT) return {tx,ty,nx,ny};
+    if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
+      const sy=gridSlopeY(c,r,tx);
+      if(sy==null) return null;
+      const s=gridSlopeAt(c,r);
+      const ang=s&&s.angle!=null?s.angle:(type===MV_GRID_SLOPE_L?Math.PI/4:-Math.PI/4);
+      return {tx, ty:sy, nx:Math.sin(ang), ny:-Math.cos(ang)};
+    }
+    return null;
+  };
+  // Started inside a wall: grab the face we leave so close shots still latch.
+  if(startBlocked){
+    const nx=tMaxX<tMaxY?(stepC>0?-1:1):0;
+    const ny=nx===0?(stepR>0?-1:1):0;
+    const tLeave=Math.min(tMaxX,tMaxY);
+    if(tLeave<=dist+0.01){
+      const hit=latch(startC,startR,tLeave,nx,ny);
+      if(hit) return hit;
+    }
+  }
   for(let i=0;i<maxSteps;i++){
     let nx=0, ny=0, tEnter;
     if(tMaxX<tMaxY){
@@ -181,12 +206,8 @@ function gridRayHit(x1,y1,x2,y2){
     }
     if(tEnter>dist+0.01) break;
     if(c===startC&&r===startR) continue;
-    const type=gridCell(c,r);
-    const blocked=type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT;
-    if(!blocked){ seenAir=true; continue; }
-    if(!seenAir) continue;
-    const t=Math.max(0, tEnter);
-    return {tx:x1+ux*t, ty:y1+uy*t, nx, ny};
+    const hit=latch(c,r,tEnter,nx,ny);
+    if(hit) return hit;
   }
   return null;
 }
@@ -479,22 +500,25 @@ function gridStampLiveBwalls(){
 
 function gridPlayerBody(pl){
   const feetOff=(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
-  const hbx=(typeof HBX!=='undefined'?HBX:6);
-  const hbw=(typeof HBW!=='undefined'?HBW:52);
   const standH=(typeof STAND_H!=='undefined'?STAND_H:70);
   const duckH=(typeof DUCK_H!=='undefined'?DUCK_H:40);
   const ca=pl.crouchAmt||0;
   const stand=standH+(duckH-standH)*ca;
   const wr=(typeof WHEEL_R!=='undefined'?WHEEL_R:20);
+  const sw=(typeof SW!=='undefined'?SW:64);
   const feetY=pl.y+feetOff;
   const headY=pl.y+feetOff-stand-wr;
+  const cx=pl.x+sw*0.5;
   return {
-    x:pl.x+hbx,
+    x:cx-wr,
     y:headY,
-    w:hbw,
+    w:wr*2,
     h:Math.max(8,feetY-headY),
     feetY:feetY,
     headY:headY,
+    wheelCx:cx,
+    wheelCy:feetY-wr,
+    wheelR:wr,
     vx:pl.vx||0,
     vy:pl.vy||0,
     onGround:!!pl.og,
@@ -506,12 +530,13 @@ function gridPlayerBody(pl){
 
 function gridWritePlayer(pl, body){
   const feetOff=(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
-  const hbx=(typeof HBX!=='undefined'?HBX:6);
+  const sw=(typeof SW!=='undefined'?SW:64);
   const feetY=body.feetY!=null?body.feetY:body.y+body.h;
-  pl.x=body.x-hbx;
+  pl.x=(body.x+body.w*0.5)-sw*0.5;
   pl.y=feetY-feetOff;
   if(body._hitX) pl.vx=0;
   if(body._hitY) pl.vy=0;
+  else if(body._crestLaunch) pl.vy=body.vy;
   pl.og=!!body.onGround;
   if(pl.og) pl._groundHold=Math.max(pl._groundHold||0,8);
   if(body.slopeAng){
@@ -720,17 +745,36 @@ function gridMoveY(body, dy){
   }
 }
 
+function _gridCircleHitsCell(cx,cy,r,c,row,t){
+  const nx=Math.max(c*t, Math.min(cx,(c+1)*t));
+  const ny=Math.max(row*t, Math.min(cy,(row+1)*t));
+  const dx=cx-nx, dy=cy-ny;
+  return dx*dx+dy*dy<=r*r;
+}
+
 function gridOverlaps(body){
   if(!_gridReady()) return false;
   const t=MV_GRID.tile;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const wr=body.wheelR||((typeof WHEEL_R!=='undefined'?WHEEL_R:20));
+  const wcx=body.wheelCx!=null?body.wheelCx:body.x+body.w*0.5;
+  const wcy=body.wheelCy!=null?body.wheelCy:feet-wr;
   const [c0,c1]=gridSpan(body.x, body.w, t);
   const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
-  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(c,r)) return true;
+  const wheelRow=Math.floor(wcy/t);
+  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++){
+    if(!gridSolidBlocksX(c,r,wcx)) continue;
+    // Wheel rows: circle vs tile so leftover floor beside a hole does not lift us.
+    if(r>=wheelRow-1){
+      if(_gridCircleHitsCell(wcx,wcy,wr-0.5,c,r,t)) return true;
+      continue;
+    }
+    return true;
+  }
   for(let c=c0;c<=c1;c++){
     const row=Math.floor((feet-0.001)/t);
     if(gridIsSlope(c,row)){
-      const sy=gridSlopeY(c,row,body.x+body.w*0.5);
+      const sy=gridSlopeY(c,row,wcx);
       if(sy!=null && feet>sy+1.5) return true;
     }
   }
@@ -747,9 +791,21 @@ function gridMoveSwept(body, vx, vy){
   }
 }
 
-function gridDepenetrate(body){
+function gridDepenetrate(body, opts){
   if(!_gridReady()||!gridOverlaps(body)) return false;
-  const max=MV_GRID.rows*MV_GRID.tile;
+  opts=opts||{};
+  const swing=!!opts.swing;
+  // Nudge out of walls sideways first so a leftover floor tile cannot lift us.
+  for(const dir of [-1,1]){
+    const ox=body.x;
+    for(let i=0;i<24;i++){
+      body.x+=dir;
+      if(!gridOverlaps(body)){ body._hitX=true; return true; }
+    }
+    body.x=ox;
+  }
+  if(swing) return gridOverlaps(body);
+  const max=Math.min(80, MV_GRID.rows*MV_GRID.tile);
   for(let i=0;i<max;i++){
     body.y-=1;
     if(body.feetY!=null) body.feetY-=1;
@@ -761,18 +817,51 @@ function gridDepenetrate(body){
   return gridOverlaps(body);
 }
 
-function gridResolvePlayer(pl, vx, vy){
+function gridCrestRelease(body){
+  if(!body.onGround||Math.abs(body.slopeAng||0)<0.08) return false;
+  const t=MV_GRID.tile;
+  const wx=body.x+body.w*0.5;
+  const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const c=Math.floor(wx/t);
+  const dir=Math.sign(body.vx||0);
+  if(!dir||Math.abs(body.vx||0)<2.0) return false;
+  const nc=c+dir;
+  const nr=Math.floor((feet-2)/t);
+  if(gridIsSlope(nc,nr)||gridIsSlope(nc,nr-1)||gridIsSlope(nc,nr+1)) return false;
+  const surf=gridColumnSurface(nc, nc*t+t*0.5, feet+t, t*2);
+  if(surf&&Math.abs(surf.y-feet)<t*1.25){
+    if(Math.abs(body.vx)<4.2){
+      gridSetFeet(body, surf.y, 0);
+      return true;
+    }
+  }
+  body.onGround=false;
+  body.slopeAng=0;
+  body._hitY=false;
+  body._crestLaunch=true;
+  const kick=Math.abs(body.vx)*0.28;
+  body.vy=Math.min(body.vy||0, -kick);
+  return true;
+}
+
+function gridResolvePlayer(pl, vx, vy, opts){
   if(!_gridReady()||!pl) return false;
+  opts=opts||{};
+  const swing=!!opts.swing;
   const wasGrounded=!!pl.og;
   const body=gridPlayerBody(pl);
   body.vx=vx||0; body.vy=vy||0;
   gridMoveSwept(body, vx||0, vy||0);
-  gridDepenetrate(body);
-  if((vy||0)>=-0.2) gridFollowSlope(body, wasGrounded||body.onGround);
-  if(body.onGround){
-    const hit=gridBestFloor(body, body.feetY);
-    if(hit && Math.abs((body.feetY)-hit.y)<=MV_GRID.tile){
-      gridSetFeet(body, hit.y, hit.ang);
+  gridDepenetrate(body, {swing});
+  if(!swing){
+    if((vy||0)>=-0.2) gridFollowSlope(body, wasGrounded||body.onGround);
+    if(body.onGround){
+      if(!gridCrestRelease(body)){
+        const hit=gridBestFloor(body, body.feetY);
+        if(hit && Math.abs((body.feetY)-hit.y)<=MV_GRID.tile){
+          gridSetFeet(body, hit.y, hit.ang);
+        }
+      }
     }
   }
   gridWritePlayer(pl, body);

@@ -863,21 +863,37 @@ function _updateEnemyHook(e,pose,pdist){
   const bt=!!e._battleAi||!!e._campaignAi;
   e.hookCd=Math.max(0,(e.hookCd||0)-1);
   const hk=e.hook;
-  if(e.aiMode==='hook'&&hk.st==='idle'&&e.hookCd===0&&pdist<(bt?400:370)&&pdist>55){
+  if(e.aiMode==='hook'&&hk.st==='idle'&&e.hookCd===0&&pdist<(bt?420:380)&&pdist>36){
+    const tx=p.x+SW/2, ty=p.y+FEET_OFF-STAND_H*0.4;
+    const a=Math.atan2(ty-pose.noseY,tx-pose.noseX);
+    const spd=typeof CSPD==='undefined'?11:CSPD;
     hk.st='ext'; hk.ex=pose.noseX; hk.ey=pose.noseY;
-    hk.ax=p.x+SW/2; hk.ay=p.y+FEET_OFF-10;
-    hk.len=0; hk.maxLen=Math.min(210,pdist+50);
-    e.hookCd=bt?48:72; sfx('hook_fire');
+    hk.evx=Math.cos(a)*spd; hk.evy=Math.sin(a)*spd;
+    hk.ax=tx; hk.ay=ty; hk.len=0;
+    hk.maxLen=Math.min(typeof CMAX==='undefined'?400:CMAX, pdist+90);
+    e.hookCd=bt?52:70; sfx('hook');
   }
   if(hk.st==='ext'){
-    hk.len=Math.min(hk.maxLen,hk.len+20);
-    const dd=Math.hypot(hk.ax-hk.ex,hk.ay-hk.ey)||1;
-    if(hk.len>=Math.min(hk.maxLen,dd-6)){hk.st='on';sfx('hook_latch');}
+    const px=hk.ex, py=hk.ey;
+    hk.ex+=(hk.evx||0); hk.ey+=(hk.evy||0);
+    const fromX=pose.noseX, fromY=pose.noseY;
+    if(Math.hypot(hk.ex-fromX,hk.ey-fromY)>(hk.maxLen||220)){ hk.st='idle'; return; }
+    const hb=typeof playerCoreHB==='function'?playerCoreHB(p):{x:p.x,y:p.y,w:SW,h:SH};
+    const fake={x:hb.x,y:hb.y,w:hb.w,h:hb.h,tp:'solid'};
+    const hit=typeof _segAabbHit==='function'?_segAabbHit(px,py,hk.ex,hk.ey,fake):null;
+    if(hit||(hk.ex>hb.x&&hk.ex<hb.x+hb.w&&hk.ey>hb.y&&hk.ey<hb.y+hb.h)){
+      hk.st='on';
+      hk.ax=hit?hit.tx:p.x+SW/2;
+      hk.ay=hit?hit.ty:p.y+FEET_OFF-STAND_H*0.4;
+      hk.tgt=p;
+      sfx('hook_latch');
+    }
   }
   if(hk.st==='on'){
+    hk.ax=p.x+SW/2; hk.ay=p.y+FEET_OFF-STAND_H*0.4;
     const dx=hk.ax-(e.x+SW/2), dy=hk.ay-(e.y+FEET_OFF), dd=Math.hypot(dx,dy)||1;
-    e.vx=(e.vx||0)+dx/dd*0.62; e.vy=(e.vy||0)+dy/dd*0.38;
-    if(dd<24||(e.hookCd||0)<=8) hk.st='idle';
+    e.vx=(e.vx||0)+dx/dd*0.7; e.vy=(e.vy||0)+dy/dd*0.48;
+    if(dd<22||(e.hookCd||0)<=0) hk.st='idle';
   }
 }
 function _updateMindEnemy(e){
