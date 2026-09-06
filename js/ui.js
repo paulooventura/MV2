@@ -93,7 +93,7 @@ function _titleMenuItems(){
     {label:'STORY MODE', activate:()=>startStoryMode()},
     {label:'TUTORIAL CHAMBER', activate:()=>{_gameState='tutorial';}},
     {label:'BATTLE PRACTICE', activate:()=>startBattleTest()},
-    {label:'CREATIVE MODE', locked:!_gameBeaten, activate:()=>{_gameState='stagedesign';_stageDesignSelIdx=0;}},
+    {label:'CREATIVE MODE', activate:()=>{_gameState='stagedesign';_stageDesignSelIdx=0;}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
   ];
 }

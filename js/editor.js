@@ -325,11 +325,9 @@ document.addEventListener('keydown', e=>{
         if(typeof _mapEdToggle==='function') _mapEdToggle(false);
       }else if(typeof _mapEdCan==='function'&&_mapEdCan()){
         if(typeof _mapEdToggle==='function') _mapEdToggle(true);
-      }else if(_stageDesignerMode||_gameBeaten){
+      }else{
         _editorActive=!_editorActive;
         edShowToast(_editorActive?'EDITOR ON — ` to exit':'EDITOR OFF');
-      }else{
-        edShowToast('Beat Story Mode to unlock Creative Mode');
       }
     }
     e.preventDefault(); return;
