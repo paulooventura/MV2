@@ -73,8 +73,8 @@ function _ensureAwdjooLeftHouseEnemy(){
 }
 
 /**
- * Dirt island that patrols between House 1 (west roof) and House 3 (east of
- * House 2). Floats at House 1 roof height so you can step on from the left.
+ * Dirt island that patrols between House 1 (west) and House 3 (east of
+ * House 2). Floats in the sky — hook range from the street / slope (CMAX=400).
  */
 function _ensureAwdjooMovingIsland(){
   if(!_isAwdjooCampaignMap()) return;
@@ -85,12 +85,14 @@ function _ensureAwdjooMovingIsland(){
   const {tw,th,sc}=_awdjooTwSc();
   const w=tw*sc*6;
   const h=th*sc;
-  // House 1 roof y ≈ 544 tiled; House 3 west wall ≈ 328 tiled.
-  const y=544*sc - 4;
+  const roof=544*sc;
+  const hookReach=(typeof CMAX==='undefined'?400:CMAX);
+  // House 1 roof is 2176; sit ~230px above it so the hook (400) still reaches from the street.
+  const y=Math.round(roof-Math.min(232, hookReach*0.58));
   const mn=80*sc;
   const mx=328*sc;
   const x=Math.floor((mn+mx-w)*0.5);
-  APLAT.push({x, y, w, h, dx:1.55, mn, mx, _awdjooIsland:true});
+  APLAT.push({x, y, w, h, dx:1.55, mn, mx, _awdjooIsland:true, _roofY:roof});
 }
 
 /** Guaranteed RCA pickup in house-2 basement (Tiled object id 16 @ 240,680). */

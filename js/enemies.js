@@ -338,7 +338,7 @@ function applyPlayerHitFromEnemy(e,dmg=PLAYER_HIT_DMG){
 }
 
 // ── Body separation ───────────────────────────────────────────
-const BODY_SEP_GAP=6;
+const BODY_SEP_GAP=3;
 function _enemySeparationHB(e){
   if(!_enemyBodyPresent(e)) return {x:0,y:0,w:0,h:0};
   if(e.mind) return actorSeparationHB(e);
@@ -374,16 +374,17 @@ function _separateTwoBodyHB(ax,ay,aw,ah,bx,by,bw,bh,aActor,bActor){
   const overlapX=Math.min(ax+aw,bx+bw)-Math.max(ax,bx);
   const overlapY=Math.min(ay+ah,by+bh)-Math.max(ay,by);
   if(overlapX<=0||overlapY<=0) return null;
-  const gap=typeof BODY_SEP_GAP!=='undefined'?BODY_SEP_GAP:6;
-  if(overlapX<=overlapY){
-    const push=overlapX+gap;
+  const bothGround=!!(aActor&&aActor.og)&&(bActor&&(bActor.og||bActor._stompDuck));
+  // Grounded bumps stay on X so a touch cannot launch anyone into the sky.
+  if(bothGround||overlapX<=overlapY+6){
+    const push=Math.min(5,overlapX+BODY_SEP_GAP);
     const aM=_bodySepMomentum(aActor,'x'), bM=_bodySepMomentum(bActor,'x');
     const total=Math.max(0.1,aM+bM);
     const aMid=ax+aw*0.5, bMid=bx+bw*0.5;
     const aFrac=bM/total, bFrac=aM/total;
     return aMid<=bMid?{ax:-push*aFrac,bx:push*bFrac}:{ax:push*aFrac,bx:-push*bFrac};
   }
-  const push=overlapY+gap;
+  const push=Math.min(4,overlapY);
   const aM=_bodySepMomentum(aActor,'y'), bM=_bodySepMomentum(bActor,'y');
   const total=Math.max(0.1,aM+bM);
   const aMid=ay+ah*0.5, bMid=by+bh*0.5;
@@ -394,7 +395,9 @@ function _applyBodySeparation(pl,e,sep){
   if(!sep) return false;
   let moved=false;
   if(sep.ax){ pl.x+=sep.ax; pl.x=Math.max(0,Math.min(WW-SW,pl.x)); moved=true; }
-  if(sep.ay){ pl.y+=sep.ay; moved=true; }
+  if(sep.ay){
+    if(!(pl.og&&sep.ay<0)){ pl.y+=sep.ay; moved=true; }
+  }
   if(sep.bx){
     e.x+=sep.bx;
     if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
@@ -403,9 +406,9 @@ function _applyBodySeparation(pl,e,sep){
     moved=true;
   }
   if(sep.by){
-    // Never shove a grounded / stomped enemy down through the floor.
     const down=sep.by>0&&(e.og||e._stompDuck||e._floorY!=null);
-    if(!down){
+    const up=sep.by<0&&(e.og||e._stompDuck);
+    if(!down&&!up){
       e.y+=sep.by;
       if(!e.alive&&e._offAnchorX!=null){ e._offAnchorX=e.x; e._offAnchorY=e.y; }
       moved=true;
@@ -413,7 +416,7 @@ function _applyBodySeparation(pl,e,sep){
   }
   return moved;
 }
-function _resolvePlayerEnemySeparation(pl,e,maxPasses=12){
+function _resolvePlayerEnemySeparation(pl,e,maxPasses=4){
   if(!pl||!_enemyBodyPresent(e)) return;
   for(let n=0;n<maxPasses;n++){
     const ph=actorSeparationHB(pl);
@@ -421,12 +424,13 @@ function _resolvePlayerEnemySeparation(pl,e,maxPasses=12){
     const sep=_separateTwoBodyHB(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h,pl,e);
     if(!sep) break;
     _applyBodySeparation(pl,e,sep);
-    if(typeof _pinActorToFloor==='function') _pinActorToFloor(e,{force:true,maxDrop:96});
+    if(typeof _pinActorToFloor==='function'&&(e.og||e._stompDuck)&&(e.vy||0)>=-0.2)
+      _pinActorToFloor(e,{maxDrop:20});
   }
 }
 function _resolveAllPlayerEnemyCollisions(pl){
   if(!pl) return;
-  for(let round=0;round<14;round++){
+  for(let round=0;round<4;round++){
     for(const e of ENEMS){
       if(!_enemyBodyPresent(e)) continue;
       if(e.type==='signol'){ _resolvePlayerSignolSeparation(pl,e); continue; }
@@ -642,12 +646,12 @@ function _mkMindEnemy(shape,x,feetY,opts={}){
     pt:0, pCd:0, pDur:6, pCharging:false, pCharge:0, punchCd:0,
     laserCd:battle?35+Math.random()*25|0:70+Math.random()*40|0,
     laserCharge:0, laserCharging:false,
-    jumpCd:battle?18:40, shotCd:0, inv:0, hitF:0,
+    jumpCd:battle?18:40, jf:0, shotCd:0, inv:0, hitF:0,
     item:Math.floor(Math.random()*4),
     itemCd:battle?8+Math.random()*10|0:16+Math.random()*14|0,
     aiMode:'patrol',
     xlrOn:false, magOn:false, itemBurst:0, hookCd:0,
-    hook:{st:'idle',ex:0,ey:0,ax:0,ay:0,len:0,maxLen:160},
+    hook:{st:'idle',ex:0,ey:0,ax:0,ay:0,len:0,maxLen:typeof CMAX==='undefined'?400:CMAX},
     _lastItem:-1, _itemStreak:0,
     hp, mhp:hp, alive:true,
     spd, dir:-1,
@@ -790,52 +794,50 @@ function _enemyLineClear(e){
 function _enemyPlayerThreat(){
   return p.pt>0||(p.laserCharging&&p.laserCharge>8)||p.xlrOn||p.magOn||(p.hook&&p.hook.st!=='idle');
 }
-function _enemyAiPickTool(e,pdist,pdx,pdy,aggro){
+function _enemyAiPickTool(e,pdist,pdx,pdy,aggro,canSee){
   if(e.itemCd>0){e.itemCd--;return;}
   const threat=_enemyPlayerThreat();
   const bt=!!e._battleAi||!!e._campaignAi;
-  e.xlrOn=false; e.magOn=false;
+  const low=e.hp<e.mhp*0.4;
   if(!aggro){
+    e.xlrOn=false; e.magOn=false;
     e.item=(Math.floor(e.x/72+fr/80))%4;
-    e.aiMode='patrol'; e.itemCd=22+Math.random()*18|0; return;
-  }
-  if(bt&&pdist<140){
-    e.aiMode='punch'; e.xlrOn=false; e.magOn=false; e.item=0;
-    e.itemCd=8+Math.random()*12|0; return;
+    e.aiMode='patrol'; e.itemCd=18+Math.random()*14|0; return;
   }
   const scores=[0,0,0,0];
-  const horiz=Math.abs(pdy)<55, vert=Math.abs(pdy)>70;
-  const close=pdist<(bt?120:100), mid=pdist<(bt?340:300), far=pdist>(bt?280:240);
-  if(pdist>65&&pdist<(bt?560:500)) scores[0]+=1.8;
-  if(horiz) scores[0]+=1.6;
-  if(far) scores[0]+=1.2;
-  if(p.laserCharging&&p.laserCharge>12) scores[0]+=0.8;
-  if(pdist>100&&pdist<(bt?400:360)&&vert) scores[1]+=2.8;
-  if(pdist>180&&vert&&Math.abs(pdx)<140) scores[1]+=1.4;
-  if(close) scores[1]-=3.5;
-  if(e.hook&&e.hook.st!=='idle') scores[1]+=2.0;
-  if(pdist<(bt?240:210)) scores[2]+=1.9;
-  if(close) scores[2]+=2.2;
-  if(threat) scores[2]+=2.6;
-  if(p.laserCharging&&p.laserCharge>18) scores[2]+=3.2;
-  if(p.hook&&p.hook.st==='on') scores[2]+=1.5;
-  if(pdist>85&&pdist<(bt?300:270)&&horiz) scores[3]+=2.4;
-  if(mid&&Math.abs(pdx)<120) scores[3]+=1.8;
-  if(close&&horiz) scores[3]+=1.2;
-  if(e.hp<e.mhp*0.35){scores[2]+=2.0;if(vert) scores[1]+=1.2;}
-  if(e._lastItem>=0){scores[e._lastItem]-=1.4;if(e._itemStreak>=2) scores[e._lastItem]-=2.2;}
+  const horiz=Math.abs(pdy)<70, vert=Math.abs(pdy)>55;
+  const close=pdist<(bt?96:88), mid=pdist<(bt?280:260), far=pdist>(bt?220:200);
+  const above=pdy<-48, below=pdy>56;
+  if(canSee&&pdist>70&&pdist<560) scores[0]+=2.2;
+  if(canSee&&horiz) scores[0]+=1.8;
+  if(far) scores[0]+=1.4;
+  if(p.laserCharging&&p.laserCharge>10) scores[0]+=1.0;
+  if(above||below) scores[1]+=2.6;
+  if(pdist>90&&pdist<420&&vert) scores[1]+=2.0;
+  if(close) scores[1]-=2.8;
+  if(e.hook&&e.hook.st!=='idle') scores[1]+=2.4;
+  if(threat||close) scores[2]+=2.8;
+  if(p.laserCharging&&p.laserCharge>14) scores[2]+=3.4;
+  if(p.hook&&p.hook.st==='on') scores[2]+=2.0;
+  if(pdist<220&&!far) scores[2]+=1.2;
+  if(mid&&horiz&&pdist>70) scores[3]+=2.6;
+  if(below&&pdist<300) scores[3]+=1.6;
+  if(low){ scores[2]+=2.4; if(vert) scores[1]+=1.4; scores[0]+=0.6; }
+  if(e._lastItem>=0){scores[e._lastItem]-=1.2;if(e._itemStreak>=2) scores[e._lastItem]-=2.0;}
+  if(!canSee){ scores[0]-=3.5; scores[1]+=0.8; }
   let item=0, best=scores[0];
   for(let i=1;i<4;i++){if(scores[i]>best){best=scores[i];item=i;}}
   let mode='chase';
-  if(close&&e.punchCd<=8){mode='punch';e.xlrOn=false;e.magOn=false;}
+  e.xlrOn=false; e.magOn=false;
+  if(close&&!threat&&e.punchCd<=6&&!low){mode='punch';item=e.item;}
   else if(item===0){mode='beam';}
   else if(item===1){mode='hook';}
-  else if(item===2){mode=threat?'evade':'push';e.xlrOn=true;e.itemBurst=bt?34+Math.random()*18|0:42+Math.random()*22|0;}
-  else{mode=close?'punch':'pull';if(mode==='pull'){e.magOn=true;e.itemBurst=bt?40+Math.random()*20|0:48+Math.random()*24|0;}}
+  else if(item===2){mode=threat||close?'evade':'push';e.xlrOn=true;e.itemBurst=bt?38+Math.random()*16|0:44+Math.random()*20|0;}
+  else{mode='pull';e.magOn=true;e.itemBurst=bt?42+Math.random()*18|0:50+Math.random()*20|0;}
   if(item===e._lastItem) e._itemStreak=(e._itemStreak||0)+1;
   else{e._itemStreak=0;e._lastItem=item;}
   e.item=item; e.aiMode=mode;
-  e.itemCd=bt?10+Math.random()*12|0:16+Math.random()*14|0;
+  e.itemCd=bt?8+Math.random()*10|0:12+Math.random()*12|0;
 }
 function _applyEnemyItemFx(e,pose){
   if(_shutdownTimer>0) return;
@@ -867,19 +869,59 @@ function _applyEnemyItemFx(e,pose){
     if(dist<78&&_shutdownTimer<=0&&fr%16===0) applyPlayerHit((pose.tipX-p.x-SW/2)*0.04,(pose.tipY-p.y)*0.03,14);
   }
 }
+function _enemyNeedStepJump(e){
+  if(typeof _gridReady!=='function'||!_gridReady()||typeof gridCell!=='function') return false;
+  const t=MV_GRID.tile;
+  const dir=Math.sign(e.vx||e.dir||1)||1;
+  const feet=e.y+FEET_OFF;
+  const cx=e.x+SW*0.5+dir*26;
+  const col=Math.floor(cx/t);
+  const row=Math.floor((feet-2)/t);
+  const lip=gridSolid(col,row-1)||(typeof gridSolidBlocksX==='function'&&gridSolidBlocksX(col,row-1,cx));
+  if(lip) return true;
+  const hole=!gridSolid(col,row)&&!gridIsSlope(col,row)&&!gridSolid(col,row+1)&&!gridIsSlope(col,row+1);
+  if(hole&&(gridSolid(col,row+2)||gridIsSlope(col,row+2)||gridSolid(col+dir,row+1))) return true;
+  return false;
+}
+function _enemyWantDuck(e,pdist,pdx,pdy){
+  if((e._stompDuck||0)>0) return true;
+  if(p.vy>1.4&&pdy<-8&&Math.abs(pdx)<70) return true;
+  if(p.pt>0&&pdist<110&&Math.abs(pdy)<40) return true;
+  if(typeof ESHOTS!=='undefined'){
+    for(const s of ESHOTS){
+      if(!s||s.owner==='enemy') continue;
+      if(Math.abs(s.y-(e.y+20))<28&&Math.abs(s.x-(e.x+SW*0.5))<80) return true;
+    }
+  }
+  if(typeof gridHeadroom==='function'&&_gridReady()){
+    const top=e.y+8;
+    if(gridHeadroom(top,e.x,e.w,e.y+FEET_OFF)<14) return true;
+  }
+  return e.aiMode==='evade'&&pdist<100&&(p.pt>0||p.laserCharging);
+}
+function _enemyStartJump(e,hold){
+  if(!e.og||(e.jumpCd||0)>0) return false;
+  e.vy=typeof JI==='undefined'?-3:JI;
+  e.jf=hold!=null?hold:(typeof JMH==='undefined'?22:JMH);
+  e.og=false;
+  e.jumpCd=30;
+  e.crouchInput=false;
+  return true;
+}
 function _updateEnemyHook(e,pose,pdist){
   if(e.item!==1){if(e.hook&&e.hook.st!=='idle')e.hook.st='idle';return;}
   const bt=!!e._battleAi||!!e._campaignAi;
   e.hookCd=Math.max(0,(e.hookCd||0)-1);
   const hk=e.hook;
-  if(e.aiMode==='hook'&&hk.st==='idle'&&e.hookCd===0&&pdist<(bt?420:380)&&pdist>36){
+  const reach=typeof CMAX==='undefined'?400:CMAX;
+  if(e.aiMode==='hook'&&hk.st==='idle'&&e.hookCd===0&&pdist<(bt?reach:reach-20)&&pdist>40){
     const tx=p.x+SW/2, ty=p.y+FEET_OFF-STAND_H*0.4;
     const a=Math.atan2(ty-pose.noseY,tx-pose.noseX);
     const spd=typeof CSPD==='undefined'?11:CSPD;
     hk.st='ext'; hk.ex=pose.noseX; hk.ey=pose.noseY;
     hk.evx=Math.cos(a)*spd; hk.evy=Math.sin(a)*spd;
     hk.ax=tx; hk.ay=ty; hk.len=0;
-    hk.maxLen=Math.min(typeof CMAX==='undefined'?400:CMAX, pdist+90);
+    hk.maxLen=Math.min(reach, pdist+120);
     e.hookCd=bt?52:70; sfx('hook');
   }
   if(hk.st==='ext'){
@@ -926,27 +968,45 @@ function _updateMindEnemy(e){
   if(e.jumpCd>0) e.jumpCd--;
   if(e.flashF>0) e.flashF--;
   if(e.itemBurst>0){e.itemBurst--;if(e.itemBurst<=0){e.xlrOn=false;e.magOn=false;}}
-  const aggroRange=e._battleAi?580:(e._campaignAi?240:480);
-  const aggro=pdist<aggroRange&&(!e._campaignAi||_enemyLineClear(e));
-  _enemyAiPickTool(e,pdist,pdx,pdy,aggro);
-  const moveAccel=bt?0.36:0.22, drag=bt?0.94:0.9;
+  const aggroRange=e._battleAi?640:(e._campaignAi?520:480);
+  const canSee=_enemyLineClear(e);
+  const aggro=pdist<aggroRange;
+  _enemyAiPickTool(e,pdist,pdx,pdy,aggro,canSee);
+  const moveAccel=bt?0.36:0.24, drag=bt?0.94:0.9;
   const bodyGap=_horizBodyGap(p,e);
-  const minGap=BODY_SEP_GAP+4;
+  const minGap=BODY_SEP_GAP+8;
+  e.crouchInput=_enemyWantDuck(e,pdist,pdx,pdy);
+  if((e.jf||0)>0){
+    const jmx=typeof JMX==='undefined'?-11:JMX;
+    const jhh=typeof JHH==='undefined'?0.4:JHH;
+    e.vy=Math.max((e.vy||0)-jhh,jmx);
+    e.jf--;
+  }
   if(aggro&&!skipChaseVx){
-    const close=pdist<(bt?155:140);
+    const close=pdist<(bt?140:120);
     const chase=e.spd*(bt?(close?2.05:pdist<300?1.75:1.45):(close?1.7:pdist<280?1.4:1.15));
+    if(e.crouchInput) e.vx*=0.72;
     if(bodyGap<minGap){
       const away=pdx>0?-1:1;
-      e.vx=(e.vx||0)+away*moveAccel*2.4;
+      e.vx=(e.vx||0)+away*moveAccel*1.6;
       e.vx=Math.max(-chase,Math.min(chase,e.vx));
-    }else if(e.aiMode==='evade'&&e.xlrOn){
+    }else if(e.aiMode==='evade'){
       if(pdx>0) e.vx=Math.max((e.vx||0)-moveAccel,-chase*1.15);
       else e.vx=Math.min((e.vx||0)+moveAccel,chase*1.15);
     }else if(e.aiMode==='pull'&&e.magOn){
       if(pdx>24) e.vx=Math.min((e.vx||0)+moveAccel*0.85,chase*0.95);
       else if(pdx<-24) e.vx=Math.max((e.vx||0)-moveAccel*0.85,-chase*0.95);
       else e.vx*=0.82;
-    }else if(bt&&e.aiMode==='punch'&&pdist>72){
+    }else if(e.aiMode==='beam'||e.aiMode==='hook'){
+      const prefer=e.aiMode==='beam'?170:120;
+      if(Math.abs(pdx)>prefer+30){
+        if(pdx>0) e.vx=Math.min((e.vx||0)+moveAccel*0.7,chase*0.85);
+        else e.vx=Math.max((e.vx||0)-moveAccel*0.7,-chase*0.85);
+      }else if(Math.abs(pdx)<prefer-40){
+        const away=pdx>0?-1:1;
+        e.vx=(e.vx||0)+away*moveAccel*0.9;
+      }else e.vx*=0.86;
+    }else if(e.aiMode==='punch'&&pdist>64){
       if(pdx>12) e.vx=Math.min((e.vx||0)+moveAccel*1.15,chase*1.1);
       else if(pdx<-12) e.vx=Math.max((e.vx||0)-moveAccel*1.15,-chase*1.1);
     }else{
@@ -954,32 +1014,35 @@ function _updateMindEnemy(e){
       else if(pdx<-20) e.vx=Math.max((e.vx||0)-moveAccel,-chase);
       else e.vx*=0.76;
     }
-    if(e.og&&e.jumpCd===0&&((pdy<-45||close)&&Math.abs(pdx)<(bt?260:220))){
-      e.vy=-(bt?8.4:7.2+e.spd*0.65); e.og=false;
-      e.jumpCd=bt?32+Math.random()*18|0:50+Math.random()*30|0;
+    const wantJumpUp=pdy<-40&&Math.abs(pdx)<(bt?280:240);
+    const lip=_enemyNeedStepJump(e);
+    const dodge=canSee&&((p.pt>0&&pdist<90)||(p.laserCharging&&p.laserCharge>16&&pdist<140));
+    if(e.og&&!e.crouchInput&&(wantJumpUp||lip||dodge)) _enemyStartJump(e, dodge?16:22);
+    const punchRange=bt?110:90;
+    if((e.aiMode==='punch'||(close&&e.item!==2))&&e.punchCd===0&&e.og&&e.pt===0&&pdist<punchRange){
+      e.pt=7; e.punchCd=bt?16+Math.random()*12|0:32+Math.random()*18|0; sfx('punch');
     }
-    const punchRange=bt?125:96;
-    const wantPunch=bt&&pdist<punchRange||e.aiMode==='punch';
-    if(wantPunch&&e.punchCd===0&&e.og&&e.pt===0){
-      e.pt=7; e.punchCd=bt?16+Math.random()*12|0:38+Math.random()*22|0; sfx('punch');
-    }
-    const laserMin=bt?48:55, laserMax=bt?560:520;
-    if(e.aiMode!=='punch'&&e.item===0&&e.laserCd===0&&pdist>laserMin&&pdist<laserMax){
+    if(e.item===0&&e.aiMode==='beam'&&e.laserCd===0&&canSee&&pdist>48&&pdist<560){
       const pose=computeConnectorArmPose(e);
-      const charged=pdist>(bt?160:190)&&Math.random()<(bt?0.52:0.42);
+      const charged=pdist>(bt?150:180)&&Math.random()<(bt?0.55:0.46);
       ESHOTS.push({x:pose.tipX,y:pose.tipY,
         vx:e.aimDX*(charged?10.4:8.4),vy:e.aimDY*(charged?10.4:8.4),
         life:999,type:'laser',col:'#ff3355',bounces:0,power:charged?1.85:1.15,born:fr,owner:'enemy'});
-      e.laserCd=charged?(bt?70:95):(bt?32+Math.random()*20|0:48+Math.random()*28|0);
+      e.laserCd=charged?(bt?64:86):(bt?28+Math.random()*18|0:40+Math.random()*22|0);
       e.flashF=charged?12:7;
       sfx(charged?'laser_charged_fire':'laser');
     }
     _updateEnemyHook(e,computeConnectorArmPose(e),pdist);
   }else{
-    e.xlrOn=false; e.magOn=false;
-    if(e.hook) e.hook.st='idle';
+    if(!aggro){
+      e.xlrOn=false; e.magOn=false;
+      if(e.hook) e.hook.st='idle';
+    }else{
+      _updateEnemyHook(e,computeConnectorArmPose(e),pdist);
+    }
     if(Math.abs(e.vx||0)<0.12) e.vx=e.spd*e.dir;
     if(e.x<=e.mn||e.x+e.w>=e.mx){e.dir*=-1;e.vx=e.spd*e.dir;}
+    if(e.og&&!e.crouchInput&&_enemyNeedStepJump(e)) _enemyStartJump(e,18);
   }
   if(e.pt>0){
     const snapFrac=1-e.pt/10;
@@ -1005,7 +1068,7 @@ function _updateMindEnemy(e){
   }else e._hitDone=false;
   e.vy=Math.min((e.vy||0)+GRAV*0.55,11);
   _applyMindEnemyPhysics(e);
-  if(_actorsOverlap(p,e)) _resolvePlayerEnemySeparation(p,e,8);
+  if(_actorsOverlap(p,e)) _resolvePlayerEnemySeparation(p,e,3);
   if(aggro&&!skipChaseVx) e.vx*=drag;
   e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
   if(e.og){const edx=e.x-ex0;if(Math.abs(edx)>=0.01) e.wheelAngle=(e.wheelAngle||0)+edx/WHEEL_R;}

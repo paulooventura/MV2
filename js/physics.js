@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=53;
+const MOVE_BUILD=54;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -1612,6 +1612,8 @@ function _pinActorToFloor(e, opts){
     ?gridStandBest(cx, feet, {maxUp, maxDrop, span:18})
     :null;
   const stand=hit?hit.y:(typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp,maxDrop}):null);
+  // A rising jump must not get sucked back onto the floor.
+  if(!force&&(e.vy||0)<-0.35) return false;
   if(stand!=null&&stand<=feet+maxDrop&&stand>=feet-maxUp-4){
     e.y=stand-FEET_OFF;
     if((e.vy||0)>0) e.vy=0;
@@ -1635,7 +1637,9 @@ function _applyMindEnemyPhysics(e){
     e._stompDuck--;
     e.crouchAmt=1;
     e.vy=Math.min(e.vy||0, 0.4);
-  }else if(e.crouchAmt>0.05&&!e.crouchInput){
+  }else if(e.crouchInput){
+    e.crouchAmt=Math.min(1,(e.crouchAmt||0)+0.22);
+  }else if(e.crouchAmt>0.05){
     e.crouchAmt+=(0-e.crouchAmt)*0.18;
   }
   const stomp=!!e._stompDuck;
@@ -2091,7 +2095,7 @@ function _hookRayHit(x1,y1,x2,y2){
     if(!hit) return;
     const d=Math.hypot(hit.tx-x1,hit.ty-y1);
     if(d<6) return;
-    if(d<bestD){ bestD=d; best={tx:hit.tx,ty:hit.ty,nx:hit.nx||0,ny:hit.ny||0,enemy:false,tgt:null}; }
+    if(d<bestD){ bestD=d; best={tx:hit.tx,ty:hit.ty,nx:hit.nx||0,ny:hit.ny||0,enemy:false,tgt:null,plat:hit.plat||null}; }
   };
   const gridOn=typeof _gridReady==='function'&&_gridReady();
   if(gridOn){
@@ -2100,6 +2104,13 @@ function _hookRayHit(x1,y1,x2,y2){
       if(!bw||bw.hp<=0) continue;
       if(typeof _bwallMovedFromHome==='function'&&!_bwallMovedFromHome(bw)) continue;
       consider(_segAabbHit(x1,y1,x2,y2,{x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'}));
+    }
+    if(typeof allP==='function'){
+      for(const q of allP()){
+        if(q.tp!=='oneway'&&!(q.mv||q.mp)) continue;
+        const hit=_segAabbHit(x1,y1,x2,y2,q);
+        if(hit) consider(Object.assign(hit,{plat:q.mv||q.mp||q}));
+      }
     }
     return best;
   }

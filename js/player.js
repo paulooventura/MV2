@@ -446,7 +446,7 @@ function _releaseHookAim(ax,ay){
 
 function updateHook(){
   const h=p.hook;
-  const _hookOff=()=>{h.st='idle';h.ox=NaN;h.oy=NaN;h.tgt=null;h._tight=false;h._slack=false;h._path=null;h._tension=0;h.pivots=null;h.vr=null;};
+  const _hookOff=()=>{h.st='idle';h.ox=NaN;h.oy=NaN;h.tgt=null;h.plat=null;h._tight=false;h._slack=false;h._path=null;h._tension=0;h.pivots=null;h.vr=null;};
   const _aimHook=(tx,ty)=>{
     const ox=p.x+SW*0.5, oy=p.y+FEET_OFF-STAND_H*0.5;
     p.aimDX=tx-ox; p.aimDY=ty-oy;
@@ -485,6 +485,7 @@ function updateHook(){
     }
     if(best){
       h.ax=best.tx+(best.nx||0)*2; h.ay=best.ty+(best.ny||0)*2;
+      h.nx=best.nx||0; h.ny=best.ny||0;
       h.ex=best.tx; h.ey=best.ty;
       const a2=ropePlayerEndWorld();
       h.pivots=[]; h.vr=null;
@@ -492,6 +493,7 @@ function updateHook(){
       h._path=[{x:h.ax,y:h.ay},{x:a2.x,y:a2.y}];
       h._tension=0; h._slack=true; h._tight=false; h._grace=14;
       h.tgt=best.enemy?best.tgt:null;
+      h.plat=best.plat||null;
       h.st='on';
       if(best.enemy&&best.tgt){ _damageEnemy(best.tgt,ENM_DMG.hook,h.ex,h.ey); _markEnemyItemForce(best.tgt,10); }
       if(p.vy>0) p.vy*=0.2;
@@ -505,6 +507,15 @@ function updateHook(){
       if(!_enemyCombatActive(h.tgt)){ _releaseHookAim(h.ax,h.ay); _hookOff(); return; }
       const hb=_enemyHookHB(h.tgt);
       h.ax=hb.x+hb.w/2; h.ay=hb.y+hb.h*0.42;
+    }else if(h.plat){
+      const plat=h.plat;
+      const alive=(typeof APLAT!=='undefined'&&APLAT.includes(plat))||(typeof MPLAT!=='undefined'&&MPLAT.includes(plat));
+      if(!alive){ h.plat=null; }
+      else{
+        h.ax+=plat.dx||plat.vx||0;
+        h.ay=plat.y+((h.ny||0)>0?plat.h:0);
+        h.ex=h.ax; h.ey=h.ay;
+      }
     }
     p.wallGrip=0;
     if(!p._hasAimInput) _aimHook(h.ax,h.ay);
