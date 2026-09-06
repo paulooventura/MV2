@@ -947,35 +947,39 @@ function drawBGParticles(){
    (layer1..layer6, missing files are skipped). */
 const BG_DEFAULT_SET='awdjoo';
 const BG_LAYER_FILES=[
-  {file:1,speed:0.04,drift:0.08},
-  {file:2,speed:0.11,drift:0.02},
-  {file:3,speed:0.24,drift:0},
-  {file:4,speed:0.42,drift:0},
-  {file:5,speed:0.72,drift:0},
-  {file:6,speed:0.88,drift:0}
+  {file:1,speed:0.018,drift:0.010,yMul:0.08,haze:0},
+  {file:2,speed:0.07,drift:0,yMul:0.20,haze:0.07},
+  {file:3,speed:0.15,drift:0,yMul:0.42,haze:0.045},
+  {file:4,speed:0.36,drift:0,yMul:0.82,haze:0}
 ];
 let _bgSet=BG_DEFAULT_SET;
 const _bgCache={};
-let _bgLife=null,_bgBirds=null,_bgClouds=null;
+let _bgLife=null,_bgBirds=null,_bgClouds=null,_bgCloudSheet=null,_bgLights=null;
+function _prepBgImg(img){
+  const th=img.height===H?H:H;
+  const rawW=img.height===H?img.width:Math.max(W,Math.round(img.width*(th/img.height)));
+  const tw=Math.ceil(rawW/W)*W;
+  return smsProcessPainted(img,tw,th);
+}
 function _loadBgSet(name){
   if(!name||_bgCache[name])return;
   const set={layers:[]};
   _bgCache[name]=set;
   for(const def of BG_LAYER_FILES){
-    const slot={img:null,speed:def.speed,drift:def.drift||0};
+    const slot={img:null,speed:def.speed,drift:def.drift||0,yMul:def.yMul==null?1:def.yMul,haze:def.haze||0};
     const img=new Image();
-    img.onload=()=>{
-      const th=H;
-      const rawW=Math.max(W,Math.round(img.width*(th/img.height)));
-      const tw=Math.ceil(rawW/W)*W;
-      slot.img=smsProcessPainted(img,tw,th);
-    };
+    img.onload=()=>{ slot.img=_prepBgImg(img); };
     img.onerror=()=>{};
     img.src='assets/backgrounds/'+name+'/layer'+def.file+'.png';
     set.layers.push(slot);
   }
   if(name==='awdjoo'){
-    fetch('assets/backgrounds/awdjoo/life.json').then(r=>r.ok?r.json():null).then(d=>{_bgLife=d||{}; _bgBirds=null;}).catch(()=>{_bgLife={};});
+    const sheet=new Image();
+    sheet.onload=()=>{ _bgCloudSheet=sheet; };
+    sheet.src='assets/backgrounds/awdjoo/clouds.png';
+    fetch('assets/backgrounds/awdjoo/life.json').then(r=>r.ok?r.json():null).then(d=>{
+      _bgLife=d||{}; _bgBirds=null; _bgClouds=null; _bgLights=null;
+    }).catch(()=>{_bgLife={};});
   }
 }
 function setBgSet(name){_bgSet=name;_loadBgSet(name);}
@@ -994,73 +998,99 @@ function drawSkyBands(){
   }
 }
 function drawAwdjooSky(){
-  const bands=[[0,0.22,'#8ea0c0'],[0.22,0.40,'#b8b0d8'],[0.40,0.58,'#d4c8e8'],[0.58,0.78,'#c8d0d8'],[0.78,1,'#9aa8a0']];
-  for(const [a,b,col] of bands){ctx.fillStyle=col;ctx.fillRect(0,(a*H)|0,W,((b-a)*H)|0);}
+  const bands=[[0,0.18,'#8ea4c8'],[0.18,0.36,'#b8b4dc'],[0.36,0.52,'#d8cee8'],[0.52,0.70,'#e4d8ec'],[0.70,1,'#c8c0d8']];
+  for(const [a,b,col] of bands){ctx.fillStyle=col;ctx.fillRect(0,(a*H)|0,W,Math.ceil((b-a)*H));}
 }
 function _bgScrollX(speed,drift,w){
-  let x=-(((camX*speed+fr*(drift||0))%w)+w)%w;
-  return x;
+  return -(((camX*speed+fr*(drift||0))%w)+w)%w;
+}
+function _blitBg(img,x,y){
+  if(!img) return;
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,x|0,y|0);
+}
+function _awdjooHaze(a){
+  if(a<=0) return;
+  ctx.fillStyle='rgba(196,186,220,'+a+')';
+  ctx.fillRect(0,0,W,H);
 }
 function _ensureBgLife(){
   if(_bgBirds) return;
   _bgBirds=[];
-  const seeds=(_bgLife&&_bgLife.birds)||[];
-  if(seeds.length){
-    for(const s of seeds){
-      _bgBirds.push({x:(s.x||0)*2048,y:40+(s.y||0)*220,vx:0.28+((s.x||0)*3)%0.35,amp:4+((s.y||0)*11)%6,phase:(s.x||0)*9});
-    }
+  for(let i=0;i<11;i++){
+    _bgBirds.push({
+      x:(i*197)%2100, y:48+(i*41)%170, vx:0.14+(i%4)*0.05,
+      amp:2+(i%4), phase:i*1.3, z:i%3===0?0.03:0.07,
+    });
   }
-  for(let i=_bgBirds.length;i<20;i++){
-    _bgBirds.push({x:(i*211)%2200,y:36+(i*37)%200,vx:0.22+(i%5)*0.07,amp:3+(i%5),phase:i*1.1});
+  _bgClouds=((_bgLife&&_bgLife.clouds)||[]).map((c,i)=>({
+    sx:c.sx|0, sy:c.sy|0, w:c.w|0, h:c.h|0,
+    x:(c.ox||0)*W_OUT_BG+(i*180), y:20+(c.oy||0)*160,
+    vx:c.vx||0.045, z:c.depth||0.04,
+  }));
+  if(!_bgClouds.length){
+    for(let i=0;i<5;i++) _bgClouds.push({sx:-1,x:i*360,y:24+(i*31)%70,w:90,h:22,vx:0.03+(i%3)*0.015,z:0.03});
   }
-  _bgClouds=[];
-  for(let i=0;i<7;i++){
-    _bgClouds.push({x:i*290,y:18+(i*29)%90,w:70+((i*17)%50),h:16+((i*9)%12),vx:0.05+(i%3)*0.03});
+  const raw=(_bgLife&&_bgLife.lights)||[];
+  const seen=new Set();
+  _bgLights=[];
+  for(const L of raw){
+    const k=((L.x*48)|0)+','+((L.y*36)|0);
+    if(seen.has(k)) continue;
+    seen.add(k);
+    _bgLights.push(L);
   }
 }
-function _drawBgBird(x,y,up){
-  ctx.fillStyle='#1a1420';
-  ctx.fillRect(x,y,3,1);
-  if(up){ctx.fillRect(x-2,y-1,2,1);ctx.fillRect(x+3,y-1,2,1);}
-  else{ctx.fillRect(x-2,y+1,2,1);ctx.fillRect(x+3,y+1,2,1);}
+const W_OUT_BG=2048;
+function _drawBgBird(x,y,up,far){
+  ctx.fillStyle=far?'#3a3048':'#1a1424';
+  ctx.fillRect(x,y,4,1);
+  if(up){ctx.fillRect(x-3,y-2,3,1);ctx.fillRect(x+4,y-2,3,1);}
+  else{ctx.fillRect(x-3,y+1,3,1);ctx.fillRect(x+4,y+1,3,1);}
 }
-function _drawBgCloud(x,y,w,h){
-  ctx.fillStyle='#efe6f8';
-  ctx.fillRect(x+8,y,w-16,h);
-  ctx.fillRect(x,y+4,w,h-6);
-  ctx.fillRect(x+w*0.25,y-4,w*0.4,6);
-  ctx.fillStyle='#d0c4e4';
-  ctx.fillRect(x+10,y+h-3,w-20,3);
+function _drawDitherCloud(x,y,w,h){
+  const hi='#efe6f6', mid='#d4c8e4', lo='#b8acc8';
+  ctx.fillStyle=hi; ctx.fillRect(x+10,y,w-20,h-4);
+  ctx.fillRect(x+w*0.28,y-5,w*0.38,7);
+  ctx.fillStyle=mid; ctx.fillRect(x,y+5,w,h-8);
+  ctx.fillStyle=lo;
+  for(let i=0;i<w;i+=2) ctx.fillRect(x+i,y+h-3+(i&2?1:0),1,2);
 }
-function drawBgLife(t){
+function drawBgAir(t){
   if(_bgSet!=='awdjoo') return;
   _ensureBgLife();
-  const skyY=((-(200)*t)|0);
+  const skyY=((-(80)*t)|0);
   for(const c of _bgClouds){
-    const cx=((c.x+fr*c.vx-camX*0.03)%(W+180))-90;
-    _drawBgCloud(cx|0,(c.y+skyY)|0,c.w,c.h);
+    const wrap=W+220;
+    const cx=(((c.x+fr*c.vx-camX*c.z)%wrap)+wrap)%wrap-110;
+    const cy=c.y+skyY;
+    if(_bgCloudSheet&&c.sx>=0){
+      ctx.imageSmoothingEnabled=false;
+      ctx.globalAlpha=0.86;
+      ctx.drawImage(_bgCloudSheet,c.sx,c.sy,c.w,c.h,cx|0,cy|0,c.w,c.h);
+      ctx.globalAlpha=1;
+    }else _drawDitherCloud(cx|0,cy|0,c.w||80,c.h||20);
   }
   for(const b of _bgBirds){
     b.x+=b.vx;
-    if(b.x>2400) b.x=-40;
-    const sx2=((b.x-camX*0.06)%(W+80))-40;
-    const sy2=b.y+Math.sin(fr*0.04+b.phase)*b.amp+skyY*0.35;
-    if(sx2<-10||sx2>W+10||sy2<-10||sy2>H*0.55) continue;
-    _drawBgBird(sx2|0,sy2|0,Math.sin(fr*0.25+b.phase)>0);
+    if(b.x>2200) b.x=-30;
+    const sx2=((b.x-camX*b.z)%(W+70))-35;
+    const sy2=b.y+Math.sin(fr*0.035+b.phase)*b.amp+skyY*0.4;
+    if(sx2<-12||sx2>W+12||sy2>H*0.52) continue;
+    _drawBgBird(sx2|0,sy2|0,Math.sin(fr*0.22+b.phase)>0,b.z<0.05);
   }
-  for(let i=0;i<26;i++){
-    if(((fr>>2)+i*3)%17>2) continue;
-    const lx=(((i*97)+Math.floor(camX*0.24))%W+W)%W;
-    const ly=260+((i*23)%200);
-    ctx.fillStyle=(fr+i)&4?C.SAND:C.YELLOW;
-    ctx.fillRect(lx,ly,2,2);
-  }
-  for(let i=0;i<9;i++){
-    const wx=(((fr*0.35+i*110)-camX*0.42)%(W+60))-20;
-    const wy=H*0.70+(i%3)*3+((fr>>4)&1);
-    ctx.fillStyle=[C.PURPLE_L,C.SAND,C.TEAL_L,C.RED_L,C.LILAC][i%5];
-    ctx.fillRect(wx|0,wy|0,2,3);
-    ctx.fillRect((wx|0)+((fr>>3)&1),wy-1,1,1);
+}
+function drawBgTownLights(midX,midY){
+  if(_bgSet!=='awdjoo'||!_bgLights||!_bgLights.length) return;
+  const lw=_bgCache.awdjoo&&_bgCache.awdjoo.layers[2]&&_bgCache.awdjoo.layers[2].img?_bgCache.awdjoo.layers[2].img.width:W_OUT_BG;
+  for(const L of _bgLights){
+    if(((fr>>3)+((L.x*40)|0))%11>2) continue;
+    const lx=(((L.x*lw)+midX)%lw+lw)%lw;
+    if(lx<0||lx>W) continue;
+    const ly=(L.y*H)+midY;
+    if(ly<H*0.22||ly>H*0.82) continue;
+    ctx.fillStyle=L.c==='cyan'?((fr&8)?'#b8f0ff':'#68d0e8'):((fr&8)?C.SAND:C.YELLOW);
+    ctx.fillRect(lx|0,ly|0,2,2);
   }
 }
 function drawParallax(){
@@ -1070,15 +1100,19 @@ function drawParallax(){
   if(!set)return;
   const vh=camViewH();
   const t=WH>vh?Math.max(0,Math.min(1,camY/(WH-vh))):0;
-  for(const L of set.layers){
+  for(let i=0;i<set.layers.length;i++){
+    const L=set.layers[i];
     if(!L.img)continue;
     const w=L.img.width,h=L.img.height;
     if(w<8)continue;
-    const y=((-(h-H)*t)|0);
+    const yMul=L.yMul==null?1:L.yMul;
+    const y=((-(h-H)*t*yMul)|0);
     let x=_bgScrollX(L.speed,L.drift,w);
-    for(;x<W;x+=w)blitImg(L.img,0,0,w,h,x|0,y,w,h);
+    for(let xx=x;xx<W;xx+=w) _blitBg(L.img,xx,y);
+    if(i===0) drawBgAir(t);
+    if(i===2) drawBgTownLights(x,y);
+    if(L.haze) _awdjooHaze(L.haze);
   }
-  drawBgLife(t);
 }
 
 function drawPlat(pl){
