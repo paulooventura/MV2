@@ -1,15 +1,20 @@
 // ============================================================
 //  Mind & Venture — collision_grid.js
-//  ONE tile-type grid. ONE resolver. KEEP OUT / merged TR /
-//  tile-grass segs / omniblock AABB walls are not authorities.
+//  ONE tile-type grid. ONE resolver.
 //
 //  Types: 0 AIR, 1 SOLID, 2 ONEWAY, 3 DESTRUCT, 4 SLOPE_L, 5 SLOPE_R
-//  KEEP OUT filled polys are a giant box — discarded. Tiles own the grid.
+//
+//  The "KEEP OUT!" object layer is the authored collision: Tiled holds the
+//  terrain traced as polygons, and the grid is rasterized straight from it.
+//  Tile layers only supply destructibles. Maps with no KEEP OUT outline
+//  (the collision labs) fall back to inferring faces from tiles.
 // ============================================================
 
 const MV_GRID_AIR=0, MV_GRID_SOLID=1, MV_GRID_ONEWAY=2, MV_GRID_DESTRUCT=3;
 const MV_GRID_SLOPE_L=4, MV_GRID_SLOPE_R=5;
 const MV_GRID_STEP=2;
+/** A wheel rolls over a low lip but not a wall — keep this under one tile. */
+const MV_GRID_STEP_UP=20;
 let MV_GRID=null;
 const MV_GRID_SLOPE_GIDS={31:'L',44:'R'};
 
@@ -36,26 +41,20 @@ function _gridKindFromRaw(raw, slopeGids){
   return _gridFlipKind(slopeGids[gid]||null, raw);
 }
 
-/** Dirt/omni fill under a slope must not act as a vertical wall. */
-function gridSolidBlocksX(c,r,body){
-  if(!gridSolid(c,r)) return false;
-  if(gridIsSlope(c,r)) return false;
+/**
+ * A wall is a wall. The one exception is rock sitting directly beneath a ramp
+ * in the same column: that is the ramp's underside, and riding the ramp means
+ * passing over it. Everything else stops horizontal motion, and gridMoveX
+ * steps the wheel over low lips.
+ */
+function gridSolidBlocksX(c,r,contactX){
+  if(!gridSolid(c,r)||gridIsSlope(c,r)) return false;
   const t=MV_GRID.tile;
-  const wx=body?body.x+body.w*0.5:(c+0.5)*t;
-  const feet=body&&body.feetY!=null?body.feetY:null;
-  // Dirt/grass are floors. A tile at or below the wheel is not a wall.
-  if(feet!=null && r*t>=feet-4) return false;
-  // Down-right / down-left stair: same-row dirt is hillside, not a wall.
-  if(gridSlopeKind(c-1,r)==='L'||gridSlopeKind(c+1,r)==='R') return false;
-  if(gridSlopeKind(c-1,r+1)==='L'||gridSlopeKind(c+1,r+1)==='R') return false;
-  if(gridSlopeKind(c,r+1)) return false;
-  for(let sr=r+1;sr>=r-3;sr--){
-    if(!gridIsSlope(c,sr)&&!gridIsSlope(c-1,sr)&&!gridIsSlope(c+1,sr)) continue;
-    const sc=gridIsSlope(c,sr)?c:gridIsSlope(c-1,sr)?c-1:c+1;
-    const sy=gridSlopeY(sc,sr,wx);
-    if(sy==null) continue;
-    if(r*t>=sy-2) return false;
-    if(feet!=null&&r*t>=feet-2) return false;
+  const x=contactX!=null?contactX:(c+0.5)*t;
+  for(let sr=r-1;sr>=r-2;sr--){
+    if(!gridIsSlope(c,sr)) continue;
+    const sy=gridSlopeY(c,sr,x);
+    if(sy!=null&&sy<=r*t+0.5) return false;
   }
   return true;
 }
@@ -176,6 +175,90 @@ function gridSpan(px, pw, tile){
   return [c0,c1];
 }
 
+/**
+ * Read the authored terrain outlines off the "KEEP OUT!" object layer.
+ * Tiled stores the rock mass and its complement (the open air) as two traced
+ * rings; the winding tells them apart. Smaller rings sit inside bigger ones,
+ * so sorting by area lets an island read as solid inside open sky.
+ */
+function _gridKeepOutRegions(data, sc){
+  const regions=[];
+  for(const layer of (data&&data.layers)||[]){
+    if(layer.type!=='objectgroup') continue;
+    if(!/keep\s*out/i.test(String(layer.name||''))) continue;
+    for(const o of layer.objects||[]){
+      if(!o.polygon||o.polygon.length<3) continue;
+      const pts=o.polygon.map(p=>({x:((o.x||0)+p.x)*sc, y:((o.y||0)+p.y)*sc}));
+      let a=0;
+      for(let i=0;i<pts.length;i++){
+        const q=pts[i], n=pts[(i+1)%pts.length];
+        a+=q.x*n.y-n.x*q.y;
+      }
+      regions.push({pts, area:a/2, solid:a<0});
+    }
+  }
+  regions.sort((u,v)=>Math.abs(u.area)-Math.abs(v.area));
+  return regions;
+}
+
+function _gridPointInPoly(pts,x,y){
+  let hit=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const a=pts[i], b=pts[j];
+    if((a.y>y)!==(b.y>y) && x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x) hit=!hit;
+  }
+  return hit;
+}
+
+function _gridRasterizeRegions(regions, grid, cols, rows, tile){
+  for(let r=0;r<rows;r++){
+    const y=(r+0.5)*tile;
+    for(let c=0;c<cols;c++){
+      const x=(c+0.5)*tile;
+      let solid=false;
+      for(const rg of regions){
+        if(!_gridPointInPoly(rg.pts,x,y)) continue;
+        solid=rg.solid;
+        break;
+      }
+      grid[r][c]=solid?MV_GRID_SOLID:MV_GRID_AIR;
+    }
+  }
+}
+
+/**
+ * Every diagonal edge of a solid outline becomes a real slope surface, clipped
+ * per cell. This is why the hill reads as one clean ramp instead of a stair of
+ * guessed tile GIDs — the geometry comes from the line the level was drawn with.
+ */
+function _gridStampRegionSlopes(regions, grid, slopeSurf, cols, rows, tile){
+  for(const rg of regions){
+    if(!rg.solid) continue;
+    const pts=rg.pts;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      const dx=b.x-a.x, dy=b.y-a.y;
+      if(Math.abs(dx)<0.5||Math.abs(dy)<0.5) continue;
+      const yLo=Math.min(a.y,b.y), yHi=Math.max(a.y,b.y);
+      const xAt=y=>a.x+dx*((y-a.y)/dy);
+      const r0=Math.floor(yLo/tile), r1=Math.floor((yHi-0.001)/tile);
+      for(let r=r0;r<=r1;r++){
+        if(r<0||r>=rows) continue;
+        const yTop=Math.max(yLo, r*tile), yBot=Math.min(yHi, (r+1)*tile);
+        if(yBot-yTop<0.001) continue;
+        let p1={x:xAt(yTop),y:yTop}, p2={x:xAt(yBot),y:yBot};
+        if(p1.x>p2.x){ const s=p1; p1=p2; p2=s; }
+        const c=Math.floor((p1.x+p2.x)*0.5/tile);
+        if(c<0||c>=cols) continue;
+        // A diagonal with rock overhead is a ceiling, not something to ride.
+        if(r>0&&grid[r-1][c]===MV_GRID_SOLID) continue;
+        grid[r][c]=p2.y>p1.y?MV_GRID_SLOPE_L:MV_GRID_SLOPE_R;
+        slopeSurf[r*cols+c]={x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,angle:Math.atan2(p2.y-p1.y,p2.x-p1.x)};
+      }
+    }
+  }
+}
+
 function buildCollisionGridFromTmj(data, sc){
   sc=sc||(typeof TILED_WORLD_SCALE!=='undefined'?TILED_WORLD_SCALE:4);
   const tw=data.tilewidth||8, th=data.tileheight||8;
@@ -207,10 +290,6 @@ function buildCollisionGridFromTmj(data, sc){
     if(!arr||c<0||r<0||c>=cols||r>=rows) return false;
     return !!_gridGid(arr[r*cols+c]);
   };
-  const emptyOfTerrain=(c,r)=>{
-    if(c<0||r<0||c>=cols||r>=rows) return false;
-    return !hasGid(dirtData,c,r)&&!hasGid(grassData,c,r);
-  };
   const stampSlopeCell=(c,r,kind)=>{
     if(c<0||r<0||c>=cols||r>=rows) return;
     if(grid[r][c]===MV_GRID_DESTRUCT) return;
@@ -226,6 +305,8 @@ function buildCollisionGridFromTmj(data, sc){
   const slopeSurf={};
   const slopeGids=_gridReadTilesetSlopes(data);
 
+  let destructData=null;
+  const destructRects=[];
   for(const layer of layers){
     const lname=_gridLayerName(layer);
     if(layer.type==='tilelayer'){
@@ -235,81 +316,59 @@ function buildCollisionGridFromTmj(data, sc){
       const isDest=lname==='destruct'||lname==='destructible'||lname==='destructibles';
       if(isDirt) dirtData=d;
       if(isGrass) grassData=d;
-      if(isDest) stampGid(d, MV_GRID_DESTRUCT);
+      if(isDest) destructData=d;
       continue;
     }
     if(layer.type!=='objectgroup') continue;
-    // KEEP OUT is discarded entirely — tiles own collision.
-    if(lname==='keep out'||lname==='keepout'||lname==='collision'||lname==='walls/floors'||lname==='walls'||lname==='floors'){
-      continue;
-    }
     const isBlocks=lname==='blocks';
     const isDest=lname==='destruct'||lname==='destructible'||lname==='destructibles';
     if(!isBlocks&&!isDest) continue;
     for(const o of (layer.objects||[])){
       const ox=(o.x||0)*sc, oy=(o.y||0)*sc;
-      let w=Math.max(tile,(o.width||tw)*sc), h=Math.max(tile,(o.height||th)*sc);
+      const w=Math.max(tile,(o.width||tw)*sc), h=Math.max(tile,(o.height||th)*sc);
       if(o.polygon&&o.polygon.length){
         let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
         for(const p of o.polygon){
           const px=ox+p.x*sc, py=oy+p.y*sc;
           if(px<minX)minX=px; if(py<minY)minY=py; if(px>maxX)maxX=px; if(py>maxY)maxY=py;
         }
-        stampRect(minX,minY,maxX-minX,maxY-minY,MV_GRID_DESTRUCT);
+        destructRects.push([minX,minY,maxX-minX,maxY-minY]);
       }else{
-        const y=oy-((o.gid||o.gid===0)?h:0);
-        stampRect(ox,y,w,h,MV_GRID_DESTRUCT);
+        destructRects.push([ox, oy-((o.gid||o.gid===0)?h:0), w, h]);
       }
     }
   }
 
-  // Only Tiled tiles collide. Empty cells stay air. No carved openings.
-  if(grassData){
-    for(let i=0;i<grassData.length && i<cols*rows;i++){
-      const raw=grassData[i]|0;
-      const gid=_gridGid(raw);
-      if(!gid) continue;
-      const c=i%cols, r=(i/cols)|0;
-      let kind=_gridKindFromRaw(raw, slopeGids);
-      const downR=hasGid(grassData,c+1,r+1)&&!hasGid(grassData,c+1,r);
-      const downL=hasGid(grassData,c-1,r+1)&&!hasGid(grassData,c-1,r);
-      if(downR) kind='L';
-      else if(downL) kind='R';
-      if(kind) stampSlopeCell(c,r,kind);
-      else stampCell(c,r,MV_GRID_SOLID);
-    }
-  }
-  if(dirtData){
-    const hillCol=new Array(cols);
-    for(let c=0;c<cols;c++){
-      hillCol[c]=false;
-      if(!grassData) continue;
-      for(let r=0;r<rows;r++){
-        if(grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R){ hillCol[c]=true; break; }
+  const regions=_gridKeepOutRegions(data, sc);
+  if(regions.length){
+    _gridRasterizeRegions(regions, grid, cols, rows, tile);
+    _gridStampRegionSlopes(regions, grid, slopeSurf, cols, rows, tile);
+  }else{
+    // No authored outline (collision labs): infer faces from the tile art.
+    if(grassData){
+      for(let i=0;i<grassData.length && i<cols*rows;i++){
+        const raw=grassData[i]|0;
+        if(!_gridGid(raw)) continue;
+        const c=i%cols, r=(i/cols)|0;
+        let kind=_gridKindFromRaw(raw, slopeGids);
+        if(hasGid(grassData,c+1,r+1)&&!hasGid(grassData,c+1,r)) kind='L';
+        else if(hasGid(grassData,c-1,r+1)&&!hasGid(grassData,c-1,r)) kind='R';
+        if(kind) stampSlopeCell(c,r,kind);
+        else stampCell(c,r,MV_GRID_SOLID);
       }
     }
-    for(let r=0;r<rows;r++){
-      for(let c=0;c<cols;c++){
+    if(dirtData){
+      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
         if(!hasGid(dirtData,c,r)) continue;
-        if(grid[r][c]===MV_GRID_DESTRUCT||grid[r][c]===MV_GRID_SLOPE_L||grid[r][c]===MV_GRID_SLOPE_R) continue;
-        stampCell(c,r, hillCol[c]?MV_GRID_SOLID:MV_GRID_ONEWAY);
+        if(grid[r][c]!==MV_GRID_AIR) continue;
+        stampCell(c,r,MV_GRID_SOLID);
       }
     }
   }
 
-  // Omni blocks (any tile layer) are ceiling/wall — never pass-through.
-  for(const layer of layers){
-    if(layer.type!=='tilelayer') continue;
-    const arr=layer.data||[];
-    for(let i=0;i<arr.length && i<cols*rows;i++){
-      const gid=_gridGid(arr[i]);
-      if(!gid) continue;
-      if(typeof _isOmniblockGid!=='function'||!_isOmniblockGid(gid)) continue;
-      const c=i%cols, r=(i/cols)|0;
-      if(grid[r][c]===MV_GRID_DESTRUCT) continue;
-      stampCell(c,r,MV_GRID_SOLID);
-    }
-  }
+  // Destructibles go on last so a smashed cell always falls back to open air.
+  stampGid(destructData, MV_GRID_DESTRUCT);
+  for(const [x,y,w,h] of destructRects) stampRect(x,y,w,h,MV_GRID_DESTRUCT);
 
   MV_GRID={ready:true, cols, rows, tile, tw, th, sc, data:grid, slope:slopeSurf};
   let solids=0, dest=0, slopes=0;
@@ -407,21 +466,66 @@ function gridActorBody(a, feetOff){
   return {x:a.x, y:a.y, w:a.w, h:Math.max(8,feetOff), feetY:a.y+(a.h||feetOff), vx:a.vx||0, vy:a.vy||0, onGround:!!a.og, slopeAng:0, _hitX:false, _hitY:false};
 }
 
+/** Highest surface in one column that sits within `maxUp` above the feet. */
+function gridColumnSurface(col, contactX, feetY, maxUp){
+  if(!_gridReady()) return null;
+  const t=MV_GRID.tile;
+  const r0=Math.floor((feetY-maxUp)/t), r1=Math.floor(feetY/t);
+  let best=null, ang=0;
+  for(let r=r0;r<=r1;r++){
+    let y=null, a=0;
+    if(gridIsSlope(col,r)){
+      y=gridSlopeY(col,r,contactX);
+      const s=gridSlopeAt(col,r);
+      a=s?s.angle:0;
+    }else if(gridSolid(col,r)){
+      y=r*t;
+    }else continue;
+    if(y==null||y>feetY+0.5||y<feetY-maxUp) continue;
+    if(best==null||y<best){ best=y; ang=a; }
+  }
+  return best==null?null:{y:best, ang};
+}
+
+function _gridBlockedAt(body, col, contactX){
+  const t=MV_GRID.tile;
+  const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
+  for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(col,r,contactX)) return true;
+  return false;
+}
+
+/** Roll the wheel over a low lip (slope shoulders, kerbs) rather than stopping dead. */
+function _gridStepUp(body, col, contactX){
+  if(!body.onGround) return false;
+  const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const surf=gridColumnSurface(col, contactX, feet, MV_GRID_STEP_UP);
+  if(!surf) return false;
+  const rise=feet-surf.y;
+  if(rise<=0.01||rise>MV_GRID_STEP_UP) return false;
+  const prevY=body.y, prevFeet=body.feetY, prevAng=body.slopeAng;
+  body.feetY=surf.y;
+  body.y=surf.y-body.h;
+  body.slopeAng=surf.ang||0;
+  if(_gridBlockedAt(body, col, contactX)){
+    body.y=prevY; body.feetY=prevFeet; body.slopeAng=prevAng;
+    return false;
+  }
+  body.onGround=true;
+  return true;
+}
+
 function gridMoveX(body, dx){
   if(!_gridReady()||!dx) return;
   const t=MV_GRID.tile;
   body.x+=dx;
-  const feet=body.feetY!=null?body.feetY:body.y+body.h;
-  const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
-  if(dx>0){
-    const col=Math.floor((body.x+body.w-1)/t);
-    for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(col,r,body)){
-      body.x=col*t-body.w; body.vx=0; body._hitX=true; return;
-    }
-  }else{
-    const col=Math.floor(body.x/t);
-    for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(col,r,body)){
-      body.x=(col+1)*t; body.vx=0; body._hitX=true; return;
+  const col=dx>0?Math.floor((body.x+body.w-1)/t):Math.floor(body.x/t);
+  const contactX=dx>0?body.x+body.w-1:body.x;
+  if(_gridBlockedAt(body, col, contactX)){
+    if(!_gridStepUp(body, col, contactX)){
+      body.x=dx>0?col*t-body.w:(col+1)*t;
+      body.vx=0; body._hitX=true;
+      return;
     }
   }
   if(body.onGround) gridFollowSlope(body, true);
@@ -481,8 +585,21 @@ function gridFollowSlope(body, wasGrounded){
     }
   }
   if(best==null) return false;
+  // Never seat the wheel back down into rock it is already standing clear of —
+  // that is what used to trap it at the crest of a ramp.
+  if(best>feet+0.5&&_gridFeetWouldClip(body,best)) return false;
   gridSetFeet(body, best, bestAng);
   return true;
+}
+
+function _gridFeetWouldClip(body, feetY){
+  const t=MV_GRID.tile;
+  const top=feetY-body.h;
+  const [c0,c1]=gridSpan(body.x, body.w, t);
+  const [r0,r1]=gridSpan(top, Math.max(1,body.h-0.5), t);
+  const cx=body.x+body.w*0.5;
+  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(c,r,cx)) return true;
+  return false;
 }
 
 function gridFeetGrounded(body){
@@ -541,7 +658,7 @@ function gridOverlaps(body){
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const [c0,c1]=gridSpan(body.x, body.w, t);
   const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
-  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(c,r,body)) return true;
+  for(let c=c0;c<=c1;c++) for(let r=r0;r<=r1;r++) if(gridSolidBlocksX(c,r)) return true;
   for(let c=c0;c<=c1;c++){
     const row=Math.floor((feet-0.001)/t);
     if(gridIsSlope(c,row)){
@@ -660,21 +777,22 @@ function gridFloorBelow(cx, markerFeet, maxDrop){
   return null;
 }
 
+/** Pixels between the head and the lowest solid underside above it. Negative = already in the rock. */
 function gridHeadroom(bodyTop, x, w){
   if(!_gridReady()) return 999;
   const t=MV_GRID.tile;
   const [c0,c1]=gridSpan(x,w,t);
-  const start=Math.floor(bodyTop/t);
-  for(let r=start;r>=start-8;r--){
+  const start=Math.floor((bodyTop-0.001)/t);
+  let best=999;
+  for(let r=start+3;r>=start-12;r--){
     for(let c=c0;c<=c1;c++){
-      if(gridSolid(c,r)){
-        const ceilB=(r+1)*t;
-        const gap=ceilB-bodyTop;
-        if(gap>=0) return gap;
-      }
+      if(!gridSolid(c,r)||gridIsSlope(c,r)) continue;
+      if(gridSolid(c,r+1)) continue;
+      const gap=bodyTop-(r+1)*t;
+      if(gap<best) best=gap;
     }
   }
-  return 999;
+  return best;
 }
 
 function gridPlayerOverlapsSolid(pl){

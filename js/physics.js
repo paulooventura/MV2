@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=46;
+const MOVE_BUILD=47;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=16.5;
@@ -30,8 +30,15 @@ const WHEEL_ROLL_RESIST=0.011;
 const WHEEL_DRIVE_TORQUE=0.68;
 const WHEEL_COAST_FRIC=0.987;
 const WHEEL_GRADE_RESIST=0.38;
+// Weight on the slope before the wheel commits and starts to roll.
 const WHEEL_SLOPE_COMMIT=0.55;
-const WHEEL_SLOPE_GRAV=0.26;
+// Share of gravity that reaches the contact patch — sets how hard it pulls.
+const WHEEL_SLOPE_GRAV=0.62;
+// Quadratic drag: this, not a hard clamp, is what gives a downhill terminal speed.
+const WHEEL_SLOPE_DRAG=0.0006;
+// Grade drag climbing, and how much of it a full sprint cancels.
+const WHEEL_UPHILL_DRAG=2.4;
+const WHEEL_UPHILL_RUN_RELIEF=0.88;
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
@@ -813,10 +820,13 @@ function _wheelSlopeWeight(pl){
     const c=Math.floor(wx/t);
     const r0=Math.floor((feet-0.001)/t);
     let hit=false, a=0;
+    // On a steep ramp the rim sits a full radius above/below the contact
+    // point, so the reach has to be the wheel, not a flat-ground tolerance.
+    const reach=12+Math.abs(u)*wr;
     for(let r=r0-1;r<=r0+2;r++){
       if(!gridIsSlope(c,r)) continue;
       const sy=typeof gridSlopeY==='function'?gridSlopeY(c,r,wx):null;
-      if(sy==null||Math.abs(sy-feet)>12) continue;
+      if(sy==null||Math.abs(sy-feet)>reach) continue;
       hit=true;
       const s=typeof gridSlopeAt==='function'?gridSlopeAt(c,r):null;
       a=s&&s.angle!=null?s.angle:0;
@@ -846,29 +856,39 @@ function _applySlopePhysics(pl){
   const commit=Math.max(0,Math.min(1,(w.frac-WHEEL_SLOPE_COMMIT)/(1-WHEEL_SLOPE_COMMIT)));
   const ease=commit*commit;
   const sinA=Math.sin(ang);
+  const downhill=Math.sign(sinA)||1;
   const pull=GRAV*sinA*WHEEL_SLOPE_GRAV*ease;
-  if(!(pl._slopeRollT>0)&&Math.abs(pull)>0.002){
-    const down=Math.sign(sinA)||1;
-    if(Math.sign(pl.vx||0)===down) pl.vx*=0.82;
-  }
+  if(!(pl._slopeRollT>0)&&Math.abs(pull)>0.002&&Math.sign(pl.vx||0)===downhill) pl.vx*=0.82;
   pl._slopeRollT=(pl._slopeRollT||0)+1;
   const grip=_wheelGripMul(pl,ang);
   const input=pl===p?_moveInputX():0;
   const driving=!!input;
-  const uphill=driving&&input*sinA<-0.03;
+  const climbing=driving&&input!==downhill;
+  const run=Math.max(0,Math.min(1,Math.max(pl.runRamp||0,(pl.momentum||0)*0.8)));
+
+  // Gravity along the surface: the wheel keeps gaining while it stays committed.
   pl.vx+=pull;
   const resist=WHEEL_ROLL_RESIST*(driving?0.45:1.15)/Math.max(0.5,grip);
   pl.vx*=Math.max(0.96,1-resist);
+  pl.vx-=Math.sign(pl.vx)*WHEEL_SLOPE_DRAG*pl.vx*pl.vx;
+
   if(driving){
-    const torque=WHEEL_DRIVE_TORQUE*(uphill?1.15:0.55)*ease;
-    pl.vx+=input*torque;
-    if(uphill) pl.vx-=Math.sign(pl.vx||input)*Math.abs(pull)*WHEEL_GRADE_RESIST;
+    pl.vx+=input*WHEEL_DRIVE_TORQUE*(climbing?1.15:0.55)*ease;
+    if(climbing){
+      // Climbing costs you ground unless you commit to a run.
+      const relief=1-WHEEL_UPHILL_RUN_RELIEF*run;
+      pl.vx-=input*Math.abs(pull)*WHEEL_UPHILL_DRAG*relief;
+      pl.vx-=Math.sign(pl.vx||input)*Math.abs(pull)*WHEEL_GRADE_RESIST;
+    }
   }else if(Math.abs(pl.vx)<0.05&&Math.abs(pull)<0.008){
     pl.vx=0;
   }
+
   const built=Math.min(1,(pl._slopeRollT||0)/90);
-  const slopeCap=MOVE_WALK*(0.55+0.35*ease+0.25*built);
-  pl.vx=Math.max(-slopeCap,Math.min(slopeCap,pl.vx));
+  const downCap=MOVE_WALK*(0.75+0.30*ease+0.25*built)+(MOVE_RUN-MOVE_WALK)*(0.30+0.70*run);
+  const upCap=MOVE_WALK*0.32+(MOVE_RUN*0.82-MOVE_WALK*0.32)*run;
+  const cap=Math.sign(pl.vx)===downhill?downCap:upCap;
+  pl.vx=Math.max(-cap,Math.min(cap,pl.vx));
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
   if(!(typeof _gridReady==='function'&&_gridReady()) && wt.touch){
     if(wt.dir>0&&(pl.vx||0)>0) pl.vx=0;
@@ -878,8 +898,9 @@ function _applySlopePhysics(pl){
     if(input>0) pl.vx=Math.min(pl.vx||0,0);
     else pl.vx=Math.max(pl.vx||0,0);
   }
-  const ducking=pl.crouchInput||(pl.crouchAmt||0)>0.25||(pl===p&&pl.og&&isDn());
-  if(ducking){ const duckAmt=Math.max(pl.crouchAmt||0,pl.crouchInput?0.9:0.5); pl.vx*=Math.pow(0.55,1+duckAmt*1.4); if(Math.abs(pl.vx)<0.07) pl.vx=0; }
+  // Held duck crawls. Auto-tuck under a lintel must not kill downhill speed.
+  const heldDuck=!!(pl.crouchInput||(pl===p&&pl.og&&typeof isDn==='function'&&isDn()));
+  if(heldDuck){ const duckAmt=Math.max(pl.crouchAmt||0,0.9); pl.vx*=Math.pow(0.55,1+duckAmt*1.4); if(Math.abs(pl.vx)<0.07) pl.vx=0; }
   pl.wheelTorque=(pl.vx-(pl._prevSlopeVx||0))*0.55;
   pl._prevSlopeVx=pl.vx;
   if(pl.vy>2) pl.vy=Math.min(pl.vy,2);
@@ -2337,8 +2358,8 @@ function measureHeadroom(pl=p){
       if(Math.abs(seg.angle||0)>0.14) return;
       const sLo=Math.min(seg.x1,seg.x2), sHi=Math.max(seg.x1,seg.x2);
       if(fR<=sLo||fL>=sHi) return;
-      const gap=segY-bodyTop;
-      if(gap>=0&&gap<minGap) minGap=gap;
+      const gap=bodyTop-segY;
+      if(gap<minGap) minGap=gap;
     });
   }
   for(const plat of allP()){
@@ -2346,8 +2367,21 @@ function measureHeadroom(pl=p){
     if(plat.x+plat.w<=fL||plat.x>=fR) continue;
     if(plat.y>=feet-GROUND_SINK_MAX-4) continue;
     const ceilB=plat.y+plat.h;
-    const gap=ceilB-bodyTop;
-    if(gap>=0&&gap<=STAND_H+4&&gap<minGap) minGap=gap;
+    const gap=bodyTop-ceilB;
+    if(gap<=STAND_H+4&&gap<minGap) minGap=gap;
+  }
+  // Typed grid is the campaign authority. Use the standing hull and look a
+  // couple of tiles ahead so a lintel tucks the wheel before it wedges.
+  if(typeof _gridReady==='function'&&_gridReady()&&typeof gridHeadroom==='function'){
+    const t=MV_GRID.tile;
+    const standTop=feet-STAND_H-WHEEL_R;
+    const hbx=typeof HBX!=='undefined'?HBX:6;
+    const hbw=typeof HBW!=='undefined'?HBW:BODY_W;
+    const dir=Math.sign(pl.vx||0)||(pl.fc?1:-1);
+    const look=t*2;
+    const x=dir>=0?pl.x+hbx:pl.x+hbx-look;
+    const gap=gridHeadroom(standTop, x, hbw+look);
+    if(gap<minGap) minGap=gap;
   }
   return minGap;
 }
