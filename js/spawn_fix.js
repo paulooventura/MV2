@@ -162,7 +162,7 @@ function _ropePickupFromObject(o,tw,th,sc){
 function _filterSpawnDefsToZones(){
   if(typeof _isValidEntityZone!=='function') return;
   _mapKnowlDefs=_mapKnowlDefs.filter(d=>_isValidEntityZone(d.x,d.y));
-  _mapMinionDefs=_mapMinionDefs.filter(d=>!!(d&&d._awdjooIsland)||_isValidEntityZone(d.x+(typeof SW!=='undefined'?SW*0.25:16),d.y));
+  _mapMinionDefs=_mapMinionDefs.filter(d=>!!(d&&(d._awdjooIsland||d._awdjooKeep))||_isValidEntityZone(d.x+(typeof SW!=='undefined'?SW*0.25:16),d.y));
   _mapSignolDefs=_mapSignolDefs.filter(d=>_isValidEntityZone(d.x,d.y));
   if(_mapRopePickup){
     const r=_mapRopePickup;

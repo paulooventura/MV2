@@ -198,7 +198,7 @@ function _purgeBattleRivals(){
 function _purgeMinions(){
   for(let i=ENEMS.length-1;i>=0;i--){
     const e=ENEMS[i];
-    if(e.mind||e.type==='signol'||e._awdjooIsland) continue;
+    if(e.mind||e.type==='signol'||e._awdjooIsland||e._awdjooKeep) continue;
     ENEMS.splice(i,1);
   }
 }
@@ -1304,14 +1304,17 @@ function _spawnMapEnemies(){
   }
   _purgeMinions();
   for(const d of _mapMinionDefs){
-    if(!d._awdjooIsland&&_isBasementSpawnRow(d.row)) continue;
+    if(!d._awdjooIsland&&!d._awdjooKeep&&_isBasementSpawnRow(d.row)) continue;
     const feetY=d.y!=null?d.y:_spawnFeetFromHeadTop(d.headTopY);
-    if(!d._awdjooIsland&&feetY>=TMJ_BASEMENT_FEET_Y) continue;
+    if(!d._awdjooIsland&&!d._awdjooKeep&&feetY>=TMJ_BASEMENT_FEET_Y) continue;
     const range=Math.max(96,Math.min(200,140));
     const m=_mkMinion(d.x,feetY,d.kind,{
       mn:Math.floor(d.x-range),mx:Math.floor(d.x+range),
     });
     if(d._awdjooIsland) m._awdjooIsland=true;
+    if(d._awdjooKeep) m._awdjooKeep=true;
+    if(d._awdjooHill) m._awdjooHill=true;
+    if(m._awdjooIsland||m._awdjooKeep) m.og=true;
     ENEMS.push(m);
   }
 }

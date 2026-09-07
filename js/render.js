@@ -1821,6 +1821,54 @@ function drawKnowl(){
   }
 }
 
+function _ktFill(x,y,w,h,col){
+  ctx.fillStyle=col;
+  ctx.fillRect(x,y,w,h);
+}
+function drawKnowlTree(){
+  if(!_knowlTreeZone) return;
+  const feetY=_knowlTreeZone.feetY!=null?_knowlTreeZone.feetY:_knowlTreeZone.y+72;
+  const cx=_knowlTreeZone.x;
+  const bx=sx(cx), by=sy(feetY);
+  if(bx<-90||bx>W+90||by<-40||by>H+140) return;
+  const u=Math.max(1, sw(2));
+  const px=(ox,oy,w,h,col)=>_ktFill(bx+ox*u, by+oy*u, w*u, h*u, col);
+  px(-7,0,3,2,C.BROWN_D); px(4,0,3,2,C.BROWN_D);
+  px(-5,-1,2,2,C.BROWN); px(3,-1,2,2,C.BROWN);
+  px(-3,-22,6,22,C.BROWN_D);
+  px(-2,-22,4,21,C.BROWN);
+  px(-1,-21,1,18,C.TAN);
+  px(1,-20,1,8,C.BROWN_D);
+  px(-2,-8,1,3,C.BROWN_D);
+  px(-14,-36,28,16,C.GREEN_D);
+  px(-12,-40,24,12,C.GREEN);
+  px(-10,-44,20,10,C.GREEN_L);
+  px(-8,-47,16,7,C.MINT);
+  px(-16,-32,8,10,C.GREEN_D);
+  px(8,-33,8,10,C.GREEN_D);
+  px(-15,-34,7,8,C.GREEN);
+  px(8,-35,7,8,C.GREEN);
+  px(-6,-42,5,4,C.LIME);
+  px(2,-43,4,3,C.MINT);
+  px(-9,-45,3,2,C.LIME);
+  px(5,-46,2,2,'#d8f090');
+  const glow=(fr&1)?C.TEAL_L:C.CYAN;
+  px(-8,-28,2,2,C.GREEN_D);
+  px(-8,-26,3,3,C.TEAL_L);
+  px(-7,-25,1,1,C.WHITE);
+  px(6,-29,2,2,C.GREEN_D);
+  px(6,-27,3,3,glow);
+  px(7,-26,1,1,C.WHITE);
+  px(0,-30,2,2,C.GREEN_D);
+  px(0,-28,3,3,C.MINT);
+  px(1,-27,1,1,C.WHITE);
+  if(fr%20<14){
+    px(-11,-41,1,1,C.WHITE);
+    px(9,-39,1,1,C.LIME);
+    px(1,-48,1,1,C.TEAL_L);
+  }
+}
+
 function drawKnowlTreeAura(){
   if(!_knowlTreeZone) return;
   const tx=sx(_knowlTreeZone.x), ty=sy(_knowlTreeZone.y);

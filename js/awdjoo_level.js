@@ -84,10 +84,50 @@ function _ensureAwdjooLeftHouseEnemy(){
   }
 }
 
-/** Circle minion that rides the floating island. */
-function _ensureAwdjooIslandCircle(){
-  if(typeof _battleTestMode!=='undefined'&&_battleTestMode) return;
-  if(typeof _runTestMode!=='undefined'&&_runTestMode) return;
+function _awdjooSkipLabModes(){
+  if(typeof _battleTestMode!=='undefined'&&_battleTestMode) return true;
+  if(typeof _runTestMode!=='undefined'&&_runTestMode) return true;
+  return false;
+}
+
+function _awdjooFeetAt(col, row){
+  const {tw,th,sc}=_awdjooTwSc();
+  const cx=(col+0.5)*tw*sc;
+  let feet=row*th*sc;
+  if(typeof gridStandY==='function'){
+    const s=gridStandY(cx, feet+8, {maxUp:40, maxDrop:96});
+    if(s!=null) feet=s;
+  }
+  return {cx, feet, col, row};
+}
+
+/** Circle on the flat House 1 roof (left hilltop). Survives _purgeMinions. */
+function _ensureAwdjooHillCircle(){
+  if(_awdjooSkipLabModes()) return;
+  if(typeof _mapMinionDefs==='undefined'||!_mapMinionDefs) return;
+  const {cx, feet, col, row}=_awdjooFeetAt(AWdjoo_HOUSE1_ENEMY_COL, AWdjoo_HOUSE1_ENEMY_ROW);
+  for(let i=_mapMinionDefs.length-1;i>=0;i--){
+    if(_mapMinionDefs[i]&&_mapMinionDefs[i]._awdjooHill) _mapMinionDefs.splice(i,1);
+  }
+  const half=56;
+  _mapMinionDefs.push({
+    kind:'circle', x:cx, y:feet, row, col,
+    _awdjooHill:true, _awdjooKeep:true,
+  });
+  if(typeof ENEMS==='undefined'||typeof _mkMinion!=='function') return;
+  for(let i=ENEMS.length-1;i>=0;i--){
+    if(ENEMS[i]&&ENEMS[i]._awdjooHill) ENEMS.splice(i,1);
+  }
+  const m=_mkMinion(cx, feet, 'circle', {mn:Math.floor(cx-half), mx:Math.floor(cx+half), dir:1});
+  m._awdjooHill=true;
+  m._awdjooKeep=true;
+  m.og=true;
+  ENEMS.push(m);
+}
+
+/** Square minion that rides the floating island. */
+function _ensureAwdjooIslandSquare(){
+  if(_awdjooSkipLabModes()) return;
   const plat=(typeof APLAT!=='undefined'?APLAT:[]).find(a=>a&&a._awdjooIsland);
   if(!plat) return;
   if(typeof _mapMinionDefs==='undefined'||!_mapMinionDefs) return;
@@ -96,13 +136,46 @@ function _ensureAwdjooIslandCircle(){
   }
   const cx=plat.x+plat.w*0.5;
   _mapMinionDefs.push({
-    kind:'circle', x:cx, y:plat.y, row:0, col:0, _awdjooIsland:true,
+    kind:'square', x:cx, y:plat.y, row:0, col:0, _awdjooIsland:true,
   });
   if(typeof ENEMS==='undefined'||typeof _mkMinion!=='function') return;
-  if(ENEMS.some(e=>e&&e._awdjooIsland)) return;
-  const m=_mkMinion(cx, plat.y, 'circle', {mn:plat.x, mx:plat.x+plat.w, dir:1});
+  for(let i=ENEMS.length-1;i>=0;i--){
+    if(ENEMS[i]&&ENEMS[i]._awdjooIsland) ENEMS.splice(i,1);
+  }
+  const m=_mkMinion(cx, plat.y, 'square', {mn:plat.x, mx:plat.x+plat.w, dir:1});
   m._awdjooIsland=true;
+  m.og=true;
   ENEMS.push(m);
+}
+
+/** Sacred Knowl tree in House 2 basement, west of the RCA pickup. */
+function _ensureAwdjooKnowlTree(){
+  if(typeof _knowlTreeZone==='undefined') return;
+  if(_awdjooSkipLabModes()||!_isAwdjooCampaignMap()){
+    _knowlTreeZone=null;
+    return;
+  }
+  const {tw,th,sc}=_awdjooTwSc();
+  const col=24, row=AWdjoo_RCA_ROW;
+  const cx=(col+0.5)*tw*sc;
+  let feet=row*th*sc;
+  if(typeof gridStandY==='function'){
+    const s=gridStandY(cx, feet+8, {maxUp:48, maxDrop:120});
+    if(s!=null) feet=s;
+  }
+  _knowlTreeZone={
+    x:cx,
+    y:feet-72,
+    r:88,
+    feetY:feet,
+  };
+}
+
+/** Campaign minion seats + basement tree. Old name kept for boot call sites. */
+function _ensureAwdjooIslandCircle(){
+  _ensureAwdjooHillCircle();
+  _ensureAwdjooIslandSquare();
+  _ensureAwdjooKnowlTree();
 }
 
 function _rideAwdjooIslandMinions(){
@@ -173,7 +246,10 @@ function _awdjooLevelSnapshot(){
     goalOpen:!!goalOpen,
     win:!!win,
     leftHouseEnemy:false,
-    islandCircle:!!(_mapMinionDefs||[]).some(d=>d&&d._awdjooIsland),
+    hillCircle:!!(_mapMinionDefs||[]).some(d=>d&&d._awdjooHill&&d.kind==='circle'),
+    islandSquare:!!(_mapMinionDefs||[]).some(d=>d&&d._awdjooIsland&&d.kind==='square'),
+    islandCircle:false,
+    knowlTree:!!(typeof _knowlTreeZone!=='undefined'&&_knowlTreeZone),
     island:!!island,
   };
 }
