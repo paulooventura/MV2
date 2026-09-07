@@ -663,7 +663,7 @@ function updateCoopPlayer2(){
   p2.vy=Math.min(p2.vy+GRAV,14);
   _movePlayerWithColl(p2,p2.vx,p2.vy);
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
-  if(p2.y>WH+100){p2=mkP();p2.hero='venture';p2.x=p.x+36;p2.y=p.y;}
+  if(p2.y>WH+100){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.x=p.x+36;p2.y=p.y;}
   if(p2.inv>0) p2.inv--;
   for(const e of ENEMS){
     if(!_enemyCombatActive(e)) continue;
@@ -676,7 +676,7 @@ function updateCoopPlayer2(){
       p2.vx=Math.max(-5,Math.min(5,(p2.vx||0)*0.38+_k2.x));
       p2.vy=Math.max(-3,Math.min(1,Math.min(p2.vy||0,0.4)+_k2.y));
       sfx('hurt',_hitSfxPitch(p2.hp,p2.maxHp||PLAYER_MAX_HP));
-      if(p2.hp<=0){p2=mkP();p2.hero='venture';p2.x=p.x+36;p2.y=p.y;}
+      if(p2.hp<=0){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.x=p.x+36;p2.y=p.y;}
       break;
     }
   }

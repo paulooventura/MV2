@@ -56,6 +56,13 @@ function gridSolidBlocksX(c,r,contactX){
     const sy=gridSlopeY(c,sr,x);
     if(sy!=null&&sy<=r*t+0.5) return false;
   }
+  // Rounded slope shoulder: do not jam the wheel into the crest wall.
+  for(const dc of [-1,1]){
+    const kind=gridSlopeKind(c+dc,r)||gridSlopeKind(c+dc,r+1)||gridSlopeKind(c+dc,r-1);
+    if(!kind) continue;
+    if(kind==='L'&&dc===1&&Math.abs(x-(c+1)*t)<22) return false;
+    if(kind==='R'&&dc===-1&&Math.abs(x-c*t)<22) return false;
+  }
   return true;
 }
 
@@ -97,15 +104,33 @@ function gridSlopeY(c,r,wx){
   const kind=gridSlopeKind(c,r);
   if(!kind) return null;
   const s=gridSlopeAt(c,r);
+  let y;
   if(s){
     const dx=s.x2-s.x1;
-    if(Math.abs(dx)<0.001) return Math.min(s.y1,s.y2);
-    const u=Math.max(0,Math.min(1,(wx-s.x1)/dx));
-    return s.y1+(s.y2-s.y1)*u;
+    if(Math.abs(dx)<0.001) y=Math.min(s.y1,s.y2);
+    else{
+      const u=Math.max(0,Math.min(1,(wx-s.x1)/dx));
+      y=s.y1+(s.y2-s.y1)*u;
+    }
+  }else{
+    const local=Math.max(0,Math.min(t,(wx-c*t)));
+    y=kind==='L'?r*t+local:r*t+(t-local);
   }
-  const local=Math.max(0,Math.min(t,(wx-c*t)));
-  if(kind==='L') return r*t+local;
-  return r*t+(t-local);
+  const fillet=Math.min(t*0.42, 14);
+  if(kind==='L'){
+    const d=wx-c*t;
+    if(d>=0&&d<fillet){
+      const bump=fillet-Math.sqrt(Math.max(0,fillet*fillet-(fillet-d)*(fillet-d)));
+      y+=bump*0.55;
+    }
+  }else{
+    const d=(c+1)*t-wx;
+    if(d>=0&&d<fillet){
+      const bump=fillet-Math.sqrt(Math.max(0,fillet*fillet-(fillet-d)*(fillet-d)));
+      y+=bump*0.55;
+    }
+  }
+  return y;
 }
 
 function _gridReadTilesetSlopes(data){

@@ -25,6 +25,8 @@ const MAPED={
   hits:[],
   toast:'', toastF:0,
   palettePage:0,
+  rot:0,
+  face:1,
 };
 
 const MAPED_LAYERS=[
@@ -47,13 +49,15 @@ const MAPED_COLL=[
   {id:5, label:'SL /'},
 ];
 const MAPED_ENEMIES=[
-  {id:'ball', label:'BALL'},
-  {id:'square', label:'SQR'},
-  {id:'triangle', label:'TRI'},
-  {id:'star', label:'STAR'},
+  {id:'ball', label:'BALL', kind:'mind'},
+  {id:'square', label:'SQR', kind:'mind'},
+  {id:'triangle', label:'TRI', kind:'mind'},
+  {id:'star', label:'STAR', kind:'mind'},
+  {id:'circle', label:'CIRC', kind:'minion'},
+  {id:'flyer', label:'FLY', kind:'minion'},
 ];
-const MAPED_PANEL=236;
-const MAPED_PAL_H=72;
+const MAPED_PANEL=252;
+const MAPED_PAL_H=92;
 const MAPED_PIN={
   mind:'#e8a0ff', signol:'#ff8844', minion:'#66e0a8',
   player:'#6cff7a', laitu:'#a8d4ff',
@@ -76,7 +80,22 @@ function _mapEdTile(){
 }
 function _mapEdWorld(mx,my){
   const z=typeof camZoom==='undefined'?1:camZoom;
-  return {x:mx/z+(typeof camX==='undefined'?0:camX), y:my/z+(typeof camY==='undefined'?0:camY)};
+  const ox=typeof _mapEdScreenOx==='function'?_mapEdScreenOx():MAPED_PANEL;
+  return {x:(mx-ox)/z+(typeof camX==='undefined'?0:camX), y:my/z+(typeof camY==='undefined'?0:camY)};
+}
+function _mapEdRotGid(gid){
+  gid=(gid|0)&0x1FFFFFFF;
+  if(!gid) return 0;
+  const r=MAPED.rot&3;
+  if(r===1) return gid|0x20000000|0x80000000;
+  if(r===2) return gid|0x80000000|0x40000000;
+  if(r===3) return gid|0x20000000|0x40000000;
+  return gid;
+}
+function _mapEdCycleRot(){
+  MAPED.rot=(MAPED.rot+1)&3;
+  MAPED.face=MAPED.rot===1||MAPED.rot===2?-1:1;
+  _mapEdToast('Rotate '+(['0°','90°','180°','270°'][MAPED.rot])+'  face '+(MAPED.face>0?'RIGHT':'LEFT'));
 }
 function _mapEdCell(wx,wy){
   const t=_mapEdTile();
@@ -229,7 +248,7 @@ function _mapEdPaintAt(c,r,erase){
   if(MAPED.tool==='paint'){
     if(MAPED.role!=='collision'){
       const arr=_mapEdEnsureLayer(MAPED.layer);
-      if(arr){ arr[i]=MAPED.gid; _mapEdRecordTile(MAPED.layer,i,MAPED.gid); }
+      if(arr){ const packed=_mapEdRotGid(MAPED.gid); arr[i]=packed; _mapEdRecordTile(MAPED.layer,i,packed); }
     }
     if(MAPED.role!=='scenario'&&typeof gridSet==='function'){
       let coll=MAPED.coll;
@@ -253,19 +272,19 @@ function _mapEdFocus(wx,wy){
 function _mapEdListSpawns(){
   const t=_mapEdTile();
   const out=[], seen=new Set();
-  const add=(kind,label,wx,wy,col,row,src,idx)=>{
+  const add=(kind,label,wx,wy,col,row,src,idx,face)=>{
     if(!isFinite(wx)||!isFinite(wy)) return;
     const key=kind+','+Math.round(wx/8)+','+Math.round(wy/8);
     if(seen.has(key)) return;
     seen.add(key);
-    out.push({kind,label,wx,wy,col,row,src,idx});
+    out.push({kind,label,wx,wy,col,row,src,idx,face:face==null?1:face});
   };
   if(typeof _mapEnemyDefs!=='undefined'){
     for(let i=0;i<_mapEnemyDefs.length;i++){
       const d=_mapEnemyDefs[i]; if(!d) continue;
       const wx=d.x!=null?d.x+(typeof SW!=='undefined'?SW/2:32):((d.col+0.5)*t);
       const wy=d.y!=null?d.y:((d.row+1)*t);
-      add('mind',_mapEdEnemyLabel(d.shape),wx,wy,d.col,d.row,'edef',i);
+      add('mind',_mapEdEnemyLabel(d.shape),wx,wy,d.col,d.row,'edef',i,d.dir);
     }
   }
   if(typeof _mapSignolDefs!=='undefined'){
@@ -277,7 +296,7 @@ function _mapEdListSpawns(){
   if(typeof _mapMinionDefs!=='undefined'){
     for(let i=0;i<_mapMinionDefs.length;i++){
       const d=_mapMinionDefs[i]; if(!d) continue;
-      add('minion',String(d.kind||'MIN').toUpperCase().slice(0,4),d.x,d.y||0,d.col,d.row,'mdef',i);
+      add('minion',String(d.kind||'MIN').toUpperCase().slice(0,4),d.x,d.y||0,d.col,d.row,'mdef',i,d.dir);
     }
   }
   if(typeof ENEMS!=='undefined'){
@@ -306,28 +325,30 @@ function _mapEdHitSpawn(wx,wy,list){
   }
   return best;
 }
+function _mapEdDrawActorSprite(kind,label,x,y,face,sel){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(face<0?-1:1,1);
+  if(kind==='player'||kind==='mind'||kind==='laitu'){
+    const hero=kind==='player'?(typeof _heroChoice!=='undefined'?_heroChoice:'mind'):'venture';
+    if(typeof drawWheel==='function') drawWheel(0,0,0,{hero,vx:0,wallGrip:0,duckCharge:0,runRamp:0,duckBoostReady:false,_wheelHostile:kind!=='player'});
+    if(typeof drawHead==='function') drawHead(0,-38,0,0,0,hero,0,null,0,0,0,false,kind!=='player');
+  }else{
+    ctx.fillStyle=kind==='signol'?'#ff8844':'#e05050';
+    ctx.beginPath(); ctx.arc(0,-22,18,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(4,-24,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(5,-25,2,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle='rgba(8,6,16,0.75)';
+  ctx.fillRect(x-18,y-72,36,12);
+  drawTextC(label,x,y-70,sel?C.WHITE:C.SILVER,1);
+  if(sel){ ctx.strokeStyle='#ffe46a'; ctx.lineWidth=2; ctx.strokeRect(x-24,y-78,48,86); }
+}
 function _mapEdDrawPin(sp,sel){
   const x=sx(sp.wx), y=sy(sp.wy);
-  if(x<-40||x>W+40||y<-50||y>H+40) return;
-  const col=MAPED_PIN[sp.kind]||'#ffe46a';
-  const pulse=sel||MAPED.tool==='enemy';
-  ctx.fillStyle='rgba(0,0,0,0.55)';
-  ctx.fillRect(x-6,y-36,44,20);
-  ctx.fillStyle=col;
-  ctx.fillRect(x-1,y-32,3,32);
-  ctx.fillRect(x-5,y-36,40,16);
-  ctx.fillStyle='#0a0810';
-  drawText(sp.label,x-3,y-33,C.BLACK,1);
-  ctx.fillStyle=col;
-  ctx.beginPath();
-  ctx.moveTo(x,y+3); ctx.lineTo(x-5,y-5); ctx.lineTo(x+5,y-5);
-  ctx.closePath(); ctx.fill();
-  if(pulse){
-    ctx.strokeStyle=col;
-    ctx.lineWidth=sel?3:2;
-    const r=10+((fr>>2)&3);
-    ctx.strokeRect((x-r)|0,(y-r)|0,r*2,r*2);
-  }
+  if(x<-60||x>W+60||y<-80||y>H+40) return;
+  _mapEdDrawActorSprite(sp.kind,sp.label,x,y,sp.face||MAPED.face||1,sel);
 }
 
 function _mapEdPlaceEnemy(c,r){
@@ -339,23 +360,30 @@ function _mapEdPlaceEnemy(c,r){
     const s=gridStandY(cx, feet, {maxUp:t, maxDrop:t*3});
     if(s!=null) feet=s;
   }
-  const shape=MAPED.enemy;
-  if(typeof _mkMindEnemy==='function'){
-    ENEMS.push(_mkMindEnemy(shape,cx,feet,{
+  const spec=MAPED_ENEMIES.find(e=>e.id===MAPED.enemy)||{id:MAPED.enemy,kind:'mind'};
+  const dir=MAPED.face||1;
+  if(spec.kind==='minion'&&typeof _mkMinion==='function'){
+    const m=_mkMinion(cx,feet,spec.id,{mn:Math.floor(cx-140),mx:Math.floor(cx+140),dir});
+    ENEMS.push(m);
+    if(typeof _mapMinionDefs!=='undefined') _mapMinionDefs.push({kind:spec.id,x:cx,y:feet,col:c,row:r,dir});
+  }else if(typeof _mkMindEnemy==='function'){
+    const e=_mkMindEnemy(spec.id,cx,feet,{
       mn:Math.floor(cx-140), mx:Math.floor(cx+140), campaignAi:true,
-    }));
-  }
-  if(typeof _mapEnemyDefs!=='undefined'){
-    _mapEnemyDefs.push({
-      shape, x:Math.floor(cx-(typeof SW!=='undefined'?SW/2:32)), y:feet,
-      col:c, row:r, mn:Math.floor(cx-140), mx:Math.floor(cx+140),
     });
+    e.fc=dir>0; e.dir=dir;
+    ENEMS.push(e);
+    if(typeof _mapEnemyDefs!=='undefined'){
+      _mapEnemyDefs.push({
+        shape:spec.id, x:Math.floor(cx-(typeof SW!=='undefined'?SW/2:32)), y:feet,
+        col:c, row:r, mn:Math.floor(cx-140), mx:Math.floor(cx+140), dir,
+      });
+    }
   }
   _mapEdWritePatch(p=>{
     p.enemies=p.enemies||[];
-    p.enemies.push({op:'add',col:c,row:r,shape});
+    p.enemies.push({op:'add',col:c,row:r,shape:spec.id,kind:spec.kind,dir});
   });
-  _mapEdToast('Enemy '+shape+' @ '+c+','+r);
+  _mapEdToast((spec.label||spec.id)+' @ '+c+','+r);
 }
 function _mapEdRemoveEnemyAt(wx,wy){
   const hit=_mapEdHitSpawn(wx,wy,_mapEdListSpawns());
@@ -419,18 +447,18 @@ function _mapEdPaletteGids(){
       if(!arr) continue;
       for(let i=0;i<arr.length;i++){
         const g=typeof _tmjGid==='function'?_tmjGid(arr[i]):arr[i];
-        if(g&&g<157) used.add(g);
+        if(g&&g<400) used.add(g);
       }
     }
   }
-  if(!used.size){ for(let g=1;g<=48;g++) used.add(g); }
+  for(let g=1;g<=96;g++) used.add(g);
   const list=[...used].sort((a,b)=>a-b);
   if(!list.includes(MAPED.gid)) list.unshift(MAPED.gid);
   return list;
 }
 
 function _mapEdInUi(mx,my){
-  return mx<MAPED_PANEL || (MAPED.tool!=='enemy'&&my>H-MAPED_PAL_H);
+  return mx<MAPED_PANEL || (MAPED.tool!=='enemy'&&my>H-MAPED_PAL_H&&mx>=MAPED_PANEL);
 }
 
 function _mapEdClickUi(mx,my){
@@ -506,34 +534,40 @@ function drawMapEditOverlay(){
   ctx.strokeStyle=MAPED.tool==='enemy'?'#e8a0ff':'#ffe46a'; ctx.lineWidth=2;
   ctx.strokeRect(hx+0.5,hy+0.5,t-1,t-1);
   if(MAPED.tool==='enemy'){
-    _mapEdDrawPin({kind:'mind',label:_mapEdEnemyLabel(MAPED.enemy),wx:(cell.c+0.5)*t,wy:(cell.r+1)*t},true);
+    const spec=MAPED_ENEMIES.find(e=>e.id===MAPED.enemy);
+    _mapEdDrawActorSprite(spec&&spec.kind==='minion'?'minion':'mind',_mapEdEnemyLabel(MAPED.enemy),hx+t*0.5,hy+t,MAPED.face,true);
   }
 
-  ctx.fillStyle='rgba(8,6,16,0.94)';
+  ctx.fillStyle='#0a0814';
   ctx.fillRect(0,0,MAPED_PANEL,H);
-  ctx.strokeStyle='rgba(140,200,255,0.4)';
-  ctx.strokeRect(0.5,0.5,MAPED_PANEL-1,H-1);
+  ctx.fillStyle='rgba(80,180,255,0.18)';
+  ctx.fillRect(MAPED_PANEL-2,0,2,H);
 
-  let y=10;
-  drawText('AWDJOO EDIT',10,y,C.CYAN,2); y+=20;
-  drawText('` / F2 EXIT',10,y,C.SILVER,1); y+=16;
+  let y=12;
+  drawText('AWDJOO EDIT',12,y,C.CYAN,2); y+=18;
+  drawText('F2  leave editor',12,y,C.STEEL,1); y+=18;
 
   const btn=(label,on,fn,x,bw,h)=>{
-    const xx=x==null?10:x, hh=h||24, ww=bw||(MAPED_PANEL-20);
-    ctx.fillStyle=on?'rgba(80,200,255,0.4)':'rgba(255,255,255,0.06)';
+    const xx=x==null?12:x, hh=h||28, ww=bw||(MAPED_PANEL-24);
+    ctx.fillStyle=on?'#245a78':'#1a1624';
     ctx.fillRect(xx,y,ww,hh);
-    if(on){ ctx.strokeStyle='#9ef'; ctx.strokeRect(xx+0.5,y+0.5,ww-1,hh-1); }
-    drawText(label,xx+6,y+5,on?C.WHITE:C.SILVER,1);
+    ctx.strokeStyle=on?'#9ef':'#3a3450';
+    ctx.strokeRect(xx+0.5,y+0.5,ww-1,hh-1);
+    drawText(label,xx+8,y+7,on?C.WHITE:C.SILVER,1);
     _mapEdHit(xx,y,ww,hh,fn);
     return hh;
   };
+  drawText('TOOL',12,y,C.STEEL,1); y+=14;
   const tools=[{id:'paint',label:'PAINT'},{id:'erase',label:'ERASE'},{id:'enemy',label:'SPAWN'}];
-  let tx=10;
+  let tx=12;
   for(const it of tools){
-    btn(it.label,MAPED.tool===it.id,()=>{MAPED.tool=it.id;},tx,70);
-    tx+=74;
+    btn(it.label,MAPED.tool===it.id,()=>{MAPED.tool=it.id;},tx,72,28);
+    tx+=78;
   }
-  y+=30;
+  y+=34;
+  drawText('TURN',12,y,C.STEEL,1); y+=14;
+  btn((['0°','90°','180°','270°'][MAPED.rot])+'  FACE '+(MAPED.face>0?'→':'←'),false,()=>_mapEdCycleRot(),12,MAPED_PANEL-24,28);
+  y+=34;
 
   const chips=(items,get,set,w)=>{
     let x=10;
@@ -601,26 +635,44 @@ function drawMapEditOverlay(){
   drawText('CELL '+cell.c+','+cell.r,10,y,C.SILVER,1);
 
   if(MAPED.tool!=='enemy'){
-    ctx.fillStyle='rgba(8,6,16,0.94)';
-    ctx.fillRect(0,H-MAPED_PAL_H,W,MAPED_PAL_H);
-    ctx.strokeStyle='rgba(140,200,255,0.3)';
-    ctx.strokeRect(0.5,H-MAPED_PAL_H+0.5,W-1,MAPED_PAL_H-1);
-    const gids=_mapEdPaletteGids();
-    const cellS=44, pad=6;
-    const startX=MAPED_PANEL+8;
-    let px=startX, py=H-MAPED_PAL_H+16;
-    drawText('TILES',startX,H-MAPED_PAL_H+4,C.SILVER,1);
-    for(const g of gids){
-      if(px+cellS>W-8) break;
-      ctx.fillStyle=g===MAPED.gid?'rgba(255,228,100,0.35)':'rgba(255,255,255,0.06)';
+    ctx.fillStyle='#0a0814';
+    ctx.fillRect(MAPED_PANEL,H-MAPED_PAL_H,W-MAPED_PANEL,MAPED_PAL_H);
+    ctx.fillStyle='rgba(80,180,255,0.18)';
+    ctx.fillRect(MAPED_PANEL,H-MAPED_PAL_H,W-MAPED_PANEL,2);
+    const all=_mapEdPaletteGids();
+    const cellS=36, pad=4;
+    const startX=MAPED_PANEL+10;
+    const cols=Math.max(1,Math.floor((W-MAPED_PANEL-80)/(cellS+pad)));
+    const rows=2;
+    const per=cols*rows;
+    const pages=Math.max(1,Math.ceil(all.length/per));
+    if(MAPED.palettePage>=pages) MAPED.palettePage=0;
+    const slice=all.slice(MAPED.palettePage*per,(MAPED.palettePage+1)*per);
+    drawText('TILES  '+ (MAPED.palettePage+1)+'/'+pages+'   V ROTATE',startX,H-MAPED_PAL_H+4,C.SILVER,1);
+    let px=startX, py=H-MAPED_PAL_H+18, n=0;
+    const fl=typeof _tmjFlipFlags==='function'?_tmjFlipFlags(_mapEdRotGid(MAPED.gid)):{h:false,v:false,d:false};
+    for(const g of slice){
+      ctx.fillStyle=g===MAPED.gid?'rgba(255,228,100,0.35)':'#1a1624';
       ctx.fillRect(px,py,cellS,cellS);
-      if(typeof _drawTmjTileGid==='function')
-        _drawTmjTileGid(g,px+6,py+6,8,8,4);
+      if(typeof _drawTmjTileGid==='function'){
+        const show=g===MAPED.gid?_mapEdRotGid(g):g;
+        const f=g===MAPED.gid?fl:{h:false,v:false,d:false};
+        _drawTmjTileGid((show|0)&0x1FFFFFFF,px+4,py+4,7,7,4,f.h,f.v,f.d);
+      }
       if(g===MAPED.gid){ ctx.strokeStyle='#ffe46a'; ctx.strokeRect(px+0.5,py+0.5,cellS-1,cellS-1); }
       const gid=g;
       _mapEdHit(px,py,cellS,cellS,()=>{_mapEdSetGid(gid); MAPED.tool='paint';});
-      px+=cellS+pad;
+      n++; px+=cellS+pad;
+      if(n%cols===0){ px=startX; py+=cellS+pad; }
     }
+    const navY=H-MAPED_PAL_H+18;
+    const nx=W-70;
+    ctx.fillStyle='#1a1624'; ctx.fillRect(nx,navY,28,28); ctx.strokeStyle='#3a3450'; ctx.strokeRect(nx+0.5,navY+0.5,27,27);
+    drawText('<',nx+8,navY+7,C.WHITE,1);
+    _mapEdHit(nx,navY,28,28,()=>{MAPED.palettePage=(MAPED.palettePage+pages-1)%pages;});
+    ctx.fillStyle='#1a1624'; ctx.fillRect(nx+32,navY,28,28); ctx.strokeStyle='#3a3450'; ctx.strokeRect(nx+32.5,navY+0.5,27,27);
+    drawText('>',nx+40,navY+7,C.WHITE,1);
+    _mapEdHit(nx+32,navY,28,28,()=>{MAPED.palettePage=(MAPED.palettePage+1)%pages;});
   }
 
   if(MAPED.toastF>0){
@@ -680,6 +732,7 @@ function _mapEdBind(){
       MAPED.tool='enemy'; _mapEdToast('Spawn '+_mapEdEnemyLabel(MAPED.enemy));
     }
     if(e.code==='KeyG'){ MAPED.showColl=!MAPED.showColl; }
+    if(e.code==='KeyV'){ _mapEdCycleRot(); e.preventDefault(); }
     if(e.code==='Tab'){
       const i=MAPED_ROLES.findIndex(r=>r.id===MAPED.role);
       MAPED.role=MAPED_ROLES[(i+1)%MAPED_ROLES.length].id;

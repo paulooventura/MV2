@@ -774,7 +774,8 @@ function initWorld(){
     if(typeof _setupAwdjooCampaignGoal==='function') _setupAwdjooCampaignGoal();
     else GOALPL={x:-999,y:0,w:1,h:1};
     console.info('MV world boot:',ENEMS.length,'enemies,',KDROP.length,'knowls, spawn',_spawnX,_spawnY,'cam',Math.round(camX),Math.round(camY),'segs',COLL_SEGS.length,'tmj',!!_tmjDraw);
-    if(_playerCount===2){ p2=mkP(); p2.hero=(_heroChoice==='mind'?'venture':'mind'); p2.x=p.x+34; p2.y=p.y; p2.vx=0;p2.vy=0;p2.og=true; }
+    if(typeof _spawnPartner==='function') _spawnPartner();
+    else if(_playerCount===2){ p2=mkP(); p2.hero=(_heroChoice==='mind'?'venture':'mind'); p2.x=p.x+34; p2.y=p.y; p2.vx=0;p2.vy=0;p2.og=true; }
     else p2=null;
     if(_pendingZone>0){const z=_pendingZone;_pendingZone=0;_enterZone(z);}
   };
@@ -838,8 +839,7 @@ function update(){
   const up=isUp(),dn=isDn(),lf=isLf(),rt=isRt();
   const adx=(rt?1:0)-(lf?1:0), ady=(dn?1:0)-(up?1:0);
   const _punchingNow=isPunch()||p.pCharging||p.pt>0;
-  if(!p.og&&dn&&!up&&(!adx||ady>=Math.abs(adx))){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
-  else if(adx||ady){const l=Math.hypot(adx,ady);p.tAimDX=adx/l;p.tAimDY=ady/l;p._hasAimInput=true;}
+  if(adx||ady){const l=Math.hypot(adx,ady);p.tAimDX=adx/l;p.tAimDY=ady/l;p._hasAimInput=true;}
   else if(dn&&_punchingNow){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
   else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=0;p.tAimDY=0;}}
   if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
@@ -1016,7 +1016,7 @@ function update(){
     }
   }
 
-  if(_playerCount===2) updateCoopPlayer2();
+  if(p2){ if(p2._aiCompanion&&typeof _updateCompanionAI==='function') _updateCompanionAI(); else if(_playerCount===2) updateCoopPlayer2(); }
 
   updateBWalls();
   _stabilizePlayerCollision(p); if(p2)_stabilizePlayerCollision(p2);
@@ -1080,10 +1080,10 @@ function draw(){
   p._armPose=computeConnectorArmPose(p); if(p2)p2._armPose=computeConnectorArmPose(p2);
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
-  if(_playerCount===2&&p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow(); drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
-  if(_playerCount===2&&p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText('P2 HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
+  if(p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText((p2._aiCompanion?'ALLY':'P2')+' HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
   if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-140,H*0.40,280,48);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.41),C.LILAC,2);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.41)+22,C.PURPLE_L,2);}}
   if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-28,C.RED_L,4);drawTextC('5 SHUTDOWNS',W/2,H/2+8,C.LILAC,3);drawTextC('TAB TO RETRY',W/2,H/2+40,C.GREY,2);}
   if(_zoneCardT>0){_zoneCardT--;if(_zoneCardT>10||(fr&1)===0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,Math.round(H*0.30),W,52);drawTextC(_runTestMode?'RUN TEST GROUND':(_battleTestMode?'BATTLE PRACTICE':ZONES[_zoneIdx].name.toUpperCase()),W/2,Math.round(H*0.30)+8,C.YELLOW,3);drawTextC(_runTestMode?'ROLL OVER BUMPS - TEST SUSPENSION':(_battleTestMode?'VS SIGNOL - GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length),W/2,Math.round(H*0.30)+32,C.GREY,2);}}

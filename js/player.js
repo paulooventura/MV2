@@ -276,6 +276,50 @@ function mkP(){ return {
 let p=null, fr=0, win=false;
 let p2=null;
 
+function _spawnPartner(){
+  if(typeof location!=='undefined'&&/[?&](selftest|ci)=/i.test(location.search||'')&&_playerCount!==2){
+    p2=null; return;
+  }
+  p2=mkP();
+  p2.hero=(_heroChoice==='mind'?'venture':'mind');
+  p2._aiCompanion=_playerCount!==2;
+  p2.x=p.x+36; p2.y=p.y; p2.vx=0; p2.vy=0; p2.og=true;
+  p2.fc=!!p.fc;
+}
+function _updateCompanionAI(){
+  if(!p2||!p) return;
+  _coopRollX0=p2.x; _coopRollY0=p2.y;
+  const followX=p.x-(p.fc?50:-50);
+  const dx=followX-p2.x;
+  const distX=Math.abs(p.x-p2.x), distY=Math.abs(p.y-p2.y);
+  if(distX>300||distY>240){
+    p2.x=followX; p2.y=p.y; p2.vx=(p.vx||0)*0.35; p2.vy=0; p2.og=!!p.og;
+  }else{
+    const cap=(typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5)*0.9;
+    if(Math.abs(dx)>16){
+      const dir=Math.sign(dx);
+      p2.vx+=(dir*(typeof MOVE_ACCEL!=='undefined'?MOVE_ACCEL:0.4)*0.9);
+      p2.vx=Math.max(-cap,Math.min(cap,p2.vx));
+      p2.fc=dir>0;
+    }else{
+      p2.vx*=(typeof MOVE_STOP!=='undefined'?MOVE_STOP:0.78);
+      if(Math.abs(p2.vx)<0.18) p2.vx=0;
+      p2.fc=p.fc;
+    }
+    if(p2.og&&!p.og&&p.vy<(typeof JI!=='undefined'?JI: -3)*0.35){
+      p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false;
+    }
+  }
+  p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+  p2.vy=Math.min((p2.vy||0)+(typeof GRAV!=='undefined'?GRAV:0.52),14);
+  if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(p2,p2.vx,p2.vy);
+  if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
+  if(p2.inv>0) p2.inv--;
+  if(p2.y>(typeof WH!=='undefined'?WH:3000)+120){
+    p2.x=followX; p2.y=p.y; p2.vy=0; p2.og=true;
+  }
+}
+
 // ── Player movement X ─────────────────────────────────────────
 function _updatePlayerMoveX(pl){
   if(pl!==p) return;
@@ -461,7 +505,10 @@ function ropePlayerEndWorld(){
 // ── Fire item ─────────────────────────────────────────────────
 function fireItem(charged=false){
   if(ITEM<0||!_itemUnlocked(ITEM)) return;
-  const a=Math.atan2(p.aimDY,p.aimDX);
+  const ax=(p._hasAimInput&&p.tAimDX!=null)?p.tAimDX:p.aimDX;
+  const ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
+  p.aimDX=ax; p.aimDY=ay;
+  const a=Math.atan2(ay,ax);
   const shotA=(ITEM===0&&p.crouchAmt>0.18&&p.og)?connectorAimAngle():a;
   if(Math.cos(a)>0.05) p.fc=true; else if(Math.cos(a)<-0.05) p.fc=false;
   const c=connectorTipWorld(ITEM);

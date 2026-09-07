@@ -344,13 +344,21 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
-  const brimY=drawY-R+4+ty;
-  ctx.fillStyle='#080808';ctx.beginPath();ctx.roundRect(cx-14+tx,brimY-10,28,12,4);ctx.fill();
-  ctx.fillStyle='#581018';ctx.fillRect(cx-12+tx,brimY-8,24,8);
-  ctx.fillStyle='#a83040';ctx.fillRect(cx-11+tx,brimY-7,22,4);
-  ctx.fillStyle='#d85868';ctx.fillRect(cx-8+tx,brimY-8,10,2);
-  ctx.fillStyle='#300810';ctx.fillRect(cx-18+tx,brimY+1,36,4);
-  ctx.fillStyle='#581018';ctx.fillRect(cx-16+tx,brimY+2,32,2);
+  const facing=p&&p.fc!==false;
+  const back=facing?-1:1;
+  const crownY=drawY-R-1+ty;
+  ctx.fillStyle='#1a0408';
+  ctx.beginPath();ctx.ellipse(cx+tx+back*7,crownY+8,8,6,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#3a0810';
+  ctx.beginPath();ctx.ellipse(cx+tx,crownY+6,13,9,0,Math.PI,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#8a2030';
+  ctx.beginPath();ctx.ellipse(cx+tx,crownY+5,11,7.5,0,Math.PI,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#c43848';
+  ctx.beginPath();ctx.ellipse(cx+tx-1,crownY+3,6,4,0,Math.PI,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#2a0810';
+  ctx.fillRect(cx-12+tx,crownY+8,24,3);
+  ctx.fillStyle='#e86878';
+  ctx.beginPath();ctx.arc(cx+tx,crownY-1,2.1,0,Math.PI*2);ctx.fill();
 }
 
 /* -- Lightbulb head â€” glass, iris, wide hat -- */
@@ -376,21 +384,22 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   ctx.beginPath();ctx.ellipse(cx,drawY,R+3,R+4,0,0,Math.PI*2);ctx.fillStyle='rgba(20,20,10,0.4)';ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle='#141410';ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY,R-2,R,0,0,Math.PI*2);ctx.fillStyle='#100e0c';ctx.fill();
-  let scleraCol=hostile?'#e87878':'#d0d4dc';
+  const isVen=!hostile&&hero==='venture';
+  let scleraCol=hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
   if(lampReady&&!hostile) scleraCol=`rgb(${200+Math.round(Math.sin(fr*0.2)*30)},255,${210+Math.round(Math.sin(fr*0.17)*25)})`;
-  let irisCol=hostile?'#882018':'#2a4888';
-  let irisDark=hostile?'#5a1010':'#18306a';
+  let irisCol=hostile?'#882018':(isVen?'#882028':'#2a4888');
+  let irisDark=hostile?'#5a1010':(isVen?'#541018':'#18306a');
   if(!hostile&&cg>0.05){
     const g=cg;
-    irisCol=_mixHex('#2a4888','#28a050',g);
-    irisDark=_mixHex('#18306a','#184820',g);
+    irisCol=_mixHex(isVen?'#882028':'#2a4888','#28a050',g);
+    irisDark=_mixHex(isVen?'#541018':'#18306a','#184820',g);
     if(lampReady){ irisCol='#38c868'; irisDark='#1a6838'; }
   }
   ctx.beginPath();ctx.ellipse(cx,drawY+2,10,9,0,0,Math.PI*2);ctx.fillStyle=scleraCol;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,6,6,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5,5,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5.5,5.5,0,0,Math.PI*2);
-  ctx.strokeStyle=hostile?'#cc4040':(cg>0.05?'#48c878':'#3a5aaa');ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#aa3040':'#3a5aaa'));ctx.lineWidth=1;ctx.stroke();
   const px=cx+pupilX,py=drawY+2+pupilY;
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();

@@ -121,8 +121,16 @@ function _initCamZoom(){
   camZoomTgt = 1/SMS_SCALE;
 }
 
-function camViewW(){ return W/camZoom; }
-function camViewH(){ return H/camZoom; }
+function _mapEdScreenOx(){
+  return (typeof _mapEdActive!=='undefined'&&_mapEdActive&&typeof MAPED_PANEL==='number')?MAPED_PANEL:0;
+}
+function _mapEdScreenOy(){
+  if(typeof _mapEdActive==='undefined'||!_mapEdActive) return 0;
+  if(typeof MAPED!=='undefined'&&MAPED.tool==='enemy') return 0;
+  return typeof MAPED_PAL_H==='number'?MAPED_PAL_H:0;
+}
+function camViewW(){ return (W-_mapEdScreenOx())/camZoom; }
+function camViewH(){ return (H-_mapEdScreenOy())/camZoom; }
 function camClampX(x){ return Math.max(0,Math.min(Math.max(0,WW-camViewW()),x)); }
 function camClampY(y){ return Math.max(0,Math.min(Math.max(0,WH-camViewH()),y)); }
 // Single follow anchor — feet at ~40% width, vertical center (matches spawn snap).
@@ -153,8 +161,13 @@ function _snapRenderCam(){
   if(MV2_VISUAL){ _rcamX=camX; _rcamY=camY; }
   else{ _rcamX=Math.floor(camX/SMS_SCALE)*SMS_SCALE; _rcamY=Math.floor(camY/SMS_SCALE)*SMS_SCALE; }
 }
-function sx(x){ return MV2_VISUAL?Math.round(x-_rcamX):Math.floor((x-_rcamX)/SMS_SCALE); }
-function sy(y){ return MV2_VISUAL?Math.round(y-_rcamY):Math.floor((y-_rcamY)/SMS_SCALE); }
+function sx(x){
+  const ox=_mapEdScreenOx();
+  return MV2_VISUAL?Math.round(x-_rcamX+ox):Math.floor((x-_rcamX)/SMS_SCALE)+ox;
+}
+function sy(y){
+  return MV2_VISUAL?Math.round(y-_rcamY):Math.floor((y-_rcamY)/SMS_SCALE);
+}
 function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floor(v/SMS_SCALE)); }
 function _syncGameCamera(){
   if(_gameState!=='game'||!p) return;
