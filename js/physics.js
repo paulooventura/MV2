@@ -13,7 +13,7 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=58;
+const MOVE_BUILD=59;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=12.4;
@@ -22,14 +22,15 @@ const MOVE_RUN_ACCEL=0.46;
 const MOVE_AIR=0.42;
 const MOVE_POWER=0.020;
 const MOVE_TORQUE=0.38;
-const MOVE_STOP=0.78;
+const MOVE_STOP=0.91;
+const MOVE_RUN_COAST=0.958;
 const MOVE_TURN=1.45;
 const MOVE_RUN_RAMP=0.05;
 const WHEEL_GRIP_BASE=0.91;
 const WHEEL_ROLL_RESIST=0.011;
 const WHEEL_DRIVE_TORQUE=0.92;
 const WHEEL_COAST_FRIC=0.987;
-const WHEEL_GRADE_RESIST=0.22;
+const WHEEL_GRADE_RESIST=0.34;
 // Weight on the slope before the wheel commits and starts to roll.
 const WHEEL_SLOPE_COMMIT=0.40;
 // Share of gravity that reaches the contact patch — sets how hard it pulls.
@@ -37,8 +38,8 @@ const WHEEL_SLOPE_GRAV=0.82;
 // Quadratic drag: this, not a hard clamp, is what gives a downhill terminal speed.
 const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
-const WHEEL_UPHILL_DRAG=1.15;
-const WHEEL_UPHILL_RUN_RELIEF=0.94;
+const WHEEL_UPHILL_DRAG=1.85;
+const WHEEL_UPHILL_RUN_RELIEF=0.48;
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
@@ -908,9 +909,9 @@ function _applySlopePhysics(pl){
   pl.vx-=Math.sign(pl.vx)*WHEEL_SLOPE_DRAG*pl.vx*pl.vx;
 
     if(driving){
-    pl.vx+=input*WHEEL_DRIVE_TORQUE*(climbing?1.55:0.55)*ease;
+    pl.vx+=input*WHEEL_DRIVE_TORQUE*(climbing?0.58:0.55)*ease;
     if(climbing){
-      const relief=1-WHEEL_UPHILL_RUN_RELIEF*Math.max(run, driving?0.35:0);
+      const relief=1-WHEEL_UPHILL_RUN_RELIEF*Math.max(run, driving?0.2:0);
       pl.vx-=input*Math.abs(pull)*WHEEL_UPHILL_DRAG*relief;
       pl.vx-=Math.sign(pl.vx||input)*Math.abs(pull)*WHEEL_GRADE_RESIST;
     }
@@ -920,7 +921,7 @@ function _applySlopePhysics(pl){
 
   const built=Math.min(1,(pl._slopeRollT||0)/90);
   const downCap=MOVE_WALK*(0.75+0.30*ease+0.25*built)+(MOVE_RUN-MOVE_WALK)*(0.30+0.70*run);
-  const upCap=MOVE_WALK*0.82+(MOVE_RUN-MOVE_WALK*0.82)*run;
+  const upCap=MOVE_WALK*0.46+(MOVE_RUN-MOVE_WALK)*run*0.42;
   const cap=Math.sign(pl.vx)===downhill?downCap:upCap;
   pl.vx=Math.max(-cap,Math.min(cap,pl.vx));
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};

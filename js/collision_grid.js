@@ -930,8 +930,8 @@ function gridFollowSlope(body, wasGrounded){
   const downhill=Math.sign(Math.sin(body.slopeAng||0));
   if(wasGrounded&&dir&&Math.abs(body.slopeAng||0)>0.06&&dir!==downhill){
     const ahead=wx+dir*(wr*0.45);
-    const flat=gridColumnStandNear(Math.floor(ahead/t), ahead, feetPre, 14);
-    if(flat&&Math.abs(flat.ang||0)<0.08&&Math.abs(flat.y-feetPre)<=14){
+    const flat=gridColumnStandNear(Math.floor(ahead/t), ahead, feetPre, 8);
+    if(flat&&Math.abs(flat.ang||0)<0.08&&Math.abs(flat.y-feetPre)<=5){
       gridSetFeet(body, flat.y, 0);
       return true;
     }
@@ -1224,7 +1224,8 @@ function gridResolvePlayer(pl, vx, vy, opts){
   if(wedge&&(vy||0)>=0){
     const dir=Math.sign(body.vx||0);
     if(gridUnwedge(body, dir)){
-      if(dir) body.vx=dir*Math.max(Math.abs(body.vx||0),1.15);
+      const climbing=dir&&Math.sign(Math.sin(body.slopeAng||0))===-dir;
+      if(dir&&!climbing) body.vx=dir*Math.max(Math.abs(body.vx||0),1.15);
     }else{
       const t=MV_GRID.tile;
       const slid=_gridSlideOnto(body, Math.floor((body.x+body.w-1)/t), body.x+body.w-1)

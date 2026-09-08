@@ -399,19 +399,29 @@ function _updatePlayerMoveX(pl){
   if((pl._slopeCoastT||0)>0 && !onSlope) pl._slopeCoastT--;
   const coast=onSlope||(pl._slopeCoastT||0)>0;
   const sprint=isSprintHeld()&&grounded&&dir!==0;
-  if(sprint) pl.runRamp=Math.min(1,(pl.runRamp||0)+MOVE_RUN_RAMP);
-  else        pl.runRamp=Math.max(0,(pl.runRamp||0)-0.028);
+  if(sprint){
+    pl.runRamp=Math.min(1,(pl.runRamp||0)+MOVE_RUN_RAMP);
+    if((pl.runRamp||0)>0.35) pl._runCoastT=26;
+  }else{
+    pl.runRamp=Math.max(0,(pl.runRamp||0)-0.028);
+    if((pl._runCoastT||0)>0) pl._runCoastT--;
+  }
   if(!dir){
     pl.movePower=Math.max(0,(pl.movePower||0)-0.08);
     if(pl.movePower<=0) pl._moveDir=0;
     pl._moveCap=0;
     if(grounded){
+      const rollOut=coast||(pl._runCoastT||0)>0||Math.abs(pl.vx)>MOVE_WALK*0.55;
       if(coast){
         pl.vx*=WHEEL_COAST_FRIC;
         if(Math.abs(pl.vx)<0.06) pl.vx=0;
+      }else if(rollOut){
+        const coastFric=typeof MOVE_RUN_COAST!=='undefined'?MOVE_RUN_COAST:0.958;
+        pl.vx*=coastFric;
+        if(Math.abs(pl.vx)<0.08) pl.vx=0;
       }else{
         pl.vx*=MOVE_STOP;
-        if(Math.abs(pl.vx)<0.22) pl.vx=0;
+        if(Math.abs(pl.vx)<0.10) pl.vx=0;
       }
     }else{ pl.vx*=AIR_DRIFT; if(Math.abs(pl.vx)<0.12) pl.vx=0; }
     return;
@@ -436,8 +446,10 @@ function _updatePlayerMoveX(pl){
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);
     const climbing=dir*sinA<-0.03;
-    if(climbing&&!sprint) cap=Math.min(cap,MOVE_WALK*0.92);
-    else if(!climbing) cap=Math.max(cap,Math.abs(pl.vx)*0.92);
+    if(climbing){
+      const run=Math.min(1,pl.runRamp||0);
+      cap=Math.min(cap, sprint?MOVE_WALK*0.58+(MOVE_RUN-MOVE_WALK)*run*0.38:MOVE_WALK*0.52);
+    }else cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
   pl._moveCap=cap;
@@ -449,7 +461,7 @@ function _updatePlayerMoveX(pl){
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);
     const mom=Math.min(1,(pl.momentum||0)+0.15);
-    if(dir*sinA<-0.03) accel*=sprint?1+WHEEL_DRIVE_TORQUE*0.55*(1+mom*0.55):0.92;
+    if(dir*sinA<-0.03) accel*=sprint?0.72:0.48;
     else if(dir*sinA>0.03) accel*=1+mom*0.12;
   }
   const vSign=pl.vx>0.15?1:(pl.vx<-0.15?-1:0);

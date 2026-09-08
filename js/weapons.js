@@ -183,8 +183,9 @@ function _bwallApplyImpact(bw,speed){
   spawnDebris(bw,4+dmg*3); sfx('omniblock_chip');
   if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
-const BOX_ROLL_SPEED=2.15, BOX_TUMBLE_FRAMES=11, BOX_GROUND_FRIC=0.76, BOX_REST=0.22;
+const BOX_ROLL_SPEED=2.8, BOX_TUMBLE_FRAMES=11, BOX_GROUND_FRIC=0.76, BOX_REST=0.22;
 const BOX_MAG_STICK=26;
+const BOX_FACE=Math.PI/2;
 
 function _bwallSolids(skip){
   const out=TR.map(_normPlat);
@@ -277,31 +278,54 @@ function _rigidTipOff(box, solids){
   box.og=false;
 }
 
+function _boxShape(box){
+  return (box&&(box.shape||box._shape))||'square';
+}
+function _snapBoxFace(rot){
+  if(!isFinite(rot)) return 0;
+  return Math.round(rot/BOX_FACE)*BOX_FACE;
+}
+function _boxLean(rot){
+  return (rot||0)-_snapBoxFace(rot);
+}
+function _tumbleEase(box){
+  const n=BOX_TUMBLE_FRAMES;
+  const t=1-(box._tumbleT||0)/n;
+  return t*t*(3-2*t);
+}
+function _syncTumbleOrigin(box){
+  if(!box||!(box._tumbleT>0)) return;
+  const ease=_tumbleEase(box);
+  const dir=box._tumbleDir||1;
+  box._tumbleX0=box.x-dir*(box.w||32)*ease;
+  box._tumbleY0=box.y+Math.sin((1-(box._tumbleT||0)/BOX_TUMBLE_FRAMES)*Math.PI)*7;
+}
+
 function _startBoxTumble(box, dir){
   if(!box||box._tumbleT>0||box._magStuck) return;
+  if(_boxShape(box)==='circle') return;
   dir=dir||Math.sign(box.vx||0)||1;
   box._tumbleT=BOX_TUMBLE_FRAMES;
   box._tumbleDir=dir;
   box._tumbleX0=box.x;
   box._tumbleY0=box.y;
-  box._tumbleFrom=box.rot||0;
+  box._tumbleFrom=_snapBoxFace(box.rot);
   box.og=false;
 }
 
 function _stepBoxTumble(box){
   const n=BOX_TUMBLE_FRAMES;
   box._tumbleT=Math.max(0,(box._tumbleT||0)-1);
-  const t=1-box._tumbleT/n;
-  const ease=t*t*(3-2*t);
+  const ease=_tumbleEase(box);
   const dir=box._tumbleDir||1;
   box.x=(box._tumbleX0||box.x)+dir*(box.w||32)*ease;
-  box.y=(box._tumbleY0||box.y)-Math.sin(t*Math.PI)*7;
-  box.rot=(box._tumbleFrom||0)+dir*(Math.PI/2)*ease;
+  box.y=(box._tumbleY0||box.y)-Math.sin((1-box._tumbleT/n)*Math.PI)*7;
+  box.rot=(box._tumbleFrom||0)+dir*BOX_FACE*ease;
   box.vx=dir*Math.max(BOX_ROLL_SPEED, Math.abs(box.vx||0))*0.96;
   box.vy=Math.min(box.vy||0, 1.4);
   if(box._tumbleT<=0){
-    box.rot=0;
-    box.spin=(box.spin||0)*0.2;
+    box.rot=_snapBoxFace((box._tumbleFrom||0)+dir*BOX_FACE);
+    box.spin=0;
     box.vx=(box.vx||0)*0.84;
     box.y=box._tumbleY0||box.y;
   }
@@ -345,6 +369,7 @@ function _updateRigidBox(box, solids, opts){
     _resolveBwallAgainstSolids(box, solids, prevY);
     _resolveBoxVsGrid(box);
     if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=0; box.og=true; }
+    _syncTumbleOrigin(box);
     return {dx:box.x-prevX, dy:box.y-prevY};
   }
   box.og=false;
@@ -362,19 +387,36 @@ function _updateRigidBox(box, solids, opts){
   if(box.og){
     box.vx=(box.vx||0)*BOX_GROUND_FRIC;
     if(Math.abs(box.vx)<BOX_REST) box.vx=0;
-    const lean=Math.max(-0.32,Math.min(0.32,(box.vx||0)*0.09+(box.spin||0)));
-    if(Math.abs(box.vx)>=BOX_ROLL_SPEED||Math.abs(lean)>0.28||(box._tipUrge||0)>0.34){
-      _startBoxTumble(box, Math.sign(box.vx||box._tipUrge||1));
+    if(_boxShape(box)==='circle'){
+      box.rot+=(box.vx||0)*0.06+(box.spin||0);
+      box.spin=(box.spin||0)*0.86;
     }else{
-      box.rot+=(lean-box.rot)*0.28;
-      box.spin=(box.spin||0)*0.72;
-      if(Math.abs(box.vx)<0.35){ box.rot*=0.55; if(Math.abs(box.rot)<0.03) box.rot=0; }
+      const lean=_boxLean(box.rot);
+      const tip=Math.abs(box.vx)>=BOX_ROLL_SPEED||Math.abs(lean)>0.62||(box._tipUrge||0)>0.34;
+      if(tip){
+        _startBoxTumble(box, Math.sign(box.vx||lean||box._tipUrge||1));
+      }else{
+        box.rot+=(_snapBoxFace(box.rot)-box.rot)*0.55;
+        box.spin=0;
+        if(Math.abs(_boxLean(box.rot))<0.04) box.rot=_snapBoxFace(box.rot);
+      }
     }
     box._tipUrge=Math.max(0,(box._tipUrge||0)-0.08);
   }else{
     box.vx=(box.vx||0)*0.996;
-    box.rot+=(box.spin||0);
-    box.spin=(box.spin||0)*0.985;
+    if(_boxShape(box)==='circle'){
+      box.rot+=(box.spin||0);
+      box.spin=(box.spin||0)*0.985;
+    }else{
+      box.rot+=(box.spin||0);
+      const lean=_boxLean(box.rot);
+      if(Math.abs(lean)>BOX_FACE*0.46){
+        box.rot=_snapBoxFace(box.rot+Math.sign(lean)*0.02);
+        box.spin=(box.spin||0)*0.28;
+      }else{
+        box.spin=(box.spin||0)*0.96;
+      }
+    }
   }
   return {dx:box.x-prevX, dy:box.y-prevY};
 }
@@ -530,16 +572,13 @@ function _magThrowVel(){
 function _pinBoxToTip(box, tip, aimA){
   const ax=Math.cos(aimA), ay=Math.sin(aimA);
   const hx=box.w*0.5, hy=box.h*0.5;
-  let hang=Math.max(hx,hy)+10;
-  const ph=typeof playerCoreHB==='function'?playerCoreHB(p):null;
-  for(let i=0;i<10;i++){
-    box.x=tip.x+ax*hang-hx;
-    box.y=tip.y+ay*hang-hy;
-    if(!ph||!ov(box.x,box.y,box.w,box.h,ph.x,ph.y,ph.w,ph.h)) break;
-    hang+=8;
-  }
+  // Glue a face to the tip — AABB extent along the aim, 1px air.
+  const hang=Math.abs(ax)*hx+Math.abs(ay)*hy+1;
+  box.x=tip.x+ax*hang-hx;
+  box.y=tip.y+ay*hang-hy;
   const v=_magThrowVel();
-  box.rot=aimA*0.12;
+  box.rot=_snapBoxFace(box.rot);
+  box.spin=0;
   box.vx=v.vx; box.vy=v.vy; box.og=false; box._tumbleT=0;
 }
 function _clearMagHoldFlags(){
@@ -595,11 +634,14 @@ function _magWorldHit(tip, aimA){
   return null;
 }
 function _applyTipTorque(box, tip, fx, fy){
-  if(!box) return;
+  if(!box||box._magStuck) return;
   const cx=box.x+box.w*0.5, cy=box.y+box.h*0.5;
   const rx=cx-tip.x, ry=cy-tip.y;
-  box.spin=(box.spin||0)+(rx*fy-ry*fx)*0.004;
-  if(ry<-box.h*0.12 && Math.abs(fx)>0.08) box._tipUrge=(box._tipUrge||0)+0.10;
+  if(_boxShape(box)==='circle'){
+    box.spin=(box.spin||0)+(rx*fy-ry*fx)*0.004;
+  }else if(ry<-box.h*0.12 && Math.abs(fx)>0.08){
+    box._tipUrge=(box._tipUrge||0)+0.10;
+  }
 }
 
 function _holdMagStuckActors(){
@@ -610,7 +652,7 @@ function _holdMagStuckActors(){
   if(!hold) return;
   if(hold._magStuck&&(hold.w!=null)) _pinBoxToTip(hold,tip,a);
   else if(hold._magStuck){
-    const hang=Math.max(hold.w||24,hold.h||24)*0.55+10;
+    const hang=Math.max(hold.w||24,hold.h||24)*0.5+1;
     hold.x=tip.x+Math.cos(a)*hang-(hold.w||24)*0.5;
     hold.y=tip.y+Math.sin(a)*hang-(hold.h||24)*0.5;
     const v=_magThrowVel(); hold.vx=v.vx; hold.vy=v.vy;
@@ -639,7 +681,7 @@ function _resolvePoolBodies(){
     const ph=playerCoreHB(p);
     add('player',p,ph.x,ph.y,ph.w,ph.h,1.6);
   }
-  for(let pass=0;pass<6;pass++){
+  for(let pass=0;pass<12;pass++){
     let hits=0;
     for(let i=0;i<bodies.length;i++){
       for(let j=i+1;j<bodies.length;j++){
@@ -660,17 +702,11 @@ function _resolvePoolBodies(){
         const pen=horiz?overlapX:overlapY;
         const aHold=!!A.a._magStuck, bHold=!!B.a._magStuck;
         const aPlayer=A.kind==='player', bPlayer=B.kind==='player';
-        if((aHold&&bPlayer)||(bHold&&aPlayer)){
-          const held=aHold?A:B;
-          const axn=Math.cos(p._magAim||0), ayn=Math.sin(p._magAim||0);
-          held.a.x+=axn*Math.max(6,pen+2);
-          held.a.y+=ayn*Math.max(6,pen+2);
-          continue;
-        }
+        if((aHold&&bPlayer)||(bHold&&aPlayer)) continue;
         const mA=(aHold||aPlayer)?1e9:A.mass, mB=(bHold||bPlayer)?1e9:B.mass;
         const invA=1/mA, invB=1/mB, inv=invA+invB;
         const sA=invA/inv, sB=invB/inv;
-        const push=pen+0.85;
+        const push=pen+1.35;
         if(!aHold&&!aPlayer){ A.a.x+=nx*push*sA; A.a.y+=ny*push*sA; }
         if(!bHold&&!bPlayer){ B.a.x-=nx*push*sB; B.a.y-=ny*push*sB; }
         if(aPlayer&&!bHold){ B.a.x-=nx*push; B.a.y-=ny*push; }
@@ -686,6 +722,8 @@ function _resolvePoolBodies(){
     }
     if(!hits) break;
   }
+  for(const bw of BWALLS){ if(bw&&bw.movable) _syncTumbleOrigin(bw); }
+  for(const c of CRATES) _syncTumbleOrigin(c);
 }
 
 // ── XLR push ──────────────────────────────────────────────────
@@ -757,7 +795,7 @@ function updateMAG(){
     obj._magStuck=true; obj._homing=false; obj._awake=true;
     if(obj.w!=null) _pinBoxToTip(obj,_tip,_a);
     else{
-      const hang=Math.max(obj.w||24,obj.h||24)*0.55+10;
+      const hang=Math.max(obj.w||24,obj.h||24)*0.5+1;
       obj.x=_tip.x+Math.cos(_a)*hang-(obj.w||24)*0.5;
       obj.y=_tip.y+Math.sin(_a)*hang-(obj.h||24)*0.5;
       const v=_magThrowVel(); obj.vx=v.vx; obj.vy=v.vy;
@@ -914,6 +952,7 @@ function updateCrates(){
     }
     c.x=Math.max(0,Math.min(WW-c.w,c.x));
   }
+  _resolvePoolBodies();
 }
 
 // ── Knowl pickup ──────────────────────────────────────────────
