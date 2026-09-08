@@ -13,7 +13,7 @@
 const BWALL_IMPACT_DMG=6.5, BWALL_IMPACT_HARD=10.5;
 
 // ── Enhanced TRS linger-flames (2s, 5 HP / 0.5s) ──────────────
-const TRS_FLAME_LIFE=120, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=15, TRS_FLAME_GAP=40;
+const TRS_FLAME_LIFE=120, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=15;
 let TRS_FLAMES=[];
 function _resetTrsFlames(){ TRS_FLAMES.length=0; }
 function spawnTrsFlame(x,y){
@@ -21,10 +21,11 @@ function spawnTrsFlame(x,y){
   if(TRS_FLAMES.length>=24) TRS_FLAMES.shift();
   TRS_FLAMES.push({x,y,life:TRS_FLAME_LIFE,maxLife:TRS_FLAME_LIFE,r:TRS_FLAME_R,born:fr||0});
 }
-function _trsDropFlame(s){
+function _trsTraceShot(s){
   if(!s||!s.enhanced) return;
-  s._flameDist=(s._flameDist||0)+Math.hypot(s.vx||0,s.vy||0);
-  if(s._flameDist>=TRS_FLAME_GAP){ s._flameDist=0; spawnTrsFlame(s.x,s.y); }
+  if(!s.tracer) s.tracer=[];
+  s.tracer.push({x:s.x,y:s.y});
+  if(s.tracer.length>18) s.tracer.shift();
 }
 function _trsLaserDmg(s){
   const enh=!!(s&&s.enhanced);
@@ -53,7 +54,6 @@ function updateTrsFlames(){
 
 // ── Laser fizzle effect ───────────────────────────────────────
 function spawnLaserFizzle(s){
-  if(s&&s.enhanced) spawnTrsFlame(s.x,s.y);
   const isVenture=s.owner==='venture';
   const colA=isVenture?'#ff5577':'#bb66ff';
   const colB=isVenture?'#ffccaa':'#eeddff';
@@ -240,18 +240,22 @@ function updatePlayerShots(){
   for(let i=p.shots.length-1;i>=0;i--){
     const s=p.shots[i];
     const bnc=s.bounces||0;
+    const enh=!!s.enhanced;
     const _spd0=Math.hypot(s.vx,s.vy);
-    if(!s._fizzle&&(bnc>0&&_spd0<2.4||s.life<18)){ s._fizzle=16; s.vx*=0.4; s.vy*=0.4; }
+    if(!s._fizzle&&((!enh&&bnc>0&&_spd0<2.4)||s.life<18)){ s._fizzle=16; s.vx*=0.4; s.vy*=0.4; }
     if(s._fizzle){
       s._fizzle--; s.vx*=0.86; s.vy*=0.86;
       if(s._fizzle<=0){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
-    }else if(bnc>0){
+    }else if(bnc>0&&!enh){
       const drag=0.984-bnc*0.004; s.vx*=drag; s.vy*=drag;
       s.vy+=0.07+bnc*0.014; s._airAge=(s._airAge||0)+1;
       if(Math.hypot(s.vx,s.vy)<0.42){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
+    }else if(!enh){
+      s._airAge=(s._airAge||0)+1;
+      if(s._airAge>8){ s.vy+=0.05; s.vx*=0.997; s.vy*=0.997; }
     }
     s.x+=s.vx; s.y+=s.vy; s.life--;
-    _trsDropFlame(s);
+    _trsTraceShot(s);
     if(s.life<=0&&!s._fizzle){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     let dead=false;
     for(const e of ENEMS){
@@ -278,11 +282,12 @@ function updatePlayerShots(){
     if(dead) continue;
     if(typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y)){
       const prevX=s.x-s.vx, prevY=s.y-s.vy;
-      if(gridWorldSolid(s.x,prevY)&&!gridWorldSolid(prevX,s.y)) s.vx*=-0.76;
-      else s.vy*=-0.76;
-      s.power=(s.power||1)*0.7; s.bounces=(s.bounces||0)+1;
+      const keep=enh?0.92:0.76;
+      if(gridWorldSolid(s.x,prevY)&&!gridWorldSolid(prevX,s.y)) s.vx*=-keep;
+      else s.vy*=-keep;
+      s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=(s.bounces||0)+1;
       spawnSpark(s.x,s.y,s.vx,s.vy);
-      if(s.enhanced) spawnTrsFlame(s.x,s.y);
+      if(enh) spawnTrsFlame(s.x,s.y);
       if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }
     for(const q of pl){
@@ -292,11 +297,12 @@ function updatePlayerShots(){
       const prevX=s.x-s.vx, prevY=s.y-s.vy;
       const hitLeft=prevX+4<=q.x&&s.x+4>q.x, hitRight=prevX-4>=q.x+q.w&&s.x-4<q.x+q.w;
       const hitTop=prevY+4<=q.y&&s.y+4>q.y, hitBot=prevY-4>=q.y+q.h&&s.y-4<q.y+q.h;
-      if(hitLeft||hitRight) s.vx*=-0.76;
-      if(hitTop||hitBot)    s.vy*=-0.76;
-      if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){s.vx*=-0.76;s.vy*=-0.76;}
-      s.power=(s.power||1)*0.7; s.bounces=bounces+1; s._airAge=0;
-      s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180);
+      const keep=enh?0.92:0.76;
+      if(hitLeft||hitRight) s.vx*=-keep;
+      if(hitTop||hitBot)    s.vy*=-keep;
+      if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){s.vx*=-keep;s.vy*=-keep;}
+      s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=bounces+1; s._airAge=0;
+      if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
       spawnSpark(s.x,s.y,s.vx,s.vy); sfx('laser_bounce',bounces); break;
     }
     if(dead&&i<p.shots.length) p.shots.splice(i,1);

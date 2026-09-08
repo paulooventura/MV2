@@ -542,8 +542,8 @@ function fireItem(charged=false){
     const pow=charged?(enh?4.4:3.0):(enh?1.55:1.0);
     const pitch=enh?0.8:1;
     p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*spd,vy:Math.sin(shotA)*spd,
-      life:charged?320:180,type:'laser',bounces:0,power:pow,charged:!!charged,
-      enhanced:enh,owner:p.hero||'mind',born:fr,_flameDist:0});
+      life:charged?(enh?480:320):(enh?340:180),type:'laser',bounces:0,power:pow,charged:!!charged,
+      enhanced:enh,owner:p.hero||'mind',born:fr,tracer:[]});
     sfx(charged?'laser_charged_fire':'laser',pitch);
     p.flashF=charged?16:7; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
     const push=charged?3.2:1.15;
