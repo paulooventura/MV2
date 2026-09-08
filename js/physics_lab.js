@@ -31,6 +31,8 @@ function initPhysicsLabWorld() {
   const crestY = 14 * PL_T;
   const platX = 12 * PL_T;
   const wallX = 33 * PL_T;
+  const footPlatX = 39 * PL_T;
+  const footPlatY = 16 * PL_T;
   const ledgeX = 2100;
   const ledgeY = 400;
   const ledgeW = 250;
@@ -44,8 +46,9 @@ function initPhysicsLabWorld() {
     _plPlat(0, 0, PL_WW, PL_T),
     _plPlat(0, 0, PL_T, PL_WH),
     _plPlat(PL_WW - PL_T, 0, PL_T, PL_WH),
-    _plPlat(platX, crestY, 8 * PL_T, PL_FLOOR - crestY),
+    _plPlat(platX, crestY, 8 * PL_T, PL_T),
     _plPlat(wallX, 0, PL_T, 16 * PL_T),
+    _plPlat(footPlatX, footPlatY, 2 * PL_T, PL_T),
     _plPlat(passPlatX, passPlatY, 8 * PL_T, PL_T),
     _plPlat(ledgeX, ledgeY, ledgeW, PL_T),
     _plPlat(doorX, 0, PL_T, PL_FLOOR - doorH),
@@ -73,8 +76,10 @@ function initPhysicsLabWorld() {
       solids: TR.map(q => ({ x: q.x, y: q.y, w: q.w, h: q.h })),
       slopes: [
         { c: 6, r: 19, n: 6, kind: 'R' },
-        { c: 28, r: 19, n: 5, kind: 'R' },
-        { c: 42, r: 14, n: 6, kind: 'L' },
+        // Ghost: walk the floor under the wall. UP+DIR climbs into the corner.
+        { c: 28, r: 19, n: 5, kind: 'R', pass: true },
+        { c: 35, r: 19, n: 4, kind: 'R' },
+        { c: 41, r: 16, n: 4, kind: 'L' },
         { c: 50, r: 19, n: 6, kind: 'R', pass: true },
       ],
     });
@@ -228,8 +233,8 @@ function drawPhysicsLabWorld() {
   }
   const labels = [
     [6 * PL_T + 8, PL_FLOOR - 18, 'CREST: WALK ON'],
-    [28 * PL_T + 8, PL_FLOOR - 18, 'CORNER: STOP CLEAN'],
-    [42 * PL_T + 8, PL_FLOOR - 18, 'FOOT: ROLL OFF'],
+    [28 * PL_T + 8, PL_FLOOR - 18, 'WALK UNDER  ·  UP+DIR INTO WALL'],
+    [35 * PL_T + 8, PL_FLOOR - 18, 'FOOT: ROLL OVER'],
     [50 * PL_T + 8, PL_FLOOR - 18, 'DIR = PAST  ·  UP+DIR = CLIMB'],
     [2108, 400 - 18, 'PUSH OFF — FALL / ROLL'],
     [2320, PL_FLOOR - 18, 'XLR PUSH / MAG PULL  ·  + ITEMS OPEN THE DOOR'],
@@ -245,7 +250,7 @@ function drawPhysicsLabHud() {
   if (!_physicsLabMode || _gameState !== 'game') return;
   ctx.fillStyle = C.BLACK;
   ctx.fillRect(6, H - 44, 620, 38);
-  drawText('ROLL OFF RAMPS  ·  +XLR/+MAG OPEN THE EAST DOOR', 10, H - 40, C.SILVER, 1);
+  drawText('FLOOR GOES EAST UNDER THE WALL  ·  +XLR/+MAG OPEN THE DOOR', 10, H - 40, C.SILVER, 1);
   if (ITEM >= 0) {
     const enh = typeof _itemEnhanced !== 'undefined' && _itemEnhanced[ITEM];
     const col = (typeof ICOLS !== 'undefined' && ICOLS[ITEM]) || C.WHITE;

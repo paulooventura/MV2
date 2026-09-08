@@ -213,12 +213,10 @@ const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
-/** Held-jack scale. 1/4" TRS is medium.
- *  RCA pin 3.2mm / shell ~8.3mm (shorter, thinner than TRS).
- *  XLR barrel ~19–21mm × ~63mm (thicker + a bit longer; thickness lives in the art). */
+/** Held-jack scale. RCA was undersized vs TRS on the arm — read as a real plug. */
 function _itemArtScale(idx){
   if(idx===0) return 0.86;
-  if(idx===1) return 0.70;
+  if(idx===1) return 1.12;
   if(idx===2) return 1.00;
   if(idx===3) return 0.88;
   return 0.86;
@@ -227,6 +225,13 @@ function _itemBoxSize(){
   return {w:40, h:40};
 }
 
+function _heldItemFor(pl){
+  if(pl&&pl._aiCompanion){
+    if(typeof _itemUnlocked==='function'&&_itemUnlocked(0)) return 0;
+    return -1;
+  }
+  return ITEM;
+}
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
 function _grantPlayerItem(idx, silent){
   if(idx<0||idx>3||_itemUnlocked(idx)) return false;
@@ -320,20 +325,60 @@ function _updateCompanionAI(){
     }else{
       p2.vx*=(typeof MOVE_STOP!=='undefined'?MOVE_STOP:0.78);
       if(Math.abs(p2.vx)<0.18) p2.vx=0;
-      p2.fc=p.fc;
     }
+    p2._aiJumpCd=(p2._aiJumpCd||0)-1;
     if(p2.og&&!p.og&&p.vy<(typeof JI!=='undefined'?JI: -3)*0.35){
       p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false;
+    }else if(p2.og&&p2._aiJumpCd<=0&&Math.abs(dx)>36&&Math.abs(p2.vx)<0.55){
+      p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=22;
     }
   }
-  p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
   p2.vy=Math.min((p2.vy||0)+(typeof GRAV!=='undefined'?GRAV:0.52),14);
+  if(typeof _companionFight==='function') _companionFight();
   if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(p2,p2.vx,p2.vy);
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
   if(p2.inv>0) p2.inv--;
   if(p2.y>(typeof WH!=='undefined'?WH:3000)+120){
     p2.x=followX; p2.y=p.y; p2.vy=0; p2.og=true;
   }
+}
+function _companionFight(){
+  if(!p2||typeof ENEMS==='undefined') return;
+  if(typeof _itemUnlocked==='function'&&!_itemUnlocked(0)){
+    p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+    return;
+  }
+  const cx=p2.x+(typeof SW!=='undefined'?SW:64)*0.5;
+  const cy=p2.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-(typeof STAND_H!=='undefined'?STAND_H:70)*0.45;
+  let best=null, bestD=280;
+  for(const e of ENEMS){
+    if(typeof _enemyCombatActive==='function'&&!_enemyCombatActive(e)) continue;
+    if(!e||!e.alive) continue;
+    const ex=e.x+(e.w||0)*0.5, ey=e.y+(e.h||0)*0.5;
+    const d=Math.hypot(ex-cx,ey-cy);
+    if(d<bestD){ bestD=d; best=e; }
+  }
+  p2._aiShotCd=(p2._aiShotCd||0)-1;
+  if(!best){
+    p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+    return;
+  }
+  const ex=best.x+best.w*0.5, ey=best.y+best.h*0.5;
+  const adx=ex-cx, ady=ey-cy, al=Math.hypot(adx,ady)||1;
+  p2.aimDX=adx/al; p2.aimDY=ady/al;
+  p2.tAimDX=p2.aimDX; p2.tAimDY=p2.aimDY;
+  if(adx>0.08) p2.fc=true; else if(adx<-0.08) p2.fc=false;
+  if(p2.og&&ey<cy-36&&(p2._aiJumpCd||0)<=0){
+    p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=26;
+  }
+  if(p2._aiShotCd>0) return;
+  p2._aiShotCd=36;
+  const oldItem=typeof ITEM!=='undefined'?ITEM:-1;
+  ITEM=0;
+  if(typeof withPlayerContext==='function') withPlayerContext(p2,()=>fireItem(false));
+  else fireItem(false);
+  ITEM=oldItem;
+  if(p2.shots&&p2.shots.length&&p&&p.shots){ p.shots.push(...p2.shots); p2.shots.length=0; }
 }
 
 // ── Player movement X ─────────────────────────────────────────
@@ -542,7 +587,7 @@ function fireItem(charged=false){
     }
   }else if(ITEM===0){ // TRS LASER
     const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
-    const recoilAmt=charged?(enh?14:11):(enh?8:6);
+    const recoilAmt=charged?(enh?26:11):(enh?8:6);
     p._lastRecoilMax=recoilAmt;
     const spd=charged?(enh?13:11):(enh?22:19);
     const pow=charged?(enh?3.6:3.0):(enh?1.28:1.0);
@@ -552,10 +597,10 @@ function fireItem(charged=false){
       enhanced:enh,owner:p.hero||'mind',born:fr,tracer:[]});
     sfx(charged?'laser_charged_fire':'laser',pitch);
     p.flashF=charged?16:7; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
-    const push=charged?(enh?2.55:2.15):(enh?1.35:1.05);
+    const push=charged?(enh?5.4:2.15):(enh?1.35:1.05);
     const wt=_wallTouchInfo(p);
     const shotDir=Math.cos(shotA)>0?1:-1;
-    if(!wt.touch||wt.dir!==shotDir){ p.vx-=Math.cos(shotA)*push; p.vy-=Math.sin(shotA)*push*0.4; }
+    if(!wt.touch||wt.dir!==shotDir){ p.vx-=Math.cos(shotA)*push; p.vy-=Math.sin(shotA)*push*(charged&&enh?0.72:0.4); }
   }
   // XLR/MAG handled in update() via hold
 }

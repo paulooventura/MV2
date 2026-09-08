@@ -941,22 +941,16 @@ function gridFollowSlope(body, wasGrounded){
   const c=Math.floor(wx/t);
   const r0=Math.floor((feet-8)/t), r1=Math.floor((feet+maxDrop)/t);
   let best=null, bestAng=0, bestAbs=1e9;
-  for(let dc=-1;dc<=1;dc++){
-    const col=c+dc;
-    const sx=dc===0?wx:Math.max(col*t+1, Math.min((col+1)*t-1, wx));
-    if(dc!==0 && Math.abs(sx-wx)>wr*0.35) continue;
-    for(let r=r0;r<=r1;r++){
-      if(!gridSlopeLive(col,r)) continue;
-      const sy=gridSlopeY(col,r,sx);
-      if(sy==null||sy<feet-8||sy>feet+maxDrop) continue;
-      const d=Math.abs(sy-feet);
-      const pref=dc===0?d:d+2;
-      if(pref<bestAbs){
-        bestAbs=pref;
-        best=sy;
-        const s=gridSlopeAt(col,r);
-        bestAng=s?s.angle:0;
-      }
+  for(let r=r0;r<=r1;r++){
+    if(!gridSlopeLive(c,r)) continue;
+    const sy=gridSlopeY(c,r,wx);
+    if(sy==null||sy<feet-8||sy>feet+maxDrop) continue;
+    const d=Math.abs(sy-feet);
+    if(d<bestAbs){
+      bestAbs=d;
+      best=sy;
+      const s=gridSlopeAt(c,r);
+      bestAng=s?s.angle:0;
     }
   }
   if(best==null) return false;

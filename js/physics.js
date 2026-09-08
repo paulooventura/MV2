@@ -50,7 +50,7 @@ let _knowlTreeZone=null;
 const JI=-3.0, JHH=0.40, JMH=22, JMX=-11.0;
 
 // ── Body / character dimensions ───────────────────────────────
-const BODY_W=52, BODY_H=42, AIM_LEN=36, RCA_NOSE_LEN=41;
+const BODY_W=52, BODY_H=42, AIM_LEN=36, RCA_NOSE_LEN=52;
 const SW=64, SH=96;
 const FEET_OFF=88;
 const WHEEL_R=20;
@@ -2203,8 +2203,9 @@ function _updateWheelSuspension(pl,prevVx){
     pl.suspVel=0;
   }
   const accel=(pl.vx||0)-(prevVx||0);
-  const tiltTgt=pl.og?Math.sign(pl.vx||0)*Math.min(0.38,Math.abs(pl.vx)/RUN*0.34)+accel*0.04:0;
-  pl.suspTilt=((pl.suspTilt||0)+(tiltTgt-(pl.suspTilt||0))*0.16);
+  const onSlope=!!(pl.og&&Math.abs(pl._slopeAngle||0)>0.08);
+  const tiltTgt=pl.og&&!onSlope?Math.sign(pl.vx||0)*Math.min(0.38,Math.abs(pl.vx)/RUN*0.34)+accel*0.04:0;
+  pl.suspTilt=((pl.suspTilt||0)+(tiltTgt-(pl.suspTilt||0))*0.22);
 }
 function _rollWheelFromTravel(pl,x0,y0){
   if(!pl) return;
@@ -2251,15 +2252,30 @@ function _pullTargetBlocked(ox,oy,tox,toy,w,h){
   for(const bw of BWALLS){ if(bw.hp<=0||!bw.movable) continue; if(ov(mx-hw,my-hh,w||28,h||28,bw.x,bw.y,bw.w,bw.h)) return true; }
   return false;
 }
-function _applyPushWallReaction(pl,originX,originY,aimA,range,held){
+function _applyPushWallReaction(pl,originX,originY,aimA,range,held,opts){
   if(pl.hook&&pl.hook.st==='on') return;
+  opts=opts||{};
+  const enh=!!opts.enhanced;
   const ux=Math.cos(aimA), uy=Math.sin(aimA);
   const holdScale=Math.min(1,(held||0)/180)*1.5+1;
+  const pow=enh?1.85:1;
+  const isFloor=uy>0.45;
   const block=_raySolidDist(originX,originY,ux,uy,range);
-  if(block<=range){ const prox=Math.pow(1-block/range,1.65); const react=prox*2.5*holdScale; pl.vx-=ux*react; pl.vy-=uy*react*0.9; }
+  if(block<=range){
+    let prox=Math.pow(1-block/range,1.65);
+    // On the floor the ray hits immediately (prox≈1) and launches you.
+    // Standard matches a mid-range wall shove; + keeps the hop.
+    if(isFloor&&!enh) prox=Math.min(prox,0.42);
+    const react=prox*2.5*holdScale*pow;
+    pl.vx-=ux*react;
+    pl.vy-=uy*react*(isFloor&&!enh?0.4:0.9);
+  }
   const core=cpt();
-  if(uy>0.35){ const floorD=_raySolidDist(core.x,pl.y+FEET_OFF,0,1,44,5); if(floorD<38){ const prox=Math.pow(1-floorD/38,1.45); pl.vy-=prox*1.7*holdScale; } }
-  if(uy<-0.35){ const headY=pl.y+FEET_OFF-STAND_H+6; const ceilD=_raySolidDist(core.x,headY,0,-1,40,5); if(ceilD<34){ const prox=Math.pow(1-ceilD/34,1.45); pl.vy+=prox*1.5*holdScale; } }
+  if(enh&&isFloor){
+    const floorD=_raySolidDist(core.x,pl.y+FEET_OFF,0,1,44,5);
+    if(floorD<38){ const prox=Math.pow(1-floorD/38,1.45); pl.vy-=prox*1.7*holdScale*pow; }
+  }
+  if(uy<-0.35){ const headY=pl.y+FEET_OFF-STAND_H+6; const ceilD=_raySolidDist(core.x,headY,0,-1,40,5); if(ceilD<34){ const prox=Math.pow(1-ceilD/34,1.45); pl.vy+=prox*1.5*holdScale*pow; } }
 }
 function _applyPullPlayerTug(pl,centerX,centerY,fx,fy,ox,oy,w,h,range,blockedOnly){
   if(pl.hook&&pl.hook.st==='on') return {x:0,y:0,w:0};

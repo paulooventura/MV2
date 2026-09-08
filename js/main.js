@@ -855,9 +855,12 @@ function update(){
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){
+    const _enhTrs=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
+    const _cMax=_enhTrs?22:40;
+    const _cReady=_enhTrs?10:18;
     if(_bindDown('swap')&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
-    if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+1,40);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/40);}
-    if(!_bindDown('swap')&&p.laserCharging){fireItem(p.laserCharge>18);p.laserCharging=false;p.laserCharge=0;p.laserCd=p.laserCharge>18?18:8;}
+    if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
+    if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=charged?14:8;}
     if(p.laserCd>0)p.laserCd--;
   }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap'))fireItem();p.laserCharging=false;p.laserCharge=0;}
   else{p.laserCharging=false;p.laserCharge=0;}

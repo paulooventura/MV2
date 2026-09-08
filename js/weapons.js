@@ -12,8 +12,8 @@
 // ── Breakable wall constants ──────────────────────────────────
 const BWALL_IMPACT_DMG=6.5, BWALL_IMPACT_HARD=10.5;
 
-// ── Enhanced TRS linger-flames (2s, 5 HP / 0.5s) ──────────────
-const TRS_FLAME_LIFE=120, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=15;
+// ── Enhanced TRS linger-flames (~3.5s, 5 HP / 0.5s) ───────────
+const TRS_FLAME_LIFE=210, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=26;
 let TRS_FLAMES=[];
 function _resetTrsFlames(){ TRS_FLAMES.length=0; }
 function spawnTrsFlame(x,y,opts){
@@ -24,7 +24,9 @@ function spawnTrsFlame(x,y,opts){
     x, y,
     life:TRS_FLAME_LIFE, maxLife:TRS_FLAME_LIFE, r:TRS_FLAME_R, born:fr||0,
     stick:opts.stick!==false,
-    nx:opts.nx||0, ny:opts.ny||0
+    nx:opts.nx||0, ny:opts.ny||0,
+    hero:opts.hero||'mind',
+    sparks:[]
   });
 }
 function _trsTraceShot(s){
@@ -45,14 +47,33 @@ function updateTrsFlames(){
     const f=TRS_FLAMES[i];
     f.life--;
     if(!f.stick) f.y-=0.12;
+    if(!f.sparks) f.sparks=[];
+    if((fr&1)===0&&f.sparks.length<22){
+      f.sparks.push({
+        x:f.x+(Math.random()-0.5)*f.r*0.7,
+        y:f.y-2-Math.random()*10,
+        vx:(Math.random()-0.5)*1.35,
+        vy:-0.2-Math.random()*1.6,
+        life:16+Math.random()*18|0,
+        r:1.1+Math.random()*2.1
+      });
+    }
+    for(let si=f.sparks.length-1;si>=0;si--){
+      const sp=f.sparks[si];
+      sp.vy+=0.22;
+      sp.x+=sp.vx; sp.y+=sp.vy;
+      sp.life--;
+      if(sp.life<=0) f.sparks.splice(si,1);
+    }
     if(f.life<=0){ TRS_FLAMES.splice(i,1); continue; }
+    const burnCol=f.hero==='venture'?'#ff6688':'#cc66ff';
     for(const e of ENEMS){
       if(!_enemyCombatActive(e)) continue;
       const cx=e.x+e.w*0.5, cy=e.y+e.h*0.5;
       if(Math.hypot(cx-f.x,cy-f.y)>f.r+Math.max(e.w,e.h)*0.28) continue;
       if((e._trsBurnCd||0)>0) continue;
       e._trsBurnCd=TRS_FLAME_TICK;
-      spawnHitBurst(f.x,e.y,0,-1,'#ff8844',6);
+      spawnHitBurst(f.x,e.y,0,-1,burnCol,6);
       _damageEnemy(e,TRS_FLAME_DMG,f.x,f.y,0.12);
     }
   }
@@ -342,14 +363,14 @@ function updatePlayerShots(){
     let dead=false;
     for(const e of ENEMS){
       if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true}); _tryInterruptMindReboot(e); dead=true; break; }
+        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner}); _tryInterruptMindReboot(e); dead=true; break; }
         continue;
       }
       if(!_enemyCombatActive(e)) continue;
       if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
         const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
-        if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true});
+        if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
         _damageEnemy(e,ldmg,s.x,s.y); dead=true; break;
       }
     }
@@ -358,7 +379,7 @@ function updatePlayerShots(){
       if(bw.hp<=0) continue;
       if(!ov(s.x-4,s.y-4,8,8,bw.x,bw.y,bw.w,bw.h)) continue;
       _damageBwall(bw,s.charged?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2,vx:bw.movable?s.vx*0.2:0,vy:bw.movable?s.vy*0.2:0});
-      if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true});
+      if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
@@ -369,7 +390,7 @@ function updatePlayerShots(){
       else s.vy*=-keep;
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=(s.bounces||0)+1;
       spawnSpark(s.x,s.y,s.vx,s.vy);
-      if(enh) spawnTrsFlame(s.x,s.y,{stick:true});
+      if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }
     for(const q of pl){
@@ -386,7 +407,7 @@ function updatePlayerShots(){
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=bounces+1; s._airAge=0;
       if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
       spawnSpark(s.x,s.y,s.vx,s.vy); sfx('laser_bounce',bounces);
-      if(enh) spawnTrsFlame(s.x,s.y,{stick:true});
+      if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       break;
     }
     if(dead&&i<p.shots.length) p.shots.splice(i,1);
@@ -435,7 +456,7 @@ function updateXLR(){
   for(const c2 of CRATES){const f=_applyPush(c2.x+c2.w/2,c2.y+c2.h/2);if(f){c2.vx+=f.fx;c2.vy+=f.fy;}}
   for(const bw of BWALLS){if(bw.hp<=0||!bw.movable)continue;const f=_applyPushBwall(bw);if(f){_wakeBwall(bw);bw.vx=(bw.vx||0)+f.fx;bw.vy=(bw.vy||0)+f.fy;}}
   for(const m of MPLAT){const f=_applyPush(m.x+m.w/2,m.y+m.h/2);if(f){m.vx+=f.fx;}}
-  _applyPushWallReaction(p,_tip.x,_tip.y,_a,_range,p.xlrHeld);
+  _applyPushWallReaction(p,_tip.x,_tip.y,_a,_range,p.xlrHeld,{enhanced:enh});
 }
 
 // ── MAG pull ──────────────────────────────────────────────────
