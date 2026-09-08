@@ -213,12 +213,12 @@ const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
-/** Held-jack scale. 1/4" TRS is medium.
- *  RCA pin 3.2mm / shell ~8.3mm (shorter, thinner than TRS).
- *  XLR barrel ~19–21mm × ~63mm (thicker + a bit longer; thickness lives in the art). */
+/** Held-jack scale. Same multiplier for TRS and RCA — the art carries the
+ *  photo ratio (1/4" TRS ~1.5× longer, handle ~2× thicker than RCA).
+ *  XLR barrel ~19–21mm; thickness lives in the art. */
 function _itemArtScale(idx){
   if(idx===0) return 0.86;
-  if(idx===1) return 0.70;
+  if(idx===1) return 0.86;
   if(idx===2) return 1.00;
   if(idx===3) return 0.88;
   return 0.86;

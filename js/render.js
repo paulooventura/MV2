@@ -597,28 +597,29 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     }
 
   }else if(itemIdx===1){
-    // RCA: black/grey housing, gold center pin (standard + enhanced)
-    _connPx(-12,-2,8,4,'#1a1a20');
-    _connPx(-12,-1,8,1,'#3a3a42');
-    _connPx(-4,-6,16,12,'#2c2c32');
-    _connPx(-3,-5,14,3,'#4a4a54');
-    _connPx(-3,3,14,2,'#141418');
-    for(let r=0;r<4;r++) _connPx(-2+r*3,-6,1,12,'#121216');
-    _connPx(12,-5,6,10,'#5a5e66');
-    _connPx(12,-5,6,2,'#8a8e96');
-    _connPx(12,3,6,2,'#2a2e34');
-    _connPx(13,-3,3,6,'#1a1c22');
-    _connPx(18,-1.4,9,2.8,'#d4aa40');
-    _connPx(18,-1.4,9,1,'#fff0b8');
-    ctx.beginPath();ctx.arc(27.2,0,1.5,0,Math.PI*2);ctx.fillStyle='#e2b64a';ctx.fill();
+    // RCA vs 1/4" TRS (photo): ~2/3 the length, handle ~half as thick,
+    // metal = short sleeve + pin (not a speck, not a second TRS).
+    _connPx(-14,-2.2,8,4.4,'#101012');
+    _connPx(-14,-1.4,8,1.2,'#2a2a30');
+    _connPx(-6,-3.2,16,6.4,'#1a1a20');
+    _connPx(-5,-2.4,14,2,'#3a3a44');
+    _connPx(-5,1.2,14,1.6,'#08080c');
+    for(let r=0;r<4;r++) _connPx(-4+r*3.4,-3.2,0.9,6.4,'#121216');
+    _connPx(10,-4.2,9,8.4,'#5a5e66');
+    _connPx(10,-4.2,9,2.4,'#8a8e96');
+    _connPx(10,2.4,9,1.8,'#2a2e34');
+    _connPx(12,-2.2,5,4.4,'#16181e');
+    _connPx(19,-1.6,13,3.2,'#d4aa40');
+    _connPx(19,-1.6,13,1.1,'#fff0b8');
+    ctx.beginPath();ctx.arc(32.4,0,1.7,0,Math.PI*2);ctx.fillStyle='#e2b64a';ctx.fill();
     if(enh){
       _drawGreenVeins([
-        [[-10,-0.6],[-2,1.2],[6,-1.0],[14,0.8],[22,-0.2],[27,0.2]],
-        [[-8,2.0],[0,0.2],[8,2.2],[16,0.4],[24,1.0]],
-        [[-6,-2.4],[4,0.6],[12,-1.6],[20,0.8],[26,-0.4]],
+        [[-12,-0.6],[-2,1.0],[8,-0.8],[16,0.6],[24,-0.2],[32,0.2]],
+        [[-10,1.6],[0,0.2],[10,1.8],[18,0.4],[26,1.0]],
+        [[-8,-2.0],[4,0.4],[14,-1.2],[22,0.6],[31,-0.3]],
       ]);
     }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#c8c8d0';ctx.beginPath();ctx.arc(27,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#c8c8d0';ctx.beginPath();ctx.arc(32,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
     // XLR: cylindrical barrel (real ~19mm Ø), three pins — not a disc

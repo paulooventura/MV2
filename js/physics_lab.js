@@ -31,17 +31,20 @@ function initPhysicsLabWorld() {
   const crestY = 14 * PL_T;
   const platX = 12 * PL_T;
   const wallX = 33 * PL_T;
-  const ledgeX = 1680;
+  const ledgeX = 2100;
   const ledgeY = 400;
-  const ledgeW = 300;
+  const ledgeW = 250;
+  const passPlatX = 56 * PL_T;
+  const passPlatY = 14 * PL_T;
 
   TR = [
     _plPlat(0, PL_FLOOR, PL_WW, PL_WH - PL_FLOOR),
     _plPlat(0, 0, PL_WW, PL_T),
     _plPlat(0, 0, PL_T, PL_WH),
     _plPlat(PL_WW - PL_T, 0, PL_T, PL_WH),
-    _plPlat(platX, crestY, 8 * PL_T, PL_T),
+    _plPlat(platX, crestY, 8 * PL_T, PL_FLOOR - crestY),
     _plPlat(wallX, 0, PL_T, 16 * PL_T),
+    _plPlat(passPlatX, passPlatY, 8 * PL_T, PL_T),
     _plPlat(ledgeX, ledgeY, ledgeW, PL_T),
   ];
   MPLAT.length = 0;
@@ -69,6 +72,7 @@ function initPhysicsLabWorld() {
         { c: 6, r: 19, n: 6, kind: 'R' },
         { c: 28, r: 19, n: 5, kind: 'R' },
         { c: 42, r: 14, n: 6, kind: 'L' },
+        { c: 50, r: 19, n: 6, kind: 'R', pass: true },
       ],
     });
   }
@@ -120,10 +124,10 @@ function initPhysicsLabWorld() {
   _zoneCardT = 160;
   if (typeof ZONES !== 'undefined') {
     let zi = ZONES.findIndex(z => z.name === 'PHYSICS LAB');
-    if (zi < 0) { ZONES.push({ name: 'PHYSICS LAB', sub: 'slopes, corners, rolling boxes' }); zi = ZONES.length - 1; }
+    if (zi < 0) { ZONES.push({ name: 'PHYSICS LAB', sub: 'smooth hills, corners, pass ramps, rolling boxes' }); zi = ZONES.length - 1; }
     _zoneIdx = zi;
   }
-  if (typeof uiShowToast === 'function') uiShowToast('PHYSICS LAB — walk the ramps · XLR shoves boxes off the ledge');
+  if (typeof uiShowToast === 'function') uiShowToast('PHYSICS LAB — ramps are hills · UP+DIR climbs a pass ramp');
   console.info('MV: Physics Lab');
 }
 
@@ -142,35 +146,71 @@ function drawPhysicsLabWorld() {
   if (!_physicsLabMode || _gameState !== 'game') return;
   if (typeof _gridReady !== 'function' || !_gridReady() || !MV_GRID) return;
   const t = MV_GRID.tile;
-  ctx.fillStyle = '#3a2a48';
-  for (let r = 0; r < MV_GRID.rows; r++) {
-    for (let c = 0; c < MV_GRID.cols; c++) {
+  const cols = MV_GRID.cols, rows = MV_GRID.rows;
+  const seen = Object.create(null);
+  const key = (c, r) => r * cols + c;
+  const runStart = (c, r, kind) => {
+    if (kind === 'R') return gridSlopeKind(c - 1, r + 1) !== 'R' && gridSlopeKind(c - 1, r) !== 'R';
+    return gridSlopeKind(c - 1, r - 1) !== 'L' && gridSlopeKind(c - 1, r) !== 'L';
+  };
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       const kind = typeof gridSlopeKind === 'function' ? gridSlopeKind(c, r) : null;
-      if (!kind) continue;
-      const x0 = sx(c * t), y0 = sy(r * t), tw = sw(t), th = sw(t);
+      if (!kind || seen[key(c, r)] || !runStart(c, r, kind)) continue;
+      const cells = [];
+      let cc = c, rr = r;
+      while (gridSlopeKind(cc, rr) === kind) {
+        seen[key(cc, rr)] = 1;
+        cells.push([cc, rr]);
+        if (kind === 'R') { cc++; rr--; }
+        else { cc++; rr++; }
+      }
+      if (!cells.length) continue;
+      const ghost = typeof gridSlopePass === 'function' && gridSlopePass(cells[0][0], cells[0][1]);
       ctx.beginPath();
+      const first = cells[0], last = cells[cells.length - 1];
       if (kind === 'R') {
-        ctx.moveTo(x0, y0 + th); ctx.lineTo(x0 + tw, y0); ctx.lineTo(x0 + tw, y0 + th);
+        ctx.moveTo(sx(first[0] * t), sy((first[1] + 1) * t));
+        for (const [sc, sr] of cells) ctx.lineTo(sx((sc + 1) * t), sy(sr * t));
+        if (ghost) {
+          ctx.lineTo(sx((last[0] + 1) * t), sy((last[1] + 1) * t));
+          ctx.lineTo(sx(first[0] * t), sy((first[1] + 1) * t));
+        } else {
+          ctx.lineTo(sx((last[0] + 1) * t), sy(PL_FLOOR));
+          ctx.lineTo(sx(first[0] * t), sy(PL_FLOOR));
+        }
       } else {
-        ctx.moveTo(x0, y0); ctx.lineTo(x0 + tw, y0 + th); ctx.lineTo(x0, y0 + th);
+        ctx.moveTo(sx(first[0] * t), sy(first[1] * t));
+        for (const [sc, sr] of cells) ctx.lineTo(sx((sc + 1) * t), sy((sr + 1) * t));
+        if (ghost) {
+          ctx.lineTo(sx(first[0] * t), sy((first[1] + 1) * t));
+        } else {
+          ctx.lineTo(sx((last[0] + 1) * t), sy(PL_FLOOR));
+          ctx.lineTo(sx(first[0] * t), sy(PL_FLOOR));
+        }
       }
       ctx.closePath();
+      ctx.fillStyle = ghost ? 'rgba(80,200,220,0.28)' : '#3a2a48';
       ctx.fill();
-      ctx.fillStyle = '#c8a070';
       ctx.beginPath();
-      if (kind === 'R') { ctx.moveTo(x0, y0 + th); ctx.lineTo(x0 + tw, y0); }
-      else { ctx.moveTo(x0, y0); ctx.lineTo(x0 + tw, y0 + th); }
-      ctx.strokeStyle = '#e2c090';
-      ctx.lineWidth = 2;
+      if (kind === 'R') {
+        ctx.moveTo(sx(first[0] * t), sy((first[1] + 1) * t));
+        for (const [sc, sr] of cells) ctx.lineTo(sx((sc + 1) * t), sy(sr * t));
+      } else {
+        ctx.moveTo(sx(first[0] * t), sy(first[1] * t));
+        for (const [sc, sr] of cells) ctx.lineTo(sx((sc + 1) * t), sy((sr + 1) * t));
+      }
+      ctx.strokeStyle = ghost ? '#7ee8f0' : '#e2c090';
+      ctx.lineWidth = ghost ? 3 : 2;
       ctx.stroke();
-      ctx.fillStyle = '#3a2a48';
     }
   }
   const labels = [
     [6 * PL_T + 8, PL_FLOOR - 18, 'CREST: WALK ON'],
     [28 * PL_T + 8, PL_FLOOR - 18, 'CORNER: STOP CLEAN'],
     [42 * PL_T + 8, PL_FLOOR - 18, 'FOOT: ROLL OFF'],
-    [1688, 400 - 18, 'PUSH OFF — FALL / ROLL'],
+    [50 * PL_T + 8, PL_FLOOR - 18, 'DIR = PAST  ·  UP+DIR = CLIMB'],
+    [2108, 400 - 18, 'PUSH OFF — FALL / ROLL'],
   ];
   for (const [x, y, txt] of labels) {
     const bx = sx(x), by = sy(y);
@@ -183,7 +223,7 @@ function drawPhysicsLabHud() {
   if (!_physicsLabMode || _gameState !== 'game') return;
   ctx.fillStyle = C.BLACK;
   ctx.fillRect(6, H - 44, 620, 38);
-  drawText('RAMPS = CORNERS  ·  XLR / MAG PUSH BOXES OFF THE LEDGE', 10, H - 40, C.SILVER, 1);
+  drawText('HILLS  ·  UP+DIR CLIMBS PASS RAMP  ·  XLR / MAG PUSH BOXES', 10, H - 40, C.SILVER, 1);
   if (ITEM >= 0) {
     const enh = typeof _itemEnhanced !== 'undefined' && _itemEnhanced[ITEM];
     const col = (typeof ICOLS !== 'undefined' && ICOLS[ITEM]) || C.WHITE;
