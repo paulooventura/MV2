@@ -183,9 +183,15 @@ function _bwallApplyImpact(bw,speed){
   spawnDebris(bw,4+dmg*3); sfx('omniblock_chip');
   if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
+const BOX_ROLL_SPEED=2.15, BOX_TUMBLE_FRAMES=11, BOX_GROUND_FRIC=0.76, BOX_REST=0.22;
+const BOX_MAG_STICK=26;
+
 function _bwallSolids(skip){
   const out=TR.map(_normPlat);
-  for(const bw of BWALLS){ if(bw===skip||bw.hp<=0) continue; out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'}); }
+  for(const bw of BWALLS){
+    if(bw===skip||bw.hp<=0||bw.movable) continue;
+    out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'});
+  }
   return out;
 }
 function _sanitizeBwall(bw){
@@ -214,14 +220,14 @@ function _resolveBwallAgainstSolids(bw,solids,prevY){
       const onTop=bw.vy>=-0.05&&prevBottom<=q.y+8&&blockBottom>q.y&&bw.y<q.y+q.h*0.6;
       if(onTop){
         bw.y=q.y-bw.h;
-        if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.22; bw.og=false; }
+        if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.55; bw.spin=(bw.spin||0)+(bw.vx||0)*0.04; bw.og=false; }
         else{ bw.vy=0; bw.og=true; }
         any=true;
       }
       else if(overlapX<overlapY){
         const dir=bw.x+bw.w/2<q.x+q.w/2?-1:1;
         bw.x=dir<0?q.x-bw.w:q.x+q.w;
-        if(live&&Math.abs(bw.vx)>1.1){ bw.vx=-bw.vx*0.38; }
+        if(live&&Math.abs(bw.vx)>0.6){ bw.vx=-bw.vx*0.58; bw.spin=(bw.spin||0)-dir*0.12; }
         else bw.vx=0;
         any=true;
       }
@@ -267,30 +273,97 @@ function _rigidTipOff(box, solids){
   const dir=hit[0]?1:-1;
   box.vx=(box.vx||0)+dir*0.55;
   box.vy=Math.min((box.vy||0)+0.62, 16);
+  box.spin=(box.spin||0)+dir*0.08;
   box.og=false;
+}
+
+function _startBoxTumble(box, dir){
+  if(!box||box._tumbleT>0||box._magStuck) return;
+  dir=dir||Math.sign(box.vx||0)||1;
+  box._tumbleT=BOX_TUMBLE_FRAMES;
+  box._tumbleDir=dir;
+  box._tumbleX0=box.x;
+  box._tumbleY0=box.y;
+  box._tumbleFrom=box.rot||0;
+  box.og=false;
+}
+
+function _stepBoxTumble(box){
+  const n=BOX_TUMBLE_FRAMES;
+  box._tumbleT=Math.max(0,(box._tumbleT||0)-1);
+  const t=1-box._tumbleT/n;
+  const ease=t*t*(3-2*t);
+  const dir=box._tumbleDir||1;
+  box.x=(box._tumbleX0||box.x)+dir*(box.w||32)*ease;
+  box.y=(box._tumbleY0||box.y)-Math.sin(t*Math.PI)*7;
+  box.rot=(box._tumbleFrom||0)+dir*(Math.PI/2)*ease;
+  box.vx=dir*Math.max(BOX_ROLL_SPEED, Math.abs(box.vx||0))*0.96;
+  box.vy=Math.min(box.vy||0, 1.4);
+  if(box._tumbleT<=0){
+    box.rot=0;
+    box.spin=(box.spin||0)*0.2;
+    box.vx=(box.vx||0)*0.84;
+    box.y=box._tumbleY0||box.y;
+  }
+}
+
+function _steerBoxHome(box){
+  if(!box||box.homeX==null||box.homeY==null) return;
+  const dx=box.homeX-box.x, dy=box.homeY-box.y;
+  if(Math.abs(dx)<3&&Math.abs(dy)<3&&Math.abs(box.vx||0)<0.25&&(box.og||Math.abs(dy)<6)){
+    box.x=box.homeX; box.y=box.homeY; box.vx=0; box.vy=0; box.rot=0; box.spin=0;
+    box._homing=false; box._awake=false; box.og=true;
+    return;
+  }
+  if(box.og){
+    box.vx=(box.vx||0)+Math.sign(dx||0)*0.22;
+    box.vx=Math.max(-2.8,Math.min(2.8,box.vx));
+  }else{
+    box.vx=(box.vx||0)+Math.sign(dx||0)*0.08;
+  }
 }
 
 function _updateRigidBox(box, solids, opts){
   opts=opts||{};
+  const prevX=box.x, prevY=box.y;
+  if(box._magStuck){
+    box.vx=0; box.vy=0; box.og=false;
+    return {dx:box.x-prevX, dy:box.y-prevY};
+  }
+  if((box._tumbleT||0)>0){
+    _stepBoxTumble(box);
+    _resolveBwallAgainstSolids(box, solids, prevY);
+    if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=0; box.og=true; }
+    return {dx:box.x-prevX, dy:box.y-prevY};
+  }
   box.og=false;
   const grav=typeof GRAV==='undefined'?0.52:GRAV;
   box.vy=Math.min((box.vy||0)+grav*0.72, 16);
-  const prevX=box.x, prevY=box.y;
+  if(box._homing) _steerBoxHome(box);
   box.x+=(box.vx||0);
   _resolveBwallAgainstSolids(box, solids, prevY);
   const yBefore=box.y;
   box.y+=(box.vy||0);
   _resolveBwallAgainstSolids(box, solids, yBefore);
   _rigidTipOff(box, solids);
-  if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=box.vy>2?-box.vy*0.18:0; box.og=true; }
+  if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=box.vy>2?-box.vy*0.45:0; box.og=true; }
   if(box.og){
-    box.vx=(box.vx||0)*0.988;
-    if(Math.abs(box.vx)<0.04) box.vx=0;
+    box.vx=(box.vx||0)*BOX_GROUND_FRIC;
+    if(Math.abs(box.vx)<BOX_REST) box.vx=0;
+    const lean=Math.max(-0.32,Math.min(0.32,(box.vx||0)*0.09+(box.spin||0)));
+    if(Math.abs(box.vx)>=BOX_ROLL_SPEED||Math.abs(lean)>0.28||(box._tipUrge||0)>0.34){
+      _startBoxTumble(box, Math.sign(box.vx||box._tipUrge||1));
+    }else{
+      box.rot+=(lean-box.rot)*0.28;
+      box.spin=(box.spin||0)*0.72;
+      if(Math.abs(box.vx)<0.35){ box.rot*=0.55; if(Math.abs(box.rot)<0.03) box.rot=0; }
+    }
+    box._tipUrge=Math.max(0,(box._tipUrge||0)-0.08);
   }else{
-    box.vx=(box.vx||0)*0.998;
+    box.vx=(box.vx||0)*0.996;
+    box.rot+=(box.spin||0);
+    box.spin=(box.spin||0)*0.985;
   }
-  box.spin=0;
-  box.rot=0;
   return {dx:box.x-prevX, dy:box.y-prevY};
 }
 function _carryPlayersOnBwall(bw,dx,dy){
@@ -306,14 +379,14 @@ function updateBWalls(){
     if(!bw.debris) bw.debris=[];
     _sanitizeBwall(bw);
     if(bw.movable&&bw.hp>0){
-      if(!bw._awake){ bw.x=bw.homeX??bw.x; bw.y=bw.homeY??bw.y; bw.vx=0; bw.vy=0; bw.spin=0; }
+      if(!bw._awake&&!bw._magStuck&&!bw._homing){ bw.x=bw.homeX??bw.x; bw.y=bw.homeY??bw.y; bw.vx=0; bw.vy=0; bw.spin=0; bw.rot=0; }
       else{
         const solids=_bwallSolids(bw);
         const d=_updateRigidBox(bw, solids);
         _carryPlayersOnBwall(bw, d.dx, d.dy);
         const fell=bw.homeY!=null&&bw.y>bw.homeY+16;
-        if(!fell&&bw.homeX!=null&&Math.abs(bw.x-bw.homeX)<3&&Math.abs(bw.y-bw.homeY)<3
-          &&Math.abs(bw.vx)<0.15&&Math.abs(bw.vy)<0.15&&bw.og
+        if(!bw._magStuck&&!bw._homing&&!fell&&bw.homeX!=null&&Math.abs(bw.x-bw.homeX)<3&&Math.abs(bw.y-bw.homeY)<3
+          &&Math.abs(bw.vx)<0.15&&Math.abs(bw.vy)<0.15&&bw.og&&!(bw._tumbleT>0)
           &&!_bwallOverlapsPlayer(bw,p)&&!(p2&&_bwallOverlapsPlayer(bw,p2))){
           bw._awake=false; bw.x=bw.homeX; bw.y=bw.homeY; bw.vx=0; bw.vy=0; bw.spin=0; bw.rot=0;
         }
@@ -329,6 +402,7 @@ function updateBWalls(){
     }
     if(typeof gridSyncBwallOccupancy==='function') gridSyncBwallOccupancy(bw);
   }
+  _resolvePoolBodies();
 }
 
 // ── Player shots update ───────────────────────────────────────
@@ -414,6 +488,121 @@ function updatePlayerShots(){
   updateTrsFlames();
 }
 
+function _tipField(tip, aimA, ox, oy, range){
+  const dx=ox-tip.x, dy=oy-tip.y, dist=Math.hypot(dx,dy)||1;
+  if(dist>range) return null;
+  const ux=dx/dist, uy=dy/dist;
+  const ax=Math.cos(aimA), ay=Math.sin(aimA);
+  const align=ux*ax+uy*ay;
+  const cone=Math.max(0,(align-0.12)/0.88);
+  if(cone<=0) return null;
+  return {dist, ux, uy, ax, ay, align, cone, prox:Math.pow(1-dist/range,1.35)};
+}
+function _boxTipGap(box, tip){
+  const nx=Math.max(box.x, Math.min(tip.x, box.x+box.w));
+  const ny=Math.max(box.y, Math.min(tip.y, box.y+box.h));
+  return Math.hypot(tip.x-nx, tip.y-ny);
+}
+function _pinBoxToTip(box, tip, aimA){
+  const ax=Math.cos(aimA), ay=Math.sin(aimA);
+  const hx=box.w*0.5, hy=box.h*0.5;
+  const hang=Math.max(hx,hy)+6;
+  box.x=tip.x+ax*hang-hx;
+  box.y=tip.y+ay*hang-hy;
+  box.rot=aimA*0.12;
+  box.vx=0; box.vy=0; box.og=false; box._tumbleT=0;
+}
+function _releaseMagHolds(home){
+  const drop=(box)=>{
+    if(!box||!box._magStuck) return;
+    box._magStuck=false;
+    box._awake=true;
+    box.og=false;
+    box.vy=Math.max(box.vy||0, 0.8);
+    if(home&&box.homeX!=null) box._homing=true;
+  };
+  for(const bw of BWALLS) drop(bw);
+  for(const c of CRATES) drop(c);
+  for(const e of ENEMS){
+    if(!e||!e._magStuck) continue;
+    e._magStuck=false;
+    e.vy=Math.max(e.vy||0, 0.6);
+  }
+}
+function _applyTipTorque(box, tip, fx, fy){
+  if(!box) return;
+  const cx=box.x+box.w*0.5, cy=box.y+box.h*0.5;
+  const rx=cx-tip.x, ry=cy-tip.y;
+  box.spin=(box.spin||0)+(rx*fy-ry*fx)*0.004;
+  if(ry<-box.h*0.12 && Math.abs(fx)>0.08) box._tipUrge=(box._tipUrge||0)+0.10;
+}
+
+function _holdMagStuckActors(){
+  if(!p||!p.magOn) return;
+  const tip={x:p._magTipX,y:p._magTipY}, a=p._magAim||0;
+  if(tip.x==null||!isFinite(tip.x)) return;
+  for(const bw of BWALLS) if(bw._magStuck) _pinBoxToTip(bw,tip,a);
+  for(const c of CRATES) if(c._magStuck) _pinBoxToTip(c,tip,a);
+  if(typeof ENEMS!=='undefined'){
+    for(const e of ENEMS){
+      if(!e._magStuck) continue;
+      const hang=Math.max(e.w||24,e.h||24)*0.55+6;
+      e.x=tip.x+Math.cos(a)*hang-(e.w||24)*0.5;
+      e.y=tip.y+Math.sin(a)*hang-(e.h||24)*0.5;
+      e.vx=0; e.vy=0;
+    }
+  }
+}
+function _resolvePoolBodies(){
+  _holdMagStuckActors();
+  const bodies=[];
+  const add=(kind,a,x,y,w,h,mass)=>{
+    if(!a||!isFinite(x)||!isFinite(y)||w<=0||h<=0) return;
+    bodies.push({kind,a,x,y,w,h,mass:mass||1});
+  };
+  for(const bw of BWALLS){
+    if(bw.hp<=0||!bw.movable) continue;
+    add('box',bw,bw.x,bw.y,bw.w,bw.h,1.15);
+  }
+  for(const c of CRATES) add('crate',c,c.x,c.y,c.w,c.h,0.85);
+  if(typeof ENEMS!=='undefined'){
+    for(const e of ENEMS){
+      if(typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e)) continue;
+      const hb=typeof _enemyItemHB==='function'?_enemyItemHB(e):{x:e.x,y:e.y,w:e.w,h:e.h};
+      add('enemy',e,hb.x,hb.y,hb.w,hb.h,0.95);
+    }
+  }
+  for(let i=0;i<bodies.length;i++){
+    for(let j=i+1;j<bodies.length;j++){
+      const A=bodies[i], B=bodies[j];
+      if(!ov(A.x,A.y,A.w,A.h,B.x,B.y,B.w,B.h)) continue;
+      const overlapX=Math.min(A.x+A.w,B.x+B.w)-Math.max(A.x,B.x);
+      const overlapY=Math.min(A.y+A.h,B.y+B.h)-Math.max(A.y,B.y);
+      if(overlapX<=0||overlapY<=0) continue;
+      const horiz=overlapX<=overlapY;
+      const nx=horiz?(A.x+A.w*0.5<=B.x+B.w*0.5?-1:1):0;
+      const ny=horiz?0:(A.y+A.h*0.5<=B.y+B.h*0.5?-1:1);
+      const pen=horiz?overlapX:overlapY;
+      const aStuck=!!A.a._magStuck, bStuck=!!B.a._magStuck;
+      const mA=aStuck?1e9:A.mass, mB=bStuck?1e9:B.mass;
+      const invA=1/mA, invB=1/mB, inv=invA+invB;
+      const sA=invA/inv, sB=invB/inv;
+      const push=pen+0.6;
+      if(!aStuck){ A.a.x+=nx*push*sA; A.a.y+=ny*push*sA; A.x=A.a.x; A.y=A.kind==='enemy'&&A.a!==A?A.a.y:A.a.y; }
+      if(!bStuck){ B.a.x-=nx*push*sB; B.a.y-=ny*push*sB; }
+      if(A.kind==='enemy'){ A.x=A.a.x; A.y=A.a.y; }
+      if(B.kind==='enemy'){ B.x=B.a.x; B.y=B.a.y; }
+      const avx=A.a.vx||0, avy=A.a.vy||0, bvx=B.a.vx||0, bvy=B.a.vy||0;
+      const rvn=(avx-bvx)*nx+(avy-bvy)*ny;
+      if(rvn>=0) continue;
+      const eRest=Math.abs(rvn)<0.4?0.28:0.62;
+      const imp=-(1+eRest)*rvn/inv;
+      if(!aStuck){ A.a.vx=avx+imp*invA*nx; A.a.vy=avy+imp*invA*ny; A.a.spin=(A.a.spin||0)+imp*0.03*nx; if(A.kind==='box') _wakeBwall(A.a); }
+      if(!bStuck){ B.a.vx=bvx-imp*invB*nx; B.a.vy=bvy-imp*invB*ny; B.a.spin=(B.a.spin||0)-imp*0.03*nx; if(B.kind==='box') _wakeBwall(B.a); }
+    }
+  }
+}
+
 // ── XLR push ──────────────────────────────────────────────────
 function updateXLR(){
   if(!p.xlrOn||ITEM!==2) return;
@@ -423,84 +612,112 @@ function updateXLR(){
   const pow=enh?1.85:1;
   if(fr%8===0) p.pulses.push({x:_tip.x,y:_tip.y,a:_a,r:0,maxR:_range,life:14});
   p.flashF=4;
-  const _applyPush=(ox,oy)=>{
-    const dx=ox-_tip.x, dy=oy-_tip.y, dist=Math.hypot(dx,dy)||1;
-    if(dist>_range) return null;
-    const holdScale=Math.min(1,(p.xlrHeld||0)/180)*1.5+1;
-    const strength=Math.pow(1-dist/_range,1.5)*2.2*holdScale*pow;
-    return {fx:Math.cos(_a)*strength, fy:Math.sin(_a)*strength};
-  };
-  const _bwallPushRange=enh?250:175;
-  const _applyPushBwall=(bw)=>{
-    const ox=bw.x+bw.w/2, oy=bw.y+bw.h/2;
-    const dx=ox-_tip.x, dy=oy-_tip.y, dist=Math.hypot(dx,dy)||1;
-    if(dist>_bwallPushRange) return null;
-    const holdScale=Math.min(1,(p.xlrHeld||0)/120)*2+1;
-    const prox=Math.pow(1-dist/_bwallPushRange,1.35);
-    let touchBoost=1;
-    const ph=playerCoreHB(p);
-    if(ov(bw.x,bw.y,bw.w,bw.h,ph.x,ph.y,ph.w,ph.h)) touchBoost=3.4;
-    else if(dist<52) touchBoost=1+Math.pow(1-dist/52,2)*2.4;
-    const strength=prox*5.8*holdScale*touchBoost*pow;
-    return {fx:Math.cos(_a)*strength, fy:Math.sin(_a)*strength*0.4};
+  const hold=Math.min(1,(p.xlrHeld||0)/160)*1.15+1;
+  const pcx=p.x+SW*0.5, pcy=p.y+FEET_OFF-STAND_H*0.45;
+  const _applyPush=(ox,oy,box)=>{
+    const f=_tipField(_tip,_a,ox,oy,_range);
+    if(!f) return null;
+    const strength=f.prox*f.cone*0.72*hold*pow;
+    const close=f.dist<56?Math.pow(1-f.dist/56,1.55):0;
+    const adx=ox-pcx, ady=oy-pcy, ad=Math.hypot(adx,ady)||1;
+    const fx=f.ax*strength+(adx/ad)*close*0.55;
+    const fy=f.ay*strength*0.42+(ady/ad)*close*0.18;
+    if(box) _applyTipTorque(box,_tip,fx,fy);
+    return {fx,fy};
   };
   for(const e of ENEMS){
     if(!_enemyBodyPresent(e)) continue;
     const hb=_enemyItemHB(e), ox=hb.x+hb.w/2, oy=hb.y+hb.h/2;
-    const f=_applyPush(ox,oy);
+    const f=_applyPush(ox,oy,e);
     if(f) _applyItemForceToEnemy(e,f.fx,f.fy);
   }
-  for(const c2 of CRATES){const f=_applyPush(c2.x+c2.w/2,c2.y+c2.h/2);if(f){c2.vx+=f.fx;c2.vy+=f.fy;}}
-  for(const bw of BWALLS){if(bw.hp<=0||!bw.movable)continue;const f=_applyPushBwall(bw);if(f){_wakeBwall(bw);bw.vx=(bw.vx||0)+f.fx;bw.vy=(bw.vy||0)+f.fy;}}
+  for(const c2 of CRATES){
+    const f=_applyPush(c2.x+c2.w/2,c2.y+c2.h/2,c2);
+    if(f){c2.vx=(c2.vx||0)+f.fx;c2.vy=(c2.vy||0)+f.fy;}
+  }
+  for(const bw of BWALLS){
+    if(bw.hp<=0||!bw.movable) continue;
+    const f=_applyPush(bw.x+bw.w/2,bw.y+bw.h/2,bw);
+    if(f){_wakeBwall(bw);bw.vx=(bw.vx||0)+f.fx;bw.vy=(bw.vy||0)+f.fy;}
+  }
   for(const m of MPLAT){const f=_applyPush(m.x+m.w/2,m.y+m.h/2);if(f){m.vx+=f.fx;}}
   _applyPushWallReaction(p,_tip.x,_tip.y,_a,_range,p.xlrHeld,{enhanced:enh});
 }
 
 // ── MAG pull ──────────────────────────────────────────────────
 function updateMAG(){
-  if(!p.magOn||ITEM!==3) return;
+  if(!p.magOn||ITEM!==3){
+    _releaseMagHolds(ITEM===3&&p.itemStamina<=0);
+    return;
+  }
   const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
-  const _ca=cpt(), _range=enh?250:180;
+  const _tip=connectorTipWorld(3), _a=Math.atan2(p.aimDY,p.aimDX);
+  p._magTipX=_tip.x; p._magAim=_a; p._magTipY=_tip.y;
+  const _range=enh?250:180;
   const pow=enh?1.85:1;
   p.flashF=4;
-  if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_ca.x,y:_ca.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
-  const _applyPull=(ox,oy)=>{
-    const dx=_ca.x-ox, dy=_ca.y-oy, dist=Math.hypot(dx,dy)||1;
-    if(dist>_range) return null;
-    const holdScale2=Math.min(1,(p.magHeld||0)/180)*1.5+1;
-    const strength=Math.pow(1-dist/_range,1.4)*2.8*holdScale2*pow;
-    return {fx:dx/dist*strength, fy:dy/dist*strength};
+  if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_tip.x,y:_tip.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
+  const hold=Math.min(1,(p.magHeld||0)/160)*1.15+1;
+  const _applyPull=(ox,oy,box)=>{
+    const f=_tipField(_tip,_a,ox,oy,_range);
+    if(!f) return null;
+    const strength=f.prox*f.cone*0.95*hold*pow;
+    const fx=-f.ux*strength, fy=-f.uy*strength;
+    if(box) _applyTipTorque(box,_tip,fx,fy);
+    return {fx,fy,dist:f.dist};
   };
   let _tugX=0, _tugY=0;
-  const _pullTug=(ox,oy,w,h)=>{
-    const f=_applyPull(ox,oy);
+  const _pullTug=(ox,oy,w,h,box)=>{
+    const f=_applyPull(ox,oy,box);
     if(!f) return;
-    const t=_applyPullPlayerTug(p,_ca.x,_ca.y,f.fx,f.fy,ox,oy,w,h,_range,false);
+    const t=_applyPullPlayerTug(p,_tip.x,_tip.y,f.fx,f.fy,ox,oy,w,h,_range,false);
     _tugX+=t.x; _tugY+=t.y;
     return f;
+  };
+  const _tryStick=(box,w,h)=>{
+    if(!box||box.hp===0) return false;
+    if(_boxTipGap(box,_tip)>BOX_MAG_STICK) return false;
+    box._magStuck=true; box._homing=false; box._awake=true;
+    _pinBoxToTip(box,_tip,_a);
+    return true;
   };
   for(const e of ENEMS){
     if(!_enemyBodyPresent(e)) continue;
     const hb=_enemyItemHB(e);
-    const f=_pullTug(hb.x+hb.w/2,hb.y+hb.h/2,hb.w,hb.h);
-    if(f) _applyItemForceToEnemy(e,f.fx,f.fy);
+    if(e._magStuck){
+      const hang=Math.max(hb.w,hb.h)*0.55+6;
+      e.x=_tip.x+Math.cos(_a)*hang-(e.w||hb.w)*0.5;
+      e.y=_tip.y+Math.sin(_a)*hang-(e.h||hb.h)*0.5;
+      e.vx=0; e.vy=0;
+      continue;
+    }
+    const f=_pullTug(hb.x+hb.w/2,hb.y+hb.h/2,hb.w,hb.h,e);
+    if(f){
+      _applyItemForceToEnemy(e,f.fx,f.fy);
+      if(f.dist<BOX_MAG_STICK+8) e._magStuck=true;
+    }
   }
-  for(const c2 of CRATES){const f=_pullTug(c2.x+c2.w/2,c2.y+c2.h/2,c2.w,c2.h);if(f){c2.vx+=f.fx;c2.vy+=f.fy;}}
+  for(const c2 of CRATES){
+    if(c2.homeX==null){ c2.homeX=c2.x; c2.homeY=c2.y; }
+    if(_tryStick(c2,c2.w,c2.h)) continue;
+    const f=_pullTug(c2.x+c2.w/2,c2.y+c2.h/2,c2.w,c2.h,c2);
+    if(f){c2.vx=(c2.vx||0)+f.fx;c2.vy=(c2.vy||0)+f.fy;}
+  }
   for(const bw of BWALLS){
     if(bw.hp<=0||!bw.movable) continue;
-    const f=_pullTug(bw.x+bw.w/2,bw.y+bw.h/2,bw.w,bw.h);
+    if(_tryStick(bw,bw.w,bw.h)) continue;
+    const f=_pullTug(bw.x+bw.w/2,bw.y+bw.h/2,bw.w,bw.h,bw);
     if(f){_wakeBwall(bw);bw.vx=(bw.vx||0)+f.fx;bw.vy=(bw.vy||0)+f.fy;}
   }
   for(const m of MPLAT){const f=_pullTug(m.x+m.w/2,m.y+m.h/2,m.w,m.h);if(f){m.vx+=f.fx;}}
   if(!(p.hook&&p.hook.st==='on')){
     p.vx+=_tugX*0.62; p.vy+=_tugY*0.62;
     const feet=p.y+FEET_OFF;
-    const floorD=_raySolidDist(_ca.x,feet,0,1,36,4);
+    const floorD=_raySolidDist(_tip.x,feet,0,1,36,4);
     if(floorD<30){
       const prox=Math.pow(1-floorD/30,1.3);
-      const aim=Math.atan2(p.aimDY,p.aimDX);
-      p.vx+=Math.cos(aim)*prox*0.9;
-      p.vy+=Math.min(0,Math.sin(aim)*prox*0.35);
+      p.vx+=Math.cos(_a)*prox*0.9;
+      p.vy+=Math.min(0,Math.sin(_a)*prox*0.35);
     }
   }
 }
@@ -578,8 +795,8 @@ function updateCrates(){
   const pl=allP();
   for(const c of CRATES){
     if(!isFinite(c.rot)) c.rot=0; if(!isFinite(c.spin)) c.spin=0;
+    if(c.homeX==null){ c.homeX=c.x; c.homeY=c.y; }
     const solids=_bwallSolids(c);
-    for(const o of CRATES){ if(o!==c) solids.push({x:o.x,y:o.y,w:o.w,h:o.h,tp:'solid'}); }
     c.movable=true;
     _updateRigidBox(c, solids);
     for(const q of pl){
