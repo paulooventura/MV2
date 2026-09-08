@@ -1,6 +1,6 @@
 /* MV2 A/B switcher — never overwrite A with an experiment.
-   A = live Awdjoo game. B = clean-collision lab.
-   Bookmark: index.html?ab=a  |  clean-collision-core.html?ab=b
+   A = live Awdjoo game. B = clean-collision lab. C = item sprite lab.
+   Bookmark: index.html?ab=a  |  clean-collision-core.html?ab=b  |  item-lab.html?ab=c
 */
 (function () {
   var page = (document.documentElement.getAttribute('data-ab') || 'a').toLowerCase();
@@ -8,7 +8,8 @@
   try { want = (new URLSearchParams(location.search).get('ab') || '').toLowerCase(); } catch (e) {}
   if (want === 'a' && page !== 'a') { location.replace('index.html?ab=a'); return; }
   if (want === 'b' && page !== 'b') { location.replace('clean-collision-core.html?ab=b'); return; }
-  try { localStorage.setItem('mv_ab', want === 'a' || want === 'b' ? want : page); } catch (e) {}
+  if (want === 'c' && page !== 'c') { location.replace('item-lab.html?ab=c'); return; }
+  try { localStorage.setItem('mv_ab', want === 'a' || want === 'b' || want === 'c' ? want : page); } catch (e) {}
 
   var css = document.createElement('style');
   css.textContent =
@@ -29,7 +30,8 @@
   bar.innerHTML =
     '<span class="lab">A/B</span>' +
     '<a class="' + (page === 'a' ? 'on' : '') + '" href="index.html?ab=a">A · Awdjoo (live)</a>' +
-    '<a class="' + (page === 'b' ? 'on' : '') + '" href="clean-collision-core.html?ab=b">B · Clean collision</a>';
+    '<a class="' + (page === 'b' ? 'on' : '') + '" href="clean-collision-core.html?ab=b">B · Clean collision</a>' +
+    '<a class="' + (page === 'c' ? 'on' : '') + '" href="item-lab.html?ab=c">C · Item lab</a>';
 
   function mount() {
     if (!document.body || document.getElementById('mvAbBar')) return;

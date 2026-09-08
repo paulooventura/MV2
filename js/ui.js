@@ -149,6 +149,7 @@ function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
     {label:'TUTORIAL CHAMBER', activate:()=>{_gameState='tutorial';}},
+    {label:'ITEM SPRITE LAB', activate:()=>typeof startItemLab==='function'&&startItemLab()},
     {label:'BATTLE PRACTICE', activate:()=>startBattleTest()},
     {label:'CREATIVE MODE', activate:()=>{_gameState='stagedesign';_stageDesignSelIdx=0;}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
@@ -429,13 +430,14 @@ function drawHUD(){
     const left=Math.max(0,(typeof SHUT_LIMIT!=='undefined'?SHUT_LIMIT:5)-(_playerShutCount||0));
     drawText('LIVE '+left+'/5',hpX,32,left<=1?C.RED_L:C.WHITE,2);
   }
-  const icols=[C.GREY,C.RED_L,C.SKY,C.LILAC];
+  const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
   const inames=['TRS','RCA','XLR','MAG'];
   for(let i=0;i<4;i++){
     const bx=312+i*68, on=_itemUnlocked(i);
     if(i===ITEM&&on){ctx.fillStyle=icols[i];ctx.fillRect(bx-2,8,64,22);ctx.fillStyle=C.BLACK;ctx.fillRect(bx,10,60,18);}
     else{ctx.fillStyle=C.NAVY;ctx.fillRect(bx,10,60,18);}
     drawText(on?inames[i]:'-',bx+6,12,!on?C.GREY_D:(i===ITEM?icols[i]:C.GREY),2);
+    if(on&&typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i]) drawText('+',bx+46,12,icols[i],2);
     if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ctx.fillStyle=(fr&1)?C.WHITE:icols[i];ctx.fillRect(bx+50,14,6,6);}
   }
   if(_nearKnowlTree(p)&&fr%18<12){ drawText('KNOWL TREE 2X',312,32,C.MINT,2); }

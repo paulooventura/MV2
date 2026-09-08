@@ -507,144 +507,134 @@ function drawCoil(sx0,sy0,angle,len,col1,col2,shine,flowMode=0){
   ctx.restore();
 }
 
-/* -- Connector shapes at arm tip (vector TRS / RCA / XLR / MAG) -- */
-function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride){
+/* -- Connector shapes at arm tip (sketch: purple cable, gold/chrome, red mag) -- */
+function _connPx(x,y,w,h,col){ ctx.fillStyle=col; ctx.fillRect(x,y,w,h); }
+function _itemTipEnhanced(itemIdx, override){
+  if(override!=null) return !!override;
+  return typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[itemIdx];
+}
+function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
   const itemIdx=itemOverride!=null?itemOverride:ITEM;
+  const enh=_itemTipEnhanced(itemIdx, enhancedOverride);
   ctx.save();ctx.translate(cx,cy);
   ctx.rotate(aimAngle);
   const ff=flash/9;
+  if(enh){
+    ctx.globalAlpha=0.28+0.12*Math.sin(fr*0.16);
+    ctx.fillStyle=itemIdx===0?'#f0d78f':itemIdx===1?'#c8a0e8':itemIdx===2?'#eef2f8':'#ff6a60';
+    ctx.beginPath();ctx.arc(18,0,18,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+  }
 
   if(itemIdx===0){
-    // â”€â”€ TRS 1/4" JACK â€” black barrel + metal shaft + conical tip â”€â”€
-    ctx.fillStyle='#111116';ctx.beginPath();ctx.roundRect(-10,-7,12,14,3);ctx.fill();
-    ctx.fillStyle='#1b1b22';ctx.fillRect(-9,-6,10,4);
-    for(let r=0;r<4;r++){ctx.fillStyle='#0b0b10';ctx.fillRect(-8+r*2,-2,1,4);}
-    ctx.fillStyle='#17171d';ctx.beginPath();ctx.roundRect(0,-6,14,12,3);ctx.fill();
-    ctx.fillStyle='#252530';ctx.fillRect(1,-5,12,3);
-    ctx.fillStyle='#0e0e14';ctx.fillRect(2,2,10,2);
-    ctx.fillStyle='#9aa2b2';ctx.fillRect(13,-4,11,8);
-    ctx.fillStyle='#c7cfdd';ctx.fillRect(13,-4,11,2.5);
-    ctx.fillStyle='#757f91';ctx.fillRect(13,2,11,1.6);
-    ctx.fillStyle='#0a0a0f';ctx.fillRect(24,-4.5,3.2,9);
-    ctx.fillStyle='#aab3c2';ctx.fillRect(27,-3.7,8,7.4);
-    ctx.fillStyle='#d4dbe7';ctx.fillRect(27,-3.7,8,2.1);
-    ctx.fillStyle='#0a0a0f';ctx.fillRect(35,-4.2,2.8,8.4);
-    ctx.fillStyle='#b6bfcd';ctx.fillRect(37,-3,6.4,6);
-    ctx.fillStyle='#e0e6f0';ctx.fillRect(37,-3,6.4,1.7);
-    ctx.fillStyle='#bcc5d3';
-    ctx.beginPath();ctx.moveTo(43.4,-3.2);ctx.lineTo(49.2,0);ctx.lineTo(43.4,3.2);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#f0f4fb';
-    ctx.beginPath();ctx.moveTo(43.8,-1.4);ctx.lineTo(47.4,0);ctx.lineTo(43.8,1.4);ctx.closePath();ctx.fill();
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ccddff';ctx.beginPath();ctx.arc(47,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
-    if(p.laserCharging&&p.laserCharge>0){
+    // TRS — gold 1/4" plug, black rings, black ribbed grip, purple cable
+    _connPx(-16,-4,8,8,'#4a1468');
+    _connPx(-16,-3,8,3,'#9a40e0');
+    _connPx(-16,2,8,2,'#2a1048');
+    _connPx(-8,-6,16,12,'#111116');
+    _connPx(-7,-5,14,3,'#2a2a32');
+    for(let r=0;r<5;r++) _connPx(-6+r*3,-2,1,5,'#0a0a0f');
+    _connPx(8,-5,14,10,'#c69226');
+    _connPx(8,-5,14,3,'#f0d78f');
+    _connPx(8,3,14,2,'#9a6f16');
+    _connPx(13,-6,3,12,'#0a0a0f');
+    _connPx(22,-6,3,12,'#0a0a0f');
+    _connPx(25,-4,12,8,'#e2b64a');
+    _connPx(25,-4,12,2,'#fff6c8');
+    ctx.beginPath();ctx.moveTo(37,-4);ctx.lineTo(46,0);ctx.lineTo(37,4);ctx.closePath();
+    ctx.fillStyle='#e2b64a';ctx.fill();
+    ctx.fillStyle='#fff6c8';ctx.fillRect(38,-1.5,5,1.6);
+    if(enh){ _connPx(8,-6,1,12,'#fff6c8'); _connPx(36,-2,2,1,'#ffffff'); }
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ffe080';ctx.beginPath();ctx.arc(44,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(p&&p.laserCharging&&p.laserCharge>0&&(itemOverride==null||itemOverride===ITEM)){
       const cf=p.laserCharge/40;
       const pulse=0.7+0.3*Math.sin(fr*0.55+cf*8);
       ctx.globalAlpha=cf*pulse*0.82;
       ctx.fillStyle=cf>0.55?'#ffffff':'#bb55ff';
-      ctx.beginPath();ctx.arc(47,0,5+cf*15,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(44,0,5+cf*15,0,Math.PI*2);ctx.fill();
       ctx.globalAlpha=cf*pulse;
       ctx.strokeStyle='#cc88ff';ctx.lineWidth=1.5;
-      ctx.beginPath();ctx.arc(47,0,9+cf*11,0,Math.PI*2);ctx.stroke();
-      for(let i=0;i<3;i++){
-        const a=fr*0.15+i*(Math.PI*2/3);
-        const r=8+cf*10;
-        ctx.globalAlpha=cf*0.7;ctx.fillStyle='#dd88ff';
-        ctx.beginPath();ctx.arc(47+Math.cos(a)*r,Math.sin(a)*r,1.5,0,Math.PI*2);ctx.fill();
-      }
+      ctx.beginPath();ctx.arc(44,0,9+cf*11,0,Math.PI*2);ctx.stroke();
       ctx.globalAlpha=1;
     }
 
   }else if(itemIdx===1){
-    // â”€â”€ RCA PHONO PLUG â€” molded sleeve + metal collar + center pin â”€â”€
-    const isVenture=p.hero==='venture';
-    const rcaDark=isVenture?'#7a130d':'#4a1a72';
-    const rcaMain=isVenture?'#c81812':'#7c35cc';
-    const rcaHi=isVenture?'#ea2b20':'#a766ee';
-    const rcaShadow=isVenture?'#9a100d':'#5a2899';
-    const rcaRib=isVenture?'#ad1711':'#6a30b0';
-    ctx.fillStyle=rcaDark;ctx.beginPath();ctx.roundRect(-10,-6,9,12,2);ctx.fill();
-    ctx.fillStyle=rcaMain;ctx.beginPath();ctx.roundRect(-2,-7,25,14,4);ctx.fill();
-    ctx.fillStyle=rcaHi;ctx.beginPath();ctx.roundRect(-1,-6,22,5,3);ctx.fill();
-    ctx.fillStyle=rcaShadow;ctx.fillRect(5,2,12,3);
-    ctx.fillStyle=rcaRib;
-    for(let r=0;r<3;r++)ctx.fillRect(2+r*4,-1,2,2);
-    ctx.fillStyle='#b8bec8';ctx.fillRect(22,-5,8,10);
-    ctx.fillStyle='#d9dee6';ctx.fillRect(22,-5,8,3);
-    ctx.fillStyle='#8f96a2';ctx.fillRect(22,2,8,3);
-    ctx.fillStyle='#101018';ctx.fillRect(28,-4,4,8);
-    const pinX=31,pinLen=10;
-    ctx.fillStyle='#c69226';ctx.fillRect(pinX,-1.6,pinLen,3.2);
-    ctx.fillStyle='#e2b64a';ctx.fillRect(pinX,-1.6,pinLen,1.1);
-    ctx.fillStyle='#9a6f16';ctx.fillRect(pinX,0.5,pinLen,0.9);
-    ctx.beginPath();ctx.arc(pinX+pinLen,0,1.6,0,Math.PI*2);ctx.fillStyle='#d4a63b';ctx.fill();
-    ctx.beginPath();ctx.arc(pinX+pinLen-0.6,-0.5,0.7,0,Math.PI*2);ctx.fillStyle='#f0d78f';ctx.fill();
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ff6633';ctx.beginPath();ctx.arc(pinX+pinLen,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    // RCA — purple housing, ribbed boot, gold collar + pin
+    const isVenture=p&&p.hero==='venture';
+    const d=isVenture?'#7a130d':'#3a1460';
+    const m=isVenture?'#c81812':'#7c35cc';
+    const hi=isVenture?'#ea2b20':'#c8a0e8';
+    const sh=isVenture?'#5a1008':'#2a1048';
+    _connPx(-12,-6,10,12,d);
+    for(let r=0;r<4;r++) _connPx(-11+r*2,-5,1,10,sh);
+    _connPx(-2,-7,22,14,m);
+    _connPx(-1,-6,20,4,hi);
+    _connPx(4,3,14,3,sh);
+    _connPx(20,-6,8,12,'#c69226');
+    _connPx(20,-6,8,3,'#f0d78f');
+    _connPx(20,3,8,3,'#9a6f16');
+    _connPx(28,-2,12,4,'#e2b64a');
+    _connPx(28,-2,12,1.4,'#fff6c8');
+    ctx.beginPath();ctx.arc(40,0,2.2,0,Math.PI*2);ctx.fillStyle='#e2b64a';ctx.fill();
+    ctx.beginPath();ctx.arc(39.4,-0.6,0.8,0,Math.PI*2);ctx.fillStyle='#fff6c8';ctx.fill();
+    if(enh){ _connPx(-1,-7,20,1,'#f0d78f'); _connPx(38,-1,2,1,'#ffffff'); }
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ff6633';ctx.beginPath();ctx.arc(40,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
-    // â”€â”€ XLR â€” black sleeve + silver barrel + recessed 3-pin face â”€â”€
-    ctx.fillStyle='#101116';ctx.beginPath();ctx.roundRect(-10,-8,16,16,4);ctx.fill();
-    ctx.fillStyle='#1a1c22';ctx.fillRect(-9,-7,14,5);
-    for(let i=0;i<5;i++){ctx.fillStyle='#0a0b10';ctx.fillRect(-8+i*2,-1,1,4);}
-    ctx.fillStyle='#2a2b30';ctx.beginPath();ctx.roundRect(4,-8,5,16,2);ctx.fill();
-    const fx=28;
-    ctx.fillStyle='#aeb3bc';ctx.fillRect(8,-8,20,16);
-    ctx.fillStyle='#d8dde4';ctx.fillRect(8,-8,20,3.2);
-    ctx.fillStyle='#8a909a';ctx.fillRect(8,4.8,20,3.2);
-    ctx.fillStyle='rgba(255,255,255,0.14)';
-    for(let i=0;i<12;i++)ctx.fillRect(10+i%6*3,-5+(i/6|0)*5,1,1);
-    const faceR=8;
-    ctx.beginPath();ctx.arc(fx,0,faceR,0,Math.PI*2);ctx.fillStyle='#c2c7cf';ctx.fill();
-    ctx.beginPath();ctx.arc(fx,0,faceR-1.1,0,Math.PI*2);ctx.fillStyle='#50545d';ctx.fill();
-    ctx.beginPath();ctx.arc(fx,0,faceR-2.1,0,Math.PI*2);ctx.fillStyle='#15171d';ctx.fill();
-    [[fx,-2.9],[fx-2.6,2.3],[fx+2.6,2.3]].forEach(([px,py2])=>{
-      ctx.beginPath();ctx.arc(px,py2,1.5,0,Math.PI*2);ctx.fillStyle='#aab0ba';ctx.fill();
-      ctx.beginPath();ctx.arc(px-0.4,py2-0.4,0.55,0,Math.PI*2);ctx.fillStyle='#eef2f8';ctx.fill();
+    // XLR — chrome barrel, 3-hole face, black ribbed grip, purple cable
+    _connPx(-16,-4,8,8,'#4a1468');
+    _connPx(-16,-3,8,3,'#9a40e0');
+    _connPx(-8,-8,14,16,'#111116');
+    _connPx(-7,-7,12,4,'#2a2a32');
+    for(let i=0;i<5;i++) _connPx(-6+i*2,-2,1,5,'#0a0a0f');
+    const fx=26;
+    _connPx(6,-8,18,16,'#aeb3bc');
+    _connPx(6,-8,18,4,'#eef2f8');
+    _connPx(6,5,18,3,'#6a707a');
+    ctx.beginPath();ctx.arc(fx,0,8,0,Math.PI*2);ctx.fillStyle='#c2c7cf';ctx.fill();
+    ctx.beginPath();ctx.arc(fx,0,6.6,0,Math.PI*2);ctx.fillStyle='#15171d';ctx.fill();
+    [[fx,-3],[fx-2.6,2.2],[fx+2.6,2.2]].forEach(([px,py2])=>{
+      ctx.beginPath();ctx.arc(px,py2,1.45,0,Math.PI*2);ctx.fillStyle='#3a3e46';ctx.fill();
+      ctx.beginPath();ctx.arc(px,py2,0.7,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
     });
-    ctx.fillStyle='rgba(220,226,236,0.65)';ctx.fillRect(23,-6,3,1);
-    if(p.xlrOn){
+    if(enh){ _connPx(6,-8,18,1,'#ffffff'); }
+    if(p&&p.xlrOn&&(itemOverride==null||itemOverride===ITEM)){
       const pulse=0.5+0.5*Math.sin(fr*0.32);
-      ctx.globalAlpha=0.45*pulse;
-      for(let i=0;i<4;i++){
-        const t=((fr*0.18+i*0.22)%1);
-        const ex=-8+t*(fx+8);
-        ctx.strokeStyle='#88ccff';ctx.lineWidth=1.6;
-        ctx.beginPath();ctx.moveTo(ex,Math.sin(fr*0.25+i*1.2)*1.8);
-        ctx.lineTo(ex+7,Math.sin(fr*0.25+i*1.2+0.4)*1);ctx.stroke();
-      }
       ctx.globalAlpha=pulse*0.55;
       for(let i=0;i<3;i++){
         const wave=((fr*0.1+i*0.28)%1);
         ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.arc(fx,0,faceR+2+wave*10,-0.55,0.55);ctx.stroke();
+        ctx.beginPath();ctx.arc(fx,0,10+wave*10,-0.55,0.55);ctx.stroke();
       }
       ctx.globalAlpha=1;
     }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.arc(fx,0,faceR+ff*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.arc(fx,0,8+ff*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else{
-    // â”€â”€ MAGNET â€” sideways U (chrome horseshoe, opening toward aim) â”€â”€
-    const halfG=7, prongL=24, w=7;
-    ctx.lineCap='round';
-    ctx.lineJoin='round';
-    ctx.lineWidth=w;
-    ctx.strokeStyle='#7f8796';
+    // MAG — glossy red horseshoe, silver poles, opening toward aim
+    const halfG=7, prongL=24, w=enh?8:7;
+    ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.lineWidth=w+2;
+    ctx.strokeStyle='#5a1010';
     ctx.beginPath();
-    ctx.moveTo(prongL, -halfG);
-    ctx.lineTo(0, -halfG);
+    ctx.moveTo(prongL, -halfG); ctx.lineTo(0, -halfG);
     ctx.arc(0, 0, halfG, -Math.PI/2, Math.PI/2, true);
-    ctx.lineTo(prongL, halfG);
-    ctx.stroke();
-    ctx.lineWidth=2.2;
-    ctx.strokeStyle='rgba(220,228,240,0.55)';
+    ctx.lineTo(prongL, halfG); ctx.stroke();
+    ctx.lineWidth=w;
+    ctx.strokeStyle='#e02028';
     ctx.beginPath();
-    ctx.moveTo(prongL-1, -halfG+1.2);
-    ctx.lineTo(2, -halfG+1.2);
-    ctx.stroke();
+    ctx.moveTo(prongL-2, -halfG); ctx.lineTo(1, -halfG);
+    ctx.arc(0, 0, halfG, -Math.PI/2, Math.PI/2, true);
+    ctx.lineTo(prongL-2, halfG); ctx.stroke();
+    ctx.lineWidth=2.4;
+    ctx.strokeStyle='#ffc0b8';
+    ctx.beginPath();
+    ctx.moveTo(prongL-4, -halfG+1.4); ctx.lineTo(4, -halfG+1.4); ctx.stroke();
     [[prongL,-halfG],[prongL,halfG]].forEach(([tx,ty])=>{
-      ctx.beginPath();ctx.arc(tx,ty,w*0.52,0,Math.PI*2);
-      ctx.fillStyle='#b9c1cf';ctx.fill();
-      ctx.beginPath();ctx.arc(tx-0.8,ty-0.8,w*0.22,0,Math.PI*2);
-      ctx.fillStyle='#eef2f8';ctx.fill();
+      ctx.fillStyle='#aeb3bc';ctx.fillRect(tx-2,ty-4,8,8);
+      ctx.fillStyle='#eef2f8';ctx.fillRect(tx-1,ty-4,8,3);
+      ctx.fillStyle='#6a707a';ctx.fillRect(tx-1,ty+2,8,2);
+      if(enh){ ctx.fillStyle='#ffffff'; ctx.fillRect(tx+4,ty-3,2,1); }
     });
   }
   ctx.restore();
@@ -895,10 +885,10 @@ function drawCharacter(){
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
-    drawConnectorTip(tipX,tipY,armA1,p.flashF);
+    if(ITEM>=0) drawConnectorTip(tipX,tipY,armA1,p.flashF);
   }else{
     drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    drawConnectorTip(tipX,tipY,ca,p.flashF);
+    if(ITEM>=0) drawConnectorTip(tipX,tipY,ca,p.flashF);
   }
   if(coilFlow){
     const tw=connectorTipWorld(ITEM);
@@ -1888,17 +1878,40 @@ function drawKnowlTreeAura(){
 function drawItemDrops(){
   if(typeof ITEM_DROPS==='undefined'||!ITEM_DROPS.length) return;
   const names=typeof INAMES!=='undefined'?INAMES:['TRS','RCA','XLR','MAG'];
-  const cols=typeof ICOLS!=='undefined'?ICOLS:['#aabbcc','#ff5533','#4488ff','#ff44ff'];
+  const cols=typeof ICOLS!=='undefined'?ICOLS:['#e2b64a','#a766ee','#c2c7cf','#e02028'];
   for(const d of ITEM_DROPS){
     if(d.got) continue;
-    const bob=Math.sin((d.bob||0))*2;
-    const dx=sx(d.x), dy=sy(d.y+bob), dw=Math.max(sw(d.w),28), dh=Math.max(sw(d.h),14);
-    if(dx>W+20||dy>H+20||dx+dw<-20||dy+dh<-20) continue;
-    ctx.fillStyle=C.BLACK; ctx.fillRect(dx,dy,dw,dh);
-    ctx.fillStyle=cols[d.item]||C.WHITE;
-    ctx.fillRect(dx,dy,dw,1); ctx.fillRect(dx,dy+dh-1,dw,1);
-    ctx.fillRect(dx,dy,1,dh); ctx.fillRect(dx+dw-1,dy,1,dh);
-    drawText(names[d.item]||'?',dx+2,dy+2,cols[d.item]||C.WHITE,1);
+    const bob=Math.sin((d.bob||0))*3;
+    const dw=Math.max(sw(d.w),32), dh=Math.max(sw(d.h),32);
+    const dx=sx(d.x), dy=sy(d.y+bob);
+    if(dx>W+24||dy>H+24||dx+dw<-24||dy+dh<-24) continue;
+    const enh=!!d.enhanced;
+    ctx.fillStyle=enh?'#2a1a08':'#1a1420';
+    ctx.fillRect(dx,dy,dw,dh);
+    ctx.fillStyle=enh?'#3a2810':'#241830';
+    ctx.fillRect(dx+3,dy+3,dw-6,dh-6);
+    const rim=enh?'#e2b64a':(cols[d.item]||C.WHITE);
+    ctx.fillStyle=rim;
+    ctx.fillRect(dx,dy,dw,2); ctx.fillRect(dx,dy+dh-2,dw,2);
+    ctx.fillRect(dx,dy,2,dh); ctx.fillRect(dx+dw-2,dy,2,dh);
+    if(enh){
+      ctx.fillStyle='#f0d78f';
+      ctx.fillRect(dx+2,dy+2,4,4); ctx.fillRect(dx+dw-6,dy+2,4,4);
+      ctx.fillRect(dx+2,dy+dh-6,4,4); ctx.fillRect(dx+dw-6,dy+dh-6,4,4);
+      const pulse=0.25+0.2*Math.sin(fr*0.14+d.item);
+      ctx.globalAlpha=pulse;
+      ctx.fillStyle=cols[d.item]||'#fff';
+      ctx.fillRect(dx-2,dy-2,dw+4,1); ctx.fillRect(dx-2,dy+dh+1,dw+4,1);
+      ctx.globalAlpha=1;
+    }
+    const cx=dx+dw*0.5, cy=dy+dh*0.42;
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.scale(0.62,0.62);
+    drawConnectorTip(0,0,-0.55,enh?5:0,d.item,enh);
+    ctx.restore();
+    const tag=enh?(names[d.item]||'?')+'+':(names[d.item]||'?');
+    drawTextC(tag,cx,dy+dh-11,rim,1);
   }
 }
 function drawRopePickup(){

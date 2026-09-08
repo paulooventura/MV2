@@ -209,9 +209,10 @@ function _runDir(){ return _moveInputX(); }
 // ── Item state ────────────────────────────────────────────────
 let ITEM=-1;  // -1=none · 0=TRS · 1=RCA · 2=XLR · 3=MAG
 const INAMES=['TRS','RCA','XLR','MAG'];
-const ICOLS=['#aabbcc','#ff5533','#4488ff','#ff44ff'];
+const ICOLS=['#e2b64a','#a766ee','#c2c7cf','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
+let _itemEnhanced=[false,false,false,false];
 
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
 function _grantPlayerItem(idx){
@@ -241,6 +242,7 @@ function _cycleItem(){
 function _resetItemProgress(){
   if(_awdjooTutorial&&_zoneIdx===0){ _unlockedMask=0; ITEM=-1; }
   else { _unlockedMask=15; ITEM=1; }
+  _itemEnhanced=[false,false,false,false];
   _ropePickupAnim=null; _itemTutorial=null;
   if(_mapRopePickup) _mapRopePickup.got=false;
   if(typeof _resetCombatProgress==='function') _resetCombatProgress();

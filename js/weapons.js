@@ -504,14 +504,26 @@ function updateRopePickup(){
 // ── World item drops (shutdown loot) ──────────────────────────
 let ITEM_DROPS=[];
 
-function _spawnItemDrop(item, x, y){
+function _spawnItemDrop(item, x, y, opts){
   if(item<0||item>3) return;
+  const enhanced=!!(opts&&opts.enhanced);
   let fy=y, fx=x;
-  if(typeof gridStandY==='function'){
+  if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
     const s=gridStandY(x, y+8, {maxUp:48, maxDrop:160});
     if(s!=null) fy=s;
   }
-  ITEM_DROPS.push({item, x:fx-10, y:fy-16, w:22, h:12, got:false, bob:Math.random()*Math.PI*2});
+  const w=enhanced?40:36, h=enhanced?40:36;
+  ITEM_DROPS.push({item, enhanced, x:fx-w*0.5, y:fy-h, w, h, got:false, bob:Math.random()*Math.PI*2});
+}
+function _collectItemDrop(d){
+  if(!d||d.item<0||d.item>3) return false;
+  const wasNew=!_itemUnlocked(d.item);
+  if(wasNew) _grantPlayerItem(d.item);
+  else ITEM=d.item;
+  if(typeof _itemEnhanced!=='undefined') _itemEnhanced[d.item]=!!d.enhanced;
+  if(p) p.itemStamina=100;
+    if(!wasNew){ try{sfx(d.enhanced?'unlock':'knowl_pickup');}catch(_e){} }
+  return true;
 }
 function _dropPlayerItems(){
   if(!_unlockedMask) return;
@@ -551,7 +563,9 @@ function updateItemDrops(){
     if(_shutdownTimer<=0&&!_gameOver&&p){
       const h=playerCoreHB(p);
       if(ov(h.x-4,h.y-4,h.w+8,h.h+8,d.x,d.y,d.w,d.h)){
-        if(!_itemUnlocked(d.item)&&_grantPlayerItem(d.item)){
+        const lab=typeof _itemLabMode!=='undefined'&&_itemLabMode;
+        const canTake=lab||!_itemUnlocked(d.item)||d.enhanced;
+        if(canTake&&_collectItemDrop(d)){
           d.got=true;
           for(let pi=0;pi<10;pi++){
             const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
