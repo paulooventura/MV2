@@ -7,7 +7,7 @@ let _physicsLabMode = false;
 
 const PL_T = 32;
 const PL_FLOOR = 640;
-const PL_WW = 2400;
+const PL_WW = 3000;
 const PL_WH = 800;
 
 function _plPlat(x, y, w, h, tp) {
@@ -36,6 +36,8 @@ function initPhysicsLabWorld() {
   const ledgeW = 250;
   const passPlatX = 56 * PL_T;
   const passPlatY = 14 * PL_T;
+  const doorX = 2480;
+  const doorH = 128;
 
   TR = [
     _plPlat(0, PL_FLOOR, PL_WW, PL_WH - PL_FLOOR),
@@ -46,6 +48,7 @@ function initPhysicsLabWorld() {
     _plPlat(wallX, 0, PL_T, 16 * PL_T),
     _plPlat(passPlatX, passPlatY, 8 * PL_T, PL_T),
     _plPlat(ledgeX, ledgeY, ledgeW, PL_T),
+    _plPlat(doorX, 0, PL_T, PL_FLOOR - doorH),
   ];
   MPLAT.length = 0;
   APLAT.length = 0;
@@ -88,6 +91,24 @@ function initPhysicsLabWorld() {
   bw(ledgeX + 90, ledgeY - 32);
   bw(ledgeX + 140, ledgeY - 32);
 
+  const redGid = typeof BWALL_RED_GID !== 'undefined' ? BWALL_RED_GID : 242;
+  for (let i = 0; i < 4; i++) {
+    const x = doorX, y = PL_FLOOR - 32 * (i + 1);
+    if (typeof _mkBwall !== 'function') break;
+    BWALLS.push(_mkBwall(x, y, 32, 32, {
+      tileGid: redGid, movable: true,
+      hp: typeof RED_BWALL_HP !== 'undefined' ? RED_BWALL_HP : 100,
+      maxHp: typeof RED_BWALL_HP !== 'undefined' ? RED_BWALL_HP : 100,
+      label: 'BLOCK', homeX: x, homeY: y, _awake: true, col: '#9c2218',
+    }));
+  }
+  if (typeof gridStampLiveBwalls === 'function') gridStampLiveBwalls();
+
+  if (typeof _spawnItemDrop === 'function') {
+    _spawnItemDrop(2, 2360, PL_FLOOR, { enhanced: true });
+    _spawnItemDrop(3, 2410, PL_FLOOR, { enhanced: true });
+  }
+
   CRATES.push(
     { x: ledgeX + 200, y: ledgeY - 32, w: 32, h: 32, vx: 0, vy: 0, og: true, rot: 0, spin: 0, movable: true },
     { x: ledgeX + 240, y: ledgeY - 32, w: 32, h: 32, vx: 0, vy: 0, og: true, rot: 0, spin: 0, movable: true }
@@ -124,10 +145,10 @@ function initPhysicsLabWorld() {
   _zoneCardT = 160;
   if (typeof ZONES !== 'undefined') {
     let zi = ZONES.findIndex(z => z.name === 'PHYSICS LAB');
-    if (zi < 0) { ZONES.push({ name: 'PHYSICS LAB', sub: 'smooth hills, corners, pass ramps, rolling boxes' }); zi = ZONES.length - 1; }
+    if (zi < 0) { ZONES.push({ name: 'PHYSICS LAB', sub: 'hills, inertia, pass ramps, omniblock door' }); zi = ZONES.length - 1; }
     _zoneIdx = zi;
   }
-  if (typeof uiShowToast === 'function') uiShowToast('PHYSICS LAB — ramps are hills · UP+DIR climbs a pass ramp');
+  if (typeof uiShowToast === 'function') uiShowToast('PHYSICS LAB — roll off ramps · XLR/MAG + blocks open the east door');
   console.info('MV: Physics Lab');
 }
 
@@ -211,6 +232,7 @@ function drawPhysicsLabWorld() {
     [42 * PL_T + 8, PL_FLOOR - 18, 'FOOT: ROLL OFF'],
     [50 * PL_T + 8, PL_FLOOR - 18, 'DIR = PAST  ·  UP+DIR = CLIMB'],
     [2108, 400 - 18, 'PUSH OFF — FALL / ROLL'],
+    [2320, PL_FLOOR - 18, 'XLR PUSH / MAG PULL  ·  + ITEMS OPEN THE DOOR'],
   ];
   for (const [x, y, txt] of labels) {
     const bx = sx(x), by = sy(y);
@@ -223,7 +245,7 @@ function drawPhysicsLabHud() {
   if (!_physicsLabMode || _gameState !== 'game') return;
   ctx.fillStyle = C.BLACK;
   ctx.fillRect(6, H - 44, 620, 38);
-  drawText('HILLS  ·  UP+DIR CLIMBS PASS RAMP  ·  XLR / MAG PUSH BOXES', 10, H - 40, C.SILVER, 1);
+  drawText('ROLL OFF RAMPS  ·  +XLR/+MAG OPEN THE EAST DOOR', 10, H - 40, C.SILVER, 1);
   if (ITEM >= 0) {
     const enh = typeof _itemEnhanced !== 'undefined' && _itemEnhanced[ITEM];
     const col = (typeof ICOLS !== 'undefined' && ICOLS[ITEM]) || C.WHITE;

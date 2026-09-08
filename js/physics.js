@@ -865,6 +865,7 @@ function _applySlopePhysics(pl){
   pl._slopeWeight=w.frac;
   const ang=w.ang;
   if(!Number.isFinite(ang)||w.frac<WHEEL_SLOPE_COMMIT||Math.abs(ang)<0.06){
+    if(pl._onSlope) pl._slopeCoastT=Math.max(pl._slopeCoastT||0, 40);
     pl._onSlope=false;
     if(w.frac<WHEEL_SLOPE_COMMIT) pl._slopeAngle=0;
     pl._slopeRollT=0;
@@ -2018,13 +2019,16 @@ function _stabilizePlayerCollision(pl){
           ?gridStandHit(cx,feet,{maxUp:16,maxDrop})
           :(typeof gridStandY==='function'?{y:gridStandY(cx,feet,{maxUp:16,maxDrop}),ang:0,kind:'solid'}:null));
       if(hit&&hit.y!=null){
-        pl.y=hit.y-FEET_OFF;
-        if(hit.kind==='slope'&&Math.abs(hit.ang||0)>0.06){
-          pl.og=true;
-          pl._onSlope=true;
-          pl._slopeAngle=hit.ang;
-          pl._groundSeg={angle:hit.ang};
-          if(pl.vy>0) pl.vy=0;
+        const leaving=pl.og && Math.abs(pl._slopeAngle||0)<0.06 && hit.kind==='slope';
+        if(!(leaving && Math.abs(hit.y-feet)<20)){
+          pl.y=hit.y-FEET_OFF;
+          if(hit.kind==='slope'&&Math.abs(hit.ang||0)>0.06){
+            pl.og=true;
+            pl._onSlope=true;
+            pl._slopeAngle=hit.ang;
+            pl._groundSeg={angle:hit.ang};
+            if(pl.vy>0) pl.vy=0;
+          }
         }
       }
     }

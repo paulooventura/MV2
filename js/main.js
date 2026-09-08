@@ -865,9 +865,11 @@ function update(){
   // ── XLR / MAG hold ────────────────────────────────────────────
   const _fireHeld=_bindDown('swap');
   const _treeBoost=_knowlTreeBoostMul(p);
+  const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
+  const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
   if(p.itemStamina<100&&!_fireHeld) p.itemStamina=Math.min(100,p.itemStamina+0.56*_treeBoost);
-  if(ITEM===2&&_itemUnlocked(2)){const wasOn=p.xlrOn;p.xlrOn=_fireHeld&&p.itemStamina>0;p.magOn=false;if(p.xlrOn)p.itemStamina=Math.max(0,p.itemStamina-1.2);if(p.xlrOn&&!wasOn){sfx('xlr');p.flashF=9;}p.xlrHeld=p.xlrOn?(p.xlrHeld||0)+1:0;}
-  else if(ITEM===3&&_itemUnlocked(3)){const wasOn=p.magOn;p.magOn=_fireHeld&&p.itemStamina>0;p.xlrOn=false;if(p.magOn)p.itemStamina=Math.max(0,p.itemStamina-1.2);if(p.magOn&&!wasOn){sfx('mag');p.flashF=7;}p.magHeld=p.magOn?(p.magHeld||0)+1:0;}
+  if(ITEM===2&&_itemUnlocked(2)){const wasOn=p.xlrOn;p.xlrOn=_fireHeld&&p.itemStamina>0;p.magOn=false;if(p.xlrOn)p.itemStamina=Math.max(0,p.itemStamina-(_enhXlr?0.78:1.2));if(p.xlrOn&&!wasOn){sfx('xlr');p.flashF=9;}p.xlrHeld=p.xlrOn?(p.xlrHeld||0)+1:0;}
+  else if(ITEM===3&&_itemUnlocked(3)){const wasOn=p.magOn;p.magOn=_fireHeld&&p.itemStamina>0;p.xlrOn=false;if(p.magOn)p.itemStamina=Math.max(0,p.itemStamina-(_enhMag?0.78:1.2));if(p.magOn&&!wasOn){sfx('mag');p.flashF=7;}p.magHeld=p.magOn?(p.magHeld||0)+1:0;}
   else{p.xlrOn=false;p.magOn=false;p.xlrHeld=0;p.magHeld=0;}
 
   // ── Punch charge ──────────────────────────────────────────────

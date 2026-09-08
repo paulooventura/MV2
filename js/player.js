@@ -213,12 +213,12 @@ const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
-/** Held-jack scale. Same multiplier for TRS and RCA — the art carries the
- *  photo ratio (1/4" TRS ~1.5× longer, handle ~2× thicker than RCA).
- *  XLR barrel ~19–21mm; thickness lives in the art. */
+/** Held-jack scale. 1/4" TRS is medium.
+ *  RCA pin 3.2mm / shell ~8.3mm (shorter, thinner than TRS).
+ *  XLR barrel ~19–21mm × ~63mm (thicker + a bit longer; thickness lives in the art). */
 function _itemArtScale(idx){
   if(idx===0) return 0.86;
-  if(idx===1) return 0.86;
+  if(idx===1) return 0.70;
   if(idx===2) return 1.00;
   if(idx===3) return 0.88;
   return 0.86;
@@ -351,6 +351,8 @@ function _updatePlayerMoveX(pl){
   if(!gridOn && pushIntoWall&&(pl._grindF||0)>=2){ pl.vx=0; return; }
   const grounded=!!_playerOnGround(pl);
   const onSlope=!!(grounded&&pl._onSlope);
+  if((pl._slopeCoastT||0)>0 && !onSlope) pl._slopeCoastT--;
+  const coast=onSlope||(pl._slopeCoastT||0)>0;
   const sprint=isSprintHeld()&&grounded&&dir!==0;
   if(sprint) pl.runRamp=Math.min(1,(pl.runRamp||0)+MOVE_RUN_RAMP);
   else        pl.runRamp=Math.max(0,(pl.runRamp||0)-0.028);
@@ -359,7 +361,7 @@ function _updatePlayerMoveX(pl){
     if(pl.movePower<=0) pl._moveDir=0;
     pl._moveCap=0;
     if(grounded){
-      if(onSlope){
+      if(coast){
         pl.vx*=WHEEL_COAST_FRIC;
         if(Math.abs(pl.vx)<0.06) pl.vx=0;
       }else{
@@ -372,8 +374,8 @@ function _updatePlayerMoveX(pl){
   if(pl._moveDir!==dir){
     pl._moveDir=dir;
     // Skid: keep some spin, do not gift a chunk of cap.
-    pl.movePower=(pl.movePower||0)*(onSlope?0.78:0.70);
-    pl.vx*=onSlope?0.90:0.86;
+    pl.movePower=(pl.movePower||0)*(coast?0.78:0.70);
+    pl.vx*=coast?0.90:0.86;
   }
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
   const spin=Math.min(1,pl.movePower||0);
@@ -392,6 +394,7 @@ function _updatePlayerMoveX(pl){
     if(climbing&&!sprint) cap=Math.min(cap,MOVE_WALK*0.38);
     else if(!climbing) cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
+  if(coast) cap=Math.max(cap, Math.abs(pl.vx));
   pl._moveCap=cap;
   let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
   if(cap>0.05){
@@ -405,7 +408,7 @@ function _updatePlayerMoveX(pl){
     else if(dir*sinA>0.03) accel*=1+mom*0.12;
   }
   const vSign=pl.vx>0.15?1:(pl.vx<-0.15?-1:0);
-  const turnMul=onSlope?1.35:MOVE_TURN;
+  const turnMul=coast?1.35:MOVE_TURN;
   if(vSign===-dir) pl.vx+=dir*accel*turnMul;
   else             pl.vx+=dir*accel;
   if(dir>0) pl.vx=Math.min(pl.vx,cap);

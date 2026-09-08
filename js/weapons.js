@@ -399,18 +399,20 @@ function updatePlayerShots(){
 // ── XLR push ──────────────────────────────────────────────────
 function updateXLR(){
   if(!p.xlrOn||ITEM!==2) return;
+  const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _tip=connectorTipWorld(2), _a=Math.atan2(p.aimDY,p.aimDX);
-  const _range=160;
+  const _range=enh?230:160;
+  const pow=enh?1.85:1;
   if(fr%8===0) p.pulses.push({x:_tip.x,y:_tip.y,a:_a,r:0,maxR:_range,life:14});
   p.flashF=4;
   const _applyPush=(ox,oy)=>{
     const dx=ox-_tip.x, dy=oy-_tip.y, dist=Math.hypot(dx,dy)||1;
     if(dist>_range) return null;
     const holdScale=Math.min(1,(p.xlrHeld||0)/180)*1.5+1;
-    const strength=Math.pow(1-dist/_range,1.5)*2.2*holdScale;
+    const strength=Math.pow(1-dist/_range,1.5)*2.2*holdScale*pow;
     return {fx:Math.cos(_a)*strength, fy:Math.sin(_a)*strength};
   };
-  const _bwallPushRange=175;
+  const _bwallPushRange=enh?250:175;
   const _applyPushBwall=(bw)=>{
     const ox=bw.x+bw.w/2, oy=bw.y+bw.h/2;
     const dx=ox-_tip.x, dy=oy-_tip.y, dist=Math.hypot(dx,dy)||1;
@@ -421,7 +423,7 @@ function updateXLR(){
     const ph=playerCoreHB(p);
     if(ov(bw.x,bw.y,bw.w,bw.h,ph.x,ph.y,ph.w,ph.h)) touchBoost=3.4;
     else if(dist<52) touchBoost=1+Math.pow(1-dist/52,2)*2.4;
-    const strength=prox*5.8*holdScale*touchBoost;
+    const strength=prox*5.8*holdScale*touchBoost*pow;
     return {fx:Math.cos(_a)*strength, fy:Math.sin(_a)*strength*0.4};
   };
   for(const e of ENEMS){
@@ -439,14 +441,16 @@ function updateXLR(){
 // ── MAG pull ──────────────────────────────────────────────────
 function updateMAG(){
   if(!p.magOn||ITEM!==3) return;
-  const _ca=cpt(), _range=180;
+  const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
+  const _ca=cpt(), _range=enh?250:180;
+  const pow=enh?1.85:1;
   p.flashF=4;
   if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_ca.x,y:_ca.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
   const _applyPull=(ox,oy)=>{
     const dx=_ca.x-ox, dy=_ca.y-oy, dist=Math.hypot(dx,dy)||1;
     if(dist>_range) return null;
     const holdScale2=Math.min(1,(p.magHeld||0)/180)*1.5+1;
-    const strength=Math.pow(1-dist/_range,1.4)*2.8*holdScale2;
+    const strength=Math.pow(1-dist/_range,1.4)*2.8*holdScale2*pow;
     return {fx:dx/dist*strength, fy:dy/dist*strength};
   };
   let _tugX=0, _tugY=0;
