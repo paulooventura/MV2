@@ -509,6 +509,7 @@ function drawCoil(sx0,sy0,angle,len,col1,col2,shine,flowMode=0){
 
 /* -- Connector shapes at arm tip (sketch: purple cable, gold/chrome, red mag) -- */
 function _connPx(x,y,w,h,col){ ctx.fillStyle=col; ctx.fillRect(x,y,w,h); }
+function _connOval(x,y,rx,ry,col){ ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=col;ctx.fill(); }
 function _itemTipEnhanced(itemIdx, override){
   if(override!=null) return !!override;
   return typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[itemIdx];
@@ -521,9 +522,9 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
   ctx.rotate(aimAngle);
   ctx.scale(sc,sc);
   const ff=flash/9;
-  if(enh){
+  if(enh&&itemIdx!==0){
     ctx.globalAlpha=0.26+0.12*Math.sin(fr*0.16);
-    ctx.fillStyle=itemIdx===0?'#f0d78f':itemIdx===1?'#ffb060':itemIdx===2?'#eef2f8':'#ff6a60';
+    ctx.fillStyle=itemIdx===1?'#ffb060':itemIdx===2?'#eef2f8':'#ff6a60';
     ctx.beginPath();ctx.arc(16,0,16,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=1;
   }
@@ -548,8 +549,43 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     ctx.beginPath();ctx.moveTo(44.8,-3);ctx.lineTo(51.5,0);ctx.lineTo(44.8,3);ctx.closePath();
     ctx.fillStyle='#e2b64a';ctx.fill();
     ctx.fillStyle='#fff6c8';ctx.fillRect(45.5,-1.2,4,1.4);
-    if(enh){ _connPx(2,-5,17,1,'#ffffff'); _connPx(48,-1,2,1,'#ffffff'); }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ffe080';ctx.beginPath();ctx.arc(50,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(enh){
+      const pulse=0.5+0.5*Math.sin(fr*0.28);
+      const flow=(fr*0.42)%1;
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      const veins=[
+        [[19.5,-1.6],[24,-0.4],[28.5,1.4],[33.5,-1.2],[38.5,0.8],[44,-1.1],[50.2,0.2]],
+        [[20.2,1.8],[25.5,0.6],[30.5,2.1],[35.5,0.2],[41,1.7],[47.5,0.3]],
+        [[21.2,-0.2],[26.5,-2.0],[31.8,0.9],[37.2,-1.8],[42.8,1.1],[49.2,-0.5]],
+      ];
+      for(let v=0;v<veins.length;v++){
+        const pts=veins[v];
+        ctx.strokeStyle='#2ee86a';
+        ctx.lineWidth=1.15;
+        ctx.globalAlpha=0.28+pulse*0.42;
+        ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+        ctx.stroke();
+        ctx.strokeStyle='#b6ffd0';
+        ctx.lineWidth=0.55;
+        ctx.globalAlpha=0.45+pulse*0.4;
+        ctx.stroke();
+        const t=(flow+v*0.34)%1;
+        const seg=Math.min(pts.length-2,Math.floor(t*(pts.length-1)));
+        const u=t*(pts.length-1)-seg;
+        const vx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*u;
+        const vy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*u;
+        ctx.globalAlpha=0.85;
+        ctx.fillStyle='#3dff88';
+        ctx.beginPath();ctx.arc(vx,vy,2.15,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=0.95;
+        ctx.fillStyle='#e8ffe8';
+        ctx.beginPath();ctx.arc(vx,vy,1.1,0,Math.PI*2);ctx.fill();
+      }
+      ctx.restore();
+    }
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#ffe080';ctx.beginPath();ctx.arc(50,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
     if(p&&p.laserCharging&&p.laserCharge>0&&(itemOverride==null||itemOverride===ITEM)){
       const cf=p.laserCharge/40;
       const pulse=0.7+0.3*Math.sin(fr*0.55+cf*8);
@@ -584,30 +620,31 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ff8833';ctx.beginPath();ctx.arc(27,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
-    // XLR from the pair photo: fat silver barrel, black knurl, latch, 3-hole face
+    // XLR: cartoon oval shaft (side-on capsule, not a round disc)
     _connPx(-18,-5,9,10,'#101012');
     _connPx(-18,-4,9,3,'#2a2a30');
-    _connPx(-9,-10,12,20,'#101014');
-    _connPx(-8,-9,10,4,'#2a2a32');
-    for(let i=0;i<5;i++) _connPx(-8+i*2,-6,1,12,'#08080c');
-    _connPx(3,-11,20,22,'#b0b4bc');
-    _connPx(3,-11,20,5,'#eceef2');
-    _connPx(3,7,20,4,'#6e747c');
-    _connPx(9,-12,5,24,'#16161c');
-    for(let k=0;k<6;k++) _connPx(10,-10+k*3,3,1,'#2c2c34');
-    _connPx(20,-14,8,4,'#c8ccd4');
-    _connPx(21,-13,6,2,'#f0f2f6');
-    const fx=30;
-    ctx.beginPath();ctx.arc(fx,0,10,0,Math.PI*2);ctx.fillStyle='#c8ccd4';ctx.fill();
-    ctx.beginPath();ctx.arc(fx,0,8.2,0,Math.PI*2);ctx.fillStyle='#1a1c22';ctx.fill();
-    [[fx,-3.4],[fx-3.1,2.6],[fx+3.1,2.6]].forEach(([px,py2])=>{
-      ctx.beginPath();ctx.arc(px,py2,1.7,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
-      ctx.beginPath();ctx.arc(px-0.3,py2-0.3,0.55,0,Math.PI*2);ctx.fillStyle='#4a4e56';ctx.fill();
+    _connPx(-9,-8,10,16,'#101014');
+    _connPx(-8,-7,9,3,'#2a2a32');
+    for(let i=0;i<5;i++) _connPx(-8+i*2,-5,1,10,'#08080c');
+    _connOval(12,0,16,12.4,'#b0b4bc');
+    _connOval(10,-4.2,12,6.2,'#eceef2');
+    _connOval(13,6.2,12.5,4.6,'#6e747c');
+    _connOval(10,0,5.2,12.2,'#16161c');
+    _connOval(10,0,3.4,10.2,'#b0b4bc');
+    for(let k=0;k<7;k++) _connPx(8.4,-9+k*2.6,3.4,1,'#2c2c34');
+    _connPx(16,-15.5,8,4,'#c8ccd4');
+    _connPx(17,-14.5,6,2,'#f0f2f6');
+    const fx=27;
+    _connOval(fx,0,6.4,12.2,'#c8ccd4');
+    _connOval(fx,0,4.7,10.2,'#1a1c22');
+    [[fx,-4.5],[fx-2.3,3.5],[fx+2.3,3.5]].forEach(([px,py2])=>{
+      ctx.beginPath();ctx.ellipse(px,py2,1.45,1.85,0,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
+      ctx.beginPath();ctx.ellipse(px-0.25,py2-0.4,0.45,0.55,0,0,Math.PI*2);ctx.fillStyle='#4a4e56';ctx.fill();
     });
     if(enh){
       ctx.globalAlpha=0.55+0.25*Math.sin(fr*0.2);
-      [[fx,-3.4],[fx-3.1,2.6],[fx+3.1,2.6]].forEach(([px,py2])=>{
-        ctx.beginPath();ctx.arc(px,py2,2.2,0,Math.PI*2);ctx.fillStyle='#aaddff';ctx.fill();
+      [[fx,-4.5],[fx-2.3,3.5],[fx+2.3,3.5]].forEach(([px,py2])=>{
+        ctx.beginPath();ctx.ellipse(px,py2,2.0,2.5,0,0,Math.PI*2);ctx.fillStyle='#aaddff';ctx.fill();
       });
       ctx.globalAlpha=1;
     }
@@ -617,11 +654,11 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
       for(let i=0;i<3;i++){
         const wave=((fr*0.1+i*0.28)%1);
         ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.arc(fx,0,12+wave*10,-0.55,0.55);ctx.stroke();
+        ctx.beginPath();ctx.ellipse(fx,0,8+wave*8,14+wave*7,0,-0.55,0.55);ctx.stroke();
       }
       ctx.globalAlpha=1;
     }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.arc(fx,0,10+ff*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.ellipse(fx,0,7+ff*5,12+ff*7,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else{
     // MAG — glossy red horseshoe, silver poles, opening toward aim
@@ -1909,7 +1946,7 @@ function drawItemDrops(){
       ctx.beginPath();ctx.arc(cx,cy,Math.max(dw,dh)*0.42,0,Math.PI*2);ctx.fill();
       ctx.globalAlpha=1;
     }
-    const fill=d.item===2?1.55:d.item===1?1.35:d.item===0?1.25:1.2;
+    const fill=1.25;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(fill, fill);
@@ -2120,9 +2157,10 @@ function drawFX(){
     const isVenture=s.owner==='venture';
     const charged=s.charged||false;
     const isEnemy=s.owner==='enemy'||s.col==='#ff4400'||s.col==='#ff3355'||s.col==='#ff5533';
-    const core=isEnemy?'#ffe8e0':(isVenture?'#ffe0e8':'#f0e0ff');
-    const mid=isEnemy?'#ff3333':(isVenture?'#ff4466':'#bb55ff');
-    const glow=isEnemy?'#cc1111':(isVenture?'#ff2244':'#7722cc');
+    const enhShot=!!s.enhanced&&!isEnemy;
+    const core=isEnemy?'#ffe8e0':(enhShot?'#fff4cc':(isVenture?'#ffe0e8':'#f0e0ff'));
+    const mid=isEnemy?'#ff3333':(enhShot?'#ff6a18':(isVenture?'#ff4466':'#bb55ff'));
+    const glow=isEnemy?'#cc1111':(enhShot?'#cc2208':(isVenture?'#ff2244':'#7722cc'));
     if(s._fizzle){
       const t=s._fizzle/16;
       const shimmer=0.35+0.65*Math.abs(Math.sin(fr*0.85+(s.born||0)*0.5));
@@ -2164,7 +2202,7 @@ function drawFX(){
     ctx.beginPath();ctx.arc(bx+ux*2,by+uy*2,charged?3.2:1.6,0,Math.PI*2);ctx.fill();
     if(charged){
       ctx.globalAlpha=0.35+0.25*Math.sin(fr*0.8);
-      ctx.strokeStyle=isVenture?'#ff88aa':'#cc88ff';ctx.lineWidth=2;
+      ctx.strokeStyle=enhShot?'#66ff88':(isVenture?'#ff88aa':'#cc88ff');ctx.lineWidth=2;
       ctx.beginPath();ctx.arc(bx+ux*3,by+uy*3,7+Math.sin(fr*0.35)*2,0,Math.PI*2);ctx.stroke();
     }else{
       ctx.globalAlpha=0.45;
@@ -2174,6 +2212,27 @@ function drawFX(){
       }
     }
     ctx.globalAlpha=1;
+  }
+  if(typeof TRS_FLAMES!=='undefined'&&TRS_FLAMES.length){
+    for(const f of TRS_FLAMES){
+      const bx=sx(f.x),by=sy(f.y);
+      if(bx<-20||bx>W+20||by<-20||by>H+20) continue;
+      const t=Math.max(0,f.life/f.maxLife);
+      const flick=0.7+0.3*Math.sin(fr*0.55+(f.born||0));
+      const h=7+flick*5;
+      ctx.globalAlpha=0.28*t;
+      ctx.fillStyle='#ff3300';
+      ctx.beginPath();ctx.ellipse(bx,by+2,7*t,3.2,0,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=0.85*t*flick;
+      ctx.fillStyle='#ff5510';
+      ctx.beginPath();ctx.moveTo(bx-3.2,by+2);ctx.lineTo(bx,by-h);ctx.lineTo(bx+3.2,by+2);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=0.95*t;
+      ctx.fillStyle='#ffaa22';
+      ctx.beginPath();ctx.moveTo(bx-1.8,by+1.4);ctx.lineTo(bx,by-h*0.62);ctx.lineTo(bx+1.8,by+1.4);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#fff4a8';
+      ctx.fillRect(bx-0.6,by-h*0.28,1.2,h*0.4);
+      ctx.globalAlpha=1;
+    }
   }
   // â”€â”€ XLR pulses â€” expanding arc waves from jack tip â”€â”€
   for(const pu of p.pulses){

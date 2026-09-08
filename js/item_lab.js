@@ -42,6 +42,7 @@ function initItemLabWorld() {
   CRATES = [];
   ESHOTS = [];
   PFXS = [];
+  if (typeof _resetTrsFlames === 'function') _resetTrsFlames();
   KDROP.length = 0;
   kTotal = 0;
   kColl = 0;
@@ -61,9 +62,9 @@ function initItemLabWorld() {
   for (let oi = 0; oi < order.length; oi++) {
     const item = order[oi];
     if (typeof _spawnItemDrop === 'function') {
-      const gap = item === 2 ? 64 : item === 1 ? 44 : 52;
+      const gap = 36;
       _spawnItemDrop(item, x, feet, { enhanced: false });
-      const sz = typeof _itemBoxSize === 'function' ? _itemBoxSize(item, false) : { w: 32 };
+      const sz = typeof _itemBoxSize === 'function' ? _itemBoxSize(item, false) : { w: 36 };
       _spawnItemDrop(item, x + sz.w + 18, feet, { enhanced: true });
       const ez = typeof _itemBoxSize === 'function' ? _itemBoxSize(item, true) : { w: 36 };
       x += sz.w + 18 + ez.w + gap;

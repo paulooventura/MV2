@@ -328,6 +328,7 @@ function _enterZone(idx){
   _pickAndSetGameMusic();
   if(_gameState==='game'&&_audioUnlocked) _playBGM('game',_bgmVolFor('game'));
   win=false; goalOpen=false; ESHOTS=[]; PFXS=[];
+  if(typeof _resetTrsFlames==='function') _resetTrsFlames();
   if(_zoneIdx===0){
     _ensureCampaignMapApplied();
     if(typeof _ensureAwdjooMovingIsland==='function') _ensureAwdjooMovingIsland();

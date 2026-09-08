@@ -539,7 +539,7 @@ function _hitSfxPitch(hp,maxHp){
 // ── SFX DISPATCHER ───────────────────────────────────────────
 function sfx(t){
   if(!_audioUnlocked) return;
-  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit';
+  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire';
   const pitch=(pitchable&&typeof arguments[1]==='number')?arguments[1]:1;
   const sampleAlias={
     jump:'jump_reg',
@@ -582,11 +582,11 @@ function sfx(t){
     case'hook':o(210,430,.16,.11,0,'triangle');o(130,290,.2,.07,0.03,'sine');nz(.14,.09,false,0.45);break;
     case'hook_charged':o(95,360,.14,.16,0,'triangle');o(55,220,.22,.1,0.04,'sine');nz(.16,.12,false,0.38);break;
     case'hook_latch':nz(.11,.24,false,0.32);o(118,52,.11,.15,0,'square');o(72,40,.08,.09,0.025,'triangle');break;
-    case'laser':nz(.05,.24,false,1.6);o(1180,380,.13,.14,0,'sawtooth');o(760,160,.07,.08,0.04,'square');break;
+    case'laser':nz(.05,.24,false,1.6*pitch);o(1180*pitch,380*pitch,.13,.14,0,'sawtooth');o(760*pitch,160*pitch,.07,.08,0.04,'square');break;
     case'laser_bounce':{const r=arguments[1]||0,base=600*Math.pow(0.66,r);
       o(base*1.4,base*0.4,.08,.1*Math.pow(0.68,r));break;}
     case'laser_charge':{const cf=arguments[1]||0;o(320+cf*780,360+cf*820,.05,.03+cf*.04);break;}
-    case'laser_charged_fire':nz(.1,.2,false,1.2);o(920,120,.24,.18,0,'sawtooth');o(420,80,.18,.12,0.05,'square');o(1800,90,.12,.1,0.08,'triangle');break;
+    case'laser_charged_fire':nz(.1,.2,false,1.2*pitch);o(920*pitch,120*pitch,.24,.18,0,'sawtooth');o(420*pitch,80*pitch,.18,.12,0.05,'square');o(1800*pitch,90*pitch,.12,.1,0.08,'triangle');break;
     case'xlr':o(200,640,.15,.14);break;
     case'mag':o(460,130,.12,.12);break;
     case'hit':o(240*pitch,90*pitch,.06,.1);nz(.04,.1);break;
@@ -604,6 +604,16 @@ function sfx(t){
     case'click':o(980,980,.03,.06);break;
     case'chargeReady':o(392,392,.07,.11);o(523,523,.09,.1,.07);break;
     case'unlock':[523,659,784,1047,1319].forEach((f,i)=>o(f,f,.1,.1,i*.09));break;
+    case'item_enhanced':
+      nz(.14,.22,true,0.2);
+      o(82,164,.24,.2,0,'sine');
+      o(123,246,.2,.12,0.04,'triangle');
+      o(196,196,.12,.16,0.1,'square');
+      o(247,294,.14,.14,0.18,'square');
+      o(330,415,.16,.16,0.28,'sawtooth');
+      o(392,523,.18,.17,0.4,'square');
+      o(523,659,.22,.15,0.54,'triangle');
+      break;
     case'omniblock_chip':nz(.05,.14,false,0.55);o(210,70,.05,.08,0,'triangle');break;
     case'omniblock_shatter':
       nz(.18,.28,false,0.38);nz(.12,.18,true,0.22,0.04);

@@ -213,26 +213,19 @@ const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
-/** Visual scale vs each other: XLR chunky, TRS slender, RCA smallest (from the photos). */
+/** Held-jack scale. TRS 0.86 is the reference; XLR/RCA match the photos vs that TRS. */
 function _itemArtScale(idx){
-  if(idx===2) return 1.26;
-  if(idx===1) return 0.55;
   if(idx===0) return 0.86;
-  return 1;
+  if(idx===2) return 0.70;
+  if(idx===1) return 0.40;
+  return 0.86;
 }
-function _itemBoxSize(item, enh){
-  const base=[
-    {w:30, h:52},
-    {w:20, h:28},
-    {w:50, h:44},
-    {w:36, h:34},
-  ][item]||{w:32,h:32};
-  const n=enh?1.1:1;
-  return {w:Math.round(base.w*n), h:Math.round(base.h*n)};
+function _itemBoxSize(){
+  return {w:36, h:36};
 }
 
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
-function _grantPlayerItem(idx){
+function _grantPlayerItem(idx, silent){
   if(idx<0||idx>3||_itemUnlocked(idx)) return false;
   _unlockedMask|=ITEM_UNLOCK_BITS[idx];
   ITEM=idx;
@@ -245,7 +238,7 @@ function _grantPlayerItem(idx){
   ];
   _itemTutorial={title:titles[idx],lines:lines[idx],t:0,maxT:280};
   if(idx===1&&typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
-  try{sfx('unlock');}catch(_e){}
+  if(!silent){ try{sfx('unlock');}catch(_e){} }
   return true;
 }
 function _cycleItem(){
@@ -260,6 +253,7 @@ function _resetItemProgress(){
   if(_awdjooTutorial&&_zoneIdx===0){ _unlockedMask=0; ITEM=-1; }
   else { _unlockedMask=15; ITEM=1; }
   _itemEnhanced=[false,false,false,false];
+  if(typeof _resetTrsFlames==='function') _resetTrsFlames();
   _ropePickupAnim=null; _itemTutorial=null;
   if(_mapRopePickup) _mapRopePickup.got=false;
   if(typeof _resetCombatProgress==='function') _resetCombatProgress();
@@ -543,15 +537,15 @@ function fireItem(charged=false){
   }else if(ITEM===0){ // TRS LASER
     const recoilAmt=charged?18:6;
     p._lastRecoilMax=recoilAmt;
-    if(charged){
-      p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*11,vy:Math.sin(shotA)*11,
-        life:320,type:'laser',bounces:0,power:3.0,charged:true,owner:p.hero||'mind',born:fr});
-      sfx('laser_charged_fire'); p.flashF=16; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
-    }else{
-      p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*19,vy:Math.sin(shotA)*19,
-        life:180,type:'laser',bounces:0,power:1.0,charged:false,owner:p.hero||'mind',born:fr});
-      sfx('laser'); p.flashF=7; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
-    }
+    const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
+    const spd=charged?(enh?16:11):(enh?28:19);
+    const pow=charged?(enh?4.4:3.0):(enh?1.55:1.0);
+    const pitch=enh?0.8:1;
+    p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*spd,vy:Math.sin(shotA)*spd,
+      life:charged?320:180,type:'laser',bounces:0,power:pow,charged:!!charged,
+      enhanced:enh,owner:p.hero||'mind',born:fr,_flameDist:0});
+    sfx(charged?'laser_charged_fire':'laser',pitch);
+    p.flashF=charged?16:7; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
     const push=charged?3.2:1.15;
     const wt=_wallTouchInfo(p);
     const shotDir=Math.cos(shotA)>0?1:-1;

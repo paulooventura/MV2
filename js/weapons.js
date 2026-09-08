@@ -12,8 +12,48 @@
 // ── Breakable wall constants ──────────────────────────────────
 const BWALL_IMPACT_DMG=6.5, BWALL_IMPACT_HARD=10.5;
 
+// ── Enhanced TRS linger-flames (2s, 5 HP / 0.5s) ──────────────
+const TRS_FLAME_LIFE=120, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=15, TRS_FLAME_GAP=40;
+let TRS_FLAMES=[];
+function _resetTrsFlames(){ TRS_FLAMES.length=0; }
+function spawnTrsFlame(x,y){
+  if(!isFinite(x)||!isFinite(y)) return;
+  if(TRS_FLAMES.length>=24) TRS_FLAMES.shift();
+  TRS_FLAMES.push({x,y,life:TRS_FLAME_LIFE,maxLife:TRS_FLAME_LIFE,r:TRS_FLAME_R,born:fr||0});
+}
+function _trsDropFlame(s){
+  if(!s||!s.enhanced) return;
+  s._flameDist=(s._flameDist||0)+Math.hypot(s.vx||0,s.vy||0);
+  if(s._flameDist>=TRS_FLAME_GAP){ s._flameDist=0; spawnTrsFlame(s.x,s.y); }
+}
+function _trsLaserDmg(s){
+  const enh=!!(s&&s.enhanced);
+  if(s&&s.charged) return Math.round(ENM_DMG.laserCharged*(enh?1.45:1));
+  return Math.round(ENM_DMG.laser*((s&&s.power)||1));
+}
+function updateTrsFlames(){
+  if(!TRS_FLAMES.length) return;
+  for(const e of ENEMS){ if(e._trsBurnCd>0) e._trsBurnCd--; }
+  for(let i=TRS_FLAMES.length-1;i>=0;i--){
+    const f=TRS_FLAMES[i];
+    f.life--;
+    f.y-=0.12;
+    if(f.life<=0){ TRS_FLAMES.splice(i,1); continue; }
+    for(const e of ENEMS){
+      if(!_enemyCombatActive(e)) continue;
+      const cx=e.x+e.w*0.5, cy=e.y+e.h*0.5;
+      if(Math.hypot(cx-f.x,cy-f.y)>f.r+Math.max(e.w,e.h)*0.28) continue;
+      if((e._trsBurnCd||0)>0) continue;
+      e._trsBurnCd=TRS_FLAME_TICK;
+      spawnHitBurst(f.x,e.y,0,-1,'#ff8844',6);
+      _damageEnemy(e,TRS_FLAME_DMG,f.x,f.y,0.12);
+    }
+  }
+}
+
 // ── Laser fizzle effect ───────────────────────────────────────
 function spawnLaserFizzle(s){
+  if(s&&s.enhanced) spawnTrsFlame(s.x,s.y);
   const isVenture=s.owner==='venture';
   const colA=isVenture?'#ff5577':'#bb66ff';
   const colB=isVenture?'#ffccaa':'#eeddff';
@@ -211,17 +251,19 @@ function updatePlayerShots(){
       if(Math.hypot(s.vx,s.vy)<0.42){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }
     s.x+=s.vx; s.y+=s.vy; s.life--;
+    _trsDropFlame(s);
     if(s.life<=0&&!s._fizzle){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     let dead=false;
     for(const e of ENEMS){
       if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); _tryInterruptMindReboot(e); dead=true; break; }
+        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y); _tryInterruptMindReboot(e); dead=true; break; }
         continue;
       }
       if(!_enemyCombatActive(e)) continue;
       if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
-        const ldmg=s.charged?ENM_DMG.laserCharged:Math.round(ENM_DMG.laser*(s.power||1));
+        const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
+        if(s.enhanced) spawnTrsFlame(s.x,s.y);
         _damageEnemy(e,ldmg,s.x,s.y); dead=true; break;
       }
     }
@@ -230,6 +272,7 @@ function updatePlayerShots(){
       if(bw.hp<=0) continue;
       if(!ov(s.x-4,s.y-4,8,8,bw.x,bw.y,bw.w,bw.h)) continue;
       _damageBwall(bw,s.charged?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2,vx:bw.movable?s.vx*0.2:0,vy:bw.movable?s.vy*0.2:0});
+      if(s.enhanced) spawnTrsFlame(s.x,s.y);
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
@@ -239,6 +282,7 @@ function updatePlayerShots(){
       else s.vy*=-0.76;
       s.power=(s.power||1)*0.7; s.bounces=(s.bounces||0)+1;
       spawnSpark(s.x,s.y,s.vx,s.vy);
+      if(s.enhanced) spawnTrsFlame(s.x,s.y);
       if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }
     for(const q of pl){
@@ -259,6 +303,7 @@ function updatePlayerShots(){
   }
   for(let i=p.pulses.length-1;i>=0;i--){p.pulses[i].r+=13;p.pulses[i].life--;if(p.pulses[i].life<=0)p.pulses.splice(i,1);}
   for(let i=p.magPts.length-1;i>=0;i--){const m=p.magPts[i];m.x+=m.vx;m.y+=m.vy;m.life--;if(m.life<=0)p.magPts.splice(i,1);}
+  updateTrsFlames();
 }
 
 // ── XLR push ──────────────────────────────────────────────────
@@ -512,17 +557,20 @@ function _spawnItemDrop(item, x, y, opts){
     const s=gridStandY(x, y+8, {maxUp:48, maxDrop:160});
     if(s!=null) fy=s;
   }
-  const sz=typeof _itemBoxSize==='function'?_itemBoxSize(item,enhanced):{w:enhanced?40:36,h:enhanced?40:36};
+  const sz=typeof _itemBoxSize==='function'?_itemBoxSize():{w:36,h:36};
   ITEM_DROPS.push({item, enhanced, x:fx-sz.w*0.5, y:fy-sz.h, w:sz.w, h:sz.h, got:false, bob:Math.random()*Math.PI*2});
 }
 function _collectItemDrop(d){
   if(!d||d.item<0||d.item>3) return false;
   const wasNew=!_itemUnlocked(d.item);
-  if(wasNew) _grantPlayerItem(d.item);
+  if(wasNew) _grantPlayerItem(d.item, !!d.enhanced);
   else ITEM=d.item;
   if(typeof _itemEnhanced!=='undefined') _itemEnhanced[d.item]=!!d.enhanced;
   if(p) p.itemStamina=100;
-  if(!wasNew){ try{sfx(d.enhanced?'unlock':'knowl_pickup');}catch(_e){} }
+  try{
+    if(d.enhanced) sfx('item_enhanced');
+    else if(!wasNew) sfx('knowl_pickup');
+  }catch(_e){}
   return true;
 }
 function _dropPlayerItems(){

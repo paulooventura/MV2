@@ -2519,6 +2519,7 @@ function _resetCombatProgress(){
   _playerShutCount=0;
   _gameOver=false;
   if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.length=0;
+  if(typeof _resetTrsFlames==='function') _resetTrsFlames();
 }
 function _syncLivesFromHp(pl){ pl.lives=Math.max(0,Math.ceil(pl.hp/PLAYER_HIT_DMG)); }
 function applyPlayerHit(knockX,knockY,dmg=PLAYER_HIT_DMG){
