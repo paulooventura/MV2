@@ -171,6 +171,18 @@
     if(gap<need) rec('openingTooTight',{gap:gap, need:need});
   }
 
+  var _slopeCornerOnce=false;
+
+  function checkSlopeCorner(){
+    if(_slopeCornerOnce || lf!==8) return;
+    _slopeCornerOnce=true;
+    if(typeof gridSelftestSlopeCorner!=='function') return;
+    try{
+      var r=gridSelftestSlopeCorner();
+      if(!r||!r.ok) rec('slopeCorner', r||{ok:false});
+    }catch(e){ rec('slopeCorner',{ok:false,msg:String(e&&e.message||e)}); }
+  }
+
   function checkOmniblockCorner(){
     if(lf<400||lf%30!==0) return;
     var pl=(typeof p!=='undefined')?p:null;
@@ -392,7 +404,7 @@
     var dt=((typeof performance!=='undefined')?performance.now():Date.now())-ts;
     if(dt>perf.maxUpdateMs) perf.maxUpdateMs=+dt.toFixed(2);
     if(dt>SLOW_MS) perf.slowFrames++;
-    try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); checkSlopeAndOpening(); }catch(e){}
+    try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); checkSlopeAndOpening(); checkSlopeCorner(); }catch(e){}
     if(typeof p!=='undefined'&&p&&(p._grindF||0)>=4&&phaseFrame>36){
       phaseIdx++; phaseFrame=0; baselineY=null; idleMaxDev=0; xHist.length=0;
     }else advancePhase();
@@ -454,6 +466,7 @@
     running=true; lf=0; t0=Date.now(); renderFrames=0;
     violations={}; perf={maxUpdateMs:0,slowFrames:0};
     phaseIdx=0; phaseFrame=0; jumpHold=0; baselineY=null; idleMaxDev=0; xHist.length=0;
+    _slopeCornerOnce=false;
     if(typeof p!=='undefined'&&p) p._idlePrevY=undefined;
     if(typeof p!=='undefined'&&p){ p._wasOg=false; p._prevCheckY=undefined; }
     hud('bot driving — character should walk right');

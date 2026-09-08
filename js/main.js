@@ -715,7 +715,7 @@ function initRunTestWorld(){
   camX=0; camY=0; _mapReady=true; _allPCache=null;
   console.info('MV: Run test world ready');
 }
-function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
+function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
 function startRunTest(){ _unlockAudio(); _battleTestMode=false; _runTestMode=true; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initRunTestWorld(); _playBGM('game',OPT.musicVol); }
 
 // ── Zone placeholder (procgen) ────────────────────────────────
@@ -759,6 +759,7 @@ function buildProcgenWorld(seed){
 // ── initWorld ─────────────────────────────────────────────────
 function initWorld(){
   if(typeof _itemLabMode!=='undefined') _itemLabMode=false;
+  if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false;
   _clearBattleRespawnTimer();
   _battleTestMode=false; _syncBattleHud(); _runTestMode=false; _stageDesignerMode=false;
   const boot=()=>{
@@ -1074,7 +1075,9 @@ function draw(){
   for(const s of ESHOTS){if(s.type==='laser')continue;const bx=sx(s.x),by=sy(s.y);if(s.type==='signol_frag'){const r=sw(s.r||5),dull=s.settled,ageAfterStop=dull?(fr-(s.stopFr||fr)):0,fade=dull?Math.max(0.2,1-ageAfterStop/SIGNOL_FRAG_STOP_FADE):1,pulse=dull?0.55:0.85+0.15*Math.sin(fr*0.35+s.x*0.1);ctx.globalAlpha=fade*pulse;if(dull){ctx.fillStyle='#6a4030';ctx.fillRect(bx-r*0.6,by-r*0.4,r*1.2,r*0.9);ctx.fillStyle='#4a3028';ctx.fillRect(bx-r*0.35,by-r*0.2,r*0.7,r*0.45);}else{const ta=Math.atan2(s.vy||0,s.vx||-0.01)+Math.PI;for(let fi=0;fi<3;fi++){const d=fi*5+2;ctx.globalAlpha=fade*(0.4-fi*0.1);ctx.fillStyle=fi===0?'#ffff55':(fi===1?'#ff8800':'#ff3300');ctx.beginPath();ctx.arc(sx(s.x+Math.cos(ta)*d),sy(s.y+Math.sin(ta)*d),r*(0.38-fi*0.09),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=fade*pulse;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(bx,by,r,0,Math.PI*2);ctx.fill();ctx.fillStyle=(fr&1)?C.YELLOW:C.ORANGE;ctx.beginPath();ctx.arc(bx,by,r*0.55,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.WHITE;ctx.fillRect(bx-1,by-1,2,2);}ctx.globalAlpha=1;continue;}const sp=Math.hypot(s.vx,s.vy)||1,ux=s.vx/sp,uy=s.vy/sp;ctx.fillStyle=C.RED;ctx.fillRect(bx-1,by-1,3,2);ctx.fillStyle=(fr&1)?C.ORANGE:C.YELLOW;ctx.fillRect(bx,by-1,1,1);ctx.fillStyle=C.ORANGE;ctx.fillRect(bx-Math.round(ux*3),by-Math.round(uy*3)-1,1,1);}
   if(typeof drawKnowlTree==='function') drawKnowlTree();
   drawKnowlTreeAura(); drawRopePickup(); drawItemDrops(); drawKnowl();
+  if(typeof drawPhysicsLabWorld==='function') drawPhysicsLabWorld();
   if(typeof drawItemLabHud==='function') drawItemLabHud();
+  if(typeof drawPhysicsLabHud==='function') drawPhysicsLabHud();
   const _bwPad=64;
   for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);

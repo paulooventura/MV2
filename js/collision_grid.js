@@ -56,12 +56,25 @@ function gridSolidBlocksX(c,r,contactX){
     const sy=gridSlopeY(c,sr,x);
     if(sy!=null&&sy<=r*t+0.5) return false;
   }
-  // Rounded slope shoulder: do not jam the wheel into the crest wall.
+  const lip=Math.max(28,(typeof WHEEL_R!=='undefined'?WHEEL_R:20)+8);
   for(const dc of [-1,1]){
     const kind=gridSlopeKind(c+dc,r)||gridSlopeKind(c+dc,r+1)||gridSlopeKind(c+dc,r-1);
     if(!kind) continue;
-    if(kind==='L'&&dc===1&&Math.abs(x-(c+1)*t)<22) return false;
-    if(kind==='R'&&dc===-1&&Math.abs(x-c*t)<22) return false;
+    if(kind==='L'&&dc===1&&Math.abs(x-(c+1)*t)<lip) return false;
+    if(kind==='R'&&dc===-1&&Math.abs(x-c*t)<lip) return false;
+  }
+  // Slope foot/crest that meets a flat: this cell's top is the floor, not a wall.
+  // Rock beside a ramp whose top is at or below the hypotenuse is fill, not a wall.
+  const top=r*t;
+  for(const dc of [-1,1]){
+    for(const dr of [-3,-2,-1,0,1,2,3]){
+      if(!gridIsSlope(c+dc,r+dr)) continue;
+      const edgeX=dc<0?c*t+1:(c+1)*t-1;
+      const sy=gridSlopeY(c+dc,r+dr,edgeX);
+      if(sy==null) continue;
+      if(top<sy-12) continue;
+      return false;
+    }
   }
   return true;
 }
@@ -470,6 +483,83 @@ function buildCollisionGridFromTmj(data, sc){
 
 function gridClear(){ MV_GRID=null; }
 
+/** Stamp a typed grid from world AABBs + 45° slope runs (labs, synthetic tests). */
+function buildCollisionGridFromWorld(ww, wh, tile, spec){
+  tile=tile||32;
+  spec=spec||{};
+  const cols=Math.max(8, Math.ceil(ww/tile)|0);
+  const rows=Math.max(8, Math.ceil(wh/tile)|0);
+  const grid=[];
+  for(let r=0;r<rows;r++){
+    grid[r]=new Array(cols);
+    for(let c=0;c<cols;c++) grid[r][c]=MV_GRID_AIR;
+  }
+  MV_GRID={ready:true, cols, rows, tile, tw:tile, th:tile, sc:1, data:grid, slope:{}};
+  const stampRect=(x,y,w,h,type)=>{
+    const c0=Math.floor(x/tile), c1=Math.floor((x+Math.max(1,w)-1)/tile);
+    const r0=Math.floor(y/tile), r1=Math.floor((y+Math.max(1,h)-1)/tile);
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
+      if(c<0||r<0||c>=cols||r>=rows) continue;
+      grid[r][c]=type;
+      if(MV_GRID.slope) delete MV_GRID.slope[r*cols+c];
+    }
+  };
+  for(const s of spec.solids||[]) stampRect(s.x, s.y, s.w, s.h, MV_GRID_SOLID);
+  for(const sl of spec.slopes||[]){
+    const kind=sl.kind==='L'?'L':'R';
+    const n=Math.max(1, sl.n|0);
+    for(let i=0;i<n;i++){
+      const c=sl.c+i;
+      const r=kind==='R'?sl.r-i:sl.r+i;
+      if(c<0||r<0||c>=cols||r>=rows) continue;
+      gridSet(c, r, kind==='L'?MV_GRID_SLOPE_L:MV_GRID_SLOPE_R);
+      for(let rr=r+1;rr<rows;rr++){
+        const t=grid[rr][c];
+        if(t===MV_GRID_SLOPE_L||t===MV_GRID_SLOPE_R) break;
+        if(t===MV_GRID_AIR) grid[rr][c]=MV_GRID_SOLID;
+      }
+    }
+  }
+  return MV_GRID;
+}
+
+/** Headless: walk a wheel up SLOPE_R onto a matching flat. Restores MV_GRID. */
+function gridSelftestSlopeCorner(){
+  const saved=MV_GRID;
+  try{
+    const tile=32, sw=64, feetOff=88;
+    const floorY=tile*10;
+    const n=6, c0=1, r0=9;
+    const crestY=(r0-(n-1))*tile;
+    const platX=(c0+n)*tile;
+    buildCollisionGridFromWorld(tile*20, tile*12, tile, {
+      solids:[
+        {x:0, y:floorY, w:tile*20, h:tile*2},
+        {x:platX, y:crestY, w:tile*6, h:floorY-crestY+tile}
+      ],
+      slopes:[{c:c0, r:r0, n:n, kind:'R'}]
+    });
+    const walk=(vx, steps)=>{
+      const pl={x:c0*tile+tile*0.5-sw*0.5, y:floorY-feetOff, vx:vx, vy:0, og:true, crouchAmt:0, _grindF:0, _slopeAngle:Math.atan2(-tile,tile)};
+      for(let i=0;i<steps;i++){
+        pl.vx=vx;
+        if(typeof gridResolvePlayer==='function') gridResolvePlayer(pl, vx, 0, {});
+      }
+      return pl;
+    };
+    const fast=walk(3.2, 140);
+    const slow=walk(0.7, 520);
+    const onPlat=(pl)=>pl.x+sw*0.5>platX+10 && Math.abs((pl.y+feetOff)-crestY)<=12 && !pl._wedged;
+    if(!onPlat(fast)) return {ok:false, why:'fast', x:Math.round(fast.x), feet:Math.round(fast.y+feetOff), wantX:platX, wantY:crestY, wedged:!!fast._wedged};
+    if(!onPlat(slow)) return {ok:false, why:'slow', x:Math.round(slow.x), feet:Math.round(slow.y+feetOff), wantX:platX, wantY:crestY, wedged:!!slow._wedged};
+    return {ok:true, x:Math.round(fast.x), feet:Math.round(fast.y+feetOff)};
+  }catch(e){
+    return {ok:false, why:'exception', msg:String(e&&e.message||e)};
+  }finally{
+    MV_GRID=saved;
+  }
+}
+
 function gridSmashCell(c,r){
   if(!_gridReady()) return false;
   if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return false;
@@ -566,7 +656,7 @@ function gridPlayerBody(pl){
     vx:pl.vx||0,
     vy:pl.vy||0,
     onGround:!!pl.og,
-    slopeAng:0,
+    slopeAng:pl._slopeAngle||0,
     _hitX:false,
     _hitY:false
   };
@@ -629,6 +719,29 @@ function gridColumnSurface(col, contactX, feetY, maxUp){
   return best==null?null:{y:best, ang};
 }
 
+/** Standable surface in a column near the feet (a few px above or below). */
+function gridColumnStandNear(col, contactX, feetY, band){
+  if(!_gridReady()) return null;
+  band=band==null?14:band;
+  const t=MV_GRID.tile;
+  const r0=Math.floor((feetY-band)/t), r1=Math.floor((feetY+band)/t);
+  let best=null, ang=0, bestAbs=1e9;
+  for(let r=r0;r<=r1;r++){
+    let y=null, a=0;
+    if(gridIsSlope(col,r)){
+      y=gridSlopeY(col,r,contactX);
+      const s=gridSlopeAt(col,r);
+      a=s?s.angle:0;
+    }else if(gridSolid(col,r)){
+      y=r*t;
+    }else continue;
+    if(y==null||Math.abs(y-feetY)>band) continue;
+    const d=Math.abs(y-feetY);
+    if(d<bestAbs){ bestAbs=d; best=y; ang=a; }
+  }
+  return best==null?null:{y:best, ang};
+}
+
 function _gridBlockedAt(body, col, contactX){
   const t=MV_GRID.tile;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
@@ -637,14 +750,27 @@ function _gridBlockedAt(body, col, contactX){
   return false;
 }
 
+function _gridSlideOnto(body, col, contactX){
+  const feet=body.feetY!=null?body.feetY:body.y+body.h;
+  const surf=gridColumnStandNear(col, contactX, feet, 14);
+  if(!surf) return false;
+  const prevY=body.y, prevFeet=body.feetY, prevAng=body.slopeAng, prevOg=body.onGround;
+  gridSetFeet(body, surf.y, surf.ang||0);
+  if(_gridBlockedAt(body, col, contactX)||_gridFeetWouldClip(body, body.feetY)){
+    body.y=prevY; body.feetY=prevFeet; body.slopeAng=prevAng; body.onGround=prevOg;
+    return false;
+  }
+  return true;
+}
+
 /** Roll the wheel over a low lip (slope shoulders, kerbs) rather than stopping dead. */
 function _gridStepUp(body, col, contactX){
   if(!body.onGround) return false;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const surf=gridColumnSurface(col, contactX, feet, MV_GRID_STEP_UP);
-  if(!surf) return false;
+  if(!surf) return _gridSlideOnto(body, col, contactX);
   const rise=feet-surf.y;
-  if(rise<=0.01||rise>MV_GRID_STEP_UP) return false;
+  if(rise<=0.01||rise>MV_GRID_STEP_UP) return _gridSlideOnto(body, col, contactX);
   const prevY=body.y, prevFeet=body.feetY, prevAng=body.slopeAng;
   body.feetY=surf.y;
   body.y=surf.y-body.h;
@@ -666,6 +792,9 @@ function gridMoveX(body, dx){
   if(_gridBlockedAt(body, col, contactX)){
     if(_gridStepUp(body, col, contactX)){
       if(body.onGround) gridFollowSlope(body, true);
+      return;
+    }
+    if(_gridSlideOnto(body, col, contactX)){
       return;
     }
     const downhill=Math.sign(Math.sin(body.slopeAng||0));
@@ -725,6 +854,18 @@ function gridFollowSlope(body, wasGrounded){
   const t=MV_GRID.tile;
   const wx=body.x+body.w*0.5;
   const wr=body.wheelR||20;
+  const feetPre=body.feetY!=null?body.feetY:body.y+body.h;
+  const dir=Math.sign(body.vx||0);
+  const downhill=Math.sign(Math.sin(body.slopeAng||0));
+  // Climbing off a ramp onto a matching flat: sit on the floor, do not yank back.
+  if(wasGrounded&&dir&&Math.abs(body.slopeAng||0)>0.06&&dir!==downhill){
+    const ahead=wx+dir*(wr*0.55);
+    const flat=gridColumnStandNear(Math.floor(ahead/t), ahead, feetPre, 12);
+    if(flat&&Math.abs(flat.ang||0)<0.08&&Math.abs(flat.y-feetPre)<=12){
+      gridSetFeet(body, flat.y, 0);
+      return true;
+    }
+  }
   const cols=[Math.floor((wx-wr*0.55)/t), Math.floor(wx/t), Math.floor((wx+wr*0.55)/t)];
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const maxDrop=wasGrounded?t*2.5:t;
@@ -933,7 +1074,7 @@ function gridCrestRelease(body){
   const dir=Math.sign(body.vx||0);
   // Rolling downhill: stay on the ramp. Only leave when climbing onto a flat.
   if(!dir||dir===downhill) return false;
-  if(Math.abs(body.vx||0)<2.0) return false;
+  if(Math.abs(body.vx||0)<0.35) return false;
   const t=MV_GRID.tile;
   const wx=body.x+body.w*0.5;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
@@ -941,8 +1082,8 @@ function gridCrestRelease(body){
   const nc=c+dir;
   const nr=Math.floor((feet-2)/t);
   if(gridIsSlope(nc,nr)||gridIsSlope(nc,nr-1)||gridIsSlope(nc,nr+1)) return false;
-  const surf=gridColumnSurface(nc, nc*t+t*0.5, feet+t, t*2);
-  if(surf&&Math.abs(surf.y-feet)<t*1.25){
+  const surf=gridColumnStandNear(nc, nc*t+t*0.5, feet, t*1.25);
+  if(surf&&Math.abs(surf.ang||0)<0.08&&Math.abs(surf.y-feet)<t*1.25){
     gridSetFeet(body, surf.y, 0);
     return true;
   }
@@ -1015,15 +1156,22 @@ function gridResolvePlayer(pl, vx, vy, opts){
     if(gridUnwedge(body, dir)){
       if(dir) body.vx=dir*Math.max(Math.abs(body.vx||0),1.15);
     }else{
-      body._wedged=true;
-      body.onGround=true;
-      if(!torque){
-        body.vx*=0.12;
-        if(Math.abs(body.vx)<0.7){ body.vx=0; body._hitX=true; }
-        body.vy=0; body._hitY=true;
+      const t=MV_GRID.tile;
+      const slid=_gridSlideOnto(body, Math.floor((body.x+body.w-1)/t), body.x+body.w-1)
+        || _gridSlideOnto(body, Math.floor(body.x/t), body.x);
+      if(slid){
+        body._wedged=false;
       }else{
-        body.vy=Math.min(body.vy||0,-1.4);
-        body._hitY=false;
+        body._wedged=true;
+        body.onGround=true;
+        if(!torque){
+          body.vx*=0.12;
+          if(Math.abs(body.vx)<0.7){ body.vx=0; body._hitX=true; }
+          body.vy=0; body._hitY=true;
+        }else{
+          body.vy=Math.min(body.vy||0,-1.4);
+          body._hitY=false;
+        }
       }
     }
   }
@@ -1048,7 +1196,12 @@ function gridResolvePlayer(pl, vx, vy, opts){
       if(hold&&hold.kind==='slope'&&hold.y<=feet+t*2.25){
         const below=feet>hold.y+2.5;
         const lost=!gridFeetGrounded(body);
-        if(below||lost) gridSetFeet(body, hold.y, hold.ang);
+        if(below||lost){
+          const flat=gridColumnStandNear(Math.floor(wx/t), wx, feet, 8);
+          if(!(flat&&Math.abs(flat.ang||0)<0.08&&Math.abs(flat.y-feet)<=6)){
+            gridSetFeet(body, hold.y, hold.ang);
+          }
+        }
       }
     }
   }

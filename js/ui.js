@@ -150,6 +150,7 @@ function _titleMenuItems(){
     {label:'STORY MODE', activate:()=>startStoryMode()},
     {label:'TUTORIAL CHAMBER', activate:()=>{_gameState='tutorial';}},
     {label:'ITEM SPRITE LAB', activate:()=>typeof startItemLab==='function'&&startItemLab()},
+    {label:'PHYSICS LAB', activate:()=>typeof startPhysicsLab==='function'&&startPhysicsLab()},
     {label:'BATTLE PRACTICE', activate:()=>startBattleTest()},
     {label:'CREATIVE MODE', activate:()=>{_gameState='stagedesign';_stageDesignSelIdx=0;}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},

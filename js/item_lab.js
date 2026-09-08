@@ -18,6 +18,7 @@ function _ilPlat(x, y, w, h, tp) {
 function initItemLabWorld() {
   if (typeof _clearTiledState === 'function') _clearTiledState();
   _itemLabMode = true;
+  if (typeof _physicsLabMode !== 'undefined') _physicsLabMode = false;
   if (typeof _testLabMode !== 'undefined') _testLabMode = false;
   _battleTestMode = false;
   _runTestMode = false;

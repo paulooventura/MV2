@@ -16,16 +16,22 @@ const BWALL_IMPACT_DMG=6.5, BWALL_IMPACT_HARD=10.5;
 const TRS_FLAME_LIFE=120, TRS_FLAME_TICK=30, TRS_FLAME_DMG=5, TRS_FLAME_R=15;
 let TRS_FLAMES=[];
 function _resetTrsFlames(){ TRS_FLAMES.length=0; }
-function spawnTrsFlame(x,y){
+function spawnTrsFlame(x,y,opts){
   if(!isFinite(x)||!isFinite(y)) return;
+  opts=opts||{};
   if(TRS_FLAMES.length>=24) TRS_FLAMES.shift();
-  TRS_FLAMES.push({x,y,life:TRS_FLAME_LIFE,maxLife:TRS_FLAME_LIFE,r:TRS_FLAME_R,born:fr||0});
+  TRS_FLAMES.push({
+    x, y,
+    life:TRS_FLAME_LIFE, maxLife:TRS_FLAME_LIFE, r:TRS_FLAME_R, born:fr||0,
+    stick:opts.stick!==false,
+    nx:opts.nx||0, ny:opts.ny||0
+  });
 }
 function _trsTraceShot(s){
   if(!s||!s.enhanced) return;
   if(!s.tracer) s.tracer=[];
   s.tracer.push({x:s.x,y:s.y});
-  if(s.tracer.length>18) s.tracer.shift();
+  if(s.tracer.length>36) s.tracer.shift();
 }
 function _trsLaserDmg(s){
   const enh=!!(s&&s.enhanced);
@@ -38,7 +44,7 @@ function updateTrsFlames(){
   for(let i=TRS_FLAMES.length-1;i>=0;i--){
     const f=TRS_FLAMES[i];
     f.life--;
-    f.y-=0.12;
+    if(!f.stick) f.y-=0.12;
     if(f.life<=0){ TRS_FLAMES.splice(i,1); continue; }
     for(const e of ENEMS){
       if(!_enemyCombatActive(e)) continue;
@@ -86,7 +92,7 @@ function _mkBwall(x,y,w,h,opts){
   const maxHp=opts.maxHp!=null?opts.maxHp:(isRed?RED_BWALL_HP:3);
   return {x,y,w,h,hp,maxHp,cracked:false,shakeX:0,shakeY:0,debris:[],
     _destroyFr:null,label:opts.label||(isRed?'BLOCK':'WALL'),col:opts.col||'#9c2218',
-    vx:0,vy:0,og:false,movable:!!opts.movable,
+    vx:0,vy:0,og:false,movable:!!opts.movable,rot:0,spin:0,
     tileGid:opts.tileGid||0,canvasGid:opts.canvasGid||0,bgGid:opts.bgGid||0,
     homeCol:opts.homeCol??null,homeRow:opts.homeRow??null,
     homeX:opts.homeX??x,homeY:opts.homeY??y,_impactCd:0,_awake:!!opts._awake};
@@ -165,7 +171,9 @@ function _sanitizeBwall(bw){
   if(!bw) return;
   if(!isFinite(bw.x)||!isFinite(bw.y)){ bw.x=bw.homeX??0; bw.y=bw.homeY??0; bw.vx=0; bw.vy=0; bw._awake=false; }
   if(!isFinite(bw.vx)) bw.vx=0; if(!isFinite(bw.vy)) bw.vy=0;
-  bw.vx=Math.max(-8,Math.min(8,bw.vx)); bw.vy=Math.max(-10,Math.min(10,bw.vy));
+  const capV=bw.movable?14:8, capY=bw.movable?16:10;
+  bw.vx=Math.max(-capV,Math.min(capV,bw.vx)); bw.vy=Math.max(-capY,Math.min(capY,bw.vy));
+  if(!isFinite(bw.rot)) bw.rot=0; if(!isFinite(bw.spin)) bw.spin=0;
   if(isFinite(bw.w)&&isFinite(bw.h)){
     bw.x=Math.max(0,Math.min(Math.max(0,WW-bw.w),bw.x));
     bw.y=Math.max(-bw.h,Math.min(Math.max(0,WH-bw.h),bw.y));
@@ -173,6 +181,7 @@ function _sanitizeBwall(bw){
 }
 function _resolveBwallAgainstSolids(bw,solids,prevY){
   const prevBottom=prevY!=null?prevY+bw.h:bw.y+bw.h;
+  const live=!!bw.movable;
   for(let pass=0;pass<10;pass++){
     let any=false;
     for(const q of solids){
@@ -181,14 +190,90 @@ function _resolveBwallAgainstSolids(bw,solids,prevY){
       const overlapY=Math.min(bw.y+bw.h,q.y+q.h)-Math.max(bw.y,q.y);
       if(overlapX<=0||overlapY<=0) continue;
       const blockBottom=bw.y+bw.h;
-      const onTop=bw.vy>=0&&prevBottom<=q.y+6&&blockBottom>q.y&&bw.y<q.y+q.h*0.6;
-      if(onTop){ bw.y=q.y-bw.h; bw.vy=0; bw.og=true; any=true; }
-      else if(overlapX<overlapY){ bw.x=bw.x+bw.w/2<q.x+q.w/2?q.x-bw.w:q.x+q.w; bw.vx=0; any=true; }
+      const onTop=bw.vy>=-0.05&&prevBottom<=q.y+8&&blockBottom>q.y&&bw.y<q.y+q.h*0.6;
+      if(onTop){
+        bw.y=q.y-bw.h;
+        if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.22; bw.spin=(bw.spin||0)+(bw.vx||0)*0.03; bw.og=false; }
+        else{ bw.vy=0; bw.og=true; }
+        any=true;
+      }
+      else if(overlapX<overlapY){
+        const dir=bw.x+bw.w/2<q.x+q.w/2?-1:1;
+        bw.x=dir<0?q.x-bw.w:q.x+q.w;
+        if(live&&Math.abs(bw.vx)>1.1){ bw.vx=-bw.vx*0.38; bw.spin=(bw.spin||0)-dir*0.18; }
+        else bw.vx=0;
+        any=true;
+      }
       else if(bw.vy<0&&bw.y+bw.h/2<q.y+q.h/2){ bw.y=q.y+q.h; bw.vy=0; any=true; }
       else { bw.y=q.y-bw.h; bw.vy=0; bw.og=true; any=true; }
     }
     if(!any) break;
   }
+}
+
+function _boxEdgeSupport(box, solids){
+  const y=box.y+box.h;
+  const inset=Math.max(3, box.w*0.14);
+  const pts=[box.x+inset, box.x+box.w*0.5, box.x+box.w-inset];
+  const hit=[false,false,false];
+  for(const q of solids){
+    if(!q||q.tp==='ceil') continue;
+    for(let i=0;i<3;i++){
+      const px=pts[i];
+      if(px>=q.x&&px<=q.x+q.w&&y>=q.y-4&&y<=q.y+10&&box.y<q.y) hit[i]=true;
+    }
+  }
+  if(typeof _gridReady==='function'&&_gridReady()){
+    const t=MV_GRID.tile;
+    for(let i=0;i<3;i++){
+      if(hit[i]) continue;
+      const c=Math.floor(pts[i]/t), r=Math.floor((y+1)/t);
+      if(gridSolid(c,r)&&Math.abs(y-r*t)<=5) hit[i]=true;
+      else if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){
+        const sy=gridSlopeY(c,r,pts[i]);
+        if(sy!=null&&Math.abs(y-sy)<=5) hit[i]=true;
+      }
+    }
+  }
+  return hit;
+}
+
+function _rigidTipOff(box, solids){
+  const hit=_boxEdgeSupport(box, solids);
+  const n=(hit[0]?1:0)+(hit[1]?1:0)+(hit[2]?1:0);
+  if(n===0){ box.og=false; return; }
+  if(n>=2||hit[1]){ if(box.vy>=0) box.og=true; return; }
+  const dir=hit[0]?1:-1;
+  box.vx=(box.vx||0)+dir*0.55;
+  box.vy=Math.min((box.vy||0)+0.62, 16);
+  box.spin=(box.spin||0)+dir*0.14;
+  box.og=false;
+}
+
+function _updateRigidBox(box, solids, opts){
+  opts=opts||{};
+  box.og=false;
+  const grav=typeof GRAV==='undefined'?0.52:GRAV;
+  box.vy=Math.min((box.vy||0)+grav*0.72, 16);
+  const prevX=box.x, prevY=box.y;
+  box.x+=(box.vx||0);
+  _resolveBwallAgainstSolids(box, solids, prevY);
+  const yBefore=box.y;
+  box.y+=(box.vy||0);
+  _resolveBwallAgainstSolids(box, solids, yBefore);
+  _rigidTipOff(box, solids);
+  if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=box.vy>2?-box.vy*0.18:0; box.og=true; }
+  if(box.og){
+    box.vx=(box.vx||0)*0.988;
+    box.spin=(box.spin||0)*0.90+(box.vx||0)*0.028;
+    if(Math.abs(box.vx)<0.04) box.vx=0;
+    if(Math.abs(box.spin)<0.004) box.spin=0;
+  }else{
+    box.vx=(box.vx||0)*0.998;
+    box.spin=(box.spin||0)*0.995;
+  }
+  box.rot=(box.rot||0)+(box.spin||0);
+  return {dx:box.x-prevX, dy:box.y-prevY};
 }
 function _carryPlayersOnBwall(bw,dx,dy){
   if(!dx&&!dy) return;
@@ -203,22 +288,16 @@ function updateBWalls(){
     if(!bw.debris) bw.debris=[];
     _sanitizeBwall(bw);
     if(bw.movable&&bw.hp>0){
-      if(!bw._awake){ bw.x=bw.homeX??bw.x; bw.y=bw.homeY??bw.y; bw.vx=0; bw.vy=0; }
+      if(!bw._awake){ bw.x=bw.homeX??bw.x; bw.y=bw.homeY??bw.y; bw.vx=0; bw.vy=0; bw.spin=0; }
       else{
-        const prevX=bw.x, prevY=bw.y;
-        bw.vy=Math.min((bw.vy||0)+GRAV*0.7,10);
-        bw.vx=(bw.vx||0)*(bw.og?0.86:0.96);
         const solids=_bwallSolids(bw);
-        bw.x+=bw.vx; _resolveBwallAgainstSolids(bw,solids,prevY);
-        const yBefore=bw.y; bw.y+=bw.vy;
-        _resolveBwallAgainstSolids(bw,solids,yBefore);
-        _resolveBwallAgainstSolids(bw,solids,bw.y);
-        if(bw.y+bw.h>WH){bw.y=WH-bw.h;bw.vy=0;bw.og=true;}
-        _carryPlayersOnBwall(bw,bw.x-prevX,bw.y-prevY);
-        if(bw.homeX!=null&&Math.abs(bw.x-bw.homeX)<3&&Math.abs(bw.y-bw.homeY)<3
+        const d=_updateRigidBox(bw, solids);
+        _carryPlayersOnBwall(bw, d.dx, d.dy);
+        const fell=bw.homeY!=null&&bw.y>bw.homeY+16;
+        if(!fell&&bw.homeX!=null&&Math.abs(bw.x-bw.homeX)<3&&Math.abs(bw.y-bw.homeY)<3
           &&Math.abs(bw.vx)<0.15&&Math.abs(bw.vy)<0.15&&bw.og
           &&!_bwallOverlapsPlayer(bw,p)&&!(p2&&_bwallOverlapsPlayer(bw,p2))){
-          bw._awake=false; bw.x=bw.homeX; bw.y=bw.homeY; bw.vx=0; bw.vy=0;
+          bw._awake=false; bw.x=bw.homeX; bw.y=bw.homeY; bw.vx=0; bw.vy=0; bw.spin=0; bw.rot=0;
         }
       }
     }
@@ -250,6 +329,9 @@ function updatePlayerShots(){
       const drag=0.984-bnc*0.004; s.vx*=drag; s.vy*=drag;
       s.vy+=0.07+bnc*0.014; s._airAge=(s._airAge||0)+1;
       if(Math.hypot(s.vx,s.vy)<0.42){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
+    }else if(enh){
+      s._airAge=(s._airAge||0)+1;
+      if(s._airAge>14){ s.vy+=0.022; s.vx*=0.9992; s.vy*=0.9992; }
     }else if(!enh){
       s._airAge=(s._airAge||0)+1;
       if(s._airAge>8){ s.vy+=0.05; s.vx*=0.997; s.vy*=0.997; }
@@ -260,14 +342,14 @@ function updatePlayerShots(){
     let dead=false;
     for(const e of ENEMS){
       if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y); _tryInterruptMindReboot(e); dead=true; break; }
+        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true}); _tryInterruptMindReboot(e); dead=true; break; }
         continue;
       }
       if(!_enemyCombatActive(e)) continue;
       if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
         const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
-        if(s.enhanced) spawnTrsFlame(s.x,s.y);
+        if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true});
         _damageEnemy(e,ldmg,s.x,s.y); dead=true; break;
       }
     }
@@ -276,7 +358,7 @@ function updatePlayerShots(){
       if(bw.hp<=0) continue;
       if(!ov(s.x-4,s.y-4,8,8,bw.x,bw.y,bw.w,bw.h)) continue;
       _damageBwall(bw,s.charged?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2,vx:bw.movable?s.vx*0.2:0,vy:bw.movable?s.vy*0.2:0});
-      if(s.enhanced) spawnTrsFlame(s.x,s.y);
+      if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true});
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
@@ -287,7 +369,7 @@ function updatePlayerShots(){
       else s.vy*=-keep;
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=(s.bounces||0)+1;
       spawnSpark(s.x,s.y,s.vx,s.vy);
-      if(enh) spawnTrsFlame(s.x,s.y);
+      if(enh) spawnTrsFlame(s.x,s.y,{stick:true});
       if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }
     for(const q of pl){
@@ -303,7 +385,9 @@ function updatePlayerShots(){
       if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){s.vx*=-keep;s.vy*=-keep;}
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=bounces+1; s._airAge=0;
       if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
-      spawnSpark(s.x,s.y,s.vx,s.vy); sfx('laser_bounce',bounces); break;
+      spawnSpark(s.x,s.y,s.vx,s.vy); sfx('laser_bounce',bounces);
+      if(enh) spawnTrsFlame(s.x,s.y,{stick:true});
+      break;
     }
     if(dead&&i<p.shots.length) p.shots.splice(i,1);
   }
@@ -471,24 +555,24 @@ function updateEnemyShots(){
 function updateCrates(){
   const pl=allP();
   for(const c of CRATES){
-    c.vy=Math.min(c.vy+GRAV*0.7,12); c.vx*=0.85;
-    c.x+=c.vx; c.y+=c.vy; c.og=false;
-    if(typeof _gridReady==='function'&&_gridReady()){
-      const body={x:c.x,y:c.y,w:c.w,h:c.h,vx:c.vx,vy:c.vy,onGround:false,_hitX:false,_hitY:false};
-      if(typeof gridOverlaps==='function'&&gridOverlaps(body)){
-        gridDepenetrate(body);
-        c.x=body.x; c.y=body.y; c.vy=0; c.og=true;
-      }
-    }
+    if(!isFinite(c.rot)) c.rot=0; if(!isFinite(c.spin)) c.spin=0;
+    const solids=_bwallSolids(c);
+    for(const o of CRATES){ if(o!==c) solids.push({x:o.x,y:o.y,w:o.w,h:o.h,tp:'solid'}); }
+    c.movable=true;
+    _updateRigidBox(c, solids);
     for(const q of pl){
       if(ov(c.x,c.y,c.w,c.h,q.x,q.y,q.w,q.h)){
-        if(c.vy>=0&&c.y+c.h<=q.y+6+Math.abs(c.vy)+2){c.y=q.y-c.h;c.vy=0;c.og=true;c.vx*=0.7;}
+        if(c.vy>=0&&c.y+c.h<=q.y+8+Math.abs(c.vy)+2){c.y=q.y-c.h;c.vy=0;c.og=true;c.vx*=0.78;}
         else if(c.vy<0){c.y=q.y+q.h;c.vy=0;}
-        else{c.x=c.x+c.w/2<q.x+q.w/2?q.x-c.w:q.x+q.w;c.vx=0;}
+        else{
+          const dir=c.x+c.w/2<q.x+q.w/2?-1:1;
+          c.x=dir<0?q.x-c.w:q.x+q.w;
+          c.vx=(q.vx||0)*0.82+dir*0.35;
+          c.spin=(c.spin||0)+dir*0.08;
+        }
       }
     }
     c.x=Math.max(0,Math.min(WW-c.w,c.x));
-    if(c.y>WH) c.y=WH-c.h;
   }
 }
 

@@ -213,15 +213,18 @@ const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
-/** Held-jack scale. TRS 0.86 is the reference; XLR/RCA match the photos vs that TRS. */
+/** Held-jack scale. 1/4" TRS is medium.
+ *  RCA pin 3.2mm / shell ~8.3mm (shorter, thinner than TRS).
+ *  XLR barrel ~19–21mm × ~63mm (thicker + a bit longer; thickness lives in the art). */
 function _itemArtScale(idx){
   if(idx===0) return 0.86;
-  if(idx===2) return 0.70;
-  if(idx===1) return 0.40;
+  if(idx===1) return 0.70;
+  if(idx===2) return 1.00;
+  if(idx===3) return 0.88;
   return 0.86;
 }
 function _itemBoxSize(){
-  return {w:36, h:36};
+  return {w:40, h:40};
 }
 
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
@@ -535,18 +538,18 @@ function fireItem(charged=false){
       p.hook.st='idle'; p.hook.ox=NaN; p.hook.oy=NaN; p.hook.tgt=null;
     }
   }else if(ITEM===0){ // TRS LASER
-    const recoilAmt=charged?18:6;
-    p._lastRecoilMax=recoilAmt;
     const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
-    const spd=charged?(enh?16:11):(enh?28:19);
-    const pow=charged?(enh?4.4:3.0):(enh?1.55:1.0);
-    const pitch=enh?0.8:1;
+    const recoilAmt=charged?(enh?14:11):(enh?8:6);
+    p._lastRecoilMax=recoilAmt;
+    const spd=charged?(enh?13:11):(enh?22:19);
+    const pow=charged?(enh?3.6:3.0):(enh?1.28:1.0);
+    const pitch=enh?0.58:1;
     p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*spd,vy:Math.sin(shotA)*spd,
-      life:charged?(enh?480:320):(enh?340:180),type:'laser',bounces:0,power:pow,charged:!!charged,
+      life:charged?(enh?400:320):(enh?240:180),type:'laser',bounces:0,power:pow,charged:!!charged,
       enhanced:enh,owner:p.hero||'mind',born:fr,tracer:[]});
     sfx(charged?'laser_charged_fire':'laser',pitch);
     p.flashF=charged?16:7; p.fireRecoil=recoilAmt; p.fireRecoilA=shotA;
-    const push=charged?3.2:1.15;
+    const push=charged?(enh?2.55:2.15):(enh?1.35:1.05);
     const wt=_wallTouchInfo(p);
     const shotDir=Math.cos(shotA)>0?1:-1;
     if(!wt.touch||wt.dir!==shotDir){ p.vx-=Math.cos(shotA)*push; p.vy-=Math.sin(shotA)*push*0.4; }

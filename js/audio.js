@@ -501,7 +501,7 @@ function _playSfxSample(key,pitch=1){
   try{
     const inst=el.cloneNode();
     inst.volume=Math.max(0,Math.min(1,OPT.sfxVol||1));
-    inst.playbackRate=Math.max(0.5,Math.min(1.5,pitch));
+    inst.playbackRate=Math.max(0.45,Math.min(1.5,pitch));
     const pr=inst.play();
     if(pr) pr.catch(()=>{});
     return true;

@@ -621,32 +621,31 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#c8c8d0';ctx.beginPath();ctx.arc(27,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
-    // XLR: cartoon oval shaft, black/grey metal
-    _connPx(-18,-5,9,10,'#101012');
-    _connPx(-18,-4,9,3,'#2a2a30');
-    _connPx(-9,-8,10,16,'#101014');
-    _connPx(-8,-7,9,3,'#2a2a32');
-    for(let i=0;i<5;i++) _connPx(-8+i*2,-5,1,10,'#08080c');
-    _connOval(12,0,16,12.4,'#4a4e56');
-    _connOval(10,-4.2,12,6.2,'#7a7e86');
-    _connOval(13,6.2,12.5,4.6,'#2a2e34');
-    _connOval(10,0,5.2,12.2,'#121216');
-    _connOval(10,0,3.4,10.2,'#4a4e56');
-    for(let k=0;k<7;k++) _connPx(8.4,-9+k*2.6,3.4,1,'#1c1c22');
-    _connPx(16,-15.5,8,4,'#6a6e76');
-    _connPx(17,-14.5,6,2,'#9aa0aa');
-    const fx=27;
-    _connOval(fx,0,6.4,12.2,'#5a5e66');
-    _connOval(fx,0,4.7,10.2,'#121418');
-    [[fx,-4.5],[fx-2.3,3.5],[fx+2.3,3.5]].forEach(([px,py2])=>{
-      ctx.beginPath();ctx.ellipse(px,py2,1.45,1.85,0,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
-      ctx.beginPath();ctx.ellipse(px-0.25,py2-0.4,0.45,0.55,0,0,Math.PI*2);ctx.fillStyle='#4a4e56';ctx.fill();
+    // XLR: cylindrical barrel (real ~19mm Ø), three pins — not a disc
+    _connPx(-20,-4,10,8,'#101012');
+    _connPx(-20,-3,10,2,'#2a2a30');
+    _connPx(-10,-8,10,16,'#101014');
+    _connPx(-9,-7,9,3,'#2a2a32');
+    for(let i=0;i<5;i++) _connPx(-9+i*2,-6,1,12,'#08080c');
+    _connPx(0,-8,30,16,'#3a3e46');
+    _connPx(0,-8,30,4,'#6a6e76');
+    _connPx(0,5,30,3,'#1c2026');
+    _connPx(1,-6,28,2,'#4a4e56');
+    for(let k=0;k<6;k++) _connPx(3+k*4.4,-7,1.2,14,'#2a2e34');
+    _connPx(30,-7,7,14,'#5a5e66');
+    _connPx(31,-6,5,3,'#8a8e96');
+    _connPx(31,4,5,2,'#2a2e34');
+    const fx=40;
+    _connPx(37,-6,6,12,'#4a4e56');
+    [[fx,-3.2],[fx-2.4,3.4],[fx+2.4,3.4]].forEach(([px,py2])=>{
+      ctx.beginPath();ctx.ellipse(px,py2,1.35,1.7,0,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
+      ctx.beginPath();ctx.ellipse(px-0.2,py2-0.35,0.4,0.5,0,0,Math.PI*2);ctx.fillStyle='#6a6e76';ctx.fill();
     });
     if(enh){
       _drawGreenVeins([
-        [[-14,-1.0],[-4,1.4],[6,-1.6],[16,1.0],[fx-2,-0.4],[fx+3,0.6]],
-        [[-12,2.2],[-2,-0.6],[8,2.8],[18,0.2],[fx,-3.6]],
-        [[-8,-3.0],[2,0.8],[12,-2.4],[22,1.6],[fx,4.0]],
+        [[-16,-1.0],[-6,1.2],[4,-1.4],[14,1.0],[24,-0.6],[34,0.8],[fx,0]],
+        [[-14,2.0],[-4,-0.4],[8,2.4],[18,0.2],[28,1.6],[fx,-2.8]],
+        [[-10,-3.2],[2,0.6],[12,-2.2],[22,1.4],[32,-1.0],[fx,3.2]],
       ]);
     }
     if(p&&p.xlrOn&&(itemOverride==null||itemOverride===ITEM)){
@@ -655,11 +654,11 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
       for(let i=0;i<3;i++){
         const wave=((fr*0.1+i*0.28)%1);
         ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.ellipse(fx,0,8+wave*8,14+wave*7,0,-0.55,0.55);ctx.stroke();
+        ctx.beginPath();ctx.ellipse(fx,0,6+wave*7,8+wave*5,0,-0.55,0.55);ctx.stroke();
       }
       ctx.globalAlpha=1;
     }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.ellipse(fx,0,7+ff*5,12+ff*7,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.ellipse(fx,0,6+ff*4,8+ff*5,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else{
     // MAG — black/grey horseshoe, silver poles
@@ -1270,8 +1269,16 @@ function drawBreakWall(bw){
   }
   if(bw.hp<=0) return;
 
-  const bx=sx(bw.x+(bw.shakeX||0)), by=sy(bw.y+(bw.shakeY||0));
+  const rot=bw.rot||0;
+  const bx0=sx(bw.x+(bw.shakeX||0)), by0=sy(bw.y+(bw.shakeY||0));
   const bws=sw(bw.w), bhs=sw(bw.h);
+  ctx.save();
+  if(rot){
+    ctx.translate(bx0+bws*0.5, by0+bhs*0.5);
+    ctx.rotate(rot);
+    ctx.translate(-bws*0.5, -bhs*0.5);
+  }
+  const bx=rot?0:bx0, by=rot?0:by0;
   const frac=bw.maxHp>0?bw.hp/bw.maxHp:1;
   const useTile=!!(bw.tileGid&&_tmjDraw&&_tmjLookupGid(bw.tileGid));
   const isRed=_isRedBwall(bw);
@@ -1286,7 +1293,7 @@ function drawBreakWall(bw){
       ctx.fillStyle=`rgba(244,236,255,${g})`;
       ctx.fillRect(bx,by,bws,bhs);
     }
-    if(frac>=0.99) return;
+    if(frac>=0.99){ ctx.restore(); return; }
   }else if(isRed){
     const tws=_tmjDraw?(_tmjDraw.tw*_tmjDraw.sc):bw.w;
     const ths=_tmjDraw?(_tmjDraw.th*_tmjDraw.sc):bw.h;
@@ -1294,7 +1301,7 @@ function drawBreakWall(bw){
     ctx.fillStyle=recentHit?C.WHITE:C.MAROON;ctx.fillRect(bx,by,rw,rh);
     ctx.fillStyle=recentHit?C.PINK:C.RED;ctx.fillRect(bx+1,by+1,rw-2,rh-2);
     ctx.fillStyle=C.RED_L;ctx.fillRect(bx+1,by+1,rw-2,1);
-    if(frac>=0.99) return;
+    if(frac>=0.99){ ctx.restore(); return; }
   }else{
     // Brick block â€” palette shifts duller as it takes damage
     const main=frac>0.66?C.BROWN:frac>0.33?C.BROWN_D:C.GREY_D;
@@ -1329,16 +1336,26 @@ function drawBreakWall(bw){
       ctx.fillRect(bx+1+i*3,by+bhs+1,2,2);
     }
   }
+  ctx.restore();
 }
 function drawCrate(c){
-  const bx=sx(c.x),by=sy(c.y);
-  const cw=sw(c.w),ch=sw(c.h);
+  const rot=c.rot||0;
+  const bx0=sx(c.x), by0=sy(c.y);
+  const cw=sw(c.w), ch=sw(c.h);
+  ctx.save();
+  if(rot){
+    ctx.translate(bx0+cw*0.5, by0+ch*0.5);
+    ctx.rotate(rot);
+    ctx.translate(-cw*0.5, -ch*0.5);
+  }
+  const bx=rot?0:bx0, by=rot?0:by0;
   ctx.fillStyle=C.BROWN_D;ctx.fillRect(bx,by,cw,ch);
   ctx.fillStyle=C.BROWN;ctx.fillRect(bx+1,by+1,cw-2,ch-2);
   ctx.fillStyle=C.TAN;ctx.fillRect(bx+1,by+1,cw-2,1);
   ctx.fillStyle=C.GOLD_D;ctx.fillRect(bx+1,by+ch-2,cw-2,1);
   pxLine(bx+1,by+1,bx+cw-2,by+ch-2,C.MAROON);
   pxLine(bx+cw-2,by+1,bx+1,by+ch-2,C.MAROON);
+  ctx.restore();
 }
 
 /* â”€â”€ ENEMY SPRITES â€” shaded silhouettes â”€â”€ */
@@ -1943,23 +1960,35 @@ function drawItemDrops(){
     if(dx>W+28||dy>H+28||dx+dw<-28||dy+dh<-28) continue;
     const enh=!!d.enhanced;
     const cx=dx+dw*0.5, cy=dy+dh*0.46;
+    ctx.fillStyle='#08060e';
+    ctx.fillRect(dx-1,dy+dh-3,dw+2,4);
+    ctx.fillStyle='#121018';
+    ctx.fillRect(dx,dy,dw,dh);
+    ctx.fillStyle=enh?'#16301c':'#2a2438';
+    ctx.fillRect(dx+2,dy+2,dw-4,dh-4);
+    ctx.fillStyle=enh?'#3dff88':'#6a5a88';
+    ctx.fillRect(dx+2,dy+2,dw-4,2);
     ctx.fillStyle='#0a0814';
-    ctx.fillRect(cx-dw*0.38, dy+dh-7, dw*0.76, 5);
+    ctx.fillRect(dx+2,dy+dh-4,dw-4,2);
+    ctx.fillStyle=enh?'#245830':'#3a3050';
+    for(let yy=8;yy<dh-6;yy+=6) ctx.fillRect(dx+3,dy+yy,dw-6,1);
     if(enh){
-      const pulse=0.22+0.18*Math.sin(fr*0.14+d.item);
+      const pulse=0.16+0.14*Math.sin(fr*0.14+d.item);
       ctx.globalAlpha=pulse;
       ctx.fillStyle='#3dff88';
-      ctx.beginPath();ctx.arc(cx,cy,Math.max(dw,dh)*0.42,0,Math.PI*2);ctx.fill();
+      ctx.fillRect(dx+3,dy+3,dw-6,dh-6);
       ctx.globalAlpha=1;
     }
-    const fill=1.25;
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(dx+4, dy+4, dw-8, dh-10);
+    ctx.clip();
     ctx.translate(cx, cy);
-    ctx.scale(fill, fill);
-    drawConnectorTip(0,0,-0.72,enh?4:0,d.item,enh);
+    ctx.scale(0.40, 0.40);
+    drawConnectorTip(0,0,-0.55,enh?4:0,d.item,enh);
     ctx.restore();
     const tag=enh?(names[d.item]||'?')+'+':(names[d.item]||'?');
-    drawTextC(tag,cx,dy+dh-10,enh?'#e2b64a':(cols[d.item]||C.WHITE),1);
+    drawTextC(tag,cx,dy+dh+2,enh?'#e2b64a':(cols[d.item]||C.WHITE),1);
   }
 }
 function drawRopePickup(){
@@ -2190,7 +2219,7 @@ function drawFX(){
     const sp=Math.hypot(s.vx,s.vy)||1;
     const ux=s.vx/sp,uy=s.vy/sp;
     const spdFac=isEnemy?1:Math.min(1,sp/16);
-    const trailLen=(charged?34:20)*Math.max(isEnemy?0.95:0.7,spdFac)*(enhShot?1.55:1);
+    const trailLen=(charged?34:20)*Math.max(isEnemy?0.95:0.7,spdFac)*(enhShot?2.15:1);
     const headLen=(charged?10:6)*Math.max(0.7,spdFac);
     const pulse=0.72+0.28*Math.sin(fr*0.55+(s.born||0)*0.4);
     const vis=isEnemy?1:Math.max(0.45,spdFac);
