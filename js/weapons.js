@@ -214,14 +214,14 @@ function _resolveBwallAgainstSolids(bw,solids,prevY){
       const onTop=bw.vy>=-0.05&&prevBottom<=q.y+8&&blockBottom>q.y&&bw.y<q.y+q.h*0.6;
       if(onTop){
         bw.y=q.y-bw.h;
-        if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.22; bw.spin=(bw.spin||0)+(bw.vx||0)*0.03; bw.og=false; }
+        if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.22; bw.og=false; }
         else{ bw.vy=0; bw.og=true; }
         any=true;
       }
       else if(overlapX<overlapY){
         const dir=bw.x+bw.w/2<q.x+q.w/2?-1:1;
         bw.x=dir<0?q.x-bw.w:q.x+q.w;
-        if(live&&Math.abs(bw.vx)>1.1){ bw.vx=-bw.vx*0.38; bw.spin=(bw.spin||0)-dir*0.18; }
+        if(live&&Math.abs(bw.vx)>1.1){ bw.vx=-bw.vx*0.38; }
         else bw.vx=0;
         any=true;
       }
@@ -267,7 +267,6 @@ function _rigidTipOff(box, solids){
   const dir=hit[0]?1:-1;
   box.vx=(box.vx||0)+dir*0.55;
   box.vy=Math.min((box.vy||0)+0.62, 16);
-  box.spin=(box.spin||0)+dir*0.14;
   box.og=false;
 }
 
@@ -286,14 +285,12 @@ function _updateRigidBox(box, solids, opts){
   if(box.y+box.h>WH){ box.y=WH-box.h; box.vy=box.vy>2?-box.vy*0.18:0; box.og=true; }
   if(box.og){
     box.vx=(box.vx||0)*0.988;
-    box.spin=(box.spin||0)*0.90+(box.vx||0)*0.028;
     if(Math.abs(box.vx)<0.04) box.vx=0;
-    if(Math.abs(box.spin)<0.004) box.spin=0;
   }else{
     box.vx=(box.vx||0)*0.998;
-    box.spin=(box.spin||0)*0.995;
   }
-  box.rot=(box.rot||0)+(box.spin||0);
+  box.spin=0;
+  box.rot=0;
   return {dx:box.x-prevX, dy:box.y-prevY};
 }
 function _carryPlayersOnBwall(bw,dx,dy){
@@ -593,7 +590,6 @@ function updateCrates(){
           const dir=c.x+c.w/2<q.x+q.w/2?-1:1;
           c.x=dir<0?q.x-c.w:q.x+q.w;
           c.vx=(q.vx||0)*0.82+dir*0.35;
-          c.spin=(c.spin||0)+dir*0.08;
         }
       }
     }

@@ -902,9 +902,7 @@ function drawCharacter(){
   const connShX=sx(pose.connShX), connShY=sy(pose.connShY);
   const tipX=sx(pose.tipX), tipY=sy(pose.tipY);
   const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY);
-  const slopeLean=(p.og&&Math.abs(p._slopeAngle||0)>0.08)?p._slopeAngle:0;
   ctx.save();
-  if(slopeLean){ ctx.translate(wcx,wcy); ctx.rotate(slopeLean); ctx.translate(-wcx,-wcy); }
 
   // 1. SHADOW + WHEEL + FORK â€” behind everything
   if(!flicker){

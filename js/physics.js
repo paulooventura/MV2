@@ -13,10 +13,10 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=57;
+const MOVE_BUILD=58;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
-const MOVE_RUN=16.5;
+const MOVE_RUN=12.4;
 const MOVE_ACCEL=0.40;
 const MOVE_RUN_ACCEL=0.46;
 const MOVE_AIR=0.42;
@@ -27,9 +27,9 @@ const MOVE_TURN=1.45;
 const MOVE_RUN_RAMP=0.05;
 const WHEEL_GRIP_BASE=0.91;
 const WHEEL_ROLL_RESIST=0.011;
-const WHEEL_DRIVE_TORQUE=0.68;
+const WHEEL_DRIVE_TORQUE=0.92;
 const WHEEL_COAST_FRIC=0.987;
-const WHEEL_GRADE_RESIST=0.38;
+const WHEEL_GRADE_RESIST=0.22;
 // Weight on the slope before the wheel commits and starts to roll.
 const WHEEL_SLOPE_COMMIT=0.40;
 // Share of gravity that reaches the contact patch — sets how hard it pulls.
@@ -37,8 +37,8 @@ const WHEEL_SLOPE_GRAV=0.82;
 // Quadratic drag: this, not a hard clamp, is what gives a downhill terminal speed.
 const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
-const WHEEL_UPHILL_DRAG=2.4;
-const WHEEL_UPHILL_RUN_RELIEF=0.88;
+const WHEEL_UPHILL_DRAG=1.15;
+const WHEEL_UPHILL_RUN_RELIEF=0.94;
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
@@ -192,6 +192,20 @@ function _syncGameCamera(){
 }
 
 // ── Overlap / hitbox helpers ──────────────────────────────────
+function _platActsAsCeiling(plat, pl){
+  if(!plat||!pl) return false;
+  if(plat.tp!=='solid'&&plat.tp!=='ceil') return false;
+  const body=playerCoreHB(pl);
+  const feet=pl.y+FEET_OFF;
+  const ceilB=plat.y+plat.h;
+  if(ceilB>=feet-6) return false;
+  const overlapX=Math.min(body.x+body.w,plat.x+plat.w)-Math.max(body.x,plat.x);
+  if(overlapX<=0) return false;
+  const overlapY=Math.min(body.y+body.h,plat.y+plat.h)-Math.max(body.y,plat.y);
+  // Side hit on a wall or crate — not a lintel. Don't duck.
+  if(overlapY>overlapX+4) return false;
+  return body.y+8>=ceilB||feet>ceilB+12;
+}
 function ov(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by; }
 function hbH(ca){ return STAND_H-(STAND_H-DUCK_H)*ca; }
 function hb(){ return playerCoreHB(p); }
@@ -893,11 +907,10 @@ function _applySlopePhysics(pl){
   pl.vx*=Math.max(0.96,1-resist);
   pl.vx-=Math.sign(pl.vx)*WHEEL_SLOPE_DRAG*pl.vx*pl.vx;
 
-  if(driving){
-    pl.vx+=input*WHEEL_DRIVE_TORQUE*(climbing?1.15:0.55)*ease;
+    if(driving){
+    pl.vx+=input*WHEEL_DRIVE_TORQUE*(climbing?1.55:0.55)*ease;
     if(climbing){
-      // Climbing costs you ground unless you commit to a run.
-      const relief=1-WHEEL_UPHILL_RUN_RELIEF*run;
+      const relief=1-WHEEL_UPHILL_RUN_RELIEF*Math.max(run, driving?0.35:0);
       pl.vx-=input*Math.abs(pull)*WHEEL_UPHILL_DRAG*relief;
       pl.vx-=Math.sign(pl.vx||input)*Math.abs(pull)*WHEEL_GRADE_RESIST;
     }
@@ -907,7 +920,7 @@ function _applySlopePhysics(pl){
 
   const built=Math.min(1,(pl._slopeRollT||0)/90);
   const downCap=MOVE_WALK*(0.75+0.30*ease+0.25*built)+(MOVE_RUN-MOVE_WALK)*(0.30+0.70*run);
-  const upCap=MOVE_WALK*0.32+(MOVE_RUN*0.82-MOVE_WALK*0.32)*run;
+  const upCap=MOVE_WALK*0.82+(MOVE_RUN-MOVE_WALK*0.82)*run;
   const cap=Math.sign(pl.vx)===downhill?downCap:upCap;
   pl.vx=Math.max(-cap,Math.min(cap,pl.vx));
   const wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):{touch:false,dir:0};
@@ -1258,6 +1271,7 @@ function resolvePlatY(pl,prevFeet){
     }else if(plat.tp==='solid'||plat.tp==='ceil'){
       if(plat.bw&&_playerRidingBoxTop(pl,plat)) continue;
       if(!_platNearX(plat,pl.x+SW*0.5,SW+32)) continue;
+      if(!_platActsAsCeiling(plat,pl)) continue;
       const useBodyCeil=_useBodyCeilCollider(pl);
       const body=playerCoreHB(pl);
       const head=playerHeadWorld(pl);
@@ -1265,11 +1279,11 @@ function resolvePlatY(pl,prevFeet){
         if(useBodyCeil){
           if(fR>plat.x&&fL<plat.x+plat.w){
             const ceilB=plat.y+plat.h, bTop=body.y;
-            if(bTop<ceilB&&bTop+body.h>plat.y){pl.y+=ceilB-bTop;pl.vy=0;pl._autoHeadTuck=Math.min(1,Math.max(pl._autoHeadTuck||0,0.9));}
+            if(bTop<ceilB&&bTop+body.h>plat.y){pl.y+=ceilB-bTop;pl.vy=0;}
           }
         }else if(_circleRectOverlap(head.cx,head.cy,head.r,plat.x,plat.y,plat.w,plat.h)){
           const ceilB=plat.y+plat.h, headTop=head.cy-head.r;
-          if(headTop<ceilB){pl.y+=ceilB-headTop;pl.vy=0;pl._autoHeadTuck=Math.min(1,(pl._autoHeadTuck||0)+0.18);}
+          if(headTop<ceilB){pl.y+=ceilB-headTop;pl.vy=0;}
         }else if(ov(h.x,h.y,h.w,h.h,plat.x,plat.y,plat.w,plat.h)){
           pl.y=plat.y+plat.h-(FEET_OFF-(pl===p?hbH(pl.crouchAmt):STAND_H));
           pl.vy=0;
@@ -1297,15 +1311,18 @@ function _resolvePlayerOutOfBwalls(pl){
       continue;
     }
     if(pl.vy<0){
+      const ceilB=bw.y+bw.h;
+      const body=playerCoreHB(pl);
+      const under=ceilB<(pl.y+FEET_OFF)-12 && body.y+10>=ceilB;
+      if(!under) continue;
       const useBodyCeil=_useBodyCeilCollider(pl);
       if(useBodyCeil){
-        const body=playerCoreHB(pl);
         if(body.x+body.w>bw.x&&body.x<bw.x+bw.w){
-          const ceilB=bw.y+bw.h, bTop=body.y;
-          if(bTop<ceilB&&bTop+body.h>bw.y){pl.y+=ceilB-bTop;pl.vy=0;pl._autoHeadTuck=Math.min(1,Math.max(pl._autoHeadTuck||0,0.9));}
+          const bTop=body.y;
+          if(bTop<ceilB&&bTop+body.h>bw.y){pl.y+=ceilB-bTop;pl.vy=0;}
         }
       }else if(_circleRectOverlap(head.cx,head.cy,head.r,bw.x,bw.y,bw.w,bw.h)){
-        const ceilB=bw.y+bw.h, headTop=head.cy-head.r;
+        const headTop=head.cy-head.r;
         if(headTop<ceilB&&head.cy<bw.y+bw.h*0.55){
           pl.y+=ceilB-headTop;
           pl.vy=0;
@@ -1342,6 +1359,7 @@ function _headroomAboveBody(pl){
   }
   for(const plat of allP()){
     if(plat.tp!=='solid'&&plat.tp!=='ceil') continue;
+    if(!_platActsAsCeiling(plat,pl)) continue;
     if(plat.x+plat.w<=fL||plat.x>=fR) continue;
     if(plat.y>=feet-GROUND_SINK_MAX-4) continue;
     const ceilB=plat.y+plat.h;
@@ -1358,8 +1376,8 @@ function _resolveHeadCeiling(pl){
   const airborne=_playerAirborne(pl);
   const cx=pl.x+SW*0.5;
   const room=_headroomAboveBody(pl);
-  if(airborne&&room<STAND_H+10){
-    const tuck=room<=BODY_H+6?1:1-Math.max(0,room-(BODY_H+6))/(STAND_H-BODY_H+8);
+  if(airborne&&room<8){
+    const tuck=room<=2?1:Math.max(0,(8-room)/8);
     pl._autoHeadTuck=Math.min(1,Math.max(pl._autoHeadTuck||0,tuck));
   }
   const useBody=_useBodyCeilCollider(pl);
@@ -1370,7 +1388,7 @@ function _resolveHeadCeiling(pl){
     if(top<ceilY){
       pl.y+=ceilY-top;
       if(pl.vy<0) pl.vy=0;
-      pl._autoHeadTuck=Math.min(1,Math.max(pl._autoHeadTuck||0,useBody?0.9:0.22));
+      pl._autoHeadTuck=Math.min(1,Math.max(pl._autoHeadTuck||0,useBody?0.35:0.12));
       return true;
     }
     return false;
@@ -1390,7 +1408,7 @@ function _resolveHeadCeiling(pl){
     });
   }
   for(const seg of COLL_WALL_SEGS){
-    if(seg.nx==null||seg.ny>=-0.25) continue;
+    if(seg.nx==null||seg.ny>=-0.7) continue;
     const px=useBody?cx:playerHeadWorld(pl).cx;
     const py=useBody?collTop():playerHeadWorld(pl).cy;
     const pr=useBody?6:playerHeadWorld(pl).r;
@@ -1404,12 +1422,12 @@ function _resolveHeadCeiling(pl){
     pl.x-=seg.nx*pen;
     pl.y-=seg.ny*pen;
     if(pl.vy<0) pl.vy=0;
-    pl._autoHeadTuck=Math.min(1,(pl._autoHeadTuck||0)+0.35);
     hit=true;
   }
   for(const plat of allP()){
     if(plat.tp!=='ceil'&&plat.tp!=='solid') continue;
     if(plat.bw&&_playerRidingBoxTop(pl,plat)) continue;
+    if(!_platActsAsCeiling(plat,pl)) continue;
     if(!_platNearX(plat,cx,SW+24)) continue;
     if(useBody){
       if(fR<=plat.x||fL>=plat.x+plat.w) continue;
@@ -1422,7 +1440,7 @@ function _resolveHeadCeiling(pl){
   }
   if(!hit){
     if(!airborne) pl._autoHeadTuck=Math.max(0,(pl._autoHeadTuck||0)-0.05);
-    else if(room>STAND_H+16) pl._autoHeadTuck=Math.max(0,(pl._autoHeadTuck||0)-0.04);
+    else if(room>8) pl._autoHeadTuck=Math.max(0,(pl._autoHeadTuck||0)-0.12);
   }
 }
 
@@ -2632,6 +2650,7 @@ function measureHeadroom(pl=p){
   }
   for(const plat of allP()){
     if(plat.tp!=='ceil'&&plat.tp!=='solid') continue;
+    if(!_platActsAsCeiling(plat,pl)) continue;
     if(plat.x+plat.w<=fL||plat.x>=fR) continue;
     if(plat.y>=feet-GROUND_SINK_MAX-4) continue;
     const ceilB=plat.y+plat.h;

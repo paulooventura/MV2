@@ -436,7 +436,7 @@ function _updatePlayerMoveX(pl){
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);
     const climbing=dir*sinA<-0.03;
-    if(climbing&&!sprint) cap=Math.min(cap,MOVE_WALK*0.38);
+    if(climbing&&!sprint) cap=Math.min(cap,MOVE_WALK*0.92);
     else if(!climbing) cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
@@ -449,7 +449,7 @@ function _updatePlayerMoveX(pl){
   if(onSlope&&pl._slopeAngle){
     const sinA=Math.sin(pl._slopeAngle);
     const mom=Math.min(1,(pl.momentum||0)+0.15);
-    if(dir*sinA<-0.03) accel*=sprint?1+WHEEL_DRIVE_TORQUE*0.42*(1+mom*0.55):0.42;
+    if(dir*sinA<-0.03) accel*=sprint?1+WHEEL_DRIVE_TORQUE*0.55*(1+mom*0.55):0.92;
     else if(dir*sinA>0.03) accel*=1+mom*0.12;
   }
   const vSign=pl.vx>0.15?1:(pl.vx<-0.15?-1:0);

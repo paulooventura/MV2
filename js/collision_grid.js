@@ -1369,6 +1369,8 @@ function gridHeadroom(bodyTop, x, w, feetY){
   const [c0,c1]=gridSpan(x,w,t);
   const start=Math.floor((bodyTop-0.001)/t);
   const floorCut=(feetY!=null?feetY:bodyTop+t*4)-2;
+  const bodyBot=bodyTop+(typeof BODY_H!=='undefined'?BODY_H:40);
+  const bodyR0=Math.floor(bodyTop/t), bodyR1=Math.floor((bodyBot-0.001)/t);
   let best=999;
   for(let r=start+2;r>=start-12;r--){
     for(let c=c0;c<=c1;c++){
@@ -1376,6 +1378,11 @@ function gridHeadroom(bodyTop, x, w, feetY){
       if(gridSolid(c,r+1)) continue;
       const underside=(r+1)*t;
       if(underside>floorCut) continue;
+      let wallFace=false;
+      for(let br=bodyR0;br<=bodyR1;br++){
+        if(gridSolid(c,br)&&!gridIsSlope(c,br)){ wallFace=true; break; }
+      }
+      if(wallFace) continue;
       const gap=bodyTop-underside;
       if(gap<best) best=gap;
     }

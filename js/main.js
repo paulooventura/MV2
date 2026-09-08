@@ -960,7 +960,7 @@ function update(){
   if(p.hook.st!=='on'&&p.wallGrip<=0){
     if(!isJump()) p._jumpArmed=true;
     const _grounded=_playerOnGround(p);
-    p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<STAND_H-8?Math.min(1,(STAND_H-8-headroom)/(STAND_H-DUCK_H)):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
+    p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
     if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
@@ -974,7 +974,7 @@ function update(){
     for(let i=p.smoke.length-1;i>=0;i--){const sm=p.smoke[i];sm.x+=sm.vx;sm.y+=sm.vy;sm.vx*=0.88;sm.vy+=0.05;sm.life--;if(sm.life<=0)p.smoke.splice(i,1);}
     if(isJumpJ()&&p._jumpArmed&&_playerOnGround(p)){
       p._jumpArmed=false;
-      if(measureHeadroom(p)<STAND_H+8) p._autoHeadTuck=1;
+      if(measureHeadroom(p)<6) p._autoHeadTuck=1;
       if(p.duckBoostReady){p.vy=JI*2.05;p.jf=JMH+10;p.duckBoostReady=false;p.duckCharge=0;p.flashF=Math.max(p.flashF,6);for(let i=0;i<10;i++){const a=Math.PI+(Math.random()-0.5)*1.9,sp=2+Math.random()*3.6;PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.2,life:14+Math.random()*8|0,maxLife:22,r:2+Math.random()*2.5,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'});}sfx('jump_spring');}
       else{p.vy=JI;p.jf=JMH;sfx('jump_reg');}
       p.og=false;p._groundHold=0;p._groundSeg=null;p._peakVy=0;const takeVy=Math.abs(p.vy);p._jumpAmp=Math.min(1,Math.max(0.25,takeVy/7.2));p.jumpTiltF=Math.round(14+p._jumpAmp*16);const jhx=Math.abs(p.vx)>0.25?p.vx:(p.fc?1:-1)*0.55;const jhy=p.vy<-0.2?-1:(p.vy>0.5?0.35:-0.75);const jhl=Math.hypot(jhx,jhy)||1;p._jumpHatDX=jhx/jhl;p._jumpHatDY=jhy/jhl;
