@@ -967,7 +967,7 @@ function update(){
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     p._ux0=p.x;
-    _updatePlayerMoveX(p);
+    if(!p._magWorldStick) _updatePlayerMoveX(p);
     if(_playerOnGround(p)) p.momentum=Math.min(1,Math.abs(p.vx)/MOVE_RUN*0.55+(p.runRamp||0)*0.45);
     else p.momentum=Math.max(0,(p.momentum||0)*0.985);
     if(_playerOnGround(p)&&Math.abs(p.vx)>0.05){if(!p._prevVx)p._prevVx=0;const dirChange=Math.sign(p.vx)!==Math.sign(p._prevVx)&&Math.abs(p._prevVx)>1.5;const braking=Math.abs(p.vx)<Math.abs(p._prevVx)-1.2&&Math.abs(p._prevVx)>2;if(dirChange||braking){for(let i=0;i<5;i++){const ang=Math.PI+Math.random()*Math.PI;p.smoke.push({x:p.x+SW/2+(Math.random()-0.5)*8,y:p.y+FEET_OFF-4,vx:(Math.random()-0.5)*1.8+(dirChange?-Math.sign(p._prevVx)*1.5:0),vy:-Math.random()*1.2-0.4,life:22+Math.floor(Math.random()*12),maxLife:34,r:3+Math.random()*4});}}}
@@ -984,10 +984,12 @@ function update(){
     const _inJumpAir=!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0;
     if(_inJumpAir&&p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-0.55);else if(p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-2.5);
     if(isJump()&&p.jf>0){p.vy=Math.max(p.vy-JHH,JMX);p.jf--;}else if(!isJump())p.jf=0;
-    if(_grounded&&p.vy>=0) p.vy=0;
+    if(p._magWorldStick) p.vy=0;
+    else if(_grounded&&p.vy>=0) p.vy=0;
     else p.vy=Math.min(p.vy+(isJump()&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
-    _movePlayerWithColl(p,p.vx,p.vy);
+    if(p._magWorldStick){ p.vx=0; p.vy=0; if(typeof _applyMagWorldStick==='function') _applyMagWorldStick(p); }
+    else _movePlayerWithColl(p,p.vx,p.vy);
     if(!_gridReady()){
     const _moveDir=_moveInputX();
     if(_moveDir&&_playerOnGround(p)){
