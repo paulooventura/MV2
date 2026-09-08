@@ -209,10 +209,27 @@ function _runDir(){ return _moveInputX(); }
 // ── Item state ────────────────────────────────────────────────
 let ITEM=-1;  // -1=none · 0=TRS · 1=RCA · 2=XLR · 3=MAG
 const INAMES=['TRS','RCA','XLR','MAG'];
-const ICOLS=['#e2b64a','#a766ee','#c2c7cf','#e02028'];
+const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
 const ITEM_UNLOCK_BITS=[1,2,4,8];
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
+/** Visual scale vs each other: XLR chunky, TRS slender, RCA smallest (from the photos). */
+function _itemArtScale(idx){
+  if(idx===2) return 1.26;
+  if(idx===1) return 0.55;
+  if(idx===0) return 0.86;
+  return 1;
+}
+function _itemBoxSize(item, enh){
+  const base=[
+    {w:30, h:52},
+    {w:20, h:28},
+    {w:50, h:44},
+    {w:36, h:34},
+  ][item]||{w:32,h:32};
+  const n=enh?1.1:1;
+  return {w:Math.round(base.w*n), h:Math.round(base.h*n)};
+}
 
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
 function _grantPlayerItem(idx){

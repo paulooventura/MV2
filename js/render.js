@@ -516,99 +516,112 @@ function _itemTipEnhanced(itemIdx, override){
 function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
   const itemIdx=itemOverride!=null?itemOverride:ITEM;
   const enh=_itemTipEnhanced(itemIdx, enhancedOverride);
+  const sc=typeof _itemArtScale==='function'?_itemArtScale(itemIdx):1;
   ctx.save();ctx.translate(cx,cy);
   ctx.rotate(aimAngle);
+  ctx.scale(sc,sc);
   const ff=flash/9;
   if(enh){
-    ctx.globalAlpha=0.28+0.12*Math.sin(fr*0.16);
-    ctx.fillStyle=itemIdx===0?'#f0d78f':itemIdx===1?'#c8a0e8':itemIdx===2?'#eef2f8':'#ff6a60';
-    ctx.beginPath();ctx.arc(18,0,18,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.26+0.12*Math.sin(fr*0.16);
+    ctx.fillStyle=itemIdx===0?'#f0d78f':itemIdx===1?'#ffb060':itemIdx===2?'#eef2f8':'#ff6a60';
+    ctx.beginPath();ctx.arc(16,0,16,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=1;
   }
 
   if(itemIdx===0){
-    // TRS — gold 1/4" plug, black rings, black ribbed grip, purple cable
-    _connPx(-16,-4,8,8,'#4a1468');
-    _connPx(-16,-3,8,3,'#9a40e0');
-    _connPx(-16,2,8,2,'#2a1048');
-    _connPx(-8,-6,16,12,'#111116');
-    _connPx(-7,-5,14,3,'#2a2a32');
-    for(let r=0;r<5;r++) _connPx(-6+r*3,-2,1,5,'#0a0a0f');
-    _connPx(8,-5,14,10,'#c69226');
-    _connPx(8,-5,14,3,'#f0d78f');
-    _connPx(8,3,14,2,'#9a6f16');
-    _connPx(13,-6,3,12,'#0a0a0f');
-    _connPx(22,-6,3,12,'#0a0a0f');
-    _connPx(25,-4,12,8,'#e2b64a');
-    _connPx(25,-4,12,2,'#fff6c8');
-    ctx.beginPath();ctx.moveTo(37,-4);ctx.lineTo(46,0);ctx.lineTo(37,4);ctx.closePath();
+    // TRS from the XLR+TRS photo: slender silver barrel, gold tip/ring, black sleeve + cable
+    _connPx(-20,-3,10,6,'#101012');
+    _connPx(-20,-2,10,2,'#2a2a30');
+    _connPx(-10,-5,12,10,'#0c0c10');
+    _connPx(-9,-4,11,3,'#2a2a32');
+    _connPx(-8,2,9,2,'#08080c');
+    _connPx(2,-4,17,8,'#9aa0aa');
+    _connPx(2,-4,17,2,'#e4e8ee');
+    _connPx(2,2,17,2,'#6a7078');
+    _connPx(19,-3.6,8,7.2,'#c9a227');
+    _connPx(19,-3.6,8,2,'#f3dc9a');
+    _connPx(27,-4.2,2.4,8.4,'#0a0a0f');
+    _connPx(29.4,-3.2,7,6.4,'#d4aa40');
+    _connPx(29.4,-3.2,7,1.8,'#fff0b8');
+    _connPx(36.4,-4.2,2.4,8.4,'#0a0a0f');
+    _connPx(38.8,-2.8,6,5.6,'#e2b64a');
+    ctx.beginPath();ctx.moveTo(44.8,-3);ctx.lineTo(51.5,0);ctx.lineTo(44.8,3);ctx.closePath();
     ctx.fillStyle='#e2b64a';ctx.fill();
-    ctx.fillStyle='#fff6c8';ctx.fillRect(38,-1.5,5,1.6);
-    if(enh){ _connPx(8,-6,1,12,'#fff6c8'); _connPx(36,-2,2,1,'#ffffff'); }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ffe080';ctx.beginPath();ctx.arc(44,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    ctx.fillStyle='#fff6c8';ctx.fillRect(45.5,-1.2,4,1.4);
+    if(enh){ _connPx(2,-5,17,1,'#ffffff'); _connPx(48,-1,2,1,'#ffffff'); }
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ffe080';ctx.beginPath();ctx.arc(50,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
     if(p&&p.laserCharging&&p.laserCharge>0&&(itemOverride==null||itemOverride===ITEM)){
       const cf=p.laserCharge/40;
       const pulse=0.7+0.3*Math.sin(fr*0.55+cf*8);
       ctx.globalAlpha=cf*pulse*0.82;
       ctx.fillStyle=cf>0.55?'#ffffff':'#bb55ff';
-      ctx.beginPath();ctx.arc(44,0,5+cf*15,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(50,0,5+cf*15,0,Math.PI*2);ctx.fill();
       ctx.globalAlpha=cf*pulse;
       ctx.strokeStyle='#cc88ff';ctx.lineWidth=1.5;
-      ctx.beginPath();ctx.arc(44,0,9+cf*11,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(50,0,9+cf*11,0,Math.PI*2);ctx.stroke();
       ctx.globalAlpha=1;
     }
 
   }else if(itemIdx===1){
-    // RCA — purple housing, ribbed boot, gold collar + pin
-    const isVenture=p&&p.hero==='venture';
-    const d=isVenture?'#7a130d':'#3a1460';
-    const m=isVenture?'#c81812':'#7c35cc';
-    const hi=isVenture?'#ea2b20':'#c8a0e8';
-    const sh=isVenture?'#5a1008':'#2a1048';
-    _connPx(-12,-6,10,12,d);
-    for(let r=0;r<4;r++) _connPx(-11+r*2,-5,1,10,sh);
-    _connPx(-2,-7,22,14,m);
-    _connPx(-1,-6,20,4,hi);
-    _connPx(4,3,14,3,sh);
-    _connPx(20,-6,8,12,'#c69226');
-    _connPx(20,-6,8,3,'#f0d78f');
-    _connPx(20,3,8,3,'#9a6f16');
-    _connPx(28,-2,12,4,'#e2b64a');
-    _connPx(28,-2,12,1.4,'#fff6c8');
-    ctx.beginPath();ctx.arc(40,0,2.2,0,Math.PI*2);ctx.fillStyle='#e2b64a';ctx.fill();
-    ctx.beginPath();ctx.arc(39.4,-0.6,0.8,0,Math.PI*2);ctx.fillStyle='#fff6c8';ctx.fill();
-    if(enh){ _connPx(-1,-7,20,1,'#f0d78f'); _connPx(38,-1,2,1,'#ffffff'); }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ff6633';ctx.beginPath();ctx.arc(40,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    // RCA from the orange/grey photo: small ribbed plastic, silver shield + center pin
+    const body=enh?'#c8c4bc':'#e07018';
+    const hi=enh?'#ece8e0':'#f4a050';
+    const lo=enh?'#8a8680':'#b04810';
+    _connPx(-12,-2,8,4,'#d0ccc4');
+    _connPx(-12,-1,8,1,'#f0ece4');
+    _connPx(-4,-6,16,12,body);
+    _connPx(-3,-5,14,3,hi);
+    _connPx(-3,3,14,2,lo);
+    for(let r=0;r<4;r++) _connPx(-2+r*3,-6,1,12,lo);
+    _connPx(12,-5,6,10,'#b8bcc4');
+    _connPx(12,-5,6,2,'#e8ecf0');
+    _connPx(12,3,6,2,'#7a8088');
+    _connPx(13,-3,3,6,'#2a2c32');
+    _connPx(18,-1.4,9,2.8,'#d0d4dc');
+    _connPx(18,-1.4,9,1,'#f4f6fa');
+    ctx.beginPath();ctx.arc(27.2,0,1.5,0,Math.PI*2);ctx.fillStyle='#e8ecf2';ctx.fill();
+    if(enh){ _connPx(-3,-6,14,1,'#ffffff'); }
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#ff8833';ctx.beginPath();ctx.arc(27,0,6+ff*6,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
-    // XLR — chrome barrel, 3-hole face, black ribbed grip, purple cable
-    _connPx(-16,-4,8,8,'#4a1468');
-    _connPx(-16,-3,8,3,'#9a40e0');
-    _connPx(-8,-8,14,16,'#111116');
-    _connPx(-7,-7,12,4,'#2a2a32');
-    for(let i=0;i<5;i++) _connPx(-6+i*2,-2,1,5,'#0a0a0f');
-    const fx=26;
-    _connPx(6,-8,18,16,'#aeb3bc');
-    _connPx(6,-8,18,4,'#eef2f8');
-    _connPx(6,5,18,3,'#6a707a');
-    ctx.beginPath();ctx.arc(fx,0,8,0,Math.PI*2);ctx.fillStyle='#c2c7cf';ctx.fill();
-    ctx.beginPath();ctx.arc(fx,0,6.6,0,Math.PI*2);ctx.fillStyle='#15171d';ctx.fill();
-    [[fx,-3],[fx-2.6,2.2],[fx+2.6,2.2]].forEach(([px,py2])=>{
-      ctx.beginPath();ctx.arc(px,py2,1.45,0,Math.PI*2);ctx.fillStyle='#3a3e46';ctx.fill();
-      ctx.beginPath();ctx.arc(px,py2,0.7,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
+    // XLR from the pair photo: fat silver barrel, black knurl, latch, 3-hole face
+    _connPx(-18,-5,9,10,'#101012');
+    _connPx(-18,-4,9,3,'#2a2a30');
+    _connPx(-9,-10,12,20,'#101014');
+    _connPx(-8,-9,10,4,'#2a2a32');
+    for(let i=0;i<5;i++) _connPx(-8+i*2,-6,1,12,'#08080c');
+    _connPx(3,-11,20,22,'#b0b4bc');
+    _connPx(3,-11,20,5,'#eceef2');
+    _connPx(3,7,20,4,'#6e747c');
+    _connPx(9,-12,5,24,'#16161c');
+    for(let k=0;k<6;k++) _connPx(10,-10+k*3,3,1,'#2c2c34');
+    _connPx(20,-14,8,4,'#c8ccd4');
+    _connPx(21,-13,6,2,'#f0f2f6');
+    const fx=30;
+    ctx.beginPath();ctx.arc(fx,0,10,0,Math.PI*2);ctx.fillStyle='#c8ccd4';ctx.fill();
+    ctx.beginPath();ctx.arc(fx,0,8.2,0,Math.PI*2);ctx.fillStyle='#1a1c22';ctx.fill();
+    [[fx,-3.4],[fx-3.1,2.6],[fx+3.1,2.6]].forEach(([px,py2])=>{
+      ctx.beginPath();ctx.arc(px,py2,1.7,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
+      ctx.beginPath();ctx.arc(px-0.3,py2-0.3,0.55,0,Math.PI*2);ctx.fillStyle='#4a4e56';ctx.fill();
     });
-    if(enh){ _connPx(6,-8,18,1,'#ffffff'); }
+    if(enh){
+      ctx.globalAlpha=0.55+0.25*Math.sin(fr*0.2);
+      [[fx,-3.4],[fx-3.1,2.6],[fx+3.1,2.6]].forEach(([px,py2])=>{
+        ctx.beginPath();ctx.arc(px,py2,2.2,0,Math.PI*2);ctx.fillStyle='#aaddff';ctx.fill();
+      });
+      ctx.globalAlpha=1;
+    }
     if(p&&p.xlrOn&&(itemOverride==null||itemOverride===ITEM)){
       const pulse=0.5+0.5*Math.sin(fr*0.32);
       ctx.globalAlpha=pulse*0.55;
       for(let i=0;i<3;i++){
         const wave=((fr*0.1+i*0.28)%1);
         ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.arc(fx,0,10+wave*10,-0.55,0.55);ctx.stroke();
+        ctx.beginPath();ctx.arc(fx,0,12+wave*10,-0.55,0.55);ctx.stroke();
       }
       ctx.globalAlpha=1;
     }
-    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.arc(fx,0,8+ff*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle='#4466ff';ctx.beginPath();ctx.arc(fx,0,10+ff*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else{
     // MAG — glossy red horseshoe, silver poles, opening toward aim
@@ -1878,40 +1891,32 @@ function drawKnowlTreeAura(){
 function drawItemDrops(){
   if(typeof ITEM_DROPS==='undefined'||!ITEM_DROPS.length) return;
   const names=typeof INAMES!=='undefined'?INAMES:['TRS','RCA','XLR','MAG'];
-  const cols=typeof ICOLS!=='undefined'?ICOLS:['#e2b64a','#a766ee','#c2c7cf','#e02028'];
+  const cols=typeof ICOLS!=='undefined'?ICOLS:['#d4aa40','#e87820','#c8cdd4','#e02028'];
   for(const d of ITEM_DROPS){
     if(d.got) continue;
     const bob=Math.sin((d.bob||0))*3;
-    const dw=Math.max(sw(d.w),32), dh=Math.max(sw(d.h),32);
+    const dw=Math.max(sw(d.w),16), dh=Math.max(sw(d.h),16);
     const dx=sx(d.x), dy=sy(d.y+bob);
-    if(dx>W+24||dy>H+24||dx+dw<-24||dy+dh<-24) continue;
+    if(dx>W+28||dy>H+28||dx+dw<-28||dy+dh<-28) continue;
     const enh=!!d.enhanced;
-    ctx.fillStyle=enh?'#2a1a08':'#1a1420';
-    ctx.fillRect(dx,dy,dw,dh);
-    ctx.fillStyle=enh?'#3a2810':'#241830';
-    ctx.fillRect(dx+3,dy+3,dw-6,dh-6);
-    const rim=enh?'#e2b64a':(cols[d.item]||C.WHITE);
-    ctx.fillStyle=rim;
-    ctx.fillRect(dx,dy,dw,2); ctx.fillRect(dx,dy+dh-2,dw,2);
-    ctx.fillRect(dx,dy,2,dh); ctx.fillRect(dx+dw-2,dy,2,dh);
+    const cx=dx+dw*0.5, cy=dy+dh*0.46;
+    ctx.fillStyle='#0a0814';
+    ctx.fillRect(cx-dw*0.38, dy+dh-7, dw*0.76, 5);
     if(enh){
-      ctx.fillStyle='#f0d78f';
-      ctx.fillRect(dx+2,dy+2,4,4); ctx.fillRect(dx+dw-6,dy+2,4,4);
-      ctx.fillRect(dx+2,dy+dh-6,4,4); ctx.fillRect(dx+dw-6,dy+dh-6,4,4);
-      const pulse=0.25+0.2*Math.sin(fr*0.14+d.item);
+      const pulse=0.22+0.18*Math.sin(fr*0.14+d.item);
       ctx.globalAlpha=pulse;
       ctx.fillStyle=cols[d.item]||'#fff';
-      ctx.fillRect(dx-2,dy-2,dw+4,1); ctx.fillRect(dx-2,dy+dh+1,dw+4,1);
+      ctx.beginPath();ctx.arc(cx,cy,Math.max(dw,dh)*0.42,0,Math.PI*2);ctx.fill();
       ctx.globalAlpha=1;
     }
-    const cx=dx+dw*0.5, cy=dy+dh*0.42;
+    const fill=d.item===2?1.55:d.item===1?1.35:d.item===0?1.25:1.2;
     ctx.save();
-    ctx.translate(cx,cy);
-    ctx.scale(0.62,0.62);
-    drawConnectorTip(0,0,-0.55,enh?5:0,d.item,enh);
+    ctx.translate(cx, cy);
+    ctx.scale(fill, fill);
+    drawConnectorTip(0,0,-0.72,enh?4:0,d.item,enh);
     ctx.restore();
     const tag=enh?(names[d.item]||'?')+'+':(names[d.item]||'?');
-    drawTextC(tag,cx,dy+dh-11,rim,1);
+    drawTextC(tag,cx,dy+dh-10,enh?'#e2b64a':(cols[d.item]||C.WHITE),1);
   }
 }
 function drawRopePickup(){
@@ -2050,7 +2055,9 @@ function connectorTipWorld(itemOverride=ITEM){
   const pose=computeConnectorArmPose();
   if(itemOverride===1) return {x:pose.noseX,y:pose.noseY};
   const a=pose.aimAngle;
-  return {x:pose.tipX+Math.cos(a)*47,y:pose.tipY+Math.sin(a)*47};
+  const sc=typeof _itemArtScale==='function'?_itemArtScale(itemOverride):1;
+  const reach=(itemOverride===2?42:itemOverride===0?50:40)*sc;
+  return {x:pose.tipX+Math.cos(a)*reach,y:pose.tipY+Math.sin(a)*reach};
 }
 // Dotted pixel line (every `gap`-th pixel) â€” SMS dash effect.
 function pxDots(x0,y0,x1,y1,col,gap=3,phase=0){

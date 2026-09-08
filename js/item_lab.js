@@ -56,13 +56,18 @@ function initItemLabWorld() {
   ITEM = -1;
 
   const feet = IL_FLOOR;
-  let x = 140;
-  for (let item = 0; item < 4; item++) {
+  let x = 100;
+  const order = [0, 2, 1, 3];
+  for (let oi = 0; oi < order.length; oi++) {
+    const item = order[oi];
     if (typeof _spawnItemDrop === 'function') {
+      const gap = item === 2 ? 64 : item === 1 ? 44 : 52;
       _spawnItemDrop(item, x, feet, { enhanced: false });
-      _spawnItemDrop(item, x + 88, feet, { enhanced: true });
+      const sz = typeof _itemBoxSize === 'function' ? _itemBoxSize(item, false) : { w: 32 };
+      _spawnItemDrop(item, x + sz.w + 18, feet, { enhanced: true });
+      const ez = typeof _itemBoxSize === 'function' ? _itemBoxSize(item, true) : { w: 36 };
+      x += sz.w + 18 + ez.w + gap;
     }
-    x += 210;
   }
 
   CRATES.push(

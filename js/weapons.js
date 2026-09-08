@@ -512,8 +512,8 @@ function _spawnItemDrop(item, x, y, opts){
     const s=gridStandY(x, y+8, {maxUp:48, maxDrop:160});
     if(s!=null) fy=s;
   }
-  const w=enhanced?40:36, h=enhanced?40:36;
-  ITEM_DROPS.push({item, enhanced, x:fx-w*0.5, y:fy-h, w, h, got:false, bob:Math.random()*Math.PI*2});
+  const sz=typeof _itemBoxSize==='function'?_itemBoxSize(item,enhanced):{w:enhanced?40:36,h:enhanced?40:36};
+  ITEM_DROPS.push({item, enhanced, x:fx-sz.w*0.5, y:fy-sz.h, w:sz.w, h:sz.h, got:false, bob:Math.random()*Math.PI*2});
 }
 function _collectItemDrop(d){
   if(!d||d.item<0||d.item>3) return false;
@@ -522,7 +522,7 @@ function _collectItemDrop(d){
   else ITEM=d.item;
   if(typeof _itemEnhanced!=='undefined') _itemEnhanced[d.item]=!!d.enhanced;
   if(p) p.itemStamina=100;
-    if(!wasNew){ try{sfx(d.enhanced?'unlock':'knowl_pickup');}catch(_e){} }
+  if(!wasNew){ try{sfx(d.enhanced?'unlock':'knowl_pickup');}catch(_e){} }
   return true;
 }
 function _dropPlayerItems(){
