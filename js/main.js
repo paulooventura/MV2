@@ -715,7 +715,7 @@ function initRunTestWorld(){
   camX=0; camY=0; _mapReady=true; _allPCache=null;
   console.info('MV: Run test world ready');
 }
-function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false; if(typeof _sketchLabMode!=='undefined') _sketchLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
+function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false; if(typeof _sketchLabMode!=='undefined') _sketchLabMode=false; if(typeof _ldtkLabMode!=='undefined') _ldtkLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
 function startRunTest(){ _unlockAudio(); _battleTestMode=false; _runTestMode=true; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initRunTestWorld(); _playBGM('game',OPT.musicVol); }
 
 // ── Zone placeholder (procgen) ────────────────────────────────
@@ -761,6 +761,7 @@ function initWorld(){
   if(typeof _itemLabMode!=='undefined') _itemLabMode=false;
   if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false;
   if(typeof _sketchLabMode!=='undefined') _sketchLabMode=false;
+  if(typeof _ldtkLabMode!=='undefined') _ldtkLabMode=false;
   _clearBattleRespawnTimer();
   _battleTestMode=false; _syncBattleHud(); _runTestMode=false; _stageDesignerMode=false;
   const boot=()=>{
@@ -1076,6 +1077,8 @@ function draw(){
   if(!_tmjDraw){
     if(typeof _sketchLabMode!=='undefined'&&_sketchLabMode&&typeof drawSketchLabWorld==='function'){
       drawSketchLabWorld();
+    }else if(typeof _ldtkLabMode!=='undefined'&&_ldtkLabMode&&typeof drawLdtkLabWorld==='function'){
+      drawLdtkLabWorld();
     }else{
       drawParallax();
       const apl=allP();
@@ -1093,6 +1096,7 @@ function draw(){
   if(typeof drawItemLabHud==='function') drawItemLabHud();
   if(typeof drawPhysicsLabHud==='function') drawPhysicsLabHud();
   if(typeof drawSketchLabHud==='function') drawSketchLabHud();
+  if(typeof drawLdtkLabHud==='function') drawLdtkLabHud();
   const _bwPad=64;
   for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);

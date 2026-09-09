@@ -20,6 +20,7 @@ function initItemLabWorld() {
   _itemLabMode = true;
   if (typeof _physicsLabMode !== 'undefined') _physicsLabMode = false;
   if (typeof _sketchLabMode !== 'undefined') _sketchLabMode = false;
+  if (typeof _ldtkLabMode !== 'undefined') _ldtkLabMode = false;
   if (typeof _testLabMode !== 'undefined') _testLabMode = false;
   _battleTestMode = false;
   _runTestMode = false;

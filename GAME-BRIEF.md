@@ -73,7 +73,7 @@ Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map
   helps when the lead is hurt. Select copy: “ALLY JOINS YOU”.
 - Gamepad: **A jump · X item action · Y item select · B punch** (`js/save.js`
   `BIND_LABELS`). Keyboard still Space / Q / E / F.
-- Selftest **PASS** on build 158 (`npm run selftest` / `selftest:quick`).
+- Selftest **PASS** on build 159 (`npm run selftest` / `selftest:quick`).
 
 ### Labs — experiments, not the campaign
 
@@ -86,12 +86,15 @@ Never replace Awdjoo until Wall says **promote**.
 | C | `item-lab.html?ab=c` | Jack / box sprites, standard vs enhanced |
 | D | `physics-lab.html?ab=d` | Slopes, coast, pass-ramps, omniblock door |
 | E | `sketch-lab.html?ab=e` | Piskel 256 cave sketch (screenshot extract) |
+| F | `ldtk-lab.html?ab=f` | LDtk → typed grid (promote-later path; not live) |
 
 ### Not done / do not pretend it is
 
 - Zones 1–5 have **names and music only**. No campaign maps yet.
-- **LDtk is not the live pipeline.** Live maps are **Tiled**. Lab E has a
-  generated `.ldtk` / `.tmj` under `assets/sketches/` from a Piskel screenshot.
+- **LDtk is not the live pipeline.** Live maps are **Tiled**. Lab **F**
+  (`ldtk-lab.html?ab=f`, `js/ldtk_loader.js`) is the promote-later path.
+  Lab E still has a generated `.ldtk` / `.tmj` under `assets/sketches/` from
+  a Piskel screenshot (different IntGrid; do not reuse it as the identity map).
 - Companion can still **vanish or overlap** the lead (pool resolve is player-only;
   leash/respawn needs work). Wall wants: never disappear, never occupy the same
   body as the player.
@@ -255,10 +258,14 @@ A **clean 256×256 PNG export from Piskel** beats a UI screenshot.
 
 ### LDtk
 
-Wanted later as an authoring tool. **Not wired into `initWorld`.** If you add a
-loader, keep it a new module and do not replace `applyTmjMap` until Wall
-promotes it. IntGrid proposal we discussed: `1 solid · 2 oneway · 3 hazard`
-(that is **not** the live grid enum — map it explicitly).
+Wanted later as an authoring tool. **Not wired into `initWorld`.** Lab F
+(`js/ldtk_loader.js`, `ldtk-lab.html?ab=f`) loads a sample
+`assets/sketches/ldtk-lab.ldtk`. Identity IntGrid map (explicit, warn on
+unknown — there is **no hazard**):
+
+`1 SOLID · 2 ONEWAY · 3 DESTRUCT · 4 SLOPE_L · 5 SLOPE_R`
+
+Do not replace `applyTmjMap` until Wall promotes it.
 
 ---
 
@@ -338,8 +345,8 @@ Characters are studio monitors on a wheel. Items are TRS/RCA/XLR/MAG.
 Lore: Knowl tree, Tradzkul, path town → hills → garden → cavern →
 factory → lair. Only town is mapped.
 
-Current build 158 / MOVE 59. Open work: companion never vanish/overlap;
-RCA mass-based hook; later zones; LDtk loader is not live.
+Current build 159 / MOVE 59. Open work: companion never vanish/overlap;
+RCA mass-based hook; later zones; LDtk loader is lab F, not live.
 
 Do the task I give next. Stay in one module when you can.
 ```

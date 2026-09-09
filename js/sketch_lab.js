@@ -94,6 +94,7 @@ function initSketchLabWorld() {
   _sketchLabMode = true;
   if (typeof _itemLabMode !== 'undefined') _itemLabMode = false;
   if (typeof _physicsLabMode !== 'undefined') _physicsLabMode = false;
+  if (typeof _ldtkLabMode !== 'undefined') _ldtkLabMode = false;
   if (typeof _testLabMode !== 'undefined') _testLabMode = false;
   _battleTestMode = false;
   _runTestMode = false;

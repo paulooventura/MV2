@@ -26,6 +26,7 @@ whole tree to "see what's up" — use this map.
 | `js/awdjoo_map.js` | **Generated** embedded Tiled map data (don't hand-edit; synced from `assets/Awdjoo/Awdjoo.json`) |
 | `js/healthwatch.js` | In-game glitch sentinel → `window.__MV_HEALTH` |
 | `js/main.js` | Game loop, `update()`/`draw()` orchestration, state machine |
+| `js/ldtk_loader.js` | **F lab only:** LDtk → typed grid + entity handlers. Not live. |
 | `js/selftest.js` | Headless QA bot (gated by `?selftest=1`) |
 
 **Movement feel knobs** (where "Mario+Sonic flow" is tuned):
@@ -93,6 +94,7 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **C** | Item sprite lab | `item-lab.html?ab=c` |
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
+| **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 
