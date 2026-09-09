@@ -321,10 +321,7 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   }
 }
 
-function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
-  const tx=Math.round((hatTX||0)*12);
-  const ty=Math.round((hatTY||0)*9);
-  const hatBrimY=drawY-R+2+ty, crownH=9, hatTopY=hatBrimY-crownH;
+function _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH){
   ctx.fillStyle='#020202';ctx.fillRect(cx-10+tx,hatTopY+1,21,crownH);
   ctx.fillStyle='#060608';ctx.fillRect(cx-10+tx,hatTopY,19,crownH);
   ctx.fillStyle='#0d0d10';ctx.fillRect(cx+7+tx,hatTopY+1,2,crownH-1);
@@ -332,7 +329,8 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   ctx.fillStyle='#181818';ctx.fillRect(cx-8+tx,hatTopY,15,1);
   ctx.fillStyle='#030304';ctx.fillRect(cx-10+tx,hatBrimY-2,19,3);
   ctx.fillStyle='#161618';ctx.fillRect(cx-9+tx,hatBrimY-2,17,1);
-  const brimL=cx-28+tx,brimR=cx+30+tx,brimH=6;
+}
+function _drawHatBrim(brimL,brimR,hatBrimY,brimH){
   ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(brimL+1,hatBrimY+4,brimR-brimL-1,3);
   ctx.fillStyle='#060608';ctx.fillRect(brimL,hatBrimY,brimR-brimL,brimH);
   ctx.fillStyle='#0e0e11';ctx.fillRect(brimL,hatBrimY,brimR-brimL,2);
@@ -341,24 +339,24 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   ctx.fillStyle='#040405';ctx.fillRect(brimL,hatBrimY+1,3,brimH-2);
   ctx.fillStyle='#0c0c0e';ctx.fillRect(brimR-4,hatBrimY+1,4,brimH-2);
 }
+function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
+  const tx=Math.round((hatTX||0)*12);
+  const ty=Math.round((hatTY||0)*9);
+  const hatBrimY=drawY-R+2+ty, crownH=9, hatTopY=hatBrimY-crownH;
+  _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH);
+  _drawHatBrim(cx-28+tx,cx+30+tx,hatBrimY,6);
+}
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
-  const facing=p&&p.fc!==false;
+  const facing=!(p&&p.fc===false);
+  const hatBrimY=drawY-R+2+ty, crownH=9, hatTopY=hatBrimY-crownH;
+  _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH);
+  // Back brim only — same black as Mind, reads as a laid-down P.
   const back=facing?-1:1;
-  const crownY=drawY-R-1+ty;
-  ctx.fillStyle='#1a0408';
-  ctx.beginPath();ctx.ellipse(cx+tx+back*7,crownY+8,8,6,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#3a0810';
-  ctx.beginPath();ctx.ellipse(cx+tx,crownY+6,13,9,0,Math.PI,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#8a2030';
-  ctx.beginPath();ctx.ellipse(cx+tx,crownY+5,11,7.5,0,Math.PI,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#c43848';
-  ctx.beginPath();ctx.ellipse(cx+tx-1,crownY+3,6,4,0,Math.PI,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#2a0810';
-  ctx.fillRect(cx-12+tx,crownY+8,24,3);
-  ctx.fillStyle='#e86878';
-  ctx.beginPath();ctx.arc(cx+tx,crownY-1,2.1,0,Math.PI*2);ctx.fill();
+  const inner=cx+tx+back*2;
+  const outer=cx+tx+back*27;
+  _drawHatBrim(Math.min(inner,outer),Math.max(inner,outer),hatBrimY,6);
 }
 
 /* -- Lightbulb head â€” glass, iris, wide hat -- */

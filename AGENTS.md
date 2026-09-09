@@ -11,12 +11,12 @@ whole tree to "see what's up" — use this map.
 | `js/core.js` | Globals, tunable constants, canvas, raw input/keymap |
 | `js/save.js` | localStorage save/load |
 | `js/audio.js` | SFX + music synth (`sfx()`) |
-| `js/player.js` | Player factory `mkP()`, **horizontal movement `_updatePlayerMoveX`**, jump, hook control, connector-arm pose |
+| `js/player.js` | Player factory `mkP()`, **horizontal movement `_updatePlayerMoveX`**, jump, hook control, connector-arm pose. **1P story:** the other sibling is `_aiCompanion` — stays near the lead, shoots, and helps when the lead is hurt. |
 | `js/collision_grid.js` | **Typed tile grid + X-then-Y resolver** (AIR/SOLID/ONEWAY/DESTRUCT/SLOPE_L/SLOPE_R). KEEP OUT is discarded. |
 | `js/physics.js` | Wheel/slope **feel** on top of the grid. `MOVE_*`/`WHEEL_*`/`GRAV`/`JI`. Player move goes through `gridResolvePlayer`. |
 | `js/weapons.js` | Items TRS/RCA/XLR/MAG, **RCA grappling-hook**, rope pickup |
 | `js/enemies.js` | Enemy AI, mind-enemy, body separation |
-| `js/render.js` | All drawing (sprites, world, HUD shapes) |
+| `js/render.js` | All drawing (sprites, world, HUD shapes). Venture’s hat is **black like Mind’s**, back brim only (laid-down **P**) — not red. |
 | `js/ui.js` | HUD, menus, on-screen version line |
 | `js/editor.js` | In-browser stage editor |
 | `js/spawn_fix.js` | Tiled object/tile spawn resolution (player/RCA/enemy) |

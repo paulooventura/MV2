@@ -226,10 +226,7 @@ function _itemBoxSize(){
 }
 
 function _heldItemFor(pl){
-  if(pl&&pl._aiCompanion){
-    if(typeof _itemUnlocked==='function'&&_itemUnlocked(0)) return 0;
-    return -1;
-  }
+  if(pl&&pl._aiCompanion) return 0;
   return ITEM;
 }
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
@@ -307,34 +304,82 @@ function _spawnPartner(){
   p2.x=p.x+36; p2.y=p.y; p2.vx=0; p2.vy=0; p2.og=true;
   p2.fc=!!p.fc;
 }
+function _companionPlCenter(pl){
+  const sw=typeof SW!=='undefined'?SW:64;
+  const feet=typeof FEET_OFF!=='undefined'?FEET_OFF:88;
+  const stand=typeof STAND_H!=='undefined'?STAND_H:70;
+  return {x:pl.x+sw*0.5, y:pl.y+feet-stand*0.45};
+}
+function _companionHelpNeeded(){
+  if(!p) return false;
+  const max=p.maxHp||PLAYER_MAX_HP;
+  if((p.hp||0)<=max*0.5) return true;
+  if((p.inv||0)>6) return true;
+  const pc=_companionPlCenter(p);
+  if(typeof ENEMS==='undefined') return false;
+  for(const e of ENEMS){
+    if(typeof _enemyCombatActive==='function'&&!_enemyCombatActive(e)) continue;
+    if(!e||e.alive===false) continue;
+    if(Math.hypot((e.x+(e.w||0)*0.5)-pc.x,(e.y+(e.h||0)*0.5)-pc.y)<78) return true;
+  }
+  return false;
+}
+function _companionPickEnemy(fromX, fromY, favorPlayer){
+  if(typeof ENEMS==='undefined') return null;
+  const pc=favorPlayer?_companionPlCenter(p):null;
+  let best=null, bestD=favorPlayer?260:220;
+  for(const e of ENEMS){
+    if(typeof _enemyCombatActive==='function'&&!_enemyCombatActive(e)) continue;
+    if(!e||e.alive===false) continue;
+    const ex=e.x+(e.w||0)*0.5, ey=e.y+(e.h||0)*0.5;
+    const d=favorPlayer&&pc
+      ?Math.hypot(ex-pc.x,ey-pc.y)*0.55+Math.hypot(ex-fromX,ey-fromY)*0.45
+      :Math.hypot(ex-fromX,ey-fromY);
+    if(d<bestD){ bestD=d; best=e; }
+  }
+  return best;
+}
 function _updateCompanionAI(){
   if(!p2||!p) return;
   _coopRollX0=p2.x; _coopRollY0=p2.y;
-  const followX=p.x-(p.fc?50:-50);
+  const me=_companionPlCenter(p2);
+  const help=_companionHelpNeeded();
+  const threat=_companionPickEnemy(me.x, me.y, help);
+  let followX=p.x-(p.fc?48:-48);
+  if(help&&threat){
+    const ex=threat.x+(threat.w||0)*0.5;
+    const px=p.x+(typeof SW!=='undefined'?SW:64)*0.5;
+    followX=ex+(ex>=px?36:-36)-(typeof SW!=='undefined'?SW:64)*0.5;
+  }else if(threat&&!help){
+    const ex=threat.x+(threat.w||0)*0.5;
+    const side=ex>=me.x?1:-1;
+    const hold=ex-side*86-(typeof SW!=='undefined'?SW:64)*0.5;
+    if(Math.abs(hold-p.x)<200) followX=hold;
+  }
   const dx=followX-p2.x;
   const distX=Math.abs(p.x-p2.x), distY=Math.abs(p.y-p2.y);
   if(distX>300||distY>240){
     p2.x=followX; p2.y=p.y; p2.vx=(p.vx||0)*0.35; p2.vy=0; p2.og=!!p.og;
   }else{
-    const cap=(typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5)*0.9;
-    if(Math.abs(dx)>16){
+    const cap=(typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5)*(help?1.05:0.88);
+    if(Math.abs(dx)>14){
       const dir=Math.sign(dx);
-      p2.vx+=(dir*(typeof MOVE_ACCEL!=='undefined'?MOVE_ACCEL:0.4)*0.9);
+      p2.vx+=(dir*(typeof MOVE_ACCEL!=='undefined'?MOVE_ACCEL:0.4)*(help?1.15:0.9));
       p2.vx=Math.max(-cap,Math.min(cap,p2.vx));
-      p2.fc=dir>0;
+      if(!threat) p2.fc=dir>0;
     }else{
       p2.vx*=(typeof MOVE_STOP!=='undefined'?MOVE_STOP:0.78);
       if(Math.abs(p2.vx)<0.18) p2.vx=0;
     }
     p2._aiJumpCd=(p2._aiJumpCd||0)-1;
-    if(p2.og&&!p.og&&p.vy<(typeof JI!=='undefined'?JI: -3)*0.35){
+    if(p2.og&&!p.og&&p.vy<(typeof JI!=='undefined'?JI:-3)*0.35){
       p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false;
-    }else if(p2.og&&p2._aiJumpCd<=0&&Math.abs(dx)>36&&Math.abs(p2.vx)<0.55){
-      p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=22;
+    }else if(p2.og&&p2._aiJumpCd<=0&&(Math.abs(dx)>40&&Math.abs(p2.vx)<0.55||!!p2._moveBlocked)){
+      p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=20;
     }
   }
   p2.vy=Math.min((p2.vy||0)+(typeof GRAV!=='undefined'?GRAV:0.52),14);
-  if(typeof _companionFight==='function') _companionFight();
+  if(typeof _companionFight==='function') _companionFight(threat, help);
   if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(p2,p2.vx,p2.vy);
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
   if(p2.inv>0) p2.inv--;
@@ -342,37 +387,26 @@ function _updateCompanionAI(){
     p2.x=followX; p2.y=p.y; p2.vy=0; p2.og=true;
   }
 }
-function _companionFight(){
-  if(!p2||typeof ENEMS==='undefined') return;
-  if(typeof _itemUnlocked==='function'&&!_itemUnlocked(0)){
-    p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
-    return;
-  }
-  const cx=p2.x+(typeof SW!=='undefined'?SW:64)*0.5;
-  const cy=p2.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-(typeof STAND_H!=='undefined'?STAND_H:70)*0.45;
-  let best=null, bestD=280;
-  for(const e of ENEMS){
-    if(typeof _enemyCombatActive==='function'&&!_enemyCombatActive(e)) continue;
-    if(!e||!e.alive) continue;
-    const ex=e.x+(e.w||0)*0.5, ey=e.y+(e.h||0)*0.5;
-    const d=Math.hypot(ex-cx,ey-cy);
-    if(d<bestD){ bestD=d; best=e; }
-  }
+function _companionFight(threat, help){
+  if(!p2) return;
+  const me=_companionPlCenter(p2);
+  const best=threat||_companionPickEnemy(me.x, me.y, !!help);
   p2._aiShotCd=(p2._aiShotCd||0)-1;
   if(!best){
-    p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+    p2.aimDX=p.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+    p2.fc=!!p.fc;
     return;
   }
   const ex=best.x+best.w*0.5, ey=best.y+best.h*0.5;
-  const adx=ex-cx, ady=ey-cy, al=Math.hypot(adx,ady)||1;
+  const adx=ex-me.x, ady=ey-me.y, al=Math.hypot(adx,ady)||1;
   p2.aimDX=adx/al; p2.aimDY=ady/al;
   p2.tAimDX=p2.aimDX; p2.tAimDY=p2.aimDY;
   if(adx>0.08) p2.fc=true; else if(adx<-0.08) p2.fc=false;
-  if(p2.og&&ey<cy-36&&(p2._aiJumpCd||0)<=0){
-    p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=26;
+  if(p2.og&&ey<me.y-36&&(p2._aiJumpCd||0)<=0){
+    p2.vy=typeof JI!=='undefined'?JI:-3; p2.og=false; p2._aiJumpCd=24;
   }
   if(p2._aiShotCd>0) return;
-  p2._aiShotCd=36;
+  p2._aiShotCd=help?22:34;
   const oldItem=typeof ITEM!=='undefined'?ITEM:-1;
   ITEM=0;
   if(typeof withPlayerContext==='function') withPlayerContext(p2,()=>fireItem(false));
@@ -580,7 +614,7 @@ function ropePlayerEndWorld(){
 
 // ── Fire item ─────────────────────────────────────────────────
 function fireItem(charged=false){
-  if(ITEM<0||!_itemUnlocked(ITEM)) return;
+  if(ITEM<0||(!_itemUnlocked(ITEM)&&!p._aiCompanion)) return;
   const ax=(p._hasAimInput&&p.tAimDX!=null)?p.tAimDX:p.aimDX;
   const ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
   p.aimDX=ax; p.aimDY=ay;

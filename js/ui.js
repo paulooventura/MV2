@@ -696,7 +696,7 @@ function drawSelect(){
   const padX=72,panelW=W-padX*2,panelH=_selectStep===0?Math.floor(H*0.62):Math.floor(H*0.68);
   const panelX=padX,panelY=Math.round((H-panelH)/2)-12;
   _drawSnesWindow(panelX,panelY,panelW,panelH,{sel:false});
-  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.WHITE,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':'WHO IS PLAYER 1?',W/2,titleY+fs*10,C.LILAC,fsSm);
+  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.WHITE,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':(_playerCount===1?'WHO LEADS?  THE OTHER JOINS AS ALLY':'WHO IS PLAYER 1?'),W/2,titleY+fs*10,C.LILAC,fsSm);
   const _drawCard=(cx,cy,cw,ch,sel,accent,disabled,title,subs)=>{
     const x=Math.round(cx-cw/2),y=cy;
     _drawSnesWindow(x,y,cw,ch,{sel:sel&&!disabled,locked:disabled});
@@ -711,21 +711,21 @@ function drawSelect(){
   if(_selectStep===0){
     const m0=_playModeIdx===0,m1=_playModeIdx===1,m2=_playModeIdx===2;
     const cx0=rowX+cardW/2,cx1=rowX+cardW+gap+cardW/2,cx2=rowX+(cardW+gap)*2+cardW/2;
-    _drawCard(cx0,cardsY,cardW,cardH,m0,C.SKY_L,false,'1 PLAYER',['SOLO ADVENTURE','FULL STORY']);
+    _drawCard(cx0,cardsY,cardW,cardH,m0,C.SKY_L,false,'1 PLAYER',['ALLY JOINS YOU','FULL STORY']);
     _drawCard(cx1,cardsY,cardW,cardH,m1,C.MINT,false,'2P LOCAL',['SPLIT KEYBOARD','P1 + P2']);
     _drawCard(cx2,cardsY,cardW,cardH,m2,C.GREY_D,true,'2P ONLINE',['COMING SOON']);
   }else{
     const mSel=_heroChoice==='mind',vSel=_heroChoice==='venture';
     const cxM=rowX+cardW/2,cxV=rowX+cardW+gap+cardW/2;
-    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['P1 PURPLE','WIDE HAT','LEAD SIBLING']);
-    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['P2 RED','BACK CAP','BOLD SIBLING']);
+    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['PURPLE','WIDE HAT','LEAD SIBLING']);
+    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['BLACK HAT','BACK BRIM','BOLD SIBLING']);
     const swY=cardsY+cardH-36;
     if(mSel){ctx.fillStyle=C.PURPLE_L;ctx.fillRect(cxM-28,swY,18,18);ctx.fillStyle=C.LILAC;ctx.fillRect(cxM-6,swY,18,18);}
     if(vSel){ctx.fillStyle=C.RED_L;ctx.fillRect(cxV-28,swY,18,18);ctx.fillStyle=C.ORANGE;ctx.fillRect(cxV-6,swY,18,18);}
   }
   const hintY=panelY+panelH-56;
   if(_selectStep===0){drawTextC('LEFT / RIGHT  —  CHOOSE',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  CONTINUE     ESC  —  BACK TO STORY',W/2,hintY+fsSm*9,C.GREY,fsSm);}
-  else{drawTextC('LEFT / RIGHT  —  CHANGE HERO',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  START GAME     ESC  —  BACK',W/2,hintY+fsSm*9,C.GREY,fsSm);if(_playerCount===2)drawTextC('P2 USES ARROW KEYS + NUMPAD',W/2,hintY+fsSm*18,C.MINT,fsSm);}
+  else{drawTextC('LEFT / RIGHT  —  CHANGE HERO',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  START GAME     ESC  —  BACK',W/2,hintY+fsSm*9,C.GREY,fsSm);if(_playerCount===2)drawTextC('P2 USES ARROW KEYS + NUMPAD',W/2,hintY+fsSm*18,C.MINT,fsSm);else drawTextC('ALLY STAYS CLOSE, FIGHTS, AND HELPS WHEN YOU NEED IT',W/2,hintY+fsSm*18,C.SAND,fsSm);}
   const modeLbl=_playModeIdx===0?'1 PLAYER':(_playModeIdx===1?'2P LOCAL':'2P ONLINE');
   const footY=panelY+panelH-18;ctx.fillStyle='rgba(16,24,32,0.75)';ctx.fillRect(panelX+24,footY-6,panelW-48,fsSm*8+8);
   drawTextC(`MODE: ${modeLbl}   ·   HERO: ${_heroChoice==='mind'?'MIND':'VENTURE'}`,W/2,footY,C.SAND,fsSm);
