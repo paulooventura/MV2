@@ -1,5 +1,7 @@
 # Mind & Venture (MV2) — agent instructions
 
+Collaborator / Claude handoff: **`GAME-BRIEF.md`** (lore, physics, sprites, maps, how far we are). This file is the module map and QA loop.
+
 ## Module map (read this BEFORE grepping the whole tree)
 
 Browser 2D platformer. `index.html` is a loader only — all logic is split into
