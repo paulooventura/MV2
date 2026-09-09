@@ -51,9 +51,9 @@ window.addEventListener('keyup',e=>{
 function _initTouchButtons(){
   const cv=document.getElementById('c');
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
-  // Phone Xbox pad: Y = item action (game bind "swap"/Q), B = item select (game bind "use"/E).
+  // Face buttons: A jump, X item action, Y item select, B punch.
   const _padPairs=window._phonePlay
-    ?[['bSp','Space'],['bE','KeyQ'],['bQ','KeyE'],['bF','KeyF']]
+    ?[['bSp','Space'],['bE','KeyE'],['bQ','KeyF'],['bF','KeyQ']]
     :[['bSp','Space'],['bE','KeyE'],['bQ','KeyQ'],['bF','KeyF']];
   _padPairs.forEach(([id,code])=>{
     const b=document.getElementById(id);
@@ -153,11 +153,11 @@ function readGamepad(){
   const bJump=pressed(0);
   if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
-  if(rose(3)) Kj['KeyQ']=true;
-  if(rose(1)) Kj['KeyE']=true;
-  K['KeyQ']=(K['KeyQ_kb']||pressed(3));
-  K['KeyE']=(K['KeyE_kb']||pressed(1));
-  K['KeyF']=(K['KeyF_kb']||pressed(2));
+  if(rose(2)) Kj['KeyQ']=true;
+  if(rose(3)) Kj['KeyE']=true;
+  K['KeyQ']=(K['KeyQ_kb']||pressed(2));
+  K['KeyE']=(K['KeyE_kb']||pressed(3));
+  K['KeyF']=(K['KeyF_kb']||pressed(1));
   if(pressed(4)) K['KeyS']=true;
   if(rose(9)) Kj['Tab']=true;
   if(_gameState==='title'){
@@ -236,10 +236,10 @@ function _grantPlayerItem(idx, silent){
   ITEM=idx;
   const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MAG Pull'];
   const lines=[
-    ['Hold fire to charge a beam. Release to shoot.'],
-    ['Q — launch hook · W/S — reel in or let out rope','Space — release to swing or catapult off walls'],
-    ['Hold fire to push enemies and shots away.'],
-    ['Hold fire to pull enemies and shots in.'],
+    ['Hold X / Q to charge a beam. Release to shoot.'],
+    ['X / Q — launch hook · W/S — reel in or let out rope','A / Space — release to swing or catapult off walls'],
+    ['Hold X / Q to push enemies and shots away.'],
+    ['Hold X / Q to pull enemies and shots in.'],
   ];
   _itemTutorial={title:titles[idx],lines:lines[idx],t:0,maxT:280};
   if(idx===1&&typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
@@ -872,7 +872,7 @@ function _advanceCutscene(){
   _cutsceneFr=0;
   if(_cutscenePhase===0){
     _unlockedMask|=ITEM_UNLOCK_BITS[0]; ITEM=0;
-    _itemTutorial={title:'TRS Laser Cannon',lines:['Laitu lent you the TRS connector.','Q — swap items · hold Q to charge a laser bolt'],t:0,maxT:300};
+    _itemTutorial={title:'TRS Laser Cannon',lines:['Laitu lent you the TRS connector.','Y / E — select item · hold X / Q to charge a laser bolt'],t:0,maxT:300};
     _cutscenePhase=1; _cutscenePage=0; return;
   }
   if(_cutscenePhase===1){

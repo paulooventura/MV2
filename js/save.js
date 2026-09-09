@@ -53,7 +53,7 @@ try{
 // ── Keybind helpers ──────────────────────────────────────────
 const BIND_LABELS={
   up:'Move Up', down:'Move Down', left:'Move Left', right:'Move Right',
-  jump:'Jump',  use:'Use Item',   swap:'Swap Item', punch:'Punch', sprint:'Sprint'
+  jump:'Jump (A)',  use:'Item Select (Y)',   swap:'Item Action (X)', punch:'Punch (B)', sprint:'Sprint'
 };
 const BIND_ORDER=['up','down','left','right','jump','use','swap','punch','sprint'];
 function _codeLabel(c){
