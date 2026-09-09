@@ -715,7 +715,7 @@ function initRunTestWorld(){
   camX=0; camY=0; _mapReady=true; _allPCache=null;
   console.info('MV: Run test world ready');
 }
-function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
+function startBattleTest(){ if(typeof _itemLabMode!=='undefined') _itemLabMode=false; if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false; if(typeof _sketchLabMode!=='undefined') _sketchLabMode=false; _unlockAudio(); _battleTestMode=true; _runTestMode=false; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initBattleTestWorld(); _playBGM('game',OPT.musicVol); _syncBattleHud(); }
 function startRunTest(){ _unlockAudio(); _battleTestMode=false; _runTestMode=true; _stageDesignerMode=false; _gameState='game'; _stopBGM('title'); _stopBGM('story'); initRunTestWorld(); _playBGM('game',OPT.musicVol); }
 
 // ── Zone placeholder (procgen) ────────────────────────────────
@@ -760,6 +760,7 @@ function buildProcgenWorld(seed){
 function initWorld(){
   if(typeof _itemLabMode!=='undefined') _itemLabMode=false;
   if(typeof _physicsLabMode!=='undefined') _physicsLabMode=false;
+  if(typeof _sketchLabMode!=='undefined') _sketchLabMode=false;
   _clearBattleRespawnTimer();
   _battleTestMode=false; _syncBattleHud(); _runTestMode=false; _stageDesignerMode=false;
   const boot=()=>{
@@ -1073,11 +1074,15 @@ function draw(){
   if(typeof drawCampaignPlats==='function') drawCampaignPlats();
   drawBGParticles(); drawCandleLights();
   if(!_tmjDraw){
-    drawParallax();
-    const apl=allP();
-    for(const pl of apl){if(pl.mp)drawMovPlat(pl.mp);else if(!pl.mv)drawPlat(pl);}
-    for(const a of APLAT){const bx=sx(a.x),by=sy(a.y);ctx.fillStyle=C.BROWN;ctx.fillRect(bx,by,sw(a.w),sw(a.h));ctx.fillStyle=C.ORANGE;ctx.fillRect(bx,by,sw(a.w),1);}
-    if(_battleTestMode&&_gameState==='game'){const z=BATTLE_RANDOM_SPAWN_ZONE;const zx=sx(z.x),zy=sy(z.y),zw=sw(z.w),zh=sw(z.h);ctx.fillStyle='rgba(96,180,255,0.18)';ctx.fillRect(zx,zy,zw,zh);ctx.strokeStyle='rgba(140,210,255,0.65)';ctx.lineWidth=1;ctx.strokeRect(zx,zy,zw,zh);if(fr%48<24)drawTextC('RANDOM RIVAL',zx+zw/2,Math.max(4,zy-6),'#8cf',2);}
+    if(typeof _sketchLabMode!=='undefined'&&_sketchLabMode&&typeof drawSketchLabWorld==='function'){
+      drawSketchLabWorld();
+    }else{
+      drawParallax();
+      const apl=allP();
+      for(const pl of apl){if(pl.mp)drawMovPlat(pl.mp);else if(!pl.mv)drawPlat(pl);}
+      for(const a of APLAT){const bx=sx(a.x),by=sy(a.y);ctx.fillStyle=C.BROWN;ctx.fillRect(bx,by,sw(a.w),sw(a.h));ctx.fillStyle=C.ORANGE;ctx.fillRect(bx,by,sw(a.w),1);}
+      if(_battleTestMode&&_gameState==='game'){const z=BATTLE_RANDOM_SPAWN_ZONE;const zx=sx(z.x),zy=sy(z.y),zw=sw(z.w),zh=sw(z.h);ctx.fillStyle='rgba(96,180,255,0.18)';ctx.fillRect(zx,zy,zw,zh);ctx.strokeStyle='rgba(140,210,255,0.65)';ctx.lineWidth=1;ctx.strokeRect(zx,zy,zw,zh);if(fr%48<24)drawTextC('RANDOM RIVAL',zx+zw/2,Math.max(4,zy-6),'#8cf',2);}
+    }
   }
   drawGoal();
   for(const pf of PFXS){const t=pf.life/pf.maxLife;if(pf.shimmer){ctx.globalAlpha=Math.min(1,t*1.1);ctx.fillStyle=pf.col;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(0.6+t*0.5),0,Math.PI*2);ctx.fill();if(t>0.5){ctx.globalAlpha=(t-0.5)*0.5;ctx.strokeStyle=pf.col;ctx.lineWidth=1;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(1.2+t),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;continue;}if(t<0.4&&(fr&1))continue;ctx.fillStyle=pf.col;const pr=t>0.6?2:1;ctx.fillRect(sx(pf.x),sy(pf.y),pr,pr);}
@@ -1087,6 +1092,7 @@ function draw(){
   if(typeof drawPhysicsLabWorld==='function') drawPhysicsLabWorld();
   if(typeof drawItemLabHud==='function') drawItemLabHud();
   if(typeof drawPhysicsLabHud==='function') drawPhysicsLabHud();
+  if(typeof drawSketchLabHud==='function') drawSketchLabHud();
   const _bwPad=64;
   for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);

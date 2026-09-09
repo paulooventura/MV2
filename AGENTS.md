@@ -88,6 +88,9 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 |------|------|-----|
 | **A** | Live Awdjoo (`index.html`) | `index.html?ab=a` |
 | **B** | Clean collision lab | `clean-collision-core.html?ab=b` |
+| **C** | Item sprite lab | `item-lab.html?ab=c` |
+| **D** | Physics lab | `physics-lab.html?ab=d` |
+| **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 
