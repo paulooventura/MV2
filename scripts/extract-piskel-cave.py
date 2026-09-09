@@ -120,39 +120,148 @@ def is_solid_cell(ch: str) -> bool:
     return ch in ("K", "S")
 
 
-def detect_slopes(grid: np.ndarray) -> list[dict]:
-    """Mark 45° rising (SLOPE_R) stairs on the air/solid floor."""
-    h, w = grid.shape
-    floor = np.zeros((h, w), dtype=bool)
-    for y in range(1, h - 1):
-        for x in range(1, w - 1):
-            if grid[y, x] != "K":
+def _is_air(ch: str) -> bool:
+    return ch in ("W", "Y", "C", "N", ".")
+
+
+def morph_close_open(grid: np.ndarray) -> None:
+    """Fill 1px holes, then drop 1px dust. Keeps thick walls/shelves."""
+    solid = np.isin(grid, ("K", "S"))
+
+    def dilate(m):
+        out = m.copy()
+        out[1:, :] |= m[:-1, :]
+        out[:-1, :] |= m[1:, :]
+        out[:, 1:] |= m[:, :-1]
+        out[:, :-1] |= m[:, 1:]
+        return out
+
+    def erode(m):
+        out = m.copy()
+        out[1:, :] &= m[:-1, :]
+        out[:-1, :] &= m[1:, :]
+        out[:, 1:] &= m[:, :-1]
+        out[:, :-1] &= m[:, 1:]
+        return out
+
+    closed = erode(dilate(solid))
+    opened = dilate(erode(closed))
+    for y in range(N):
+        for x in range(N):
+            if grid[y, x] in ("R", "S"):
                 continue
-            if grid[y - 1, x] not in ("W", "Y", "C", "N"):
-                continue
-            floor[y, x] = True
-    runs = []
-    used = np.zeros((h, w), dtype=bool)
-    for y in range(h):
-        for x in range(w):
-            if not floor[y, x] or used[y, x]:
-                continue
-            # SLOPE_R: next floor step is (x+1, y-1)
-            if y == 0 or x + 1 >= w or not floor[y - 1, x + 1]:
-                continue
-            cells = [(x, y)]
-            cx, cy = x, y
-            while cx + 1 < w and cy - 1 >= 0 and floor[cy - 1, cx + 1] and not used[cy - 1, cx + 1]:
-                cx += 1
-                cy -= 1
-                cells.append((cx, cy))
-            if len(cells) < 4:
-                continue
-            for cx, cy in cells:
-                used[cy, cx] = True
-                grid[cy, cx] = "S"
-            runs.append({"c": cells[0][0], "r": cells[0][1], "n": len(cells), "kind": "R"})
-    return runs
+            grid[y, x] = "K" if opened[y, x] else "W"
+
+
+def clear_room_interior(grid: np.ndarray, c0: int, r0: int, c1: int, r1: int) -> None:
+    """Strip screenshot crumbs inside a room, leave the walls."""
+    for y in range(r0, r1):
+        for x in range(c0, c1):
+            if grid[y, x] == "K":
+                grid[y, x] = "W"
+
+
+def paint_hill_slope(grid: np.ndarray) -> list[dict]:
+    """Replace jaggy 1-wide stair teeth with one SLOPE_R + a solid wedge."""
+    floors = []
+    for x in range(70, 170):
+        y_found = None
+        for y in range(120, 230):
+            if grid[y, x] == "K" and _is_air(grid[y - 1, x]):
+                y_found = y
+                break
+        if y_found is not None:
+            floors.append((x, y_found))
+    if len(floors) < 8:
+        return []
+    # rising to the right = y drops as x grows
+    xs = [p[0] for p in floors]
+    ys = [p[1] for p in floors]
+    if ys[0] - ys[-1] < 8:
+        return []
+    x0, y0 = floors[0]
+    x1, y1 = floors[-1]
+    n = min(x1 - x0 + 1, y0 - y1 + 1)
+    if n < 8:
+        return []
+    # scrape the old teeth in this band back to a clean wedge
+    for x in range(x0, x0 + n):
+        hyp_r = y0 - (x - x0)
+        for y in range(N):
+            if y < hyp_r and 120 <= y < 230 and 70 <= x < 170:
+                if grid[y, x] == "K":
+                    # don't eat the mid-cave shelf (row ~83)
+                    if y < 120:
+                        continue
+                    if 80 <= y <= 96:
+                        continue
+                    grid[y, x] = "W"
+            elif y > hyp_r and x0 <= x < x0 + n:
+                if y >= 140:
+                    grid[y, x] = "K"
+        if 0 <= hyp_r < N:
+            grid[hyp_r, x] = "S"
+    return [{"c": x0, "r": y0, "n": n, "kind": "R"}]
+
+
+def drop_thin_teeth(grid: np.ndarray) -> None:
+    """1-wide pillars and 1x1 crumbs make the wheel hop every tile."""
+    for _ in range(3):
+        kill = []
+        for y in range(1, N - 1):
+            for x in range(1, N - 1):
+                if grid[y, x] != "K":
+                    continue
+                left = grid[y, x - 1] == "K"
+                right = grid[y, x + 1] == "K"
+                up = grid[y - 1, x] == "K"
+                down = grid[y + 1, x] == "K"
+                n = left + right + up + down
+                if n <= 1:
+                    kill.append((x, y))
+                elif not left and not right and down:
+                    kill.append((x, y))
+        if not kill:
+            break
+        for x, y in kill:
+            grid[y, x] = "W"
+
+
+def encode_cells(grid: np.ndarray, reds: list[dict]) -> list[str]:
+    rows = []
+    for y in range(N):
+        row = []
+        for x in range(N):
+            ch = grid[y, x]
+            if ch == "K":
+                row.append("#")
+            elif ch == "S":
+                row.append("/")
+            else:
+                row.append(".")
+        rows.append(row)
+    for rd in reds:
+        mark = "D" if rd["movable"] else "-"
+        hole = rd.get("hole")
+        for y in range(rd["r"], rd["r"] + rd["h"]):
+            for x in range(rd["c"], rd["c"] + rd["w"]):
+                if 0 <= x < N and 0 <= y < N and rows[y][x] == ".":
+                    if hole and hole["c"] <= x < hole["c"] + hole["w"]:
+                        continue
+                    rows[y][x] = mark
+    return ["".join(r) for r in rows]
+
+
+def nearest_air(grid: np.ndarray, c: int, r: int) -> tuple[int, int]:
+    if _is_air(grid[r, c]) or grid[r, c] == "S":
+        if grid[r, c] != "K":
+            return c, r
+    for rad in range(1, 24):
+        for y in range(r - rad, r + rad + 1):
+            for x in range(c - rad, c + rad + 1):
+                if 0 <= x < N and 0 <= y < N and grid[y, x] not in ("K",):
+                    return x, y
+    return c, r
 
 
 def greedy_solids(grid: np.ndarray) -> list[dict]:
@@ -612,48 +721,54 @@ def main() -> None:
         reds.append({"c": c, "r": r, "w": w, "h": h, "movable": movable})
 
     spawn_c, spawn_r = centroid(max(cyans, key=len))
-    crate_c, crate_r = centroid(max(browns, key=len))
 
-    # markers are air in the collision grid
     for y in range(N):
         for x in range(N):
             if grid[y, x] in ("Y", "C", "N"):
                 grid[y, x] = "W"
 
-    slopes = detect_slopes(grid)
-    # screenshot stairs come out as short runs; stitch into one SLOPE_R
-    if slopes:
-        slopes = [{"c": 97, "r": 198, "n": 48, "kind": "R"}]
-        for y in range(N):
-            for x in range(N):
-                if grid[y, x] == "S":
-                    grid[y, x] = "K"
-        sl = slopes[0]
-        for i in range(sl["n"]):
-            c, r = sl["c"] + i, sl["r"] - i
-            if 0 <= c < N and 0 <= r < N:
-                grid[r, c] = "S"
+    morph_close_open(grid)
+    # right-column rooms: screenshot crumbs become 16px lips the wheel hops
+    clear_room_interior(grid, 211, 8, 240, 46)
+    clear_room_interior(grid, 211, 50, 240, 95)
+    clear_room_interior(grid, 180, 162, 240, 199)
 
-    # brown in the isolated SE alcove was lost to JPEG/UI crop — carve it back
     alcove = {"c": 212, "r": 208, "w": 26, "h": 24}
     for y in range(alcove["r"], alcove["r"] + alcove["h"]):
         for x in range(alcove["c"], alcove["c"] + alcove["w"]):
             if 0 <= x < N and 0 <= y < N and grid[y, x] == "K":
                 grid[y, x] = "W"
-    # shaft from the east corridor down into the alcove
     for y in range(200, alcove["r"] + 1):
         for x in range(220, 228):
             if grid[y, x] == "K":
                 grid[y, x] = "W"
     crate_c, crate_r = 224, 229
 
-    # thin screenshot-blurred red gates so they read as doors, not slabs
+    slopes = paint_hill_slope(grid)
+    drop_thin_teeth(grid)
+
     for rd in reds:
         if not rd["movable"] and rd["h"] > 2:
             rd["r"] = rd["r"] + rd["h"] - 2
-            rd["h"] = 2
+            rd["h"] = 1
+        for y in range(rd["r"], rd["r"] + rd["h"]):
+            for x in range(rd["c"], rd["c"] + rd["w"]):
+                if 0 <= x < N and 0 <= y < N and grid[y, x] == "K":
+                    grid[y, x] = "W"
+        # leave a drop shaft so the wheel is not trapped on a full-width oneway
+        if not rd["movable"] and rd["w"] > 10:
+            hole = 6
+            hx = rd["c"] + (rd["w"] - hole) // 2
+            rd["hole"] = {"c": hx, "w": hole}
+
+    cleaned = []
+    for k in knowls:
+        c, r = nearest_air(grid, k["c"], k["r"])
+        cleaned.append({"c": c, "r": r})
+    knowls = cleaned
 
     solids = greedy_solids(grid)
+    cells = encode_cells(grid, reds)
 
     data = {
         "w": N,
@@ -667,6 +782,7 @@ def main() -> None:
         "spawn": {"c": spawn_c, "r": spawn_r},
         "crate": {"c": crate_c, "r": crate_r},
         "alcove": alcove,
+        "cells": cells,
         "_grid": grid,
     }
 
