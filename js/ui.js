@@ -263,10 +263,16 @@ function startGame(){
       if(_playModeIdx===2){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
       _playerCount=_playModeIdx===0?1:2; _selectStep=1; return;
     }
-    _gameState='game'; _stopBGM('story'); initWorld(); _playBGM('game',OPT.musicVol);
+    _gameState='game'; _stopBGM('story'); initWorld();
+    if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
+    _playBGM('game',OPT.musicVol);
   }
 }
-function _startGameAtZone(idx){ _pendingZone=idx; _gameState='game'; _stopBGM('title'); initWorld(); _playBGM('game',OPT.musicVol); }
+function _startGameAtZone(idx){
+  _pendingZone=idx; _gameState='game'; _stopBGM('title'); initWorld();
+  if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
+  _playBGM('game',OPT.musicVol);
+}
 function _onInteract(e){
   _unlockAudio();
   if(_gameState==='title'){ _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return; }

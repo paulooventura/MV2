@@ -25,6 +25,8 @@ let _titleMusicPath=null,_storyMusicPath=null,_gameMusicPath=null;
 // Web BGM lives in assets/bgm/*.mp3 as regular git files.
 // The WAV masters stay in Git LFS — GitHub Pages cannot serve LFS, so the
 // online build must use these MP3s or it falls back to the PSG chip.
+//
+// Chill → title / story. Dynamic → one locked track per stage (ZONES).
 const NEW_MUSIC_TRACKS=[
   'assets/bgm/canopy-quest-gold.mp3',
   'assets/bgm/cartridge-cannon-bronze.mp3',
@@ -38,15 +40,25 @@ const NEW_MUSIC_TRACKS=[
   'assets/bgm/underground-crown-plat.mp3',
   'assets/bgm/cache-fever-gold.mp3',
 ];
+/** Soft / openers — title screen + storybook only. */
 const TITLE_MUSIC_TRACKS=[
   'assets/bgm/crystal-memory-gate.mp3',
-  'assets/bgm/cache-fever-gold.mp3',
   'assets/bgm/temple-canopy-drift.mp3',
+  'assets/bgm/lost-save-shrine-diam.mp3',
 ];
 const STORY_MUSIC_TRACKS=[
   'assets/bgm/lost-save-shrine-story.mp3',
   'assets/bgm/underground-crown-plat.mp3',
   'assets/bgm/lost-save-shrine-diam.mp3',
+];
+/** One dynamic stage theme per ZONES index (loop; do not shuffle mid-run). */
+const ZONE_MUSIC_TRACKS=[
+  'assets/bgm/canopy-quest-gold.mp3',           // 0 Awdjoo Town
+  'assets/bgm/cartridge-cannon-bronze.mp3',     // 1 Gauder Hills
+  'assets/bgm/underground-crown-gold.mp3',      // 2 Knowl's Secret Garden
+  'assets/bgm/crystal-cavern-drift-gold.mp3',   // 3 Corali Cavern
+  'assets/bgm/cache-fever-gold.mp3',            // 4 Alitek Factory
+  'assets/bgm/pixel-quasar-gold-boss.mp3',      // 5 Tradzkul's Lair
 ];
 
 // ── Zone definitions (also used by PSG sequencer) ───────────
@@ -69,12 +81,21 @@ function _pickFromPool(pool,except){
   return pick;
 }
 function _pickRandomNewMusic(except){ return _pickFromPool(NEW_MUSIC_TRACKS,except); }
-function _pickTitleMusic(except){ return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickRandomNewMusic(except); }
-function _pickStoryMusic(except){ return _pickFromPool(STORY_MUSIC_TRACKS,except)||_pickRandomNewMusic(except); }
+function _pickTitleMusic(except){ return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
+function _pickStoryMusic(except){ return _pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except); }
+function _zoneMusicPath(idx){
+  const i=Math.max(0,Math.min(ZONE_MUSIC_TRACKS.length-1,(idx!=null?idx:_zoneIdx)|0));
+  return ZONE_MUSIC_TRACKS[i]||ZONE_MUSIC_TRACKS[0];
+}
+function _pickGameMusic(except){
+  const path=_zoneMusicPath(typeof _zoneIdx!=='undefined'?_zoneIdx:0);
+  if(path&&path!==except) return path;
+  return path||_pickFromPool(ZONE_MUSIC_TRACKS,except);
+}
 function _pickBgmPath(type,except){
   if(type==='title') return _pickTitleMusic(except);
   if(type==='story') return _pickStoryMusic(except);
-  return _pickRandomNewMusic(except);
+  return _pickGameMusic(except);
 }
 function _bgmVolFor(type){
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
@@ -106,18 +127,9 @@ function _stopAllBgm(){
 }
 function _wireBgmElement(type,el){
   if(el._mvEndedFn) el.removeEventListener('ended',el._mvEndedFn);
-  el.loop=(type==='title'||type==='story');
-  if(type==='title'||type==='story') return;
-  const onEnded=()=>{
-    if(_activeBgmType!==type) return;
-    const prev=_gameMusicPath;
-    const next=_pickRandomNewMusic(prev);
-    if(!next) return;
-    _loadBgmElement(type,next);
-    _playBGM(type,_bgmVolFor(type));
-  };
-  el._mvEndedFn=onEnded;
-  el.addEventListener('ended',onEnded);
+  // Title/story + zone stage themes all loop. Never shuffle into a random OST mid-stage.
+  el.loop=true;
+  el._mvEndedFn=null;
 }
 function _loadBgmElement(type,path){
   if(!path) return null;
@@ -154,8 +166,9 @@ function _onBgmTrackError(type,failedPath){
   if(_activeBgmType===type) _playBGM(type,_bgmVolFor(type));
 }
 function _pickAndSetGameMusic(){
-  const path=_pickRandomNewMusic(_gameMusicPath);
+  const path=_pickGameMusic(_gameMusicPath);
   if(!path) return;
+  if(path===_gameMusicPath&&_gameAudioEl) return;
   _loadBgmElement('game',path);
 }
 
@@ -170,7 +183,7 @@ function ga(){return _ensureAC();}
 function _preloadMp3Tracks(){
   if(!_titleMusicPath) _loadBgmElement('title',_pickTitleMusic());
   if(!_storyMusicPath) _loadBgmElement('story',_pickStoryMusic(_titleMusicPath));
-  if(!_gameMusicPath)  _loadBgmElement('game', _pickRandomNewMusic(_storyMusicPath));
+  if(!_gameMusicPath)  _loadBgmElement('game', _pickGameMusic(_storyMusicPath));
 }
 function _unlockAudio(){
   if(_audioUnlocked){
@@ -343,7 +356,7 @@ function _playBGM(type,vol=0.7){
     if(playGen!==_bgmPlayGen||_activeBgmType!==type) return;
     if(type==='game'&&_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
     else if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
-    el.loop=(type==='title'||type==='story');
+    el.loop=true;
     el.currentTime=0;
     el.playbackRate=1;
     el.volume=Math.max(0,Math.min(1,vol));

@@ -888,6 +888,19 @@ function update(){
   if(p._pRecoil>0)p._pRecoil--;
   if(p.inv>0)p.inv=0;if(p.landF>0)p.landF--;if(p.flashF>0)p.flashF--;if(p._groundHold>0)p._groundHold--;
   if(p.fireRecoil>0){const recoilDecay=(p._lastRecoilMax||6)>=18?1.35:1;p.fireRecoil=Math.max(0,p.fireRecoil-recoilDecay);}
+  // Ally / P2 share drawCharacter's flash flicker — if flashF never decays, the
+  // sprite early-returns forever while AI/shots keep running (story-mode vanish).
+  if(p2){
+    if(p2.landF>0)p2.landF--;
+    if(p2.flashF>0)p2.flashF--;
+    if(p2.fireRecoil>0){
+      const r2=(p2._lastRecoilMax||6)>=18?1.35:1;
+      p2.fireRecoil=Math.max(0,p2.fireRecoil-r2);
+    }
+    if(p2.pt>0)p2.pt--; else p2._hitDone=false;
+    if(p2.pCd>0)p2.pCd--;
+    if(p2._pRecoil>0)p2._pRecoil--;
+  }
 
   // ── HP / heal frac ────────────────────────────────────────────
   if(p.hp!==p._prevHp){

@@ -73,7 +73,8 @@ Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map
   helps when the lead is hurt. Select copy: “ALLY JOINS YOU”.
 - Gamepad: **A jump · X item action · Y item select · B punch** (`js/save.js`
   `BIND_LABELS`). Keyboard still Space / Q / E / F.
-- Selftest **PASS** on build 159 (`npm run selftest` / `selftest:quick`).
+- Selftest **PASS** on build 160 (`npm run selftest` / `selftest:quick`).
+- Story ally: `flashF` now decays on `p2` so the sprite no longer vanishes after the first TRS shot.
 
 ### Labs — experiments, not the campaign
 
@@ -95,9 +96,10 @@ Never replace Awdjoo until Wall says **promote**.
   (`ldtk-lab.html?ab=f`, `js/ldtk_loader.js`) is the promote-later path.
   Lab E still has a generated `.ldtk` / `.tmj` under `assets/sketches/` from
   a Piskel screenshot (different IntGrid; do not reuse it as the identity map).
-- Companion can still **vanish or overlap** the lead (pool resolve is player-only;
+- Companion can still **overlap** the lead (pool resolve is player-only;
   leash/respawn needs work). Wall wants: never disappear, never occupy the same
-  body as the player.
+  body as the player. Vanish-after-first-shot was a stuck `p2.flashF` flicker
+  (fixed in build 160).
 - RCA hook should latch **blocks, enemies, moving objects** and pull by **mass**
   (light object comes to you; wall yanks you). Current hook mostly moves the
   player; home bwalls are skipped until shoved.
@@ -223,7 +225,20 @@ Do not invent a new tilesheet if these exist.
 | `assets/story/story-1.png` … `story-5.png` | Story pages |
 | `assets/sketches/piskel-cave.png` | Lab E classified 256 sketch |
 | `assets/SFX/` | Jump, hit, knowl, grapple, shutdown |
-| `assets/bgm/` + `assets/new music/` | OST (zone-named tracks) |
+| `assets/bgm/` + `assets/new music/` | OST — chill for title/story; one dynamic track per zone (`ZONE_MUSIC_TRACKS` in `js/audio.js`) |
+
+**Soundtrack map (build 160):**
+
+| Slot | Track |
+|------|-------|
+| Title (chill pool) | Crystal Memory Gate · Temple Canopy Drift · Lost Save Shrine Diam |
+| Story (chill pool) | Lost Save Shrine Story · Underground Crown Plat · Lost Save Shrine Diam |
+| Zone 0 Awdjoo | Canopy Quest Gold |
+| Zone 1 Gauder Hills | Cartridge Cannon Bronze |
+| Zone 2 Secret Garden | Underground Crown Gold |
+| Zone 3 Corali Cavern | Crystal Cavern Drift Gold |
+| Zone 4 Alitek Factory | Cache Fever Gold |
+| Zone 5 Tradzkul’s Lair | Pixel Quasar Gold Boss |
 
 Characters (Mind / Venture / wheel / hats) are **drawn in code** in
 `js/render.js`, not a sprite sheet. `_drawVentureCap` is the hat rule.
@@ -345,7 +360,7 @@ Characters are studio monitors on a wheel. Items are TRS/RCA/XLR/MAG.
 Lore: Knowl tree, Tradzkul, path town → hills → garden → cavern →
 factory → lair. Only town is mapped.
 
-Current build 159 / MOVE 59. Open work: companion never vanish/overlap;
+Current build 160 / MOVE 59. Open work: companion never overlap the lead;
 RCA mass-based hook; later zones; LDtk loader is lab F, not live.
 
 Do the task I give next. Stay in one module when you can.
