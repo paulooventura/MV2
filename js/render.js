@@ -636,11 +636,16 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     _connPx(30,-7,7,14,'#5a5e66');
     _connPx(31,-6,5,3,'#8a8e96');
     _connPx(31,4,5,2,'#2a2e34');
+    // Male XLR: the metal shroud runs past the insert and three silver pins stick out of it.
     const fx=40;
-    _connPx(37,-6,6,12,'#4a4e56');
-    [[fx,-3.2],[fx-2.4,3.4],[fx+2.4,3.4]].forEach(([px,py2])=>{
-      ctx.beginPath();ctx.ellipse(px,py2,1.35,1.7,0,0,Math.PI*2);ctx.fillStyle='#0a0a0f';ctx.fill();
-      ctx.beginPath();ctx.ellipse(px-0.2,py2-0.35,0.4,0.5,0,0,Math.PI*2);ctx.fillStyle='#6a6e76';ctx.fill();
+    _connPx(37,-6,3,12,'#1a1c22');                 // insert face (dark)
+    _connPx(37,-8,10,2.4,'#8a8e96');               // shroud rims, open at the front
+    _connPx(37,5.6,10,2.4,'#5a5e66');
+    _connPx(46,-8,1.4,2.4,'#b0b4bc'); _connPx(46,5.6,1.4,2.4,'#7a7e86');
+    [[-3.6,8.6],[0,9.4],[3.6,8.6]].forEach(([py2,len])=>{
+      _connPx(40,py2-0.9,len*0.62,1.8,'#c8ccd4');  // pin
+      _connPx(40,py2-0.9,len*0.62,0.6,'#f0f2f6');
+      ctx.beginPath();ctx.arc(40+len*0.62,py2,0.9,0,Math.PI*2);ctx.fillStyle='#e2e6ec';ctx.fill();
     });
     if(enh){
       _drawGreenVeins([

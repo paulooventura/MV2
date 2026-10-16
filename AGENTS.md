@@ -76,6 +76,29 @@ Quick mode (~40s): `npm run selftest:quick`
 
 **Demo level:** `demo_level.js` seeds 3 knowls, 2 mind-enemies, 1 minion, and an east exit when the map is sparse. Collect all knowls → exit opens → reach exit to advance.
 
+### Physics referee (can MIND beat the level?)
+
+```bash
+npm run reachcheck
+```
+
+Boots Awdjoo headless, loads `js/reach_check.js` (not in `index.html` — the live
+game is untouched) and replays MIND's real movement through the game's own
+`gridResolvePlayer`: walk, jumps (hold length, run-up, air steer, duck super
+jump), chained wall jumps, and the RCA hook once it is picked up. Reports
+whether the RCA, every Knowl and the exit are reachable, dead ends you can fall
+into but never get back to the exit from, and wedge spots where the wheel is
+shoved back with no wall in front.
+
+- `test-results/reach-summary.txt` — one screen
+- `test-results/reach-map.png` — green no items · orange needs RCA · red never
+  reached · purple dead end · yellow box wedge · blue exit
+- `test-results/reach.json` — full report
+- Exit **0** = beatable, no dead ends. In-page: `MV_REACH.check()` /
+  `MV_REACH.drawMap(result)` for any map loaded into the typed grid (generated
+  levels included).
+- Use an existing Chrome: `MV_CHROME=/path/to/chrome npm run reachcheck`.
+
 Manual visual check only when needed: `PLAY.bat` **once** (opens **one** tab).
 **Never** `python -m http.server 8765`, never Simple Browser to `:8765`, never
 a second `PLAY.bat` while one is running — each tab plays its own BGM.
@@ -95,6 +118,7 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
+| **G** | Awdjoo Level 1 beta from Paulo's pen sketch (`assets/levels/awdjoo-beta.ldtk`; rules + cubes `js/beta_level.js`, feel + XLR launch/hover + hook `js/beta_feel.js`, look + choir `js/beta_decor.js`; rebuild with `python3 scripts/build-awdjoo-beta.py`; `npm run reachcheck:beta`; standalone page `play-beta.html`) | `beta-lab.html?ab=g` |
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 

@@ -1,0 +1,55 @@
+<title>Awdjoo L1 Beta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Single dark look, matching the MV2 lab pages: arcade cabinet black, studio purple, Knowl gold. */
+:root{
+  --bg:#04020a; --panel:#0a0618; --fg:#c8c0d8; --dim:#7868a0; --gold:#f0d070; --line:#1a1a30;
+  --mono:ui-monospace,Consolas,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--mono);text-align:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px}
+h1{font-size:15px;color:var(--gold);letter-spacing:.08em;margin:4px 0 2px;text-wrap:balance}
+#mvVer,#inf{padding:4px;font-size:12px}
+#helpLine{color:var(--dim);font-size:12px;padding:2px 0 8px;max-width:72ch;margin:0 auto}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:12px;color:var(--dim);padding-bottom:8px}
+.keys b{color:var(--fg);font-weight:600}
+#gameWrap{max-width:100%}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;max-width:100%;height:auto;border:1px solid var(--line);
+  cursor:crosshair;touch-action:none;background:var(--bg)}
+canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+</style>
+<script>window.MV_BUILD='160'; window.MV_BETA_LAB=1;</script>
+<h1>AWDJOO TOWN · LEVEL 1 · THE JOURNEY BEGINS (BETA)</h1>
+<div id="helpLine">3 Knowl crystals + 6 Knowl seeds open the arch. Click the game once to start the sound.</div>
+<div class="keys">
+  <span><b>A/D ←/→</b> move</span><span><b>Space</b> jump (hold S first for a super jump)</span>
+  <span><b>Q</b> use item</span><span><b>E</b> switch item</span><span><b>F</b> punch</span><span><b>W/S</b> reel the RCA</span>
+</div>
+<div id="mvVer"></div>
+<div id="gameWrap"><canvas id="c" width="1024" height="768" tabindex="0"></canvas></div>
+<div id="inf"></div>
+<script src="js/save.js"></script>
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/collision_grid.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/player.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/render.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/map_edit.js"></script>
+<script src="js/spawn_fix.js"></script>
+<script src="js/awdjoo_level.js"></script>
+<script src="js/healthwatch.js"></script>
+<script src="js/awdjoo_map.js"></script>
+<script src="js/main.js"></script>
+<script src="js/item_lab.js"></script>
+<script src="js/physics_lab.js"></script>
+<script src="js/ldtk_loader.js"></script>
+<script src="js/beta_decor.js"></script>
+<script src="js/beta_level.js"></script>
+<script src="js/beta_feel.js"></script>

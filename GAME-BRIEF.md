@@ -88,6 +88,7 @@ Never replace Awdjoo until Wall says **promote**.
 | D | `physics-lab.html?ab=d` | Slopes, coast, pass-ramps, omniblock door |
 | E | `sketch-lab.html?ab=e` | Piskel 256 cave sketch (screenshot extract) |
 | F | `ldtk-lab.html?ab=f` | LDtk → typed grid (promote-later path; not live) |
+| G | `beta-lab.html?ab=g` | Awdjoo Level 1 beta from Wall's pen sketch: arch needs 3 Knowl crystals + 6 seeds; grid cubes with gravity (omni = punch/laser/push/pull/carry, push = XLR, pull = MAG, wedged trapdoors), labelled item crates, MAG carry + throw, XLR floor launch/hover, turtle head-tuck, wall + wheel bounce, giant Knowl tree with proximity choir |
 
 ### Not done / do not pretend it is
 

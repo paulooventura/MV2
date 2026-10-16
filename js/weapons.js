@@ -153,13 +153,15 @@ function _debrisCollide(d){
 }
 function _damageBwall(bw,kind,fx){
   if(!bw||bw.hp<=0) return;
+  if(bw.only==='laser'&&!(typeof kind==='string'&&kind.indexOf('laser')===0)) return;   // TRS-only block
+  if(bw.only==='push'||bw.only==='pull') return;   // push / pull blocks: punches and lasers don't break or shove them
   fx=fx||{};
   if(_isRedBwall(bw)){
     const pct=typeof kind==='string'?(RED_BWALL_DMG[kind]||0):kind;
     if(pct<=0) return;
     bw.hp=Math.max(0,bw.hp-pct);
     bw.cracked=bw.hp<bw.maxHp;
-    if(bw.movable){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }
+    if(bw.movable&&!bw.noKnock){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }   // noKnock: hits wear it down, only XLR/MAG move it
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
     bw.hitGlow=16;
     spawnDebris(bw,4+Math.ceil(pct/15)); sfx('omniblock_chip');
@@ -428,6 +430,22 @@ function _carryPlayersOnBwall(bw,dx,dy){
     pl.x=Math.max(0,Math.min(WW-SW,pl.x));
   }
 }
+// rehome: a block that was moved and has come to rest snaps to its grid cell,
+// makes that cell its new home and goes back to sleep (no physics cost while idle).
+function _bwallRehomeAtRest(bw){
+  const still=bw.og&&!bw._magStuck&&!bw._homing&&Math.abs(bw.vx||0)<0.15&&Math.abs(bw.vy||0)<0.15&&!(bw._tumbleT>0);
+  if(!still){ bw._restF=0; return; }
+  if((bw._restF=(bw._restF||0)+1)<20) return;
+  bw._restF=0;
+  const t=(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
+  const c=Math.round(bw.x/t), r=Math.round(bw.y/t);
+  if(typeof gridSolid==='function'&&gridSolid(c,r)&&!(c===bw.homeCol&&r===bw.homeRow)) return;   // cell taken, keep resting
+  if(_bwallOverlapsPlayer(bw,p)||(p2&&_bwallOverlapsPlayer(bw,p2))) return;
+  if(typeof gridOpenBwallHole==='function') gridOpenBwallHole(bw);
+  bw.x=c*t; bw.y=r*t; bw.homeX=bw.x; bw.homeY=bw.y; bw.homeCol=c; bw.homeRow=r;
+  bw.vx=0; bw.vy=0; bw.spin=0; bw.rot=0; bw._awake=false;
+  if(typeof gridFillBwallHole==='function') gridFillBwallHole(bw);
+}
 function updateBWalls(){
   for(const bw of BWALLS){
     if(!bw.debris) bw.debris=[];
@@ -443,7 +461,7 @@ function updateBWalls(){
           &&Math.abs(bw.vx)<0.15&&Math.abs(bw.vy)<0.15&&bw.og&&!(bw._tumbleT>0)
           &&!_bwallOverlapsPlayer(bw,p)&&!(p2&&_bwallOverlapsPlayer(bw,p2))){
           bw._awake=false; bw.x=bw.homeX; bw.y=bw.homeY; bw.vx=0; bw.vy=0; bw.spin=0; bw.rot=0;
-        }
+        }else if(bw.rehome) _bwallRehomeAtRest(bw);
       }
     }
     if(bw.hitGlow>0) bw.hitGlow--;
@@ -700,7 +718,10 @@ function _resolvePoolBodies(){
         const nx=horiz?(A.x+A.w*0.5<=B.x+B.w*0.5?-1:1):0;
         const ny=horiz?0:(A.y+A.h*0.5<=B.y+B.h*0.5?-1:1);
         const pen=horiz?overlapX:overlapY;
-        const aHold=!!A.a._magStuck, bHold=!!B.a._magStuck;
+        // Push-only / pull-only blocks don't get shoved by bodies: only their item moves them.
+        const aKey=A.kind==='box'&&(A.a.only==='push'||A.a.only==='pull');
+        const bKey=B.kind==='box'&&(B.a.only==='push'||B.a.only==='pull');
+        const aHold=!!A.a._magStuck||aKey, bHold=!!B.a._magStuck||bKey;
         const aPlayer=A.kind==='player', bPlayer=B.kind==='player';
         if((aHold&&bPlayer)||(bHold&&aPlayer)) continue;
         const mA=(aHold||aPlayer)?1e9:A.mass, mB=(bHold||bPlayer)?1e9:B.mass;
@@ -760,6 +781,7 @@ function updateXLR(){
   }
   for(const bw of BWALLS){
     if(bw.hp<=0||!bw.movable) continue;
+    if(bw.only==='pull') continue;               // pull-only box: XLR can't move it
     const f=_applyPush(bw.x+bw.w/2,bw.y+bw.h/2,bw);
     if(f){_wakeBwall(bw);bw.vx=(bw.vx||0)+f.fx;bw.vy=(bw.vy||0)+f.fy;}
   }
@@ -836,6 +858,7 @@ function updateMAG(){
   }
   for(const bw of BWALLS){
     if(bw.hp<=0||!bw.movable) continue;
+    if(bw.only==='push') continue;               // push-only box: MAG can't grab it
     consider(bw,'box',bw.x+bw.w/2,bw.y+bw.h/2,bw.w,bw.h);
   }
   for(const m of MPLAT){

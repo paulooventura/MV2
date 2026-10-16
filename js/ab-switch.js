@@ -1,8 +1,9 @@
 /* MV2 A/B switcher — never overwrite A with an experiment.
    A = live Awdjoo. B = clean-collision. C = item lab. D = physics lab.
-   E = Piskel cave. F = LDtk loader lab.
+   E = Piskel cave. F = LDtk loader lab. G = Awdjoo Level 1 beta (pen sketch).
    Bookmark: index.html?ab=a | clean-collision-core.html?ab=b | item-lab.html?ab=c
              physics-lab.html?ab=d | sketch-lab.html?ab=e | ldtk-lab.html?ab=f
+             beta-lab.html?ab=g
 */
 (function () {
   var page = (document.documentElement.getAttribute('data-ab') || 'a').toLowerCase();
@@ -14,7 +15,8 @@
   if (want === 'd' && page !== 'd') { location.replace('physics-lab.html?ab=d'); return; }
   if (want === 'e' && page !== 'e') { location.replace('sketch-lab.html?ab=e'); return; }
   if (want === 'f' && page !== 'f') { location.replace('ldtk-lab.html?ab=f'); return; }
-  try { localStorage.setItem('mv_ab', 'abcdef'.indexOf(want) >= 0 ? want : page); } catch (e) {}
+  if (want === 'g' && page !== 'g') { location.replace('beta-lab.html?ab=g'); return; }
+  try { localStorage.setItem('mv_ab', 'abcdefg'.indexOf(want) >= 0 ? want : page); } catch (e) {}
 
   var css = document.createElement('style');
   css.textContent =
@@ -39,7 +41,8 @@
     '<a class="' + (page === 'c' ? 'on' : '') + '" href="item-lab.html?ab=c">C · Item lab</a>' +
     '<a class="' + (page === 'd' ? 'on' : '') + '" href="physics-lab.html?ab=d">D · Physics lab</a>' +
     '<a class="' + (page === 'e' ? 'on' : '') + '" href="sketch-lab.html?ab=e">E · Piskel cave</a>' +
-    '<a class="' + (page === 'f' ? 'on' : '') + '" href="ldtk-lab.html?ab=f">F · LDtk</a>';
+    '<a class="' + (page === 'f' ? 'on' : '') + '" href="ldtk-lab.html?ab=f">F · LDtk</a>' +
+    '<a class="' + (page === 'g' ? 'on' : '') + '" href="beta-lab.html?ab=g">G · L1 beta</a>';
 
   function mount() {
     if (!document.body || document.getElementById('mvAbBar')) return;

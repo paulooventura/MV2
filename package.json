@@ -8,7 +8,9 @@
     "selftest:watch": "node scripts/watch-selftest.mjs",
     "selftest:summary": "node scripts/print-report.mjs",
     "play": "node scripts/play-local.mjs",
-    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-play.ps1"
+    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-play.ps1",
+    "reachcheck": "node scripts/reach-check.mjs",
+    "reachcheck:beta": "node scripts/reach-check.mjs --beta"
   },
   "devDependencies": {
     "playwright": "^1.52.0"
