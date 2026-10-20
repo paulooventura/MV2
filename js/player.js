@@ -23,7 +23,7 @@ window.addEventListener('keydown',e=>{
      _gameState==='options'||_gameState==='levels'||_gameState==='stagedesign'||
      _gameState==='cutscene'||_gameState==='tutorial') return;
   const _isArrow=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code);
-  const _isP2Action=['Numpad1','Numpad2','Numpad3'].includes(e.code);
+  const _isP2Action=['Numpad0','Numpad1','Numpad2','Numpad3'].includes(e.code);
   if(_playerCount===2&&(_isArrow||_isP2Action)){
     if(!K2[e.code]) Kj2[e.code]=true;
     K2[e.code]=true; e.preventDefault(); return;
@@ -37,7 +37,7 @@ window.addEventListener('keydown',e=>{
   ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
-  if(_playerCount===2&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Numpad1','Numpad2','Numpad3'].includes(e.code)){
+  if(_playerCount===2&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Numpad0','Numpad1','Numpad2','Numpad3'].includes(e.code)){
     K2[e.code]=false; return;
   }
   K[e.code]=false;
@@ -175,8 +175,9 @@ function readGamepad(){
     _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)});
   }
   if(_gameState==='select'){
-    if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
-    if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
+    const nModes=window.MV_SELECT_MODES||3;
+    if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+nModes-1)%nModes; else _heroChoice='mind'; }
+    if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%nModes; else _heroChoice='venture'; }
   }
   [0,1,2,3,4,9,12,13,14,15].forEach(i=>GP.prev[i]=pressed(i));
 }

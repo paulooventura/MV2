@@ -21,7 +21,7 @@ const pg = await b.newPage({ viewport: { width: 1100, height: 1000 } });
 const errs = [], steps = [];
 pg.on('pageerror', e => errs.push(e.message));
 const gs = () => pg.evaluate(() => ({ gs: _gameState, paused: _paused, stage: window.MV_BETA && MV_BETA.on ? MV_BETA.stageId : null }));
-const shot = n => pg.locator('#c').screenshot({ path: `${out}/${n}.png` });
+const shot = n => pg.screenshot({ path: `${out}/${n}.png`, timeout: 20000 }).catch(e => console.log('  .. screenshot skipped', n, e.message.split('\n')[0]));
 const key = async (k, wait = 120) => { await pg.keyboard.press(k); await pg.waitForTimeout(wait); };
 const expect = async (name, fn) => { const s = await gs(); const ok = fn(s); steps.push([name, ok ? 'ok' : 'FAIL', s]); return ok; };
 
@@ -41,11 +41,22 @@ await key('ArrowDown'); await key('Enter'); await expect('OPTIONS opens', s => s
 await key('Escape'); await expect('options back to title', s => s.gs === 'title');
 await key('ArrowUp'); await key('Enter'); await expect('STORY MODE', s => s.gs === 'story');
 for (let i = 0; i < 5; i++) await key('Space', 200);
+const ev = f => pg.evaluate(f);
+const check = (name, ok, info) => steps.push([name, ok ? 'ok' : 'FAIL', info]);
+await expect('story ends on WHO PLAYS', s => s.gs === 'select');
+const modes = [];
+for (let i = 0; i < 4; i++) { modes.push(await ev(() => _playModeIdx)); await key('ArrowRight'); }
+check('mode select: 1 PLAYER, CO-OP, VS, ONLINE (wraps)', modes.join() === '0,1,2,3' && (await ev(() => _playModeIdx)) === 0, modes);
+await key('ArrowLeft'); await key('Enter');
+check('ONLINE says coming soon, stays on the mode cards', await ev(() => _gameState === 'select' && _selectStep === 0 && /ONLINE/.test(_uiToast)), null);
+await key('ArrowRight'); await shot('5a-modes');
+await key('Enter'); await key('ArrowRight'); await shot('5b-hero');
+await key('ArrowLeft'); await key('Enter', 200);
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && MV_BETA.stageId === '1.1' && _gameState === 'game', null, { timeout: 12000 }).catch(() => {});
 await pg.waitForTimeout(1200);
 await expect('story lands in 1.1', s => s.gs === 'game' && s.stage === '1.1');
-const ev = f => pg.evaluate(f);
-const check = (name, ok, info) => steps.push([name, ok ? 'ok' : 'FAIL', info]);
+const solo = await ev(() => ({ mode: MV_PARTY.mode, hero: p.hero, ally: !!(p2 && p2._aiCompanion), allyHero: p2 && p2.hero, d: p2 ? Math.round(Math.abs(p2.x - p.x)) : -1 }));
+check('1 PLAYER: the other sibling joins as the ally, next to you', solo.mode === 'solo' && solo.hero === 'mind' && solo.ally && solo.allyHero === 'venture' && solo.d < 80, solo);
 
 // full-window picture: canvas is the biggest 4:3 that fits; no title / help / desktop pads
 const lay = await ev(() => { const r = document.getElementById('c').getBoundingClientRect(); const vis = id => { const e = document.getElementById(id); return !!e && e.offsetParent !== null; };
@@ -110,7 +121,7 @@ await pg.waitForTimeout(1200); await key('Enter', 300);
 await expect('Start powers back on', s => s.gs === 'splash');
 
 // ── water play: MAG holds water, XLR blows air, the Isolator bubble, rope sweep ──
-await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.2`, { waitUntil: 'load' });
+await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.2&party=none`, { waitUntil: 'load' });
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && MV_BETA.waters && MV_BETA.waters.length, null, { timeout: 15000 }).catch(() => {});
 const frames = n => pg.evaluate(n => new Promise(r => { const f0 = fr; const t = () => (fr - f0 >= n ? r() : requestAnimationFrame(t)); t(); }), n);
 const wsetup = await ev(() => {
@@ -197,6 +208,53 @@ const rope = await ev(() => {
   return null;
 });
 check('rope: moving throw latches on a surface it sweeps through', rope && !rope.still && rope.moving && rope.near, rope);
+
+// ── two siblings: 1P ally flies back in, co-op no friendly fire, VS hits + shutdown ──
+const party = async q => {
+  await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1&party=${q}`, { waitUntil: 'load' });
+  await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && p2, null, { timeout: 15000 }).catch(() => {});
+  await ev(() => { MV_BETA.popup = null; ENEMS.length = 0; ESHOTS.length = 0; });
+  await pg.focus('#c');
+  log(q + ' ' + JSON.stringify(await ev(() => ({ gs: _gameState, fr, p2: !!p2, paused: _paused, res: !!MV_BETA.results, trans: !!MV_BETA.trans }))));
+};
+const ticks = n => pg.evaluate(n => new Promise(r => { const f0 = fr, t0 = Date.now(); const t = () => (fr - f0 >= n || Date.now() - t0 > 15000 ? r() : setTimeout(t, 5)); t(); }), n);
+const log = m => console.log('  ..', m);
+const shootAt = (who, target) => pg.evaluate(([who, target]) => { const s = who === 1 ? p : p2, t = target === 1 ? p : p2, h = playerCoreHB(t);
+  p.shots.push({ x: h.x + h.w / 2, y: h.y + h.h / 2, vx: 0.5, vy: 0, life: 40, owner: s.hero, born: fr, tracer: [] }); }, [who, target]);
+
+await party('solo');
+await ev(() => { p.x += 700; });
+await pg.waitForFunction(() => p2._flyIn, null, { timeout: 8000 }).catch(() => {});
+const flying = await ev(() => !!p2._flyIn);
+await pg.waitForFunction(() => !p2._flyIn, null, { timeout: 30000 }).catch(() => {});
+const landed = await ev(() => ({ fly: !!p2._flyIn, d: Math.round(Math.hypot(p2.x - p.x, p2.y - p.y)) }));
+check('1P: left behind, the ally flies back in from above and lands by you', flying && !landed.fly && landed.d < 120, { flying, ...landed });
+
+await party('coop');
+const co = await ev(() => ({ n: _playerCount, ai: !!p2._aiCompanion, hp: p.hp }));
+await shootAt(2, 1); await ticks(3);
+check('CO-OP: P2 is a player, its shots never hurt P1', co.n === 2 && !co.ai && (await ev(() => p.hp)) === co.hp, co);
+const x0 = await ev(() => ({ a: p.x, b: p2.x }));
+await pg.keyboard.down('ArrowLeft'); await ticks(30); await pg.keyboard.up('ArrowLeft');
+const x1 = await ev(() => ({ a: p.x, b: p2.x }));
+check('CO-OP: arrows drive P2, not P1', x1.b < x0.b - 20 && Math.abs(x1.a - x0.a) < 4, { x0, x1 });
+await ev(() => { _unlockedMask = 0b1101; ITEM = 0; p2.item = 0; Kj2.Numpad3 = true; }); await ticks(2);
+check('CO-OP: P2 swaps its own item (P1 keeps theirs)', await ev(() => p2.item === 2 && ITEM === 0), await ev(() => ({ p2: p2.item, p1: ITEM })));
+
+await party('vs');
+const vs0 = await ev(() => ({ hp2: p2.hp, d: Math.round(Math.abs(p2.x - p.x)), score: MV_PARTY.score.slice() }));
+await shootAt(1, 2); await ticks(3);
+const vs1 = await ev(() => ({ hp2: p2.hp, shots: p.shots.length }));
+check('VS: spawn side by side, P1 shot hurts P2', vs0.d < 90 && vs1.hp2 < vs0.hp2, { vs0, vs1 });
+await ev(() => { p2._pvpInv = 0; p.x = p2.x - 40; p.fc = true; p._pvpInv = 0; p2.fc = false; Kj2.Numpad2 = true; }); await ticks(2);
+check('VS: P2 punch hurts P1', await ev(() => p.hp < p.maxHp), await ev(() => p.hp));
+await ev(() => { p2.hp = 5; p2._pvpInv = 0; }); await shootAt(1, 2); await ticks(3);
+const ko = await ev(() => ({ off: p2._offT, hp: p2.hp, score: MV_PARTY.score.slice() }));
+await shot('13-vs-shutdown');
+check('VS: 0 HP shuts the rival down and scores for the attacker', ko.off > 0 && ko.score[0] === 1, ko);
+await ev(() => { p2._offT = Math.min(p2._offT, 3); });
+await pg.waitForFunction(() => !p2._offT, null, { timeout: 30000 }).catch(() => {});
+check('VS: the shut-down sibling reboots with full HP', await ev(() => !p2._offT && p2.hp === (p2.maxHp || 100)), await ev(() => ({ off: p2._offT, hp: p2.hp })));
 
 // ── PC widescreen: the picture takes the monitor's shape, all of it visible ──
 for (const [vw, vh] of [[1600, 900], [1920, 940], [1280, 1000]]) {

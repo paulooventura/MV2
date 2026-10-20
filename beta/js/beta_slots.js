@@ -40,7 +40,8 @@
     const stage=why==='clear'&&here&&here.next?here.next:B.stageId;
     const order=Object.keys(L);
     slots[active]={stage, mask:(typeof _unlockedMask!=='undefined'?_unlockedMask:B.carryMask)|0, iso:!!(B.isoOwned||B.hasIsolator),
-      saves:clone(B.saves||{}), progress:Math.max(B.progress||0, order.indexOf(stage)), ts:Date.now()};
+      saves:clone(B.saves||{}), progress:Math.max(B.progress||0, order.indexOf(stage)), ts:Date.now(),
+      party:window.MV_PARTY?MV_PARTY.save():null};
     persist(); savedT=150;
   }
   function hookLevel(){ if(window.MV_BETA) MV_BETA.onSavePoint=savePoint; else requestAnimationFrame(hookLevel); }
@@ -52,6 +53,7 @@
     if(typeof _stopBGM==='function') try{ _stopBGM('title'); }catch(e){}
     B.results=null; B.popup=null; B.trans=null;
     B.saves=clone(s.saves||{}); B.isoOwned=!!s.iso; B.progress=s.progress||0;
+    if(window.MV_PARTY) MV_PARTY.load(s.party);
     if(B.LEVELS&&B.LEVELS[s.stage]&&!B.LEVELS[s.stage].next) delete B.saves[s.stage];   // the last stage replays from its start
     startBetaLab(s.stage, s.mask, {}).then(()=>{ const c=document.getElementById('c'); if(c&&c.focus) c.focus(); }).catch(err=>console.error('journey load failed',err));
   }

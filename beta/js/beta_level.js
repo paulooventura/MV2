@@ -312,6 +312,7 @@
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
     _shutdownTimer=0; _gameOver=false; _playerShutCount=0; win=false;   // a stage always starts with full lives
     p2=null; _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
+    if(B.onPlayersSpawn) B.onPlayersSpawn();
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
       let zi=ZONES.findIndex(z=>z.name===B.stageName);
@@ -827,14 +828,15 @@
   }
 
   // ── Seeds: picked up by the whole body (they sit on the floor, below MIND's core)
-  function seedPickups(){
-    if(!p) return;
-    const core=playerCoreHB(p), feet=p.y+FEET_OFF;
+  function seedPickups(pl){
+    if(!pl) return;
+    const core=playerCoreHB(pl), feet=pl.y+FEET_OFF;
     for(const k of KDROP){
       if(k.got||k.kind!=='seed') continue;
       if(!ov(core.x-6,core.y,core.w+12,feet-core.y,k.x-11,k.y-11,22,22)) continue;
       k.got=true; kColl++;
-      if(typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
+      if(pl!==p){ if(typeof healAnyPlayerFromKnowl==='function') healAnyPlayerFromKnowl(pl); }
+      else if(typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
       try{ sfx('knowl_pickup'); }catch(e){}
       for(let pi=0;pi<12;pi++){
         const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*3;
@@ -844,9 +846,9 @@
   }
 
   // ── Item crates sit on the floor too: MIND's wheel touching one is enough.
-  function cratePickups(){
-    if(!p||_shutdownTimer>0) return;
-    const core=playerCoreHB(p), feet=p.y+FEET_OFF;
+  function cratePickups(pl){
+    if(!pl||(pl===p&&_shutdownTimer>0)) return;
+    const core=playerCoreHB(pl), feet=pl.y+FEET_OFF;
     const bx=core.x-4, by=core.y, bw=core.w+8, bh=feet+6-core.y;
     for(const d of ITEM_DROPS){
       if(d.got||!ov(bx,by,bw,bh,d.x,d.y,d.w,d.h)) continue;
@@ -868,7 +870,9 @@
   // ── Per-frame rules (rides on updateKnowls, which runs every update) ──
   const _origUpdateKnowls=window.updateKnowls;
   window.updateKnowls=function(){
-    if(B.on&&_gameState==='game'){ seedPickups(); cratePickups(); }
+    if(B.on&&_gameState==='game'){
+      for(const q of [p,p2]) if(q&&!q._offT&&!q._flyIn){ seedPickups(q); cratePickups(q); }
+    }
     _origUpdateKnowls.apply(this, arguments);
     if(!B.on||_gameState!=='game') return;
     B.stats.frames++;
@@ -901,8 +905,10 @@
     if(B.bounceT>0) B.bounceT--;
     if(B.arriveCd>0) B.arriveCd--;
     if(B.open&&B.gate&&p&&!B.trans){
-      const h=playerCoreHB(p), g=B.gate;
-      if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
+      const g=B.gate, at=q=>{ if(!q||q._offT) return false; const h=playerCoreHB(q); return ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h); };
+      const by=at(p)?1:(p2&&!p2._aiCompanion&&at(p2)?2:0);
+      if(by){
+        if(!B.cleared) B.archBy=by;
         const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
         if(!B.cleared){ B.cleared=true; openResults(); }
         else if(nx&&B.arriveCd<=0) travel(nx,'forward');

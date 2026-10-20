@@ -51,8 +51,8 @@ function _driveMenusFromPads(){
   }
   if(_gameState==='story'&&ok){ startGame(); return; }
   if(_gameState==='select'){
-    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
-    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
+    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+SELECT_MODES-1)%SELECT_MODES; else _heroChoice='mind'; }
+    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%SELECT_MODES; else _heroChoice='venture'; }
     if(ok) startGame();
     if(back){ if(_selectStep===1) _selectStep=0; else { _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
     return;
@@ -100,6 +100,8 @@ let _playerCount=1;
 let _heroChoice='mind';
 let _selectStep=0;
 let _playModeIdx=0;
+const SELECT_MODES=4;   // 1 PLAYER · 2P CO-OP · 2P VS · ONLINE (soon)
+window.MV_SELECT_MODES=SELECT_MODES;
 
 const GAME_BEATEN_KEY='mv_game_beaten';
 const CUSTOM_STAGES_KEY='mv_custom_stages';
@@ -253,10 +255,10 @@ function startGame(){
   _unlockAudio();
   if(_gameState==='story'){
     _storyPage++; _storyFr=0;
-    if(_storyPage>=STORY_PAGES.length){ _gameState='select'; _selectStep=0; _playModeIdx=_playerCount===2?1:0; }
+    if(_storyPage>=STORY_PAGES.length){ _gameState='select'; _selectStep=0; _playModeIdx=window.MV_PARTY?MV_PARTY.idx():(_playerCount===2?1:0); }
   }else if(_gameState==='select'){
     if(_selectStep===0){
-      if(_playModeIdx===2){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
+      if(_playModeIdx===3){uiShowToast('ONLINE PLAY — COMING SOON');return;}
       _playerCount=_playModeIdx===0?1:2; _selectStep=1; return;
     }
     _gameState='game'; _stopBGM('story'); initWorld();
@@ -315,8 +317,8 @@ document.addEventListener('keydown',e=>{
   }
   if(_gameState==='select'){
     if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}_gameState='story';_storyPage=STORY_PAGES.length-1;e.preventDefault();return;}
-    if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3;else _heroChoice='mind';e.preventDefault();return;}
-    if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3;else _heroChoice='venture';e.preventDefault();return;}
+    if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+SELECT_MODES-1)%SELECT_MODES;else _heroChoice='mind';e.preventDefault();return;}
+    if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%SELECT_MODES;else _heroChoice='venture';e.preventDefault();return;}
     if(e.code==='Enter'||e.code==='Space'){startGame();e.preventDefault();return;}
     return;
   }
@@ -725,7 +727,7 @@ function drawSelect(){
   const padX=72,panelW=W-padX*2,panelH=_selectStep===0?Math.floor(H*0.62):Math.floor(H*0.68);
   const panelX=padX,panelY=Math.round((H-panelH)/2)-12;
   _drawSnesWindow(panelX,panelY,panelW,panelH,{sel:false});
-  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.WHITE,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':(_playerCount===1?'WHO LEADS?  THE OTHER JOINS AS ALLY':'WHO IS PLAYER 1?'),W/2,titleY+fs*10,C.LILAC,fsSm);
+  const titleY=panelY+28;drawTextC('STORY MODE',W/2,titleY,C.WHITE,fs);drawTextC(_selectStep===0?'HOW DO YOU WANT TO PLAY?':(_playerCount===1?'WHO LEADS?  THE OTHER FOLLOWS AND HELPS':'WHO IS PLAYER 1?'),W/2,titleY+fs*10,C.LILAC,fsSm);
   const _drawCard=(cx,cy,cw,ch,sel,accent,disabled,title,subs)=>{
     const x=Math.round(cx-cw/2),y=cy;
     _drawSnesWindow(x,y,cw,ch,{sel:sel&&!disabled,locked:disabled});
@@ -735,14 +737,15 @@ function drawSelect(){
     (subs||[]).forEach(line=>{drawTextC(line,cx,sy2,disabled?C.GREY_D:(sel?C.SAND:C.GREY),fsSm);sy2+=textH(fsSm)+6;});
   };
   const cardsY=panelY+Math.floor(panelH*0.38),cardH=_selectStep===0?132:168;
-  const cardW=_selectStep===0?Math.floor((panelW-64)/3)-8:Math.floor((panelW-48)/2)-8;
-  const gap=_selectStep===0?20:28,rowW=_selectStep===0?cardW*3+gap*2:cardW*2+gap,rowX=W/2-rowW/2;
+  const cardW=_selectStep===0?Math.floor((panelW-64)/SELECT_MODES)-8:Math.floor((panelW-48)/2)-8;
+  const gap=_selectStep===0?16:28,rowW=_selectStep===0?cardW*SELECT_MODES+gap*(SELECT_MODES-1):cardW*2+gap,rowX=W/2-rowW/2;
   if(_selectStep===0){
-    const m0=_playModeIdx===0,m1=_playModeIdx===1,m2=_playModeIdx===2;
-    const cx0=rowX+cardW/2,cx1=rowX+cardW+gap+cardW/2,cx2=rowX+(cardW+gap)*2+cardW/2;
-    _drawCard(cx0,cardsY,cardW,cardH,m0,C.SKY_L,false,'1 PLAYER',['ALLY JOINS YOU','FULL STORY']);
-    _drawCard(cx1,cardsY,cardW,cardH,m1,C.MINT,false,'2P LOCAL',['SPLIT KEYBOARD','P1 + P2']);
-    _drawCard(cx2,cardsY,cardW,cardH,m2,C.GREY_D,true,'2P ONLINE',['COMING SOON']);
+    const cards=[
+      [C.SKY_L,false,'1 PLAYER',['SIBLING FOLLOWS','AND HELPS']],
+      [C.MINT,false,'2P CO-OP',['TEAM UP','SHARE THE STAGE']],
+      [C.RED_L,false,'2P VS',['HIT EACH OTHER','SHUT THEM DOWN']],
+      [C.GREY_D,true,'ONLINE',['COMING SOON']]];
+    cards.forEach((c,i)=>_drawCard(rowX+(cardW+gap)*i+cardW/2,cardsY,cardW,cardH,_playModeIdx===i,c[0],c[1],c[2],c[3]));
   }else{
     const mSel=_heroChoice==='mind',vSel=_heroChoice==='venture';
     const cxM=rowX+cardW/2,cxV=rowX+cardW+gap+cardW/2;
@@ -754,8 +757,8 @@ function drawSelect(){
   }
   const hintY=panelY+panelH-56;
   if(_selectStep===0){drawTextC('LEFT / RIGHT  —  CHOOSE',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  CONTINUE     ESC  —  BACK TO STORY',W/2,hintY+fsSm*9,C.GREY,fsSm);}
-  else{drawTextC('LEFT / RIGHT  —  CHANGE HERO',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  START GAME     ESC  —  BACK',W/2,hintY+fsSm*9,C.GREY,fsSm);if(_playerCount===2)drawTextC('P2 USES ARROW KEYS + NUMPAD',W/2,hintY+fsSm*18,C.MINT,fsSm);else drawTextC('ALLY STAYS CLOSE, FIGHTS, AND HELPS WHEN YOU NEED IT',W/2,hintY+fsSm*18,C.SAND,fsSm);}
-  const modeLbl=_playModeIdx===0?'1 PLAYER':(_playModeIdx===1?'2P LOCAL':'2P ONLINE');
+  else{drawTextC('LEFT / RIGHT  —  CHANGE HERO',W/2,hintY,C.SKY_L,fsSm);drawTextC('ENTER  —  START GAME     ESC  —  BACK',W/2,hintY+fsSm*9,C.GREY,fsSm);if(_playerCount===2)drawTextC('P2: ARROWS + NUMPAD 1 2 3 0, OR A 2ND CONTROLLER',W/2,hintY+fsSm*18,_playModeIdx===2?C.RED_L:C.MINT,fsSm);else drawTextC('YOUR SIBLING FOLLOWS, FIGHTS, GRABS SEEDS, AND FLIES BACK IN',W/2,hintY+fsSm*18,C.SAND,fsSm);}
+  const modeLbl=['1 PLAYER','2P CO-OP','2P VS','ONLINE'][_playModeIdx]||'1 PLAYER';
   const footY=panelY+panelH-22;uiPanel(panelX+24,footY-8,panelW-48,fsSm*8+16,{r:12,flat:true,alpha:0.7});
   drawTextC(`MODE: ${modeLbl}   ·   HERO: ${_heroChoice==='mind'?'MIND':'VENTURE'}`,W/2,footY,C.SAND,fsSm);
   _drawUiToast();

@@ -98,11 +98,12 @@
   };
   document.addEventListener('click',()=>{ if(_gameState==='splash'&&t>IN*0.5) nextSplash(); },true);
 
-  // Story mode → story pages → Awdjoo 1.1 (skip the live game's player-select).
+  // Story mode → story pages → who plays (1P / co-op / VS) → hero → Awdjoo 1.1.
   const _startGame=window.startGame;
   window.startGame=function(){
-    if(_gameState==='story'&&_storyPage+1>=STORY_PAGES.length&&typeof startBetaLab==='function'){
+    if(_gameState==='select'&&_selectStep===1&&typeof startBetaLab==='function'){
       _unlockAudio(); _stopBGM('story');
+      if(window.MV_PARTY) MV_PARTY.fromSelect();
       if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.progress=0; }
       startBetaLab('1.1',0,{fresh:true}).then(()=>{ const c=cvEl(); if(c&&c.focus) c.focus(); }).catch(err=>console.error('Awdjoo beta failed',err));
       return;
