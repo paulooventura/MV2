@@ -6,7 +6,7 @@ module map and QA loop.
 
 **Last updated:** build **158** · `MOVE_BUILD` **59** · SHA `9b0fb3b` · 2026-09-09  
 **Repo:** https://github.com/paulooventura/MV2 · branch `main`  
-**Play:** https://paulooventura.github.io/MV2/  
+**Play:** https://mindandventure.pauloventura.org/  
 **Local:** `PLAY.bat` once → `http://127.0.0.1:8765/` (HTTP only, never `file://`)  
 **Author / director:** Paulo Ventura (Wall). Agents implement; Wall keeps
 creative and “promote this to Awdjoo” calls.
@@ -343,7 +343,7 @@ AUTO-TEST.bat
 or `npm run selftest` (full) / `npm run selftest:quick` (~20–40s).
 
 - Pass: `test-results/summary.txt` + exit 0.
-- Play Awdjoo: https://paulooventura.github.io/MV2/  (hard-refresh after Pages)
+- Play Awdjoo: https://mindandventure.pauloventura.org/  (hard-refresh after Pages)
 - Play a lab: add `?ab=c` / `d` / `e` or use the A/B bar.
 
 **Play-test Awdjoo:** walls don’t phase; House 2 roof lips step off; slope coast;

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://paulooventura.github.io/MV2/sitemap.xml
+Sitemap: https://mindandventure.pauloventura.org/sitemap.xml

@@ -17,7 +17,7 @@ git push origin main
 echo.
 echo ============================================================
 echo Done. GitHub Pages deploys from main automatically.
-echo Play live: https://paulooventura.github.io/MV2/
+echo Play live: https://mindandventure.pauloventura.org/
 echo Hard-refresh after deploy finishes (Ctrl+F5).
 echo ============================================================
 pause
