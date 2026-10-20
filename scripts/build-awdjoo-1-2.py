@@ -96,6 +96,8 @@ rect(4, 31, 41, 49, AIR)
 rect(7, 20, 50, 54, AIR)                                # shallow end, floor row 55
 rect(21, 31, 50, 57, AIR)                               # deep end, floor row 58
 rect(22, 31, 50, ROWS - 1, AIR)                         # ... except it has no floor: the PIT
+rect(21, 21, 50, ROWS - 1, SOLID)                       # the pool's rim: the water stays on its floor, the pit is a dry hole
+                                                        # (Paulo, Oct 20: fall in and MIND shuts down, reboots at the entrance)
 rect(29, 31, 44, 44, SOLID)                             # stub ledge on the right wall
 rect(18, 26, 40, 40, AIR)                               # the gap opens into the room
 paint(4, 31, 41, 57, SK_STONE_BG); paint(18, 26, 40, 40, SK_STONE_BG)
@@ -122,7 +124,7 @@ ent('MovingPlatform', 8, 45, 4, 1, a=8, b=14, speed=10)     # water room: the tw
 ent('MovingPlatform', 24, 45, 4, 1, a=18, b=24, speed=10)
 ent('MovingPlatform', 39, 34, 4, 1, a=33, b=39, speed=10)   # inside the arch
 ent('MovingPlatform', 33, 31, 2, 1, a=33, b=40, speed=12)   # the sliding block inside the arch
-ent('Water', 7, 50, 25, 8)                              # basin: cols 7-31, surface at row 50
+ent('Water', 7, 50, 14, 5)                              # the pool: cols 7-20 over its floor (row 55), surface at row 50
 # enemies: ai = circle (Enemy A, sine wave) | square | tri; range in tiles each way
 ent('Enemy', 27, 28, ai='circle', range=1)              # on the tall pillar
 ent('Enemy', 30, 43, ai='circle', range=1)              # stub ledge in the water room

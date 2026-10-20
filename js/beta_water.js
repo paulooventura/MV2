@@ -55,6 +55,9 @@
       let L=0,R=0;
       while(L<8&&shoreFloor(w.c0-L-1,w)!=null) L++;
       while(R<8&&shoreFloor(w.c1+R+1,w)!=null) R++;
+      // past the last shore column: an open drop (water pours off it) or a wall?
+      const dropAt=c=>!gridSolid(c,w.r0-1)&&!gridSolid(c,w.r0-2)&&shoreFloor(c,w)==null;
+      w.spillL=dropAt(w.c0-L-1); w.spillR=dropAt(w.c1+R+1);
       w.px0=w.x0; w.px1=w.x1; w.x0-=L*T; w.x1+=R*T; w.n=Math.ceil((w.x1-w.x0)/w.step);
       for(let i=0;i<w.n;i++){
         const x=Math.min(w.x1-1,w.x0+i*w.step+w.step/2), c=Math.floor(x/T);
@@ -261,7 +264,8 @@
     if(!p) return;
     const xlr=!!(p.xlrOn&&ITEM===2&&typeof connectorTipWorld==='function');
     const mag=!!(p.magOn&&ITEM===3&&B.magTip);
-    const ch=Math.min(1,(B.chX||0)/45);
+    // strength = the power he has (full bar = full effect) or the charge, whichever is more
+    const ch=Math.max(Math.min(1,(B.chX||0)/45),Math.min(1,(p.itemStamina||0)/100));
     // a charged XLR push released under / onto the water: one big surge
     if(B._xlrFr!==fr){                                         // once a frame, for every pool
       B._xlrRel=(B._xlrWas&&!xlr&&B._xlrCh>0.25&&B._xlrTipW)?{tip:B._xlrTip,w:B._xlrTipW,ch:B._xlrCh}:null;
@@ -271,21 +275,27 @@
     if(xlr){
       const t=connectorTipWorld(2), a=Math.atan2(p.aimDY,p.aimDX), ux=Math.cos(a), uy=Math.sin(a);
       if(!B._xlrTipW) B._xlrTip={x:t.x,y:t.y,ux,uy};
-      const pw=0.45+0.55*ch;
+      const pw=0.45+0.9*ch;
       if(waterAt(t.x,t.y)===w){
         B._xlrTipW=w;
         const i0=colOf(w,t.x), pulse=0.75+0.25*Math.sin(fr*0.35);   // a throb, so ripples run off it
         // horizontal: move water downstream along the jet
-        for(let k=0;k<12;k++){ const x=t.x+ux*k*16, i=colOf(w,x); if(x<w.x0||x>=w.x1) break; colFlux(w,ux>0?i:i-1,ux*2.8*pw*pulse*(1-k/14)); }
+        for(let k=0;k<14;k++){ const x=t.x+ux*k*16, i=colOf(w,x); if(x<w.x0||x>=w.x1) break; colFlux(w,ux>0?i:i-1,ux*3.4*pw*pulse*(1-k/16)); }
         // the blast blows a pocket of air out of the nozzle: it grows with the
         // charge to 3x3 blocks at full power, and the water it pushes out of
         // that space has to go somewhere — the whole pool rises and sloshes
         let b=B.xBub;
         if(!b||b.free||b.w!==w){ b=B.xBub={w,x:t.x,y:t.y,r:6,free:false,vx:0,vy:0}; }
-        const goal=8+40*ch; b.r+=(goal-b.r)*0.12; b.held=fr;
+        const goal=10+38*ch; b.r+=(goal-b.r)*0.22; b.held=fr;   // full power: a 3x3-block pocket almost at once
         b.x=t.x+ux*b.r*0.9; b.y=t.y+uy*b.r*0.9; b.ux=ux; b.uy=uy;
-        if(fr%14===0) ring(w,b.x,b.y,'air',0.5+ch);
-        if(fr%3===0) for(let k=0;k<2;k++) B.bubbles.push({x:t.x+ux*(18+Math.random()*30),y:t.y+uy*(18+Math.random()*30),r:2+Math.random()*3,vy:-0.3+uy*2,vx:ux*3,w});
+        if(fr%10===0){ ring(w,b.x,b.y,'air',0.7+1.6*ch); if(ch>0.8) B.shake=Math.max(B.shake||0,2.5); }
+        // a roaring churn: big bubbles boiling off the pocket, streaming up and along the jet
+        const nb=1+Math.round(ch*4);
+        for(let k=0;k<nb;k++){ const a2=Math.random()*Math.PI*2, rr=b.r*(0.9+Math.random()*0.3);
+          B.bubbles.push({x:b.x+Math.cos(a2)*rr,y:b.y+Math.sin(a2)*rr,r:2+Math.random()*(3+6*ch),vy:-0.6-Math.random()*1.5+uy*2,vx:ux*(2+3*ch)+Math.cos(a2)*1.2,w}); }
+        // and the surface above boils white
+        const si=colOf(w,b.x), sy0=w.s[si];
+        if(ch>0.5&&b.y-b.r-sy0<90&&fr%2===0) for(let k=0;k<2;k++) PFXS.push({x:b.x+(Math.random()-0.5)*b.r*2,y:sy0-2,vx:(Math.random()-0.5)*2.5,vy:-1.5-Math.random()*3*ch,life:16+Math.random()*10|0,maxLife:26,r:1.5+Math.random()*2.5,col:k?'#ffffff':'#bfe6ff'});
       }else if(uy>0.25){
         // above the water, blowing at it: where does the blast meet the surface?
         let hx=null, hy=null;
@@ -303,13 +313,15 @@
       const t=B.magTip();
       if(waterAt(t.x,t.y)===w){
         const pw=Math.max(0.2,Math.min(1,(p.itemStamina||0)/100)), i0=colOf(w,t.x);
-        const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0.15,1-depth/260);
-        for(let k=-6;k<=6;k++){ const j=i0+k; if(j<0||j>=w.n) continue; w.pull[j]-=52*pw*reach*(0.8+0.2*Math.sin(fr*0.3))*(1-Math.abs(k)/7); }   // dimple over the tip
-        for(let k=1;k<=10;k++){ colFlux(w,i0-k,0.8*pw*(1-k/11)); colFlux(w,i0+k-1,-0.8*pw*(1-k/11)); }      // water runs in from both sides
-        if(fr%18===0) ring(w,t.x,t.y,'mag',0.4+0.6*pw);
-        if(fr%2===0){                                           // molecules spiralling into the poles
-          const ang=fr*0.21, r=26+Math.random()*30;
-          B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*2,vy:0,vx:0,w,to:{x:t.x,y:t.y},ang,rad:r});
+        const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0.2,1-depth/320);
+        // a whirlpool: at full power the surface caves into a deep funnel over the tip
+        for(let k=-8;k<=8;k++){ const j=i0+k; if(j<0||j>=w.n) continue; w.pull[j]-=(40+80*pw)*reach*(0.8+0.2*Math.sin(fr*0.3))*(1-Math.abs(k)/9); }
+        for(let k=1;k<=12;k++){ colFlux(w,i0-k,(0.6+1.4*pw)*(1-k/13)); colFlux(w,i0+k-1,-(0.6+1.4*pw)*(1-k/13)); }      // water rushes in from both sides
+        if(fr%12===0){ ring(w,t.x,t.y,'mag',0.5+1.3*pw); if(pw>0.8) B.shake=Math.max(B.shake||0,1.5); }
+        const nb=1+Math.round(pw*3);                            // a vortex of bubbles spiralling into the poles
+        for(let k=0;k<nb;k++){
+          const ang=fr*0.21+k*2.1, r=30+Math.random()*(40+50*pw);
+          B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*(2+3*pw),vy:0,vx:0,w,to:{x:t.x,y:t.y},ang,rad:r});
         }
       }
     }
@@ -363,7 +375,8 @@
 
   // one charged push released into the water: a surge of water + a ring
   function surge(w,tip,ch){
-    const i=colOf(w,tip.x), P=3+7*ch;
+    const i=colOf(w,tip.x), P=4+12*ch;
+    B.shake=Math.max(B.shake||0,3+5*ch);
     for(let k=0;k<10;k++){ colFlux(w,(tip.ux>0?i+k:i-k-1),tip.ux*P*(1-k/11)); }
     for(let k=-5;k<=5;k++){ const j=i+k; if(j>=0&&j<w.n) w.pull[j]+=(-(tip.uy||0))*60*ch*(1-Math.abs(k)/6); }
     splash(w,tip.x+(tip.ux||0)*30,2+4*ch,tip.uy<0);
@@ -452,6 +465,13 @@
         // in smooth swells instead of a zig-zag (moves no water by itself)
         if(it===2){ const F=w.flux.slice(); for(let i=1;i<w.n-2;i++) w.flux[i]=F[i]*0.8+(F[i-1]+F[i+1])*0.1; }
       }
+      // water reaching an open edge pours off it (down the pit) — and is gone
+      for(const [i,dir] of [[0,-1],[w.n-1,1]]){
+        if(!(dir<0?w.spillL:w.spillR)||w.amt[i]<=0.3) continue;
+        const out=Math.min(w.amt[i],w.amt[i]*0.25+0.2); w.amt[i]-=out; w.flux[dir<0?0:w.n-2]*=0.5;
+        const ex=dir<0?w.x0:w.x1;
+        if(fr%2===0) for(let k=0;k<Math.min(4,1+out/3);k++) PFXS.push({x:ex+dir*(2+Math.random()*4),y:w.bottom[i]-w.amt[i]-Math.random()*6,vx:dir*(0.6+Math.random()*1.4),vy:Math.random()*1.5,life:30+Math.random()*20|0,maxLife:50,r:2+Math.random()*2,col:k%2?'#9ad8ff':'#d8f2ff'});
+      }
       let lv=0, nw=0;
       for(let i=0;i<w.n;i++){ const wet=w.amt[i]>0.5; w.s[i]=w.bottom[i]-w.amt[i]-w.occ[i]+(wet?Math.sin(fr*0.04+i*0.45)*0.35:0); w.pull[i]=0; if(wet){ lv+=w.s[i]; nw++; } }   // + a living, slight lap
       w.level=nw?lv/nw:w.base;
@@ -523,7 +543,7 @@
       b.y+=b.vy; b.x+=(b.vx||0)+Math.sin(fr*0.1+i)*0.3; if(b.vx) b.vx*=0.95;
       if(!b.w||b.y<surfaceAt(b.w,b.x)) B.bubbles.splice(i,1);
     }
-    if(B.bubbles.length>160) B.bubbles.splice(0,B.bubbles.length-160);
+    if(B.bubbles.length>320) B.bubbles.splice(0,B.bubbles.length-320);
   }
   B.waterTick=waterTick;
 
