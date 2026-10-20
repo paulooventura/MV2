@@ -968,18 +968,16 @@
       if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN'); try{ sfx('gate'); }catch(e){}
     }
     if(B.revisitNote>0) B.revisitNote--;
-    // The pit: falling off the bottom of the map costs a chunk of energy and
-    // puts MIND back on the last solid ground he stood on.
+    // The pit: a hole. Falling down it shuts MIND down (a life) and he reboots
+    // at the stage entrance (Paulo, Oct 20).
     if(p&&B.level){
       const bottom=(B.level.rows||B.level.h||62)*T;
       if((typeof _playerOnGround==='function'?_playerOnGround(p):p.og)&&!(B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-8))&&!B.ridePlat&&fr%15===0) B.safe={x:p.x, y:p.y};
-      if(p.y>bottom+40&&_shutdownTimer<=0){
-        const sf=B.safe||{x:_spawnX, y:_spawnY};
-        p.x=sf.x; p.y=sf.y; p.vx=0; p.vy=0; p.og=true;
-        if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
-        B.shake=Math.max(B.shake||0,6); B.stats.hits++;
-        applyPlayerHit(0,-2,30);
-        if(typeof uiShowToast==='function') uiShowToast('THE PIT! -30');
+      if(p.y+FEET_OFF>=bottom-8&&_shutdownTimer<=0&&!B.contScreen&&!B.overT){   // reached the bottom of the map: down the hole
+        B.shake=Math.max(B.shake||0,8); B.stats.hits++;
+        p.hp=1; applyPlayerHit(0,0,9999);
+        p.vy=0;
+        if(typeof uiShowToast==='function') uiShowToast('FELL INTO THE PIT');
       }
     }
     if(!B.open&&B.gate&&p){
@@ -1214,6 +1212,14 @@
     const n=counts();
     uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
     drawText(B.stageName, 22, H-52, '#c8b8ff', 1);
+    // lives (little MIND heads) and continues
+    { const lx=W-210, ly=H-44, lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
+      uiPanel(lx-14, ly-14, 210, 36, {r:12, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
+      for(let i=0;i<3;i++){ const on=i<B.lives||(lost&&i===B.lives); const x=lx+i*30;
+        ctx.fillStyle=on?'#1c1430':'rgba(255,255,255,0.10)'; ctx.fillRect(x,ly-6,22,18);
+        ctx.fillStyle=on?'#e8e0ff':'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc(x+11,ly+3,6,0,Math.PI*2); ctx.fill();
+        if(on){ ctx.fillStyle='#2a2040'; ctx.beginPath(); ctx.arc(x+12,ly+3,3,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.fillRect(x+1,ly-9,20,3); ctx.fillRect(x+5,ly-14,12,6); } }
+      drawText('CONT '+B.continues, lx+98, ly-2, '#ffd860', 1); }
     drawTextR(fmtTime(B.stats.frames), 190, H-52, '#ffffff', 1);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
@@ -1440,8 +1446,59 @@
     else if(window.MV_STORY_STAGES){ saveStage(); B.ending={t:0}; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.7}); }
     else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
   }
+  // ── Lives + continues (Paulo, Oct 20): the game starts with 3 lives and 3
+  //   continues. Every shutdown costs a life; MIND reboots at the stage
+  //   entrance. Out of lives: CONTINUE? (3 more lives, back at the entrance).
+  //   Out of continues: GAME OVER, back to the title.
+  if(B.lives==null) B.lives=3; if(B.continues==null) B.continues=3;
+  { const _o=window._campaignUsesLives; window._campaignUsesLives=function(){ return B.on?false:(_o?_o.apply(this,arguments):false); }; }   // the story stages count lives here, not with the old 5-shutdown rule
+  B.newRun=function(){ B.lives=3; B.continues=3; B.contScreen=null; B.overT=0; };
+  function livesTick(){
+    const shut=_shutdownTimer>0;
+    if(shut&&!B._shutWas){ B.lives=Math.max(0,B.lives-1); B._lifeLostT=90; }
+    B._shutWas=shut;
+    if(B._lifeLostT>0) B._lifeLostT--;
+    if(!shut&&B.lives<=0&&!B.contScreen&&!B.overT){
+      if(B.continues>0){ B.contScreen={t:0,sel:0}; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.stopAll(); }catch(e){} }
+      else B.overT=1;
+    }
+  }
+  function contInput(){
+    const C=B.contScreen; C.t++;
+    const up=Kj['ArrowUp']||Kj['KeyW']||Kj['ArrowLeft']||Kj['KeyA'], dn=Kj['ArrowDown']||Kj['KeyS']||Kj['ArrowRight']||Kj['KeyD'];
+    if(up||dn){ C.sel=1-C.sel; try{ sfx('menu'); }catch(e){} }
+    if(C.t>30&&(Kj['Space']||Kj['Enter']||Kj['Escape'])){
+      try{ sfx('confirm'); }catch(e){}
+      if(C.sel===0&&!Kj['Escape']){
+        B.continues--; B.lives=3; B.contScreen=null;
+        if(typeof _respawnPlayer==='function') _respawnPlayer();
+        if(window.MV_BETA_AUDIO&&B.music) MV_BETA_AUDIO.play(B.music,{restart:true});
+      }else{ B.contScreen=null; B.overT=1; }
+    }
+    if(typeof clkj==='function') clkj();
+  }
+  function drawLivesScreens(){
+    if(B.contScreen){
+      const C=B.contScreen, a=Math.min(1,C.t/20);
+      ctx.fillStyle='rgba(4,2,10,'+(0.75*a)+')'; ctx.fillRect(0,0,W,H);
+      const pw=440, ph=230, px=W/2-pw/2, py=H/2-ph/2;
+      uiPanel(px,py,pw,ph,{r:20});
+      uiLogo('CONTINUE?',W/2,py+18,44,{sweep:150});
+      drawTextC(B.continues+(B.continues===1?' CONTINUE LEFT':' CONTINUES LEFT'),W/2,py+78,'#c8b8ff',2);
+      ['YES','NO'].forEach((it,i)=>{ const y=py+118+i*44, sel=i===C.sel;
+        if(sel){ uiPanel(px+60,y-10,pw-120,38,{sel:true,r:12,flat:true}); uiCursor(px+82,y+9,9); }
+        drawTextC(it,W/2,y,sel?'#ffe39a':'#c8b8ff',3); });
+    }
+    if(B.overT>0){
+      const a=Math.min(1,B.overT/30);
+      ctx.fillStyle='rgba(0,0,0,'+(0.85*a)+')'; ctx.fillRect(0,0,W,H);
+      ctx.globalAlpha=a; uiLogo('GAME OVER',W/2,H/2-50,64,{sweep:200}); drawTextC('NO CONTINUES LEFT',W/2,H/2+30,'#c8b8ff',2); ctx.globalAlpha=1;
+    }
+  }
   window.update=function(){
     if(B.trans){ transTick(); return; }
+    if(B.on&&B.contScreen){ contInput(); return; }
+    if(B.on&&B.overT>0){ B.overT++; if(B.overT>200||(B.overT>60&&padOk())){ B.overT=0; B.newRun(); quitToTitle(); } return; }
     if(B.ending){ B.ending.t++; if((padOk()&&B.ending.t>90)||B._endReq){ B._endReq=false; quitToTitle(); } return; }
     if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
@@ -1450,7 +1507,9 @@
       if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();
       return;
     }
-    return _origUpdate.apply(this, arguments);
+    const r=_origUpdate.apply(this, arguments);
+    if(B.on&&_gameState==='game') livesTick();
+    return r;
   };
   const _origDraw=window.draw;
   window.draw=function(){
@@ -1458,6 +1517,7 @@
     if(sh){ ctx.save(); ctx.translate((Math.random()-0.5)*sh,(Math.random()-0.5)*sh); B.shake*=0.86; }
     try{ _origDraw.apply(this, arguments); } finally{ if(sh) ctx.restore(); }
     if(!B.on||_gameState!=='game') return;
+    if(B.contScreen||B.overT>0){ drawLivesScreens(); return; }
     for(let i=B.blasts.length-1;i>=0;i--){                 // blast flashes + rings
       const b=B.blasts[i]; b.t++;
       const k=b.t/26, r=sw(20+70*k*Math.min(1.6,b.amp));
