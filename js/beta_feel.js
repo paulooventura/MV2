@@ -320,8 +320,56 @@
     hookWas=s0;
   }
 
+  // ── The rope as a real cord: a verlet chain pinned at the anchor and at
+  //   MIND, as long as the rope is, pulled by gravity, kept out of walls and
+  //   floors (it lies on them, with friction), a little stretchy like rubber.
+  //   Drawing only — the rope's pull on MIND is the game's own rope physics.
+  const _origSlack=window._ropeSlackDrawPts;
+  function solidPt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
+  function cordPts(path,rl){
+    const h=p&&p.hook; if(!h||!path||path.length<2) return path||[];
+    let plen=0; for(let i=1;i<path.length;i++) plen+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
+    const L=Math.max(plen,rl||plen);
+    if(L-plen<3){ h._cord=null; return path; }                 // taut: straight along its path (round corners)
+    const n=Math.max(8,Math.min(48,Math.round(L/12)));
+    const A=path[0], E=path[path.length-1];
+    let c=h._cord;
+    if(!c||c.n!==n||c.ax!==A.x||c.ay!==A.y){                  // new rope (or re-latched): lay it along the path
+      const pts=[]; for(let i=0;i<n;i++){ const t=i/(n-1); const q=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*t):{x:A.x+(E.x-A.x)*t,y:A.y+(E.y-A.y)*t}; pts.push({x:q.x,y:q.y,px:q.x,py:q.y}); }
+      c=h._cord={n,pts,ax:A.x,ay:A.y};
+    }
+    const P=c.pts, seg=L/(n-1);
+    if(c.fr!==fr){
+      c.fr=fr;
+      for(let i=1;i<n-1;i++){                                   // move: inertia + gravity
+        const q=P[i], vx=(q.x-q.px)*0.985, vy=(q.y-q.py)*0.985;
+        q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+0.45;
+      }
+      P[0].x=A.x; P[0].y=A.y; P[n-1].x=E.x; P[n-1].y=E.y;
+      for(let it=0;it<14;it++){
+        for(let i=0;i<n-1;i++){                                 // keep the links their length (a bit of give: rubber)
+          const a=P[i], b=P[i+1], dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001, diff=(d-seg)/d*0.5*0.9;
+          const fa=i===0?0:1, fb=i+1===n-1?0:1, sum=fa+fb||1;
+          a.x+=dx*diff*2*fa/sum; a.y+=dy*diff*2*fa/sum; b.x-=dx*diff*2*fb/sum; b.y-=dy*diff*2*fb/sum;
+        }
+        for(let i=1;i<n-1;i++){                                 // never inside rock: back out the way it came, or up onto the surface
+          const q=P[i]; if(!solidPt(q.x,q.y)) continue;
+          if(!solidPt(q.px,q.y)) { q.x=q.px; }
+          else if(!solidPt(q.x,q.py)) { q.y=q.py; }
+          else { let k=0; while(solidPt(q.x,q.y)&&k<12){ q.y-=3; k++; } }
+          q.px+=(q.x-q.px)*0.6;                                 // friction against the floor / wall
+        }
+      }
+    }
+    return P.map(q=>({x:q.x,y:q.y}));
+  }
+  window._ropeSlackDrawPts=function(path,rl){ if(on()&&p.hook&&p.hook.st==='on') return cordPts(path,rl); return _origSlack.apply(this, arguments); };
+
   B.feelTick=function(){
     if(!on()) return;
+    if(p.hook&&p.hook.st!=='on'&&p.hook._cord) p.hook._cord=null;
+    // still ducks with DOWN while roped to the ground
+    if(p.hook&&p.hook.st==='on'&&typeof isDn==='function'&&isDn()&&_playerOnGround(p)){ p.crouchAmt=(p.crouchAmt||0)+(1-(p.crouchAmt||0))*0.28; }
     xlrHover();
     hookTick();
     wallTick();

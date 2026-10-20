@@ -678,6 +678,27 @@
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
     }else { h.ref._betaHeld=false; h.ref.vx=v.vx; h.ref.vy=v.vy; }
   }
+  // solid ground right under the wheel: grid rock — not a cube, a platform or a body
+  function solidUnderWheel(){
+    const cx=p.x+SW/2, feet=p.y+FEET_OFF;
+    if(B.ridePlat||B.rideEnemy) return false;
+    for(const bw of cubes()) if(cx>=bw.x-2&&cx<=bw.x+T+2&&feet>=bw.y-4&&feet<=bw.y+8) return false;
+    return gridSolid(Math.floor(cx/T),Math.floor((feet+3)/T))||(typeof gridIsSlope==='function'&&gridIsSlope(Math.floor(cx/T),Math.floor((feet-2)/T)));
+  }
+  // the lock, drawn: magnetic field lines arcing out of the floor around the tip
+  B.drawMagLock=function(){
+    const L=B.magLock; if(!L) return;
+    const t=magTip(), cx=sx(t.x), cy=sy(p.y+FEET_OFF), k=Math.min(1,L.t/10);
+    ctx.save(); ctx.lineWidth=Math.max(1.5,sw(2));
+    for(let i=0;i<4;i++){
+      const ph=((fr*0.06+i/4)%1), r=sw(10+ph*46), a=(1-ph)*0.8*k;
+      ctx.strokeStyle='rgba(255,80,80,'+a+')'; ctx.beginPath(); ctx.ellipse(cx-sw(4),cy,r,r*0.45,0,Math.PI,Math.PI*1.5); ctx.stroke();
+      ctx.strokeStyle='rgba(90,140,255,'+a+')'; ctx.beginPath(); ctx.ellipse(cx+sw(4),cy,r,r*0.45,0,Math.PI*1.5,Math.PI*2); ctx.stroke();
+    }
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,sw(30)); g.addColorStop(0,'rgba(255,240,255,'+(0.5*k)+')'); g.addColorStop(1,'rgba(160,120,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,sw(30),Math.PI,0); ctx.fill();
+    ctx.restore();
+  };
   function magnetTick(){
     const M=B.mag;
     const on=!!(p&&p.magOn&&ITEM===3);
@@ -689,13 +710,20 @@
       p.itemStamina=M.power;
     }
     M.wasOn=on;
-    if(!on||p.itemStamina<=0){ B.magLock=null; while(M.held.length) dropHeld(M.held.pop()); return; }
+    if(!on||p.itemStamina<=0){ if(B.magLock){ B.magLock=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} } while(M.held.length) dropHeld(M.held.pop()); return; }
     // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
-    // MIND to the floor — nothing moves him (pushes, currents, slopes) until he lets go
-    if(B.magLock||(typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p))){
-      if(!B.magLock){ B.magLock={x:p.x,y:p.y}; while(M.held.length) dropHeld(M.held.pop()); try{ sfx('grap_attach'); }catch(e){} B.shake=Math.max(B.shake||0,2); }
+    // MIND to SOLID ground — nothing moves him (pushes, currents, slopes) until he
+    // lets go of the button. On an omni / pull block it grabs the block instead
+    // (the usual carry); on a moving platform or a body it doesn't lock.
+    if(B.magLock||(typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())){
+      if(!B.magLock){
+        B.magLock={x:p.x,y:p.y,t:0}; while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
+        try{ MV_BETA_AUDIO.magClank(); MV_BETA_AUDIO.magHum(true); }catch(e){}
+        for(let k=0;k<14;k++){ const a=Math.PI+Math.random()*Math.PI; PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*2.5),life:14+Math.random()*8|0,maxLife:22,r:1.5+Math.random()*1.5,col:k%2?'#ff5050':'#5080ff'}); }
+      }
+      B.magLock.t++;
       p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true;
-      if(fr%4===0){ const t=magTip(); PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*30,y:p.y+FEET_OFF-2,vx:(Math.random()-0.5)*1.5,vy:-Math.random()*1.5,life:12,maxLife:12,r:2,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
+      if(fr%3===0){ PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*40,y:p.y+FEET_OFF-2,vx:(Math.random()-0.5)*1.2,vy:-0.4-Math.random()*1.2,life:12,maxLife:12,r:1.8,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
       return;
     }
     const tip=magTip();
@@ -1122,6 +1150,7 @@
     if(!B.on) return _origDrawHud.apply(this, arguments);
     if(_gameState!=='game') return;
     if(B.drawEnemyFx) B.drawEnemyFx();
+    if(B.drawMagLock) B.drawMagLock();
     if(B.laitu&&typeof drawLaituFigure==='function'){
       const cx=sx(B.laitu.x), feet=sy(B.laitu.feet);
       if(cx>-60&&cx<W+60){

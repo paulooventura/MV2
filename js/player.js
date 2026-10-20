@@ -567,17 +567,6 @@ function computeConnectorArmPose(pl=p){
   const recoilTilt=-_rf*0.14*recoilSnap;
   let ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
   let aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
-  // used straight down while standing: the arm reaches down past the wheel and
-  // the jack's tip rests on the floor beside it (Paulo, Oct 20)
-  if(!hookOn&&typeof _itemDownAim==='function'&&_itemDownAim(pl)){
-    const feet=pl.y+FEET_OFF, side=fc?1:-1, JACK=47, ARM_MIN=10;
-    const dy=Math.max(4,feet-1-shoulderY);
-    // straight down from the shoulder (just outside the body) when there's room;
-    // otherwise angled out just enough for the jack's tip to land on the floor
-    const dx=-side*Math.max(6,Math.sqrt(Math.max(0,(JACK+ARM_MIN)*(JACK+ARM_MIN)-dy*dy)));
-    ca=Math.atan2(dy,dx)+recoilTilt;
-    aimLen=Math.max(ARM_MIN,Math.hypot(dx,dy)-JACK);
-  }
   const _nudge=_rf*3*recoilSnap;
   const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
   const connShY=shoulderY-Math.sin(ca)*_nudge;
@@ -616,6 +605,16 @@ function computeConnectorArmPose(pl=p){
       tipY=noseY-Math.sin(ca)*Math.min(RCA_NOSE_LEN,nd);
     }
     armA1=ca;
+  }
+  // used straight down (DOWN held, still ducking): the elbow comes up and the
+  // forearm plants the jack straight down, its tip on the floor beside the wheel
+  if(!hookOn&&typeof _itemDownAim==='function'&&_itemDownAim(pl)){
+    const feet=pl.y+FEET_OFF, side=fc?1:-1, _sc=typeof _itemArtScale==='function'?_itemArtScale(ITEM):1, JACK=ITEM===1?RCA_NOSE_LEN:(ITEM===2?42:ITEM===0?50:40)*_sc;   // = the jack's reach (connectorTipWorld)
+    const jx=bodyCX+side*(WHEEL_R+10), jy=feet-1-JACK;           // where the jack starts (the forearm's end)
+    const ex=(connShX+jx)/2+side*4, ey=Math.min(connShY,jy)-12;  // elbow: up and between
+    const a0=Math.atan2(ey-connShY,ex-connShX), a1=Math.PI/2;
+    return {connShX,connShY,elbowX:ex,elbowY:ey,tipX:jx,tipY:jy,armA0:a0,armA1:a1,armL0:Math.hypot(ex-connShX,ey-connShY),armL1:Math.hypot(jx-ex,jy-ey),
+      useElbow:true,noseX:jx,noseY:jy+(ITEM===1?RCA_NOSE_LEN:0),aimAngle:a1};
   }
   return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca};
 }

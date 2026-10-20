@@ -2069,75 +2069,7 @@ function _clampSegFrom(shX,shY,tx,ty){
 }
 
 // Single source of truth for connector arm + RCA nose (world coords).
-function computeConnectorArmPose(pl=p){
-  const ca2=pl.crouchAmt, fc=pl.fc;
-  const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R;
-  const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
-  const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
-  const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
-  const bodyCX=px+SW/2;
-  const bodyTop=bodyCY;
-  const shoulderY=bodyTop+BODY_H*0.22;
-  const connShoulderX=fc?bodyCX-BODY_W/2:bodyCX+BODY_W/2;
-  const hookOn=pl.hook&&pl.hook.st!=='idle';
-  const cptY=pl.y+FEET_OFF-STAND_H*0.5;
-  const rawAngle=hookOn
-    ? Math.atan2((pl.hook.st==='on'?pl.hook.ay:pl.hook.ey)-cptY,(pl.hook.st==='on'?pl.hook.ax:pl.hook.ex)-(pl.x+SW/2))
-    : Math.atan2(pl.aimDY,pl.aimDX);
-  const duckAngle=fc?0:Math.PI;
-  const aimDuckBlend=pl.og?ca2:0; // air duck tucks body but must not lock aim horizontal
-  const recoilMax=pl._lastRecoilMax||14;
-  const _rf=pl.fireRecoil>0?pl.fireRecoil/recoilMax:0;
-  const recoilSnap=recoilMax>=18?1.25:1;
-  const recoilTilt=-_rf*0.14*recoilSnap;
-  const ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
-  const aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
-  const _nudge=_rf*3*recoilSnap;
-  const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
-  const connShY=shoulderY-Math.sin(ca)*_nudge;
-  let noseX,noseY,tipX,tipY,useElbow=false,elbowX=0,elbowY=0,armA0=ca,armA1=ca,armL0=aimLen,armL1=0;
-
-  if(hookOn){
-    const hx=pl.hook.st==='on'?pl.hook.ax:pl.hook.ex;
-    const hy=pl.hook.st==='on'?pl.hook.ay:pl.hook.ey;
-    let dx=hx-connShX, dy=hy-connShY, dd=Math.hypot(dx,dy)||1;
-    let ux=dx/dd, uy=dy/dd;
-    const pxn=-uy, pyn=ux;
-    const speed=Math.hypot(pl.vx||0,pl.vy||0);
-    const bend=7+Math.min(12,speed*0.7)+(pl.hook.st==='ext'?2:0);
-    const bendSign=(fc?1:-1)*((dy>=0)?1:-1);
-    elbowX=connShX+ux*aimLen*0.52+pxn*bend*bendSign;
-    elbowY=connShY+uy*aimLen*0.52+pyn*bend*bendSign;
-    armA0=Math.atan2(elbowY-connShY,elbowX-connShX);
-    armL0=Math.max(5,Math.hypot(elbowX-connShX,elbowY-connShY));
-    const fdx=hx-elbowX, fdy=hy-elbowY, fdd=Math.hypot(fdx,fdy)||1;
-    const foreReach=Math.min(fdd,Math.max(8,aimLen*0.58));
-    tipX=elbowX+fdx/fdd*foreReach;
-    tipY=elbowY+fdy/fdd*foreReach;
-    armA1=Math.atan2(tipY-elbowY,tipX-elbowX);
-    armL1=Math.max(5,Math.hypot(tipX-elbowX,tipY-elbowY));
-    noseX=tipX+Math.cos(armA1)*RCA_NOSE_LEN;
-    noseY=tipY+Math.sin(armA1)*RCA_NOSE_LEN;
-    const noseClamped=_clampSegFrom(tipX,tipY,noseX,noseY);
-    noseX=noseClamped.x; noseY=noseClamped.y;
-    useElbow=true;
-  }else{
-    tipX=connShX+Math.cos(ca)*aimLen;
-    tipY=connShY+Math.sin(ca)*aimLen;
-    noseX=tipX+Math.cos(ca)*RCA_NOSE_LEN;
-    noseY=tipY+Math.sin(ca)*RCA_NOSE_LEN;
-    const noseClamped=_clampSegFrom(tipX,tipY,noseX,noseY);
-    noseX=noseClamped.x; noseY=noseClamped.y;
-    if(Math.hypot(noseX-tipX,noseY-tipY)>0.5){
-      const nd=Math.hypot(noseX-tipX,noseY-tipY)||1;
-      tipX=noseX-Math.cos(ca)*Math.min(RCA_NOSE_LEN,nd);
-      tipY=noseY-Math.sin(ca)*Math.min(RCA_NOSE_LEN,nd);
-    }
-    armA1=ca;
-  }
-  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca};
-}
+// computeConnectorArmPose lives in player.js (one copy: the down-use pose and the duck blend are there)
 
 function connectorTipWorld(itemOverride=ITEM){
   const pose=computeConnectorArmPose();
