@@ -1,5 +1,5 @@
 /* Mind & Venture — cache static assets only; game JS always from network. */
-const CACHE = 'mv-web-v166';
+const CACHE = 'mv-web-v167';
 const SHELL = [
   './manifest.webmanifest',
   './assets/Awdjoo/Awdjoo.json',

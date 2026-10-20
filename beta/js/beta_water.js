@@ -346,17 +346,24 @@
     for(const w of B.waters){
       if(sx(w.x1)<0||sx(w.x0)>W) continue;
       const elec=w.elec>0;
+      // one shape per pool (surface across, stepped floor back): a single gradient fill + one surface stroke
+      let top=1e9, bot=-1e9, any=false;
+      ctx.beginPath();
       for(let i=0;i<w.n-1;i++){
-        const x=w.x0+i*w.step, s=w.level+w.h[i], b=w.bottom[i];
-        if(b<=s) continue;
-        const X0=sx(x), X1=sx(Math.min(w.x1,x+w.step)), Y0=sy(s), Y1=sy(b);
-        const g=ctx.createLinearGradient(0,Y0,0,Y1);
-        g.addColorStop(0,elec?'rgba(150,220,255,0.55)':'rgba(70,150,230,0.42)'); g.addColorStop(1,elec?'rgba(60,110,220,0.7)':'rgba(20,50,130,0.66)');
-        ctx.fillStyle=g; ctx.fillRect(X0,Y0,X1-X0+1,Y1-Y0);
-        // surface line, brighter where the wave slopes
-        const sl=Math.abs(w.h[i+1]-w.h[i]);
-        ctx.fillStyle='rgba(220,245,255,'+Math.min(0.95,0.45+sl*0.25)+')'; ctx.fillRect(X0,Y0-1,X1-X0+1,sw(2));
+        const s=w.level+w.h[i], X=sx(Math.min(w.x1,w.x0+i*w.step)), Y=sy(Math.min(s,w.bottom[i]));
+        if(i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y);
+        if(s<top) top=s; if(w.bottom[i]>bot) bot=w.bottom[i]; if(w.bottom[i]>s) any=true;
       }
+      if(!any) continue;
+      ctx.lineTo(sx(w.x1),sy(Math.min(w.level+w.h[w.n-1],w.bottom[w.n-2])));
+      for(let i=w.n-2;i>=0;i--){ const X1=sx(Math.min(w.x1,w.x0+(i+1)*w.step)), X0=sx(w.x0+i*w.step), Yb=sy(w.bottom[i]); ctx.lineTo(X1,Yb); ctx.lineTo(X0,Yb); }
+      ctx.closePath();
+      const g=ctx.createLinearGradient(0,sy(top),0,sy(bot));
+      g.addColorStop(0,elec?'rgba(150,220,255,0.55)':'rgba(70,150,230,0.42)'); g.addColorStop(1,elec?'rgba(60,110,220,0.7)':'rgba(20,50,130,0.66)');
+      ctx.fillStyle=g; ctx.fill();
+      ctx.beginPath();
+      for(let i=0;i<w.n;i++){ const X=sx(Math.min(w.x1,w.x0+i*w.step)), Y=sy(w.level+w.h[i]); if(i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
+      ctx.strokeStyle='rgba(220,245,255,0.75)'; ctx.lineWidth=Math.max(1.5,sw(2)); ctx.stroke();
       // caustics: soft light ripples drifting through the pool
       ctx.save(); ctx.globalCompositeOperation='lighter';
       for(let k=0;k<10;k++){

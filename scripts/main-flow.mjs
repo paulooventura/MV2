@@ -148,13 +148,31 @@ const zap = await ev(() => {
 });
 if (zap) { await frames(2); check('thrown water shorts an enemy', await ev(() => ENEMS.some(e => e._shorted)), null); }
 
-await ev(() => { ITEM = 2; window.__fire = true; p.itemStamina = 100; }); await frames(60);
-const xlr = await ev(() => { const a = MV_BETA.airs[0]; return a && { r: a.r, A: a.A, dry: !MV_BETA.W.waterAt(__pt.x, __pt.y), rise: __w.baseRest - __w.base }; });
+await ev(() => {
+  ITEM = 2; MV_BETA.isoOwned = true; MV_BETA.hasIsolator = true; p.x = __pt.x - 150; p.y = __pt.y - FEET_OFF + 20; p.vx = 0; p.vy = 0;
+  window.__snap = {}; const tick = MV_BETA.waterPlayTick;
+  MV_BETA.waterPlayTick = function () { const r = tick.apply(this, arguments); const a = MV_BETA.wplay.air;   // snapshots on game ticks, not render frames
+    if (a && (a.hold === 12 || a.hold === 60) && !__snap[a.hold]) __snap[a.hold] = { amp: Math.max(...__w.h.map(Math.abs)), rings: MV_BETA.wplay.rings.length, A: a.A, r: Math.sqrt(a.A / Math.PI), dry: !MV_BETA.W.waterAt(__pt.x, __pt.y), rise: __w.baseRest - __w.base, st: p.itemStamina | 0,
+      puddles: MV_BETA.waters.filter(w => w.dyn && w.home === __w).length, drops: MV_BETA.wplay.drops.filter(d => d.home === __w).length, pending: __w._spill || 0 };
+    return r; };
+  window.__fire = true; p.itemStamina = 100;
+});
+const holdTo = n => pg.waitForFunction(n => !!window.__snap[n], n, { timeout: 30000 }).catch(() => {});
+await holdTo(12);
+const wave = await ev(() => __snap[12] || {});
+check('XLR push heaves the whole surface + pressure rings', wave.amp > 6 && wave.rings > 0, wave);
+await shot('9-xlr-push');
+await holdTo(60);
+const xlr = await ev(() => __snap[60] || null);
+check('pushed water over the rim pours out of the pool', xlr && (xlr.puddles + xlr.drops > 0 || xlr.pending > 0), xlr);
 await shot('9-xlr-air');
 check('XLR hold blows a big air pocket (power-capped), dry inside', xlr && xlr.A >= 6.5 * BLK && xlr.dry, xlr);
 check('the pocket pushes the water level up', xlr && xlr.rise > 4, xlr);
 await ev(() => { window.__fire = false; }); await frames(240);
 check('released air rises and pops', await ev(() => !MV_BETA.wplay.air && MV_BETA.wplay.rising.length === 0 && Math.abs(__w.base - __w.baseRest) < 0.5), null);
+await frames(200);
+const home = await ev(() => ({ puddles: MV_BETA.waters.filter(w => w.dyn).length, drops: MV_BETA.wplay.drops.length, v: MV_BETA.waterVolume() }));
+check('spilled water runs back once the bubble is gone (volume conserved)', home.puddles === 0 && home.drops === 0 && Math.abs(home.v - wsetup.v0) < 2, { v0: wsetup.v0, ...home });
 
 await ev(() => { MV_BETA.isoOwned = true; MV_BETA.hasIsolator = true; p.x = __pt.x - SW / 2; p.y = __pt.y - FEET_OFF + 20; p.vx = 0; p.vy = 0; }); await frames(20);
 await shot('10-isolator');

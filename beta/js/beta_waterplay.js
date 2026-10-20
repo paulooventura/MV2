@@ -20,11 +20,61 @@
   'use strict';
   const B=window.MV_BETA; if(!B||!B.W) return;
   const T=32, BLK=T*T, MAXB=9, GROW_FR=45, DRIP=BLK*0.35;
-  const S={blob:null, drops:[], air:null, rising:[], magWas:false, xlrWas:false, tips:[]};
+  const S={blob:null, drops:[], air:null, rising:[], rings:[], magWas:false, xlrWas:false, tips:[]};
   B.wplay=S;
   const on=()=>B.on&&typeof p!=='undefined'&&p;
   const rad=A=>Math.sqrt(Math.max(0,A)/Math.PI);
-  B.waterPlayReset=function(){ S.blob=null; S.drops.length=0; S.air=null; S.rising.length=0; S.tips.length=0; };
+  B.waterPlayReset=function(){ S.blob=null; S.drops.length=0; S.air=null; S.rising.length=0; S.rings.length=0; S.tips.length=0; };
+
+  // ── The whole mass reacts: the surface heaves over a growing pocket (sinks over a
+  // scoop) and the push travels out from the core as pressure rings.
+  function heave(w,x,y,dA,dir){
+    if(!w||dA<=0) return;
+    const reach=rad(dA*8)+40+Math.max(0,y-w.level)*0.8, k=dA/BLK*4*dir;
+    for(let i=0;i<w.n;i++){ const dx=(w.x0+i*w.step-x)/reach; if(dx*dx<9) w.v[i]-=k*Math.exp(-dx*dx); }
+  }
+  function ring(w,x,y,r0,dir){
+    if(!w||S.rings.length>=8) return;
+    S.rings.push({w,x,y,r:dir>0?r0:r0+70,dir,a:1});
+  }
+  function ringsTick(){
+    for(let i=S.rings.length-1;i>=0;i--){
+      const g=S.rings[i]; g.r+=3.2*g.dir; g.a-=0.028;
+      if(g.a<=0||g.r<2){ S.rings.splice(i,1); continue; }
+      if(g.dir>0) for(const q of B.bubbles){                // molecules pushed away from the core
+        if(q.w!==g.w) continue;
+        const dx=q.x-g.x, dy=q.y-g.y, d=Math.hypot(dx,dy)||1;
+        if(Math.abs(d-g.r)<10){ q.x+=dx/d*1.6*g.a; q.y+=dy/d*1.6*g.a; }
+      }
+    }
+  }
+
+  // ── Rims: the lowest edge a pool can pour over, and the water that does
+  function rimOf(w){
+    if(w._rim) return w._rim;
+    const side=(col,dir)=>{ let r=w.r1; while(r>=0&&gridSolid(col,r)) r--; return {y:(r+1)*T, x:dir<0?w.x0-4:w.x1+4, dir}; };
+    const L=side(w.c0-1,-1), R=side(w.c1+1,1);
+    return (w._rim=L.y>=R.y?L:R);
+  }
+  function spillTick(w){
+    if(w.dyn) return;
+    const R=rimOf(w), over=R.y-w.base;
+    if(over>0.5){                                           // above the rim: it pours over
+      const A=Math.min(over*width(w),BLK*0.2);
+      w.baseRest+=A/width(w); w.base+=A/width(w);
+      w._spill=(w._spill||0)+A;
+      if(w._spill>=BLK*0.12){ addDrop(R.x,R.y-6,R.dir*(1.2+Math.random()),-0.4,w._spill,w); w._spill=0; }
+    }else if(w._spill>0&&fr%20===0){ addDrop(R.x,R.y-6,R.dir,-0.4,w._spill,w); w._spill=0; }
+  }
+  function drainBack(w){                                    // a spilled puddle runs home when there's room
+    const H=w.home; if(!H||B.waters.indexOf(H)<0) return;
+    const R=rimOf(H), room=(H.base-R.y)*width(H);
+    if(room<=2) return;
+    const A=take(w,Math.min(room,BLK*0.1));
+    if(A<=0) return;
+    pour(H,A);
+    if(fr%4===0) PFXS.push({x:R.x-R.dir*2,y:R.y-2,vx:-R.dir*1.2,vy:0.5,life:14,maxLife:14,r:2,col:'#9ad8ff'});
+  }
 
   // ── Volume bookkeeping (px²): the rest level of a pool moves with what goes in or out
   const width=w=>w.x1-w.x0;
@@ -51,7 +101,7 @@
   }
 
   // ── Puddles: water that lands on a floor spreads along it until a wall or an edge
-  function landWater(x,y,A){
+  function landWater(x,y,A,home){
     let c=Math.floor(x/T), r=Math.floor(y/T);
     while(r>0&&gridSolid(c,r)) r--;
     let l=c, rr=c;
@@ -61,7 +111,7 @@
     for(const ec of [l-1,rr+1]){
       if(gridSolid(ec,r)||gridSolid(ec,r+1)) continue;
       const below=B.waters.find(w=>ec>=w.c0&&ec<=w.c1&&w.r1>=r);
-      if(below){ pour(below,A); B.W.splash(below,(ec+0.5)*T,Math.min(5,A/BLK*1.2),false); return; }
+      if(below&&!(below===home&&below.base<=rimOf(below).y+1)){ pour(below,A); B.W.splash(below,(ec+0.5)*T,Math.min(5,A/BLK*1.2),false); return; }   // a brim-full pool can't take its own overflow back yet
     }
     for(const w of B.waters){
       if(rr<w.c0||l>w.c1) continue;
@@ -70,11 +120,12 @@
     }
     const wd=(rr-l+1)*T, level=(r+1)*T-A/wd;
     const w=B.W.makeWater(l,rr,Math.min(r,Math.floor(level/T)),r,level,true);
+    if(home) w.home=home;
     B.W.splash(w,x,Math.min(5,A/BLK*1.2),false);
   }
 
   // ── Thrown / dripping water ────────────────────────────────────
-  function addDrop(x,y,vx,vy,A){ if(A>4) S.drops.push({x,y,vx,vy,A,t:0}); }
+  function addDrop(x,y,vx,vy,A,home){ if(A>4) S.drops.push({x,y,vx,vy,A,t:0,home:home||null}); }
   function touchEnemies(x,y,r){
     for(const e of ENEMS){
       if(!e.alive||e.mind||e._betaHeld) continue;
@@ -87,13 +138,13 @@
       const d=S.drops[i], r=rad(d.A);
       d.t++; d.vy=Math.min(d.vy+GRAV*0.9,14); d.vx*=0.995;
       const w=B.W.waterAtRaw(d.x,d.y);
-      if(w&&d.t>2){ pour(w,d.A); B.W.splash(w,d.x,Math.min(7,d.A/BLK+Math.abs(d.vy)*0.3),false); S.drops.splice(i,1); continue; }
+      if(w&&d.t>2&&!(w===d.home&&w.base<=rimOf(w).y+1)){ pour(w,d.A); B.W.splash(w,d.x,Math.min(7,d.A/BLK+Math.abs(d.vy)*0.3),false); S.drops.splice(i,1); continue; }
       touchEnemies(d.x,d.y,r);
       const nx=d.x+d.vx;
       if(gridSolid(Math.floor((nx+Math.sign(d.vx)*r*0.6)/T),Math.floor(d.y/T))) d.vx*=-0.3; else d.x=nx;
       const ny=d.y+d.vy;
       if(d.vy>0&&gridSolid(Math.floor(d.x/T),Math.floor((ny+r*0.6)/T))){
-        landWater(d.x,d.y,d.A);
+        landWater(d.x,d.y,d.A,d.home);
         for(let k=0;k<8;k++){ const a=-Math.PI*(0.1+Math.random()*0.8); PFXS.push({x:d.x,y:ny,vx:Math.cos(a)*2,vy:Math.sin(a)*2.5,life:16,maxLife:16,r:1.5+Math.random()*1.5,col:'#9ad8ff'}); }
         S.drops.splice(i,1); continue;
       }
@@ -130,7 +181,11 @@
     const grown=1+(MAXB-1)*Math.min(1,b.hold/GROW_FR);
     const cap=MAXB*Math.max(0,p.itemStamina)/100;          // grip follows the power
     const want=Math.min(grown,cap)*BLK;
-    if(b.A<want&&src) b.A+=take(src,Math.min(want-b.A,BLK*0.25));
+    if(b.A<want&&src){
+      const got=take(src,Math.min(want-b.A,BLK*0.25)); b.A+=got;
+      heave(src,tip.x,tip.y,got,-1);                        // the surface sinks toward the pull
+      if(got>0&&b.hold%6===1) ring(src,tip.x,tip.y,rad(b.A),-1);
+    }
     if(b.A>cap*BLK+1){                                    // losing grip: water drips off the bottom, a bit at a time
       const chunk=Math.min(b.A-cap*BLK,DRIP);
       b.A-=chunk; addDrop(b.x+(Math.random()-0.5)*rad(b.A),b.y+rad(b.A)*0.8,(p.vx||0)*0.5,1,chunk);
@@ -149,7 +204,10 @@
       S.xlrWas=false; return;
     }
     const tip=connectorTipWorld(2);
-    if(!S.air&&B.W.waterAtRaw(tip.x,tip.y)){ S.air={x:tip.x,y:tip.y,A:BLK,hold:0}; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(0.3); }catch(e){} }
+    if(!S.air){
+      const w0=B.W.waterAtRaw(tip.x,tip.y);
+      if(w0){ S.air={x:tip.x,y:tip.y,A:BLK,hold:0,w:w0}; heave(w0,tip.x,tip.y,BLK,1); ring(w0,tip.x,tip.y,rad(BLK),1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(0.3); }catch(e){} }
+    }
     S.xlrWas=true;
     const a=S.air; if(!a) return;
     a.hold++;
@@ -160,7 +218,11 @@
     const grown=1+(MAXB-1)*Math.min(1,a.hold/GROW_FR);
     const cap=MAXB*Math.max(0,p.itemStamina)/100;
     const want=Math.min(grown,cap)*BLK;
-    if(a.A<want) a.A=Math.min(want,a.A+BLK*0.25);
+    if(a.A<want){
+      const g=Math.min(want-a.A,BLK*0.25); a.A+=g;
+      heave(a.w,tip.x,tip.y,g,1);                           // the water it shoves aside lifts the whole surface
+      if(a.hold%6===0) ring(a.w,tip.x,tip.y,rad(a.A),1);
+    }
     else if(a.A>want){ const lost=Math.min(a.A-want,BLK*0.2); a.A-=lost; S.rising.push({x:a.x,y:a.y-rad(a.A),A:lost,vy:-1.2,vx:(Math.random()-0.5)}); }
     a.x=tip.x; a.y=tip.y;
     // anything floating in the pocket is pushed out from the tip
@@ -186,7 +248,7 @@
   // ── Every frame (called from beta_water.js before the pools update) ──
   B.waterPlayTick=function(){
     if(!on()) return;
-    magWater(); xlrAir(); risingTick(); dropsTick();
+    magWater(); xlrAir(); risingTick(); dropsTick(); ringsTick();
     B.airs.length=0;
     if(S.air) B.airs.push({x:S.air.x,y:S.air.y,r:rad(S.air.A),A:S.air.A});
     for(const a of S.rising) B.airs.push({x:a.x,y:a.y,r:rad(a.A),A:a.A});
@@ -194,11 +256,16 @@
       const w=B.waters[i];
       let air=0; for(const a of B.airs) air+=a.A*airIn(w,a);
       w.base=w.baseRest-air/width(w);
-      if(w.dyn&&volumeOf(w)<16&&!air) B.waters.splice(i,1);   // a puddle scooped dry is gone
+      spillTick(w);
+      if(w.dyn){
+        drainBack(w);
+        const v=volumeOf(w);
+        if(v<16&&!air){ if(w.home&&B.waters.indexOf(w.home)>=0) pour(w.home,v); B.waters.splice(i,1); }   // a puddle scooped dry is gone
+      }
     }
   };
   B.waterVolume=function(){                              // for tests: water in pools + held + flying
-    let v=0; for(const w of B.waters) v+=volumeOf(w);
+    let v=0; for(const w of B.waters) v+=volumeOf(w)+(w._spill||0);
     if(S.blob) v+=S.blob.A; for(const d of S.drops) v+=d.A; return v;
   };
 
@@ -224,6 +291,19 @@
       ctx.fillStyle='rgba(220,160,255,0.9)'; ctx.beginPath(); ctx.arc(sx(b.x),sy(b.y),Math.max(1.5,sw(2)),0,Math.PI*2); ctx.fill();
     }
     for(const d of S.drops) waterBall(d.x,d.y,rad(d.A),0.95);
+    if(S.rings.length){                                     // pressure rings, only inside the water
+      ctx.save(); ctx.lineWidth=Math.max(1,sw(2));
+      for(const g of S.rings){
+        const w=g.w; if(B.waters.indexOf(w)<0) continue;
+        ctx.save(); ctx.beginPath(); ctx.moveTo(sx(w.x0),sy(w.level+w.h[0]));
+        for(let i=1;i<w.n;i++) ctx.lineTo(sx(Math.min(w.x1,w.x0+i*w.step)),sy(w.level+w.h[i]));
+        ctx.lineTo(sx(w.x1),sy((w.r1+1)*T+T*3)); ctx.lineTo(sx(w.x0),sy((w.r1+1)*T+T*3)); ctx.closePath(); ctx.clip();
+        ctx.strokeStyle='rgba(205,240,255,'+(0.4*g.a)+')';
+        ctx.beginPath(); ctx.arc(sx(g.x),sy(g.y),sw(g.r),0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
     for(const a of B.airs){                                 // air pockets: a bright skin where the water was pushed back
       const X=sx(a.x), Y=sy(a.y), R=sw(a.r);
       ctx.strokeStyle='rgba(225,248,255,0.85)'; ctx.lineWidth=Math.max(1.5,sw(2)); ctx.beginPath(); ctx.arc(X,Y,R,0,Math.PI*2); ctx.stroke();
