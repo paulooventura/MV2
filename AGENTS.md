@@ -171,3 +171,4 @@ After completing substantive work in this repo, **commit and push to `main` with
 
 
 - **Jacks move the water (beta_water.js `itemWater`)**: XLR held under water pushes the water mass downstream (flux along the jet, throbbing so ripples run off) and heaves a mound / opens a dip when aimed up / down; aimed at the surface from above it blows a crater with spray; releasing a charged push under water sends one surge. MAG held under water pulls a dimple over the tip with inflow from both sides and bubbles spiralling into the poles. Volume stays conserved (test: scratchpad `wr.mjs` / `wi.mjs`).
+- **Isolator is timed (beta_water.js `isolatorTick`)**: lasts `ISO_TIME`=1800 frames (30 s), flickers and the ring over MIND turns red in the last 5 s, then wears off (toast). The crate respawns `ISO_RESPAWN`=1800 frames after it's taken (`iso.re`, saved as `isoRe`). It no longer carries over between stages (`isoOwned` retired); the achievement uses `B.isoEver`.

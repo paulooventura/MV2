@@ -79,11 +79,10 @@
       knowls:KDROP.filter(k=>k.got&&!k._carried&&!k._fly).map(kKey),
       drops:(typeof ITEM_DROPS!=='undefined'?ITEM_DROPS:[]).filter(d=>d.got).map(d=>d._cell||(d.item+'@'+Math.round(d.x))),
       rope:!!(_mapRopePickup&&_mapRopePickup.got),
-      iso:!!(B.isoPickup&&B.isoPickup.got),
+      iso:!!(B.isoPickup&&B.isoPickup.got), isoRe:B.isoPickup?(B.isoPickup.re||0):0,
       met:!!(B.laitu&&B.laitu.met),
       cleared:!!B.cleared, stats:Object.assign({},B.stats)
     };
-    if(B.hasIsolator) B.isoOwned=true;
   }
   function restoreStage(opts){
     const sv=opts.fresh?null:B.saves[B.stageId];
@@ -94,7 +93,7 @@
       kColl=KDROP.filter(k=>k.got).length;
       if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.forEach(d=>{ if(ds.has(d._cell||(d.item+'@'+Math.round(d.x)))) d.got=true; });
       if(_mapRopePickup&&sv.rope) _mapRopePickup.got=true;
-      if(B.isoPickup&&sv.iso) B.isoPickup.got=true;
+      if(B.isoPickup&&sv.iso&&sv.isoRe>0){ B.isoPickup.got=true; B.isoPickup.re=sv.isoRe; }
       if(B.laitu&&sv.met) B.laitu.met=true;
       B.cleared=sv.cleared; B.stats=Object.assign(B.stats,sv.stats);
       if(gateReady()) B.open=true;
@@ -104,7 +103,6 @@
         B.revisitNote=360;
       }
     }
-    if(B.isoOwned) B.hasIsolator=true;
     B.arriveCd=90;
     if(opts.atGate&&B.gate&&p){                 // come back out of this stage's arch, facing home
       p.x=B.gate.x-3*T+T/2-SW/2; p.y=B.gate.y+B.gate.h-FEET_OFF-1; p.vx=0; p.vy=0; p.og=true; p.fc=true;

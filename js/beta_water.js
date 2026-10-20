@@ -27,7 +27,7 @@
   B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[];
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[]; B.ridePlat=null; };
+  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.bubbles=[]; B.ridePlat=null; };
   B.onEntities=function(ents, F, cell){
     for(const e of ents){
       const g=cell(e), id=e.__identifier;
@@ -472,18 +472,37 @@
   }
 
   // ── The Isolator pickup ───────────────────────────────────────
+  // Paulo, Oct 2026: the Isolator works for 30 seconds, then it wears off.
+  // The crate grows back 30 seconds after it's taken.
+  const ISO_TIME=1800, ISO_RESPAWN=1800;                   // frames (60 fps)
+  B.ISO_TIME=ISO_TIME;
   function isolatorTick(){
     const iso=B.isoPickup;
+    if(B.hasIsolator){                                     // wearing off
+      B.isoT=(B.isoT||0)-1;
+      if(B.isoT===300||B.isoT===120) try{ zap(0.3); }catch(e){}
+      if(B.isoT<=0){
+        B.hasIsolator=false; B.isoT=0;
+        if(p) for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, s=1+Math.random()*2.5; PFXS.push({x:p.x+SW/2+Math.cos(a)*24,y:p.y+FEET_OFF-50+Math.sin(a)*30,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*10|0,maxLife:30,r:2+Math.random()*2,col:'#c86a30'}); }
+        if(typeof uiShowToast==='function') uiShowToast('THE ISOLATOR WORE OFF - A NEW ONE GROWS BACK SOON');
+      }
+    }
+    if(iso&&iso.got&&iso.re>0){                            // the crate grows back
+      iso.re--;
+      if(iso.re<=0){ iso.got=false; iso.pop=20;
+        for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*2,vy:Math.sin(a)*2-1,life:18,maxLife:18,r:2,col:'#ffa040'}); } }
+    }
     if(!iso||iso.got||!p) return;
     const core=playerCoreHB(p), feet=p.y+FEET_OFF;
     if(ov(core.x-4,core.y,core.w+8,feet+6-core.y,iso.x-23,iso.y-40,46,40)){
-      iso.got=true; B.hasIsolator=true; B.stats.items++;
+      iso.got=true; iso.re=ISO_RESPAWN; B.hasIsolator=true; B.isoT=ISO_TIME;
+      if(!B.isoEver){ B.isoEver=true; B.stats.items++; }
       for(let k=0;k<16;k++){ const a=Math.random()*Math.PI*2, s=1.6+Math.random()*3; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,life:16+Math.random()*12|0,maxLife:28,r:2+Math.random()*2,col:'#ffa040'}); }
       if(B.openPopup) B.openPopup(4);
     }
   }
-  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IN WATER: A KICKS, HOLD X WITH THE XLR: A CURRENT.']};
-  B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.hasIsolator) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
+  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IT LASTS 30 SECONDS - A NEW ONE GROWS BACK 30 SECONDS LATER.','IN WATER: A KICKS, HOLD X WITH THE XLR: A CURRENT.']};
+  B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.isoEver) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
 
   // ── Drawing ───────────────────────────────────────────────────
   B.drawWorldExtras=function(){
@@ -586,8 +605,14 @@
     const r=_origDrawChar.apply(this, arguments);
     if(on()&&B.hasIsolator){
       const cx=sx(p.x+SW/2), feet=sy(p.y+FEET_OFF), top=feet-sw(STAND_H+WHEEL_R)+sw((p.crouchAmt||0)*30)-4;
-      const wet=B.mindWet||0, a=0.28+0.25*wet+0.06*Math.sin(fr*0.12);
+      const wet=B.mindWet||0, left=B.isoT||0;
+      const blink=left<300&&((fr>>(left<120?2:3))&1);           // running out: it flickers
+      const a=(0.28+0.25*wet+0.06*Math.sin(fr*0.12))*(blink?0.25:1);
       ctx.save();
+      // time left: a ring that empties over MIND's head
+      const k=Math.max(0,left/ISO_TIME), rx=cx+sw(30), ry=top-sw(6), rr=Math.max(5,sw(9));
+      ctx.lineWidth=Math.max(2,sw(3)); ctx.strokeStyle='rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(rx,ry,rr,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle=left<300?'#ff5a3a':'#ffa040'; ctx.beginPath(); ctx.arc(rx,ry,rr,-Math.PI/2,-Math.PI/2+Math.PI*2*k); ctx.stroke();
       ctx.fillStyle='rgba(255,150,60,'+(a*0.45)+')'; ctx.strokeStyle='rgba(255,180,100,'+(a+0.2)+')'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.roundRect(cx-sw(32),top,sw(64),feet-top+2,sw(18)); ctx.fill(); ctx.stroke();
       ctx.strokeStyle='rgba(255,240,210,'+(0.35+0.3*wet)+')'; ctx.lineWidth=2;
