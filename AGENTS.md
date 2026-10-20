@@ -162,5 +162,5 @@ After completing substantive work in this repo, **commit and push to `main` with
 
 - `index.html` is the game: title → story → hero select → Awdjoo Town 1.1 → 1.2 → "to be continued" → title. Story mode starts the stages from `startGame()` in `ui.js` (`window.MV_STORY_STAGES`); `?selftest=1` still drives the classic Awdjoo map so the selftest is unchanged. 2-player local shows "coming soon" for the new stages.
 - No A/B lab bar or debug readouts on index (`ab-switch.js` no longer loaded; `#mvVer/#inf` hidden). The lab pages still exist for development.
-- Controls, SNES layout: A jump · B item select · X run + use item · Y punch. Keyboard Space / E / Q (Q also runs) / F; Esc or START pauses (B quits to title, Tab restarts the stage). Pads map by button position (standard mapping: 1 A, 0 B, 3 X, 2 Y); the phone pad is the SNES diamond in Super Famicom colours.
+- Controls, SNES layout: A jump · B item select · X run + use item · Y punch. Keyboard Space / E / Q (Q also runs) / F; Esc or START pauses (B quits to title, Tab restarts the stage). Pads follow the letters on Paulo's Xbox-style pad (standard mapping: 0 A, 1 B, 2 X, 3 Y); the phone pad is the same diamond (Y top, X left, B right, A bottom).
 

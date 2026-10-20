@@ -51,7 +51,7 @@ window.addEventListener('keyup',e=>{
 function _initTouchButtons(){
   const cv=document.getElementById('c');
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
-  // Face buttons, SNES layout: A jump · B item select · X run + use item · Y punch.
+  // Face buttons, Xbox layout: A jump · B item select · X run + use item · Y punch.
   const _padPairs=[['bSp',['Space']],['bE',['KeyE']],['bQ',['KeyQ','Sprint_t']],['bF',['KeyF']]];
   _padPairs.forEach(([id,codes])=>{
     const b=document.getElementById(id);
@@ -148,30 +148,31 @@ function readGamepad(){
   if(pressed(15)) K['KeyD']=true;
   if(pressed(12)) K['KeyW']=true;
   if(pressed(13)) K['KeyS']=true;
-  // SNES layout by position (standard mapping): bottom 0 = B, right 1 = A,
-  // left 2 = Y, top 3 = X.  A jump · B item select · X run + use item · Y punch
-  const bJump=pressed(1);
-  if(bJump&&!GP.prev[1]) Kj['Space']=true;
+  // By the letters on an Xbox-style pad (standard mapping): 0 = A (bottom),
+  // 1 = B (right), 2 = X (left), 3 = Y (top).
+  // A jump · B item select · X run + use item · Y punch
+  const bJump=pressed(0);
+  if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
-  if(rose(3)) Kj['KeyQ']=true;
-  if(rose(0)) Kj['KeyE']=true;
-  K['KeyQ']=(K['KeyQ_kb']||pressed(3));
-  K['Sprint_gp']=pressed(3);
-  K['KeyE']=(K['KeyE_kb']||pressed(0));
-  K['KeyF']=(K['KeyF_kb']||pressed(2));
+  if(rose(2)) Kj['KeyQ']=true;
+  if(rose(1)) Kj['KeyE']=true;
+  K['KeyQ']=(K['KeyQ_kb']||pressed(2));
+  K['Sprint_gp']=pressed(2);
+  K['KeyE']=(K['KeyE_kb']||pressed(1));
+  K['KeyF']=(K['KeyF_kb']||pressed(3));
   if(pressed(4)) K['KeyS']=true;
   if(rose(9)) Kj['Tab']=true;
   if(_gameState==='title'){
-    const ok=rose(1)||rose(9);                          // A or START confirms
+    const ok=rose(0)||rose(9);                          // A or START confirms
     if(!_titleMusicPlaying&&ok) _onInteract();
     else if(_titleMusicPlaying){
       if(rose(12)) _titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;
       if(rose(13)) _titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;
       if(ok) _titleMenuActivate();
     }
-  }else if((_gameState==='story'||_gameState==='select')&&(rose(1)||rose(9))) startGame();
+  }else if((_gameState==='story'||_gameState==='select')&&(rose(0)||rose(9))) startGame();
   if(_gameState==='options'){
-    _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(1),back:rose(0)});   // A ok, B back
+    _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)});   // A ok, B back
   }
   if(_gameState==='select'){
     if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
@@ -179,7 +180,7 @@ function readGamepad(){
   }
   [0,1,2,3,4,9,12,13,14,15].forEach(i=>GP.prev[i]=pressed(i));
   if(rose(9)&&_gameState==='game') Kj['Escape']=true;
-  if(rose(0)&&_gameState!=='game') Kj['Escape']=true;      // B backs out of menus
+  if(rose(1)&&_gameState!=='game') Kj['Escape']=true;      // B backs out of menus
 }
 function clkj(){ Object.keys(Kj).forEach(k=>delete Kj[k]); }
 
