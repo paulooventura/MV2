@@ -97,12 +97,21 @@
     const lead=[[72,0,.5],[76,.5,.5],[79,1,.5],[84,1.5,1],[83,2.5,.5],[79,3,.5],[81,3.5,.5],[83,4,.5],[84,4.5,2]];
     const bass=[[48,0,1.5],[55,1.5,1],[53,2.5,1],[55,3.5,1],[48,4.5,2]];
     const bell=[[96,4.5,1.5],[91,4.75,1.25],[88,5,1]];
+    // 16-bit style voices: a detuned brass section through a filter, a round bass, glassy bells
     const voice=(notes,type,gain,rel)=>{ for(const [n,b,d] of notes){
-      const o=a.createOscillator(), g=a.createGain(); o.type=type; o.frequency.value=N(n);
-      const s=t0+b*q, e=s+d*q;
-      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(gain*sv(),s+0.015); g.gain.setValueAtTime(gain*sv()*0.7,e-0.03); g.gain.exponentialRampToValueAtTime(0.0001,e+rel);
-      o.connect(g); g.connect(a.destination); o.start(s); o.stop(e+rel+0.05); } };
-    voice(lead,'square',0.07,0.08); voice(bass,'triangle',0.12,0.1); voice(bell,'sine',0.08,0.8);
+      const s=t0+b*q, e=s+d*q, g=a.createGain();
+      const oscs=type==='brass'?[-7,7].map(c=>{ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.value=N(n); o.detune.value=c; return o; })
+                :[(()=>{ const o=a.createOscillator(); o.type=type; o.frequency.value=N(n); return o; })()];
+      let head=g;
+      if(type==='brass'){ const f=a.createBiquadFilter(); f.type='lowpass'; f.Q.value=2; f.frequency.setValueAtTime(700,s); f.frequency.exponentialRampToValueAtTime(3400,s+0.06); f.frequency.exponentialRampToValueAtTime(1800,e); f.connect(g); head=f;
+        const vib=a.createOscillator(), vg=a.createGain(); vib.frequency.value=5.5; vg.gain.value=d>1?6:0; vib.connect(vg); oscs.forEach(o=>vg.connect(o.detune)); vib.start(s); vib.stop(e+rel+0.05); }
+      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(gain*sv(),s+0.02); g.gain.setValueAtTime(gain*sv()*0.75,e-0.03); g.gain.exponentialRampToValueAtTime(0.0001,e+rel);
+      oscs.forEach(o=>{ o.connect(head); o.start(s); o.stop(e+rel+0.05); });
+      g.connect(a.destination); } };
+    voice(lead,'brass',0.06,0.12); voice(bass,'triangle',0.14,0.1); voice(bell,'sine',0.08,0.9);
+    // timpani roll into the last chord
+    [3.5,3.75,4,4.25,4.5].forEach((b,i)=>{ const s=t0+b*q, o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(i<4?98:65,s); o.frequency.exponentialRampToValueAtTime(i<4?70:44,s+0.3);
+      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime((i<4?0.1:0.22)*sv(),s+0.01); g.gain.exponentialRampToValueAtTime(0.0001,s+(i<4?0.25:0.9)); o.connect(g); g.connect(a.destination); o.start(s); o.stop(s+1); });
     return (6.5*q+0.9)*1000;
   }
 

@@ -286,7 +286,7 @@ function _normTR(){
   return _normTRCache;
 }
 function allP(){
-  if(_allPCacheFr===fr) return _allPCache;
+  if(_allPCacheFr===fr&&_allPCache) return _allPCache;
   const out=_normTR().slice();
   const gridOn=typeof _gridReady==='function'&&_gridReady();
   if(!gridOn){

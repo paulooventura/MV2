@@ -114,12 +114,183 @@ function _fontNorm(s){
 }
 function textAdv(scl=2){ return FONT_CELL*((scl|0)||1); }
 function textH(scl=2){ return FONT_CELL*((scl|0)||1); }
-function textW(s,scl=2){ const n=_fontNorm(s).length; return n?n*textAdv(scl):0; }
+
+// ── MV2 16-bit type ─────────────────────────────────────────────
+// Smooth faces bundled in assets/fonts (SIL OFL): Exo 2 Black Italic for
+// big titles (the chrome-logo look of 16-bit title screens) and Nunito
+// ExtraBold for menus, HUD and dialogue. Drawn with a vertical colour ramp,
+// a dark outline, a soft drop shadow and, on titles, a glow. Same API and
+// box as the old 8x8 font (y = top of an 8*scl cell); the bitmap font is
+// the fallback until the faces load.
+const UI_FACES=[['MV Title','assets/fonts/exo2-900i.woff2',{weight:'900',style:'italic'}],
+                ['MV Sans','assets/fonts/nunito-800.woff2',{weight:'800'}],
+                ['MV Sans','assets/fonts/nunito-700.woff2',{weight:'700'}]];
+let _uiFontReady=false;
+(function _loadUiFont(){
+  try{
+    if(typeof FontFace==='undefined'||!document.fonts) return;
+    Promise.all(UI_FACES.map(([fam,url,d])=>new FontFace(fam,'url('+url+') format("woff2")',d).load().then(f=>document.fonts.add(f))))
+      .then(()=>{ _uiFontReady=true; _uiTwCache.clear(); }).catch(()=>{});
+  }catch(e){}
+})();
+const _uiTwCache=new Map();
+function _uiFontSpec(scl){
+  if(scl>=3) return 'italic 900 '+Math.round(10.5*scl)+'px "MV Title", "MV Sans", system-ui, sans-serif';
+  return (scl>=2?'800 ':'700 ')+Math.round(scl>=2?10*scl:12)+'px "MV Sans", system-ui, sans-serif';
+}
+function _uiRGB(col){
+  if(typeof col!=='string') return null;
+  let m=/^#([0-9a-f]{3})$/i.exec(col); if(m){ const h=m[1]; return [parseInt(h[0]+h[0],16),parseInt(h[1]+h[1],16),parseInt(h[2]+h[2],16)]; }
+  m=/^#([0-9a-f]{6})/i.exec(col); if(m) return [parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)];
+  m=/^rgba?\(([^)]+)\)/i.exec(col); if(m){ const v=m[1].split(',').map(Number); return [v[0],v[1],v[2]]; }
+  return null;
+}
+function _uiMix(rgb,to,k){ return 'rgb('+rgb.map((v,i)=>Math.round(v+(to[i]-v)*k)).join(',')+')'; }
+function textW(s,scl=2){
+  scl=(scl|0)||1;
+  s=_uiFontReady?String(s).toUpperCase():_fontNorm(s);
+  if(!s.length) return 0;
+  if(!_uiFontReady) return s.length*textAdv(scl);
+  const key=scl+'|'+s; let w=_uiTwCache.get(key);
+  if(w==null){ ctx.save(); ctx.font=_uiFontSpec(scl); w=Math.ceil(ctx.measureText(s).width); ctx.restore(); if(_uiTwCache.size>3000) _uiTwCache.clear(); _uiTwCache.set(key,w); }
+  return w;
+}
+function _drawText16(s,x,y,col,scl){
+  const rgb=_uiRGB(col);
+  const base=y+7*scl;                         // the old font's glyphs sat 7 rows tall in an 8-row cell
+  ctx.save();
+  ctx.font=_uiFontSpec(scl); ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+  const a=ctx.globalAlpha;
+  if(scl>=2){
+    const dark=rgb?_uiMix(rgb,[6,3,14],0.86):'#06030e';
+    ctx.globalAlpha=a*0.55; ctx.fillStyle='#000'; ctx.fillText(s,x+scl*0.9,base+scl*1.1);   // drop shadow
+    ctx.globalAlpha=a;
+    ctx.lineJoin='round'; ctx.lineWidth=Math.max(2.5,scl*1.35); ctx.strokeStyle=dark; ctx.strokeText(s,x,base);
+    let fill=col;
+    if(rgb){ const g=ctx.createLinearGradient(0,base-8*scl,0,base+scl); g.addColorStop(0,_uiMix(rgb,[255,255,255],0.62)); g.addColorStop(0.5,_uiMix(rgb,[255,255,255],0.12)); g.addColorStop(1,_uiMix(rgb,[0,0,0],0.28)); fill=g; }
+    if(scl>=3&&rgb){ ctx.shadowColor='rgba('+rgb.join(',')+',0.55)'; ctx.shadowBlur=6*scl; }
+    ctx.fillStyle=fill; ctx.fillText(s,x,base);
+    ctx.shadowBlur=0;
+    if(scl>=3){ ctx.globalAlpha=a*0.5; ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.save(); ctx.beginPath(); ctx.rect(x-2,base-7*scl,textW(s,scl)+4,scl*2.2); ctx.clip(); ctx.fillText(s,x,base); ctx.restore(); }   // a chrome glint on the top edge
+  }else{
+    ctx.globalAlpha=a*0.85; ctx.fillStyle='#05030c'; ctx.fillText(s,x+1,base+1);
+    ctx.globalAlpha=a; ctx.fillStyle=col; ctx.fillText(s,x,base);
+  }
+  ctx.restore();
+}
+
+// ── MV2 16-bit UI kit: rounded glass panels, glossy bars, pills ───
+function uiRound(x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
+function uiPanel(x,y,w,h,opts={}){
+  const r=opts.r!=null?opts.r:Math.min(12,h/3), sel=!!opts.sel, dim=!!opts.locked;
+  const accent=opts.accent||(sel?'#f0d070':'#8a74d8');
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=opts.flat?0:14; ctx.shadowOffsetY=opts.flat?0:4;
+  const g=ctx.createLinearGradient(0,y,0,y+h);
+  if(dim){ g.addColorStop(0,'rgba(30,22,40,0.94)'); g.addColorStop(1,'rgba(14,10,20,0.94)'); }
+  else if(sel){ g.addColorStop(0,'rgba(74,40,140,0.96)'); g.addColorStop(0.55,'rgba(40,18,92,0.96)'); g.addColorStop(1,'rgba(22,10,54,0.96)'); }
+  else{ g.addColorStop(0,'rgba(36,24,78,'+(opts.alpha||0.92)+')'); g.addColorStop(1,'rgba(10,6,28,'+(opts.alpha||0.92)+')'); }
+  uiRound(x,y,w,h,r); ctx.fillStyle=g; ctx.fill();
+  ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  // gold / lilac bevel: bright outer line, darker inner line
+  ctx.lineWidth=2; ctx.strokeStyle=dim?'#4a4058':accent; uiRound(x+1,y+1,w-2,h-2,r); ctx.stroke();
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.55)'; uiRound(x+3.5,y+3.5,w-7,h-7,Math.max(2,r-3)); ctx.stroke();
+  // glass sheen on the top third
+  const sh=ctx.createLinearGradient(0,y,0,y+h*0.45); sh.addColorStop(0,'rgba(255,255,255,'+(sel?0.18:0.1)+')'); sh.addColorStop(1,'rgba(255,255,255,0)');
+  uiRound(x+3,y+3,w-6,h*0.45,Math.max(2,r-3)); ctx.fillStyle=sh; ctx.fill();
+  if(sel&&!dim){ const t=(fr%120)/120; const gx=x+t*(w+80)-40; const gl=ctx.createLinearGradient(gx-30,0,gx+30,0);
+    gl.addColorStop(0,'rgba(255,248,210,0)'); gl.addColorStop(0.5,'rgba(255,248,210,0.22)'); gl.addColorStop(1,'rgba(255,248,210,0)');
+    ctx.save(); uiRound(x+2,y+2,w-4,h-4,r); ctx.clip(); ctx.fillStyle=gl; ctx.fillRect(x,y,w,h); ctx.restore(); }
+  ctx.restore();
+}
+// a glossy capsule meter; segs>0 draws tick marks; colB = colour at the full end
+function uiBar(x,y,w,h,frac,colA,colB,segs=0,opts={}){
+  frac=Math.max(0,Math.min(1,frac||0));
+  ctx.save();
+  uiRound(x-1,y-1,w+2,h+2,(h+2)/2); ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fill();
+  uiRound(x,y,w,h,h/2); ctx.fillStyle='rgba(30,22,48,0.95)'; ctx.fill();
+  if(frac>0){
+    const fw=Math.max(h,w*frac);
+    const g=ctx.createLinearGradient(x,0,x+w,0); g.addColorStop(0,colA); g.addColorStop(1,colB||colA);
+    ctx.save(); uiRound(x,y,w,h,h/2); ctx.clip();
+    ctx.fillStyle=g; ctx.fillRect(x,y,fw,h);
+    const hl=ctx.createLinearGradient(0,y,0,y+h); hl.addColorStop(0,'rgba(255,255,255,0.55)'); hl.addColorStop(0.45,'rgba(255,255,255,0.08)'); hl.addColorStop(1,'rgba(0,0,0,0.25)');
+    ctx.fillStyle=hl; ctx.fillRect(x,y,fw,h);
+    if(opts.pulse){ ctx.fillStyle='rgba(255,255,255,'+(0.18*(0.5+0.5*Math.sin(fr*0.25)))+')'; ctx.fillRect(x,y,fw,h); }
+    ctx.restore();
+  }
+  if(segs>1){ ctx.fillStyle='rgba(6,3,14,0.55)'; for(let i=1;i<segs;i++) ctx.fillRect(Math.round(x+w*i/segs),y+1,1,h-2); }
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(255,255,255,0.18)'; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke();
+  ctx.restore();
+}
+function uiPill(x,y,w,h,opts={}){
+  ctx.save();
+  const on=!!opts.on, col=opts.col||'#8a74d8';
+  const g=ctx.createLinearGradient(0,y,0,y+h);
+  g.addColorStop(0,on?'rgba(70,44,130,0.95)':'rgba(30,22,52,0.85)'); g.addColorStop(1,on?'rgba(26,12,60,0.95)':'rgba(12,8,26,0.85)');
+  uiRound(x,y,w,h,h/2); ctx.fillStyle=g; ctx.fill();
+  ctx.lineWidth=on?2:1; ctx.strokeStyle=on?col:'rgba(140,120,200,0.45)'; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke();
+  if(on){ ctx.shadowColor=col; ctx.shadowBlur=10; ctx.strokeStyle=col; ctx.globalAlpha=0.5; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); }
+  ctx.restore();
+}
+
+// A 16-bit title logo: chrome ramp (sky / white horizon / violet / gold),
+// thick dark outline, gold rim, glow and a light sweep every few seconds.
+function uiLogo(text,cx,y,px,opts={}){
+  ctx.save();
+  ctx.font='italic 900 '+px+'px "MV Title", "MV Sans", system-ui, sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  if(ctx.letterSpacing!==undefined) ctx.letterSpacing=(opts.track!=null?opts.track:px*0.02)+'px';
+  const base=y+px*0.78, top=base-px*0.74;
+  const w=ctx.measureText(text).width;
+  // depth: a stacked extrusion down-right
+  for(let i=Math.ceil(px*0.09);i>0;i--){ ctx.fillStyle=i===1?'#1a0838':'#0b0420'; ctx.fillText(text,cx+i*0.6,base+i); }
+  ctx.lineJoin='round';
+  ctx.lineWidth=px*0.16; ctx.strokeStyle='#07020f'; ctx.strokeText(text,cx,base);
+  ctx.lineWidth=px*0.075; ctx.strokeStyle=opts.rim||'#f6c94a'; ctx.strokeText(text,cx,base);
+  const g=ctx.createLinearGradient(0,top,0,base+px*0.06);
+  const pal=opts.pal||['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'];
+  g.addColorStop(0,pal[0]); g.addColorStop(0.36,pal[1]); g.addColorStop(0.5,pal[2]); g.addColorStop(0.52,pal[3]); g.addColorStop(0.8,pal[4]); g.addColorStop(1,pal[5]);
+  ctx.shadowColor=opts.glow||'rgba(160,120,255,0.75)'; ctx.shadowBlur=px*0.35;
+  ctx.fillStyle=g; ctx.fillText(text,cx,base);
+  ctx.shadowBlur=0;
+  // light sweep
+  const per=opts.sweep||240, t=((typeof fr!=='undefined'?fr:0)%per)/per;
+  if(t<0.35){
+    const k=t/0.35, sx0=cx-w/2-px+k*(w+px*2);
+    ctx.save(); ctx.globalCompositeOperation='source-atop';
+    const sg=ctx.createLinearGradient(sx0-px*0.5,0,sx0+px*0.5,0);
+    sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(0.5,'rgba(255,255,255,0.85)'); sg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(sx0-px*0.5,top-px*0.2,px,px*1.3); ctx.clip();
+    ctx.globalAlpha=0.75*Math.sin(k*Math.PI); ctx.fillStyle=sg; ctx.fillText(text,cx,base); ctx.restore();
+  }
+  ctx.restore();
+  return w;
+}
+// soft glowing star / sparkle
+function uiSparkle(x,y,r,col='#fff',a=1){
+  ctx.save(); ctx.globalAlpha=a; ctx.fillStyle=col;
+  ctx.beginPath(); ctx.moveTo(x,y-r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.quadraticCurveTo(x,y,x,y+r); ctx.quadraticCurveTo(x,y,x-r,y); ctx.quadraticCurveTo(x,y,x,y-r); ctx.fill();
+  const g=ctx.createRadialGradient(x,y,0,x,y,r*0.9); g.addColorStop(0,'rgba(255,255,255,0.8)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r*0.9,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+// a little gold cursor that bobs (replaces the '>' glyph)
+function uiCursor(x,y,s=10){
+  const b=Math.sin((typeof fr!=='undefined'?fr:0)*0.18)*3;
+  ctx.save(); ctx.translate(x+b,y);
+  ctx.beginPath(); ctx.moveTo(-s*0.6,-s*0.75); ctx.lineTo(s*0.75,0); ctx.lineTo(-s*0.6,s*0.75); ctx.closePath();
+  const g=ctx.createLinearGradient(0,-s,0,s); g.addColorStop(0,'#fff6c8'); g.addColorStop(0.5,'#f6c94a'); g.addColorStop(1,'#b07818');
+  ctx.shadowColor='rgba(246,201,74,0.8)'; ctx.shadowBlur=8; ctx.fillStyle=g; ctx.fill();
+  ctx.shadowBlur=0; ctx.lineWidth=1.5; ctx.strokeStyle='#3a2006'; ctx.stroke(); ctx.restore();
+}
+
 function _blitFontGlyph(px,gx,y,scl,col){
   ctx.fillStyle=col;
   for(const[cx2,cy2] of px) ctx.fillRect(gx+cx2*scl,y+cy2*scl,scl,scl);
 }
 function drawText(s,x,y,col,scl=2){
+  if(_uiFontReady){ _drawText16(String(s).toUpperCase(),x,y,col,(scl|0)||1); return; }
   s=_fontNorm(s); x|=0; y|=0; scl=(scl|0)||1;
   const adv=FONT_CELL*scl;
   for(let i=0;i<s.length;i++){

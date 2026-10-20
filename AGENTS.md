@@ -118,7 +118,7 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
-| **G** | Awdjoo Level 1 beta from Paulo's pen sketch (`assets/levels/awdjoo-beta.ldtk`; rules + cubes `js/beta_level.js`, feel + XLR launch/hover + hook `js/beta_feel.js`, look + choir `js/beta_decor.js`, music + synth sounds `js/beta_audio.js`; rebuild with `python3 scripts/build-awdjoo-beta.py`; `npm run reachcheck:beta`; water + platforms + Isolator `js/beta_water.js`; 1.2 trial `assets/levels/awdjoo-1-2.ldtk` from `python3 scripts/build-awdjoo-1-2.py`, `node scripts/reach-check.mjs --lvl=1.2`; open with `?lvl=1.2`; standalone page `play-beta.html`) | `beta-lab.html?ab=g` |
+| **G** | Awdjoo Level 1 beta from Paulo's pen sketch (`assets/levels/awdjoo-beta.ldtk`; rules + cubes `js/beta_level.js`, feel + XLR launch/hover + hook `js/beta_feel.js`, look + choir `js/beta_decor.js`, music + synth sounds `js/beta_audio.js`; rebuild with `python3 scripts/build-awdjoo-beta.py`; `npm run reachcheck:beta`; water + platforms + Isolator `js/beta_water.js`; 1.2 trial `assets/levels/awdjoo-1-2.ldtk` from `python3 scripts/build-awdjoo-1-2.py`, `node scripts/reach-check.mjs --lvl=1.2`; open with `?lvl=1.2`; standalone page `play-beta.html`; two-way gates: per-stage saves in `B.saves`, 1.2's arrival arch leads back to 1.1) | `beta-lab.html?ab=g` |
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 
@@ -136,3 +136,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 **Do not commit:** `.vs/`, `.cursor/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
 
 **Remote:** `https://github.com/paulooventura/MV2.git` · branch `main`
+
+## 16-bit presentation (Oct 2026, all pages)
+
+- Type: `drawText` & co. in `js/core.js` draw smooth faces from `assets/fonts` (Exo 2 Black Italic for titles at scale ≥3, Nunito ExtraBold below; SIL OFL, licences beside them) with a colour ramp, outline and shadow. The 8x8 bitmap font is only the fallback until they load.
+- UI kit in `js/core.js`: `uiPanel` (glass panels), `uiBar` (glossy meters), `uiPill`, `uiLogo` (chrome title text), `uiSparkle`, `uiCursor`. Title, options, story, HUD, stage card (`drawZoneCard` in `ui.js`) and the beta windows use them.
+- `js/crt_room.js`: WebGL tube-TV pass over `#c` (curve, scanlines, mask, bloom, power-on). Input still goes to `#c`. Off for phones in play mode, headless browsers, software GL (CSS scanlines instead), `?tv=0`, or the CRT button. `?tv=1` forces it on in tests.
+- `js/sound16.js`: every WebAudio sound goes through a 16-bit style bus (warm low-pass, soft saturation, echo buffer, small room, gentle compressor). The mp3 soundtrack is untouched. `?sfx16=0` bypasses it.
+

@@ -19,7 +19,7 @@
 (function(){
   'use strict';
   // Stages: 1.1 → 1.2 → … (1.3 ends with a boss, then 2.1). Finishing one carries the jacks into the next.
-  const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2'}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:null}};
+  const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2', prev:null}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:null, prev:'1.1'}};
   function wantedLevel(){ try{ const m=/[?&]lvl=([0-9.]+)/.exec(location.search); if(m&&LEVELS[m[1]]) return m[1]; }catch(e){} if(window.MV_BETA_START&&LEVELS[window.MV_BETA_START]) return window.MV_BETA_START; return '1.1'; }
   const T=32;                                   // world tile
   const ITEM_IDX={TRS:0, RCA:1, XLR:2, MAG:3};
@@ -39,7 +39,8 @@
   const cell=e=>({c:e.__grid?e.__grid[0]:Math.round(e.px[0]/16), r:e.__grid?e.__grid[1]:Math.round(e.px[1]/16),
     w:Math.round((e.width||16)/16), h:Math.round((e.height||16)/16)});
 
-  async function startBetaLab(id, carryMask){
+  async function startBetaLab(id, carryMask, opts){
+    opts=opts||{};
     id=id&&LEVELS[id]?id:wantedLevel();
     const PATH=LEVELS[id].path;
     if(typeof _unlockAudio==='function') _unlockAudio();
@@ -55,9 +56,81 @@
     B.stageId=id; B.carryMask=carryMask!=null?carryMask:(id==='1.1'?0:15);   // straight into 1.2 = all four jacks
     applyLdtkLevel(level);
     applyBeta(raw, level);
+    restoreStage(opts);
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(B.music,{restart:true});
     else if(typeof _playBGM==='function'&&typeof OPT!=='undefined') _playBGM('game', OPT.musicVol);
   }
+
+  // ── Two-way gates ─────────────────────────────────────────────
+  // Each stage remembers what you did there (seeds, crystals, crates, the
+  // Isolator, Laitu, the clock, whether the arch is cleared) for the session.
+  // 1.1's arch leads on to 1.2 (results the first time, straight through
+  // after that); walking left into 1.2's arrival arch takes you back to 1.1,
+  // out of its arch. Jacks you own go with you both ways.
+  B.saves=B.saves||{};
+  function saveStage(){
+    if(!B.stageId) return;
+    B.saves[B.stageId]={
+      knowls:KDROP.map(k=>!!k.got&&!k._carried&&!k._fly),
+      drops:(typeof ITEM_DROPS!=='undefined'?ITEM_DROPS:[]).map(d=>!!d.got),
+      rope:!!(_mapRopePickup&&_mapRopePickup.got),
+      iso:!!(B.isoPickup&&B.isoPickup.got),
+      met:!!(B.laitu&&B.laitu.met),
+      cleared:!!B.cleared, stats:Object.assign({},B.stats)
+    };
+    if(B.hasIsolator) B.isoOwned=true;
+  }
+  function restoreStage(opts){
+    const sv=opts.fresh?null:B.saves[B.stageId];
+    if(opts.fresh) delete B.saves[B.stageId];
+    if(sv){
+      KDROP.forEach((k,i)=>{ if(sv.knowls[i]){ k.got=true; } });
+      kColl=KDROP.filter(k=>k.got).length;
+      if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.forEach((d,i)=>{ if(sv.drops[i]) d.got=true; });
+      if(_mapRopePickup&&sv.rope) _mapRopePickup.got=true;
+      if(B.isoPickup&&sv.iso) B.isoPickup.got=true;
+      if(B.laitu&&sv.met) B.laitu.met=true;
+      B.cleared=sv.cleared; B.stats=Object.assign(B.stats,sv.stats);
+      const n=counts(); if(n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds) B.open=true;
+    }
+    if(B.isoOwned) B.hasIsolator=true;
+    B.arriveCd=90;
+    if(opts.atGate&&B.gate&&p){                 // come back out of this stage's arch, facing home
+      p.x=B.gate.x-3*T+T/2-SW/2; p.y=B.gate.y+B.gate.h-FEET_OFF-1; p.vx=0; p.vy=0; p.og=true; p.fc=true;
+      if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
+      _zoneCardT=0;
+    }
+    if(sv||opts.atGate){ _zoneCardT=Math.min(_zoneCardT,120); if(typeof _uiToastFr!=='undefined') _uiToastFr=0; }
+  }
+  function travel(to, how){
+    if(B.trans||!LEVELS[to]) return;
+    saveStage();
+    const mask=_unlockedMask|0;
+    B.trans={t:0, to, how, mask, loading:false, done:false};
+    try{ sfx('unlock'); }catch(e){}
+  }
+  function transTick(){
+    const R=B.trans; R.t++;
+    if(R.t===26&&!R.loading){
+      R.loading=true;
+      startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; }).catch(err=>{ console.error('stage load failed',err); B.trans=null; });
+    }
+    if(R.done){ R.after++; if(R.after>30) B.trans=null; }
+  }
+  function drawTrans(){
+    const R=B.trans; if(!R) return;
+    // iris wipe: closes on MIND, opens on the new stage
+    const k=R.done?Math.min(1,R.after/30):Math.min(1,R.t/26);
+    const open=R.done?k:1-k;
+    const cx=p?sx(p.x+SW/2):W/2, cy=p?sy(p.y+FEET_OFF*0.5):H/2;
+    const rad=Math.hypot(W,H)*open*open;
+    ctx.save(); ctx.fillStyle='#05020e';
+    ctx.beginPath(); ctx.rect(0,0,W,H); ctx.arc(cx,cy,Math.max(0.5,rad),0,Math.PI*2,true); ctx.fill('evenodd');
+    if(rad>2){ ctx.strokeStyle='rgba(246,201,74,'+(0.8*(1-open))+')'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.stroke(); }
+    if(!R.done&&R.t>=26){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawTextC('AWDJOO TOWN '+R.to, W/2, H/2-10, '#ffe39a', 2); }
+    ctx.restore();
+  }
+  B.travel=travel; B.saveStage=saveStage;
 
   function applyBeta(raw, level){
     B.on=true; B.level=level; B.open=false; B.cleared=false; B.talked=0;
@@ -177,9 +250,10 @@
     if(typeof ZONES!=='undefined'){
       let zi=ZONES.findIndex(z=>z.name===B.stageName);
       if(zi<0){ ZONES.push({name:B.stageName, sub:B.stageSub}); zi=ZONES.length-1; }
-      _zoneIdx=zi; _zoneCardT=180;
+      _zoneIdx=zi; _zoneCardT=200;
     }
-    if(typeof uiShowToast==='function') uiShowToast('THE JOURNEY BEGINS — 3 CRYSTALS + 6 SEEDS OPEN THE ARCH');
+    window.MV_ZONE_CARD={title:B.stageName, sub:String(B.stageSub||'')};
+    if(typeof uiShowToast==='function') uiShowToast(B.need.crystals+' CRYSTALS + '+B.need.seeds+' SEEDS OPEN THE ARCH');
     console.info('MV: Awdjoo L1 beta', level.cols+'x'+level.rows, 'knowls', kTotal, 'boxes', BWALLS.length, 'enemies', ENEMS.length);
   }
 
@@ -755,11 +829,22 @@
       }
     }
     if(B.bounceT>0) B.bounceT--;
-    if(B.open&&!B.cleared&&B.gate&&p){
+    if(B.arriveCd>0) B.arriveCd--;
+    if(B.open&&B.gate&&p&&!B.trans){
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
-        B.cleared=true;
-        openResults();
+        const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+        if(!B.cleared){ B.cleared=true; openResults(); }
+        else if(nx&&B.arriveCd<=0) travel(nx,'forward');
+      }
+    }
+    // the arch MIND came in through leads back to the stage before
+    const pv=LEVELS[B.stageId]&&LEVELS[B.stageId].prev;
+    if(pv&&p&&!B.trans&&B.arriveCd<=0){
+      const arch=B.decor.find(d=>d.kind==='arrival');
+      if(arch){
+        const h=playerCoreHB(p), goingLeft=K.KeyA||K.ArrowLeft||p.vx<-0.6;
+        if(goingLeft&&ov(h.x,h.y,h.w,h.h,arch.x,arch.y,2*T-6,4*T)) travel(pv,'back');
       }
     }
     // Laitu: wanders like an NPC, stops and faces MIND when close, talks.
@@ -925,35 +1010,41 @@
         drawLaituFigure(cx, feet, sw(LAITU_SCALE), {faceR:(L.face||1)>0, walkPhase:L.moving?L.stepT:0});
         const top=Math.max(4,feet-sw(84*LAITU_SCALE));
         if(L.talkT>0){
-          const txt=LAITU_TALK[L.line], tw=textW(txt,1)+16;
-          ctx.fillStyle='rgba(255,246,220,0.95)'; ctx.fillRect(cx-tw/2, top-26, tw, 18);
-          ctx.beginPath(); ctx.moveTo(cx-5,top-8); ctx.lineTo(cx+5,top-8); ctx.lineTo(cx,top-2); ctx.fill();
-          drawTextC(txt, cx, top-21, '#3a2410', 1);
+          const txt=LAITU_TALK[L.line], tw=textW(txt,1)+28;
+          ctx.save(); ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+          const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fffaf0'); bg.addColorStop(1,'#f3e2c0');
+          ctx.fillStyle=bg; uiRound(cx-tw/2, top-32, tw, 24, 12); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
+          ctx.restore();
+          ctx.lineWidth=1.5; ctx.strokeStyle='#c09a5a'; uiRound(cx-tw/2+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
+          ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='700 12px "MV Sans", system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
         }else if(!L.met&&fr%48<36) drawTextC('LAITU', cx, top-14, '#a8d4ff');
       }
     }
     const n=counts();
-    ctx.fillStyle=C.BLACK; ctx.fillRect(6, H-44, 520, 38);
-    drawText(B.stageName+'  '+fmtTime(B.stats.frames), 10, H-40, C.SILVER, 1);
+    uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
+    drawText(B.stageName, 22, H-52, '#c8b8ff', 1);
+    drawTextR(fmtTime(B.stats.frames), 190, H-52, '#ffffff', 1);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
-      ctx.fillStyle='#2a1020'; ctx.fillRect(200,H-41,150,8);
-      ctx.fillStyle=pw>66?'#e04848':pw>33?'#e08a3a':'#e0c040'; ctx.fillRect(200,H-41,150*pw/100,8);
-      ctx.fillStyle='#000'; ctx.fillRect(250,H-41,1,8); ctx.fillRect(300,H-41,1,8);
-      drawText('MAG '+Math.round(pw)+'%  GRIP '+cap.toFixed(1)+'/9'+(held?'  HOLDING '+held:''), 356, H-41, C.SILVER, 1);
+      uiBar(206,H-50,150,9,pw/100,'#e0c040',pw>66?'#ff4860':'#ff9a3a',3);
+      drawText('MAG '+Math.round(pw)+'%  GRIP '+cap.toFixed(1)+'/9'+(held?'  HOLDING '+held:''), 364, H-52, C.SILVER, 1);
     }else if(ITEM===2&&p&&B.chX>0){
       const c=Math.min(1,B.chX/45);
-      ctx.fillStyle='#101830'; ctx.fillRect(200,H-41,150,8);
-      ctx.fillStyle=c>=1?'#aaddff':'#4466ff'; ctx.fillRect(200,H-41,150*c,8);
-      drawText(c>=1?'XLR FULL POWER':'XLR CHARGING', 356, H-41, C.SILVER, 1);
+      uiBar(206,H-50,150,9,c,'#4466ff',c>=1?'#e0f4ff':'#88aaff',0,{pulse:c>=1});
+      drawText(c>=1?'XLR FULL POWER':'XLR CHARGING', 364, H-52, C.SILVER, 1);
     }
-    drawText('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds+(B.open?'   ARCH OPEN':''),
-      10, H-24, B.open?C.GREEN_L||C.YELLOW:C.YELLOW, 2);
+    // crystals + seeds as little gems
+    let gx=22; const gy=H-26;
+    for(let i=0;i<B.need.crystals;i++){ const on=i<n.crystals; ctx.save(); ctx.translate(gx+7,gy+2); ctx.rotate(Math.PI/4); ctx.fillStyle=on?'#8ef0ff':'rgba(255,255,255,0.14)'; if(on){ ctx.shadowColor='#8ef0ff'; ctx.shadowBlur=8; } ctx.fillRect(-5,-5,10,10); ctx.restore(); gx+=20; }
+    drawText(n.crystals+'/'+B.need.crystals, gx+2, gy-6, '#8ef0ff', 1); gx+=46;
+    for(let i=0;i<B.need.seeds;i++){ const on=i<n.seeds; ctx.fillStyle=on?'#ffd860':'rgba(255,255,255,0.14)'; ctx.save(); if(on){ ctx.shadowColor='#ffd860'; ctx.shadowBlur=8; } ctx.beginPath(); ctx.ellipse(gx+5,gy+2,4.5,6,0,0,Math.PI*2); ctx.fill(); ctx.restore(); gx+=14; }
+    drawText(n.seeds+'/'+B.need.seeds, gx+4, gy-6, '#ffd860', 1);
+    if(B.open){ ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN!', 554, gy-8, C.GREEN_L||'#7dffcf', 2); ctx.restore(); }
     if(B.bounceT>0&&!B.open){
       const a=Math.min(1,B.bounceT/20), bw=Math.min(W-40,560), bx=(W-bw)/2, by=H*0.28;
       ctx.globalAlpha=a;
-      ctx.fillStyle='rgba(10,6,24,0.92)'; ctx.fillRect(bx,by,bw,96);
-      ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,92);
+      uiPanel(bx,by,bw,96,{r:18,sel:true});
       drawTextC('GATHER THE SEEDS & CRYSTALS', W/2, by+16, C.YELLOW, 2);
       drawTextC('TO PROCEED', W/2, by+40, C.YELLOW, 2);
       drawTextC('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds, W/2, by+70, C.SILVER, 1);
@@ -971,11 +1062,10 @@
       const x=sx(e.x+e.w/2), y=sy(e.y)-12, w=sw(44);
       if(x<-60||x>W+60||y<-20||y>H+20) continue;
       const f=Math.max(0,Math.min(1,e.hp/e.mhp));
-      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(x-w/2-1,y-1,w+2,7);
-      ctx.fillStyle=e._permOff?'#555':!e.alive?(fr%20<10?'#40c0ff':'#2a90d0'):f>0.5?'#40e070':f>0.25?'#e0b030':'#e04040';
-      ctx.fillRect(x-w/2,y,w*f,5);
+      const ec=e._permOff?'#666':!e.alive?(fr%20<10?'#40c0ff':'#2a90d0'):f>0.5?'#40e070':f>0.25?'#e0b030':'#e04040';
+      uiBar(x-w/2,y,w,6,f,ec,e._permOff?'#888':!e.alive?'#a0e8ff':f>0.5?'#b0ffb0':ec);
       const left=Math.max(0,SHUT_LIMIT_BETA-(e._downs||0));
-      for(let i=0;i<SHUT_LIMIT_BETA;i++){ ctx.fillStyle=i<left?'#ffd040':'#3a3a3a'; ctx.fillRect(x-w/2+i*7,y-6,5,4); }
+      for(let i=0;i<SHUT_LIMIT_BETA;i++){ ctx.fillStyle=i<left?'#ffd040':'#3a3a3a'; ctx.beginPath(); ctx.arc(x-w/2+3+i*8,y-5,2.6,0,Math.PI*2); ctx.fill(); }
       if(e._permOff) drawTextC('OFF',x,y-16,'#888',1);
       else if(!e.alive) drawTextC('REBOOTING',x,y-16,'#7fd0ff',1);
       if(e._glowF>0){ ctx.globalAlpha=e._glowF/40*0.5; ctx.fillStyle='#7dffcf'; ctx.beginPath(); ctx.arc(x,sy(e.y+e.h/2),sw(e.w*0.8),0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
@@ -1008,21 +1098,24 @@
   function drawPopup(){
     const P=B.popup, a=Math.min(1,P.t/12);
     ctx.globalAlpha=a*0.75; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=a;
-    const bw=Math.min(W-40,620), bh=320, bx=(W-bw)/2, by=(H-bh)/2-20+(1-a)*30;
-    ctx.fillStyle='#120a24'; ctx.fillRect(bx,by,bw,bh);
-    ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
-    ctx.strokeStyle='#5a3a8a'; ctx.lineWidth=1; ctx.strokeRect(bx+8,by+8,bw-16,bh-16);
-    drawTextC('YOU FOUND', W/2, by+20, C.SILVER, 1);
+    const bw=Math.min(W-40,680), bh=380, bx=(W-bw)/2, by=(H-bh)/2-20+(1-a)*30;
+    // light rays behind the window
+    ctx.save(); ctx.translate(W/2,by+140); ctx.rotate(fr*0.004);
+    for(let i=0;i<12;i++){ ctx.rotate(Math.PI/6); ctx.fillStyle='rgba(255,220,140,'+(0.05*a)+')'; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-60,-520); ctx.lineTo(60,-520); ctx.fill(); }
+    ctx.restore();
+    uiPanel(bx,by,bw,bh,{r:22,sel:true});
+    drawTextC('YOU FOUND', W/2, by+22, '#c8b8ff', 1);
     const info=ITEM_INFO[P.item];
-    drawTextC(info.name, W/2, by+36, C.YELLOW, 3);
+    uiLogo(info.name, W/2, by+40, 34, {sweep:200});
+    const gl=ctx.createRadialGradient(W/2,by+150,0,W/2,by+150,110); gl.addColorStop(0,'rgba(255,230,160,0.35)'); gl.addColorStop(1,'rgba(255,230,160,0)'); ctx.fillStyle=gl; ctx.fillRect(W/2-120,by+40,240,220);
     // the crate, big, with the jack on its label
     if(window.MV_BETA_DECOR){
-      ctx.save(); const cx=W/2, cy=by+122; ctx.translate(cx,cy); ctx.scale(1.8,1.8); ctx.translate(-cx,-cy);
+      ctx.save(); const cx=W/2, cy=by+142+Math.sin(fr*0.06)*3; ctx.translate(cx,cy); ctx.scale(1.8,1.8); ctx.translate(-cx,-cy);
       MV_BETA_DECOR.itemCrateScreen(P.item, cx, cy+20, true);
       ctx.restore();
     }
-    info.lines.forEach((l,i)=>drawTextC(l, W/2, by+176+i*18, '#e8dcc0', 1));
-    if(P.t>40&&fr%40<28) drawTextC('PRESS ENTER OR Q TO CONTINUE', W/2, by+bh-22, C.YELLOW, 1);
+    info.lines.forEach((l,i)=>drawTextC(l, W/2, by+214+i*26, '#f4ecff', 2));
+    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS ENTER OR Q TO CONTINUE', W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
     ctx.globalAlpha=1;
   }
 
@@ -1064,27 +1157,31 @@
   function drawResults(){
     const R=B.results, a=Math.min(1,R.t/20), sc=R.sc;
     ctx.globalAlpha=a*0.85; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=a;
-    const bw=Math.min(W-40,640), bh=Math.min(H-40,560), bx=(W-bw)/2, by=(H-bh)/2;
-    ctx.fillStyle='#120a24'; ctx.fillRect(bx,by,bw,bh);
-    ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
-    drawTextC(B.stageName+' CLEAR!', W/2, by+18, C.YELLOW, 3);
-    drawTextC(String(B.stageSub).toUpperCase(), W/2, by+48, C.SILVER, 1);
-    let y=by+76; const shown=Math.min(sc.rows.length,Math.floor(R.t/14));
-    let run=0;
+    const bw=Math.min(W-40,700), bh=Math.min(H-30,640), bx=(W-bw)/2, by=(H-bh)/2;
+    uiPanel(bx,by,bw,bh,{r:22,sel:true});
+    uiLogo('STAGE CLEAR!', W/2, by+16, 48, {sweep:180});
+    drawTextC(B.stageName+'  \u00B7  '+String(B.stageSub), W/2, by+76, '#c8b8ff', 1);
+    let y=by+100; const shown=Math.min(sc.rows.length,Math.floor(R.t/14));
     sc.rows.forEach((r,i)=>{
-      if(i>=shown) return; run+=r[2];
-      drawText(r[0], bx+30, y, '#e8dcc0', 1); drawText(r[1], bx+bw*0.52, y, C.SILVER, 1);
-      const pts=String(r[2]); drawText(pts, bx+bw-30-textW(pts,1), y, '#7dffcf', 1); y+=20;
+      if(i>=shown) return;
+      if(i%2===0){ ctx.fillStyle='rgba(255,255,255,0.04)'; uiRound(bx+20,y-6,bw-40,26,8); ctx.fill(); }
+      drawText(r[0], bx+34, y, '#f4ecff', 1); drawText(r[1], bx+bw*0.5, y, '#c8b8ff', 1);
+      const pts=String(r[2]); drawTextR(pts, bx+bw-34, y-3, '#7dffcf', 2); y+=28;
     });
     if(shown>=sc.rows.length){
-      ctx.fillStyle='#5a3a8a'; ctx.fillRect(bx+24,y+2,bw-48,1); y+=12;
-      drawText('TOTAL', bx+30, y, C.YELLOW, 2); const tt=String(sc.total); drawText(tt, bx+bw-30-textW(tt,2), y, C.YELLOW, 2); y+=30;
-      drawTextC('RANK '+sc.rank, W/2, y, sc.rank==='S'?'#ffd040':'#e8dcc0', 3); y+=34;
+      const lg=ctx.createLinearGradient(bx+24,0,bx+bw-24,0); lg.addColorStop(0,'rgba(246,201,74,0)'); lg.addColorStop(0.5,'rgba(246,201,74,0.9)'); lg.addColorStop(1,'rgba(246,201,74,0)');
+      ctx.fillStyle=lg; ctx.fillRect(bx+24,y,bw-48,2); y+=12;
+      drawText('TOTAL', bx+34, y, '#ffe39a', 2); drawTextR(String(sc.total), bx+bw-34, y, '#ffe39a', 2); y+=34;
+      const rk=Math.min(1,(R.t-sc.rows.length*14)/24), rs=1+2*(1-rk);
+      ctx.save(); ctx.translate(W/2,y+30); ctx.scale(rs,rs); ctx.globalAlpha=rk;
+      const rcol=sc.rank==='S'?['#fff6c8','#ffe080','#ffffff','#ff9a2a','#ffd040','#fff0a0']:sc.rank==='A'?['#ffe8ff','#ff9ad8','#ffffff','#a040d0','#e080ff','#ffd0f0']:null;
+      drawTextR('RANK', -36, -12, '#c8b8ff', 2); uiLogo(sc.rank, 18, -38, 64, {pal:rcol||undefined, sweep:120});
+      ctx.restore(); y+=70;
       if(sc.best) drawTextC('BEST TIME '+fmtTime(Math.min(sc.best.time,sc.frames))+'   BEST SCORE '+Math.max(sc.best.score,sc.total), W/2, y, C.SILVER, 1);
       y+=20;
-      sc.ach.forEach(t=>{ drawTextC('* '+t, W/2, y, '#ffd040', 1); y+=16; });
+      sc.ach.forEach(t=>{ const tw=textW(t,1); uiSparkle(W/2-tw/2-12,y+5,5,'#ffd040',0.9); drawTextC(t, W/2, y, '#ffd040', 1); y+=18; });
       const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      if(R.t>sc.rows.length*14+60&&fr%40<28) drawTextC(nx?'PRESS ENTER FOR AWDJOO TOWN '+nx:'PRESS ENTER TO PLAY AGAIN', W/2, by+bh-22, C.YELLOW, 1);
+      if(R.t>sc.rows.length*14+60){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(nx?'PRESS ENTER FOR AWDJOO TOWN '+nx:'PRESS ENTER TO PLAY AGAIN', W/2, by+bh-30, '#ffe39a', 1); ctx.restore(); }
     }
     ctx.globalAlpha=1;
   }
@@ -1097,13 +1194,14 @@
     else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){
       ev.preventDefault();
       const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      const carry=_unlockedMask;
-      B.results=null; B.on=false;
-      startBetaLab(nx||B.stageId, nx?carry:B.carryMask).catch(err=>console.error('stage load failed',err));
+      B.results=null;
+      if(nx) travel(nx,'forward');
+      else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
     }
   },true);
   const _origUpdate=window.update;
   window.update=function(){
+    if(B.trans){ transTick(); return; }
     if(B.on&&B.popup){ B.popup.t++; if(B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
       B.results.t++;
@@ -1127,6 +1225,7 @@
     }
     if(B.popup) drawPopup();
     if(B.results) drawResults();
+    if(B.trans) drawTrans();
   };
   const _origPlayBGM=window._playBGM;
   window._playBGM=function(type){
