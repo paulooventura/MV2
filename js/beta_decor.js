@@ -574,6 +574,125 @@
     ctx.fillStyle='rgba(255,230,140,'+(0.18+0.1*Math.sin(fr*0.08))+')'; ctx.fillRect(X(x+10),Y(y+w/2),S(w-20),S(h-w/2));
   }
 
+  // ── Background art (the PINK in Paulo's sketches: no collision) ──────
+  function poly(pts,col){ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(X(pts[0][0]),Y(pts[0][1])); for(let i=1;i<pts.length;i++) ctx.lineTo(X(pts[i][0]),Y(pts[i][1])); ctx.closePath(); ctx.fill(); }
+  // a band of fish-scale roof tiles following a path (terracotta, Brazilian style)
+  function scaleRoof(x0,y0,x1,y1,rows,col,hi,dark){
+    const len=Math.hypot(x1-x0,y1-y0), ang=Math.atan2(y1-y0,x1-x0);
+    ctx.save(); ctx.translate(X(x0),Y(y0)); ctx.rotate(ang);
+    const th=rows*11+6;
+    ctx.fillStyle=dark; ctx.fillRect(0,S(-4),S(len),S(th));
+    for(let r=0;r<rows;r++){
+      const yy=r*11, off=(r&1)?8:0;
+      for(let xx=-8+off; xx<len; xx+=16){
+        ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(S(xx+8),S(yy+9),S(8.5),0,Math.PI); ctx.fill();
+        ctx.fillStyle=col; ctx.beginPath(); ctx.arc(S(xx+8),S(yy+8),S(7.4),0,Math.PI); ctx.fill();
+        ctx.strokeStyle=hi; ctx.lineWidth=Math.max(1,S(1.2)); ctx.beginPath(); ctx.arc(S(xx+8),S(yy+8),S(5.6),Math.PI*0.2,Math.PI*0.8); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+  function litWindow(x,y,w,h,ph,figure){
+    rect(x-3,y-3,w+6,h+6,'#2a1820');
+    const fl=0.82+0.18*Math.sin(fr*0.06+ph);
+    const g=ctx.createLinearGradient(0,Y(y),0,Y(y+h)); g.addColorStop(0,'rgba(255,214,130,'+fl+')'); g.addColorStop(1,'rgba(232,140,70,'+fl+')');
+    ctx.fillStyle=g; ctx.fillRect(X(x),Y(y),S(w),S(h));
+    if(figure){                                         // someone at the window, swaying
+      const bx=x+w*0.5+Math.sin(fr*0.02+ph)*w*0.18;
+      ctx.fillStyle='rgba(60,30,40,0.85)'; ctx.beginPath(); ctx.arc(X(bx),Y(y+h*0.45),S(w*0.14),0,Math.PI*2); ctx.fill();
+      ctx.fillRect(X(bx-w*0.2),Y(y+h*0.6),S(w*0.4),S(h*0.4));
+    }
+    rect(x+w/2-1,y,2,h,'#2a1820'); rect(x,y+h*0.45,w,2,'#2a1820');
+    glow(x+w/2,y+h/2,Math.max(w,h)*1.4,0.12*fl);
+  }
+  // the roof-tile house in front of the floor in 1.2 (sketch: pink scales)
+  function bgHouse(d){
+    if(!inView(d.x-80,d.y-120,d.w+160,d.h+140)) return;
+    const x=d.x, y=d.y, F=d.y+d.h;                       // F = the floor it stands on
+    const wall='#9a6e58', wallD='#7a5244', wallL='#b8886a', tile='#c4583a', tileHi='#f0a070', tileD='#6e2a1e';
+    // chimney with smoke, behind the hump
+    chimney(x+380,y-10,y+80);
+    // main walls (a little flared on the right, like the sketch's leg)
+    poly([[x+44,y+120],[x+436,y+120],[x+436,F-120],[x+470,F],[x+44,F]],wall);
+    for(let yy=y+140; yy<F; yy+=22) rect(x+44,yy,392,1.5,wallD);                       // plaster lines
+    rect(x+44,F-40,426,40,wallD); rect(x+44,F-42,426,3,wallL);                          // skirting
+    // the hump: a tower room on the right with its own roof
+    rect(x+270,y+40,166,90,wall); rect(x+270,y+40,4,90,wallD);
+    litWindow(x+318,y+58,40,46,1.3,true); litWindow(x+378,y+58,34,46,2.2,false);
+    scaleRoof(x+256,y+30,x+452,y+30,2,tile,tileHi,tileD);
+    poly([[x+250,y+30],[x+354,y-28],[x+458,y+30]],tileD); scaleRoof(x+262,y+26,x+354,y-24,4,tile,tileHi,tileD); scaleRoof(x+354,y-24,x+446,y+26,0,tile,tileHi,tileD);
+    // main roof: a long band of scales with an eave
+    scaleRoof(x+18,y+92,x+462,y+92,3,tile,tileHi,tileD);
+    rect(x+14,y+124,454,6,tileD);
+    // windows (arched tops), a door with the porch stair (the pink hatching)
+    for(const [wx,ph,fig] of [[x+150,0.4,false],[x+250,1.9,true],[x+350,3.1,false]]){
+      ctx.fillStyle='#2a1820'; ctx.beginPath(); ctx.arc(X(wx+20),Y(y+180),S(23),Math.PI,0); ctx.fill();
+      litWindow(wx,y+180,40,58,ph,fig);
+      ctx.fillStyle='rgba(255,214,130,0.9)'; ctx.beginPath(); ctx.arc(X(wx+20),Y(y+180),S(18),Math.PI,0); ctx.fill();
+      rect(wx-8,y+242,56,6,'#5a3424');                                                   // sill
+      for(let k=0;k<4;k++){ const fx=wx-2+k*13, sw2=Math.sin(fr*0.05+k+wx)*1.5;          // flower box
+        ctx.fillStyle=k%2?'#e070c0':'#ffcf6a'; ctx.beginPath(); ctx.arc(X(fx+4+sw2),Y(y+238),S(3.5),0,Math.PI*2); ctx.fill(); }
+    }
+    for(const wx of [x+150,x+250,x+350]) litWindow(wx,F-150,40,52,wx*0.01,false);
+    // door on the left, up the porch stair
+    const dx=x+64, dy=F-120;
+    rect(dx-6,dy-8,54,88,'#5a3424'); rect(dx,dy,42,80,'#7a3a22'); rect(dx+4,dy+4,16,34,'#8a4a2a'); rect(dx+22,dy+4,16,34,'#8a4a2a');
+    ctx.fillStyle='#ffcf6a'; ctx.beginPath(); ctx.arc(X(dx+34),Y(dy+46),S(2.5),0,Math.PI*2); ctx.fill();
+    hangingLamp(dx+56,dy-12,14);
+    for(let k=0;k<5;k++){ const sx2=dx-20-k*18, sy2=dy+80+k*8; rect(sx2,sy2,60,8,k%2?'#8a5a32':'#a8703a'); rect(sx2,sy2+8,60,F-sy2-8,'rgba(60,34,20,0.6)'); }
+    for(let k=0;k<6;k++) rect(dx-110+k*20,F-60+ (k<2?0:0),3,60,'rgba(90,56,30,0.7)');  // porch rail
+    rect(dx-110,F-62,100,4,'#a8703a');
+    // the bunting carries on across the front
+    bunting(x+20,y+140,x+460,y+150,26,9,1.7);
+  }
+  // festa junina flags on a sagging string
+  const FLAG=['#e83a3a','#ffd23a','#3ab0e8','#4fc04a','#e070c0','#ff8a3a'];
+  function bunting(x0,y0,x1,y1,sag,n,ph){
+    const pt=t=>({x:x0+(x1-x0)*t, y:y0+(y1-y0)*t+sag*4*t*(1-t)+Math.sin(fr*0.03+ph)*2*Math.sin(Math.PI*t)});
+    ctx.strokeStyle='rgba(40,24,30,0.9)'; ctx.lineWidth=Math.max(1,S(1.5)); ctx.beginPath();
+    for(let i=0;i<=20;i++){ const q=pt(i/20); if(i) ctx.lineTo(X(q.x),Y(q.y)); else ctx.moveTo(X(q.x),Y(q.y)); } ctx.stroke();
+    for(let i=0;i<n;i++){
+      const t=(i+0.5)/n, q=pt(t), q2=pt(t+0.5/n), fl=Math.sin(fr*0.12+i*1.3+ph)*4;
+      ctx.fillStyle=FLAG[(i+Math.floor(ph*3))%FLAG.length];
+      ctx.beginPath(); ctx.moveTo(X(q.x-7),Y(q.y)); ctx.lineTo(X(q.x+7),Y(q.y)); ctx.lineTo(X(q.x+fl*0.5),Y(q.y+16+Math.abs(fl)*0.3)); ctx.closePath(); ctx.fill();
+    }
+  }
+  // the town behind the spawn ledge and the slope in 1.2 (sketch: pink houses, people, bunting)
+  function bgTown(d){
+    if(!inView(d.x-100,d.y-120,d.w+200,d.h+140)) return;
+    const x=d.x, y=d.y, G=d.y+d.h;                      // G: deep enough that the terrain covers the bases
+    const far='#4a2c48', farD='#382038', mid='#5e3a52', midD='#46293e', near='#6e4658', nearD='#523244';
+    const roofC='#7a3a3a', roofHi='#b86a5a', roofD='#3a1a22';
+    // house 1: tall, gabled (left)
+    rect(x+0,y+70,190,G-(y+70),far);
+    poly([[x-12,y+74],[x+95,y-10],[x+202,y+74]],roofD); scaleRoof(x-6,y+70,x+95,y-4,5,roofC,roofHi,roofD); scaleRoof(x+95,y-4,x+196,y+70,0,roofC,roofHi,roofD);
+    chimney(x+140,y+0,y+60);
+    litWindow(x+30,y+110,30,40,0.7,false); litWindow(x+120,y+110,30,40,2.4,true); litWindow(x+30,y+190,30,40,1.1,false); litWindow(x+120,y+190,30,40,3.0,false);
+    // house 2: gabled, in front, lower
+    rect(x+130,y+230,180,G-(y+230),mid); rect(x+130,y+230,4,G-(y+230),midD);
+    poly([[x+118,y+236],[x+220,y+156],[x+322,y+236]],roofD); scaleRoof(x+124,y+232,x+220,y+160,4,roofC,roofHi,roofD); scaleRoof(x+220,y+160,x+316,y+232,0,roofC,roofHi,roofD);
+    litWindow(x+160,y+262,34,44,1.7,true); litWindow(x+250,y+262,34,44,0.2,false);
+    // house 3: wide, with a door and someone waving in it
+    rect(x+290,y+170,210,G-(y+170),near); rect(x+290,y+170,4,G-(y+170),nearD);
+    scaleRoof(x+278,y+150,x+512,y+150,2,roofC,roofHi,roofD); rect(x+276,y+172,238,5,roofD);
+    litWindow(x+310,y+200,40,48,2.9,false); litWindow(x+440,y+200,40,48,0.9,false);
+    const dx=x+372, dy=y+272;                            // the door, open, warm light
+    rect(dx-5,dy-5,58,92,roofD); ctx.fillStyle='rgba(255,200,120,0.95)'; ctx.fillRect(X(dx),Y(dy),S(48),S(82));
+    const wave=Math.sin(fr*0.15)*0.6;                   // a neighbour waving
+    ctx.fillStyle='#3a2030'; ctx.beginPath(); ctx.arc(X(dx+24),Y(dy+24),S(8),0,Math.PI*2); ctx.fill();
+    ctx.fillRect(X(dx+15),Y(dy+33),S(18),S(40));
+    ctx.strokeStyle='#3a2030'; ctx.lineWidth=S(4); ctx.beginPath(); ctx.moveTo(X(dx+30),Y(dy+38)); ctx.lineTo(X(dx+30+Math.cos(-1.1+wave)*16),Y(dy+38+Math.sin(-1.1+wave)*16)); ctx.stroke();
+    glow(dx+24,dy+40,90,0.18);
+    // kids playing in front of house 2 (little bouncing figures)
+    for(const [kx,ph] of [[x+200,0],[x+240,1.6]]){ const hop=Math.abs(Math.sin(fr*0.09+ph))*10;
+      ctx.fillStyle='#3a2030'; ctx.beginPath(); ctx.arc(X(kx),Y(y+330-hop),S(6),0,Math.PI*2); ctx.fill(); ctx.fillRect(X(kx-5),Y(y+336-hop),S(10),S(18)); }
+    // a pole by the slope, the bunting strung from the roofs to it
+    rect(x+690,y+240,6,G-(y+240),'#3a2418'); rect(x+684,y+236,18,6,'#5a3424');
+    bunting(x+500,y+160,x+693,y+246,40,10,0.3);
+    bunting(x+316,y+236,x+693,y+290,60,14,1.1);
+    bunting(x+190,y+80,x+500,y+160,30,10,2.2);
+  }
+
   // ── World ─────────────────────────────────────────────────────────
   function world(B){
     Z=sw(1000)/1000; textures();
@@ -592,6 +711,7 @@
       if(s===4) blit(tex.stone[r%2],c,r); else if(s===5) blit(tex.cave[(c*7+r*3)&3],c,r);
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
+    for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); }
     for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
     for(const d of B.decor) if(d.kind==='chimney') chimney(d.x+d.dx, d.y+d.dy, d.y+d.dy+d.len);
     const SOLID=1, ONEWAY=2, SL=4, SR=5;

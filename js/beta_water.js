@@ -457,8 +457,8 @@
         const t=connectorTipWorld(2), a=Math.atan2(p.aimDY,p.aimDX), ux=Math.cos(a), uy=Math.sin(a);
         if(waterAt(t.x,t.y)===w){
           for(const b of list){ if(b.me) continue;
-            const dx=b.x+b.w/2-t.x, dy=b.y+b.h/2-t.y, d=Math.hypot(dx,dy); if(d>200||(dx*ux+dy*uy)/Math.max(1,d)<0.5) continue;
-            const k=(1-d/200)*0.6/Math.max(1,b.m*0.4);
+            const dx=b.x+b.w/2-t.x, dy=b.y+b.h/2-t.y, d=Math.hypot(dx,dy); if(d>120||(dx*ux+dy*uy)/Math.max(1,d)<0.5) continue;
+            const k=(1-d/120)*0.6/Math.max(1,b.m*0.4);
             if(b.enemy||b.ref.kind){ b.ref.vx=(b.ref.vx||0)+ux*k*3; b.ref.vy=(b.ref.vy||0)+uy*k*3; }
             else if(b.ref._fly){ b.ref.vx+=ux*k*3; b.ref.vy+=uy*k*3; } }
           p.vx-=ux*0.18; p.vy-=uy*0.18;                       // and the push shoves MIND back

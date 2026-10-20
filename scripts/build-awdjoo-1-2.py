@@ -23,9 +23,15 @@ Sketch reading (1 square = 1 tile = 32 px):
   - An Enemy A floats on top of the tall pillar.
   - Past the pillar, stairs (the pink hatching = wooden steps) go down to a
     floor with a square enemy, then on down to the exit.
-  - Over the floor hangs a roof-tile arch (the pink scales): a triangle and
-    two seeds on its roof, a sliding block and a moving platform inside, a
-    crystal tucked under its roof by the right leg, a seed outside to the right.
+  - PINK = BACKGROUND / ANIMATION, NO COLLISION (the legend's pink dot;
+    Paulo, Oct 20): the roof-tile structure over the floor is a HOUSE in the
+    background (terracotta fish-scale roof, walls, windows, a porch stair —
+    the pink hatching), not a wall. A sliding block and a moving platform
+    hang in front of it (the triangle rides the platform), a crystal under its
+    eaves, two seeds where its roof is, one outside to the right.
+  - The pink drawings up top-left are the town in the background: houses
+    with roofs and windows, people, and bunting strung between them — drawn
+    behind the spawn ledge and the slope, gently animated.
   - The exit isn't drawn yet: it waits at the bottom of the stairs (3 crystals
     + 7 seeds).
 Re-run after edits:  python3 scripts/build-awdjoo-1-2.py
@@ -80,17 +86,10 @@ surface.update({c: 42 for c in range(45, COLS - 1)})
 for c, top in surface.items():
     rect(c, c, top, ROWS - 1, SOLID)
     rect(c, c, 0, top - 1, AIR)
-paint(29, 31, 31, 35, SK_WOOD)                           # the pink-hatched steps: wooden
 # the 1-tile steps are ramps so the wheel rolls over them (no wedges)
 for c, row in [(32, 35), (33, 36), (34, 37), (42, 38), (43, 39), (44, 40), (45, 41)]:
     rect(c, c, 0, row - 1, AIR); put(c, row, SLOPE_L); rect(c, c, row + 1, ROWS - 1, SOLID)
-# the roof-tile arch (pink scales), hanging over the floor
-rect(31, 43, 26, 27, SOLID)                              # roof
-rect(39, 43, 24, 25, SOLID)                              # the hump on the right
-rect(31, 32, 28, 31, SOLID)                              # left leg
-rect(42, 43, 28, 33, SOLID)                              # right leg
-rect(44, 44, 32, 34, SOLID); put(45, 34, SOLID)          # its foot
-paint(31, 45, 24, 34, SK_SCALES)
+# the roof-tile house (pink scales) is background — see the Decor 'house' below
 
 # water room (air above the water) + pool
 rect(4, 31, 41, 49, AIR)
@@ -130,10 +129,13 @@ ent('Enemy', 30, 43, ai='circle', range=1)              # stub ledge in the wate
 ent('Enemy', 12, 53, ai='circle', range=3)              # swimming by the pool crystal
 ent('Enemy', 9, 44, ai='tri', range=2)                  # riding the left water platform
 ent('Enemy', 25, 44, ai='square', range=2)              # riding the right one
-ent('Enemy', 36, 25, ai='tri', range=3)                 # on the arch roof
+ent('Enemy', 40, 33, ai='tri', range=2)                 # rides the platform in front of the house
 ent('Enemy', 38, 37, ai='square', range=3)              # on the floor under the arch
 for c, r, kind in [(47, 42, 'lamp'), (56, 42, 'sign')]:
     ent('Decor', c, r, kind=kind)
+# background art (pink in the sketch): no collision, drawn behind the tiles
+ent('Decor', 30, 23, 16, 15, kind='house')              # the roof-tile house, standing on the floor (row 38)
+ent('Decor', 2, 12, 25, 26, kind='town')                # the town behind the spawn ledge and the slope
 
 # seeds sit on whatever is under them
 def solid_at(c, r):
@@ -205,6 +207,9 @@ for e in ents:
     elif k == 'Isolator': d.ellipse([x, y, x + S, y + S], fill='#ff9030', outline='#000'); d.text((x - 10, y - 12), 'ISOLATOR', fill='#fff')
     elif k == 'MindSpawn': d.rectangle([x, y, x + S, y + 3 * S], outline='#c080ff', width=2); d.text((x - 8, y - 12), 'SPAWN', fill='#fff')
     elif k == 'Gate': d.arc([x, y, x + 3 * S, y + 5 * S], 180, 360, fill='#ffe680', width=3); d.text((x - 8, y - 12), 'EXIT 3+7', fill='#fff')
+    elif k == 'Decor' and f.get('kind') in ('house', 'town'):
+        d.rectangle([x, y, (e['c'] + e['w']) * S - 1, (e['r'] + e['h']) * S - 1], outline='#ff80c0', width=1)
+        d.text((x + 4, y + 4), 'BG ' + f['kind'].upper(), fill='#ff80c0')
     elif k == 'Enemy':
         a = f.get('ai'); col = '#ff4040'
         if a == 'circle': d.ellipse([x, y, x + S, y + S], fill=col, outline='#000')

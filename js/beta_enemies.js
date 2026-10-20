@@ -31,7 +31,10 @@
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
 
   const SIZE={circle:{w:56,h:56}, square:{w:64,h:64}, tri:{w:64,h:56}};
-  const HEAT_FAR=6*T, FUSE=34, PUSH_R=4*T, ROPE_R=8*T, COOL=60;
+  // Paulo (Oct 20): nothing happens to them from far away — they only start to
+  // glow red within 3 blocks (full red and boom at 1), push from 2 blocks, and
+  // the jacks only move an enemy that's within reach (MAX_ITEM_R from MIND).
+  const HEAT_FAR=3*T, FUSE=34, PUSH_R=2*T, ROPE_R=6*T, COOL=60, MAX_ITEM_R=4.5*T;
 
   // ── creation (called by beta_level's Enemy entity) ──────────────
   B.mkAiEnemy=function(ai, cx, feet, opts){
@@ -137,6 +140,15 @@
     }
   }
 
+  // the XLR / MAG only move an enemy that's close to MIND
+  if(typeof window._applyItemForceToEnemy==='function'&&!window._applyItemForceToEnemy._betaWrapped){
+    const orig=window._applyItemForceToEnemy;
+    window._applyItemForceToEnemy=function(e){
+      if(B.on&&e&&p){ const m=mindCenter(), c=center(e); if(Math.hypot(m.x-c.x,m.y-c.y)>MAX_ITEM_R) return; }
+      return orig.apply(this,arguments);
+    };
+    window._applyItemForceToEnemy._betaWrapped=true;
+  }
   // ── XLR-style push ──────────────────────────────────────────────
   B.pushFx=B.pushFx||[];
   function push(e,dir){
