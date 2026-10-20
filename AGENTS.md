@@ -95,6 +95,9 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
+| **G** | Awdjoo L1 beta (towns 1.1 → 1.2, built on build 160) | `awdjoo-beta.html?ab=g` |
+
+G loads its changed modules from `beta/js/` (core, main, physics, player, render, save, ui, weapons + `beta_*`, `console16`, `crt_room`, `sound16`) and the rest from live `js/`. Levels: `assets/levels/awdjoo-beta.ldtk`, `awdjoo-1-2.ldtk`. Its `beta/js/player.js` predates the build 161 controller remap.
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 

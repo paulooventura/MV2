@@ -1,0 +1,140 @@
+// ============================================================
+//  sound16.js — the console's sound chip
+//
+//  Everything the game plays — synthesized sounds, samples, and the mp3
+//  soundtrack — goes through a bus voiced like the console picked in
+//  Options (MV_CONSOLE, see console16.js):
+//
+//   A · SNES (Sony SPC700 + S-DSP): samples at 32 kHz through the DSP's
+//       Gaussian interpolation, so the top end is soft and round; the
+//       famous echo buffer (a delay with feedback through an 8-tap FIR
+//       low-pass) gives every sound its space. Warm, lush, a bit muffled.
+//   B · MEGA DRIVE (Yamaha YM2612 FM + TI SN76489 PSG): no echo hardware, a
+//       9-bit DAC with its "ladder" grit, brighter highs, punchy bass and a
+//       harder output stage. Dry, gritty, in your face.
+//
+//  It works by catching node.connect(ctx.destination) and, for <audio>
+//  elements, routing them through a MediaElementSource the first time they
+//  play. The two voicings are built side by side and cross-faded, so the
+//  switch is instant. ?sfx16=0 or console "off" leaves the sound untouched.
+// ============================================================
+(function(){
+  'use strict';
+  if(typeof AudioNode==='undefined'||typeof AudioContext==='undefined') return;
+  const BUS=new WeakMap();
+  const SKIP=new WeakSet();
+  const origConnect=AudioNode.prototype.connect;
+  let disabled=false;
+  try{ if(/[?&]sfx16=0/.test(location.search)) disabled=true; }catch(e){}
+  const mode=()=>{ const C=window.MV_CONSOLE; return disabled||!C?'off':C.mode; };
+
+  function stepCurve(bits,drive){                   // DAC steps (+ a soft knee)
+    const N=4096, c=new Float32Array(N), steps=Math.pow(2,bits-1);
+    for(let i=0;i<N;i++){ const x=i/(N-1)*2-1; const y=Math.tanh(drive*x)/Math.tanh(drive); c[i]=Math.round(y*steps)/steps; }
+    return c;
+  }
+  function softCurve(k){ const N=1024, c=new Float32Array(N); for(let i=0;i<N;i++){ const x=i/(N-1)*2-1; c[i]=Math.tanh(k*x)/Math.tanh(k); } return c; }
+
+  function busFor(ac){
+    let b=BUS.get(ac); if(b) return b;
+    const C=(a,b2)=>origConnect.call(a,b2);
+    const mk=n=>{ SKIP.add(n); return n; };
+    const G=v=>{ const g=mk(ac.createGain()); g.gain.value=v; return g; };
+    const F=(type,f,qv,gain)=>{ const n=mk(ac.createBiquadFilter()); n.type=type; n.frequency.value=f; if(qv!=null) n.Q.value=qv; if(gain!=null) n.gain.value=gain; return n; };
+    const out=mk(ac.createDynamicsCompressor()); out.threshold.value=-8; out.knee.value=8; out.ratio.value=3; out.attack.value=0.004; out.release.value=0.2;
+    C(out,ac.destination);
+
+    // SNES voice: Gaussian-interpolation roll-off, gentle warmth, echo buffer
+    function snesChain(echoSend){
+      const inp=G(1);
+      const g1=F('lowpass',7600,0.55), g2=F('lowpass',11000,0.5);           // ~ Gaussian interpolation at 32 kHz
+      const warm=F('lowshelf',220,null,2.5);
+      const sat=mk(ac.createWaveShaper()); sat.curve=softCurve(1.3);
+      const dry=G(0.95);
+      C(inp,warm); C(warm,g1); C(g1,g2); C(g2,sat); C(sat,dry);
+      const send=G(echoSend), dl=mk(ac.createDelay(1)); dl.delayTime.value=0.176;           // EDL ~ 11 x 16 ms
+      const fir=F('lowpass',2600,0.7), fb=G(0.42), wet=G(0.6);
+      C(sat,send); C(send,dl); C(dl,fir); C(fir,fb); C(fb,dl); C(fir,wet);
+      // a second, shorter tap spreads the echo a little (stereo echo feel)
+      const dl2=mk(ac.createDelay(1)); dl2.delayTime.value=0.088; const w2=G(0.18);
+      C(send,dl2); C(dl2,w2);
+      return {inp, outs:[dry,wet,w2]};
+    }
+    // Mega Drive voice: 9-bit DAC grit, presence, punchy bass, no echo
+    function mdChain(grit){
+      const inp=G(1);
+      const bass=F('peaking',95,0.9,4), pres=F('peaking',2800,0.8,3), air=F('highshelf',9000,null,2);
+      const top=F('lowpass',15000,0.6);
+      const dacN=mk(ac.createWaveShaper()); dacN.curve=stepCurve(9,1.8); dacN.oversample='none';
+      const cleanG=G(1-grit), gritG=G(grit);
+      const sat=mk(ac.createWaveShaper()); sat.curve=softCurve(2.2);
+      const mix=G(1);
+      C(inp,bass); C(bass,pres); C(pres,air); C(air,top);
+      C(top,dacN); C(dacN,gritG); C(gritG,mix);
+      C(top,cleanG); C(cleanG,mix);
+      C(mix,sat);
+      const o=G(0.9); C(sat,o);
+      return {inp, outs:[o]};
+    }
+    // Pass-through (console off)
+    const thruS=G(1), thruM=G(1);
+
+    const sfx={snes:snesChain(0.24), md:mdChain(1), off:{inp:thruS,outs:[thruS]}};
+    const mus={snes:snesChain(0.1), md:mdChain(0.45), off:{inp:thruM,outs:[thruM]}};
+    const sel={};                                       // per-voicing level, cross-faded on switch
+    const inS=G(1), inM=G(1);
+    for(const [inp,set,key] of [[inS,sfx,'s'],[inM,mus,'m']]){
+      for(const k of ['snes','md','off']){
+        const lvl=G(k===mode()?1:0); sel[key+k]=lvl;
+        C(inp,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
+      }
+    }
+    b={sfx:inS, music:inM, sel, ac};
+    BUS.set(ac,b);
+    return b;
+  }
+  function applyMode(){
+    for(const ac of known){ const b=BUS.get(ac); if(!b) continue;
+      const t=ac.currentTime, m=mode();
+      for(const key of ['s','m']) for(const k of ['snes','md','off']){
+        const g=b.sel[key+k].gain; g.cancelScheduledValues(t); g.setTargetAtTime(k===m?1:0,t,0.03);
+      }
+    }
+  }
+  const known=new Set();
+  AudioNode.prototype.connect=function(dest){
+    if(dest&&dest instanceof AudioDestinationNode&&!SKIP.has(this)){
+      const ac=dest.context;
+      if(ac instanceof AudioContext){
+        try{ const b=busFor(ac); known.add(ac); origConnect.call(this,b.sfx); return dest; }catch(e){}
+      }
+    }
+    return origConnect.apply(this,arguments);
+  };
+
+  // The soundtrack: <audio> elements join the music side of the bus on first play
+  const routed=new WeakSet();
+  const origPlay=HTMLMediaElement.prototype.play;
+  function ctxNow(){
+    try{ if(typeof ga==='function'){ const a=ga(); if(a) return a; } }catch(e){}
+    try{ if(typeof _bgmAC!=='undefined'&&_bgmAC) return _bgmAC; }catch(e){}
+    return null;
+  }
+  HTMLMediaElement.prototype.play=function(){
+    if(!disabled&&!routed.has(this)&&this instanceof HTMLAudioElement){
+      const ac=ctxNow();
+      if(ac){
+        try{
+          const src=ac.createMediaElementSource(this); SKIP.add(src);
+          const b=busFor(ac); known.add(ac); origConnect.call(src,b.music); routed.add(this);
+        }catch(e){ routed.add(this); }
+      }
+    }
+    if(routed.has(this)){ const ac=ctxNow(); if(ac&&ac.state==='suspended') try{ ac.resume(); }catch(e){} }
+    return origPlay.apply(this,arguments);
+  };
+
+  const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
+  hook();
+  window.MV_SOUND16={ get mode(){ return mode(); }, refresh:applyMode };
+})();
