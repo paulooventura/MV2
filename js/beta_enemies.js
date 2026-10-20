@@ -196,13 +196,26 @@
   B.ropes=B.ropes||[];
   function ropeOf(e){ return B.ropes.find(r=>r.e===e); }
   function releaseRope(e){ const i=B.ropes.findIndex(r=>r.e===e); if(i>=0){ B.ropes.splice(i,1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} } }
+  function ropeOrigin(e){
+    const c=center(e), a=e.tumble?(e.ang||0):(e.gAng||0)+(e.ang||0);
+    let ox=0, oy=0;
+    if(e._ai==='tri'){ oy=-e.h/2; }
+    else if(e._ai==='square'){ const f=(B.ropes.find(r=>r.e===e&&r.tx!=null)||{}).tx>c.x?1:-1; ox=f*e.w/2; oy=-e.h/2; }
+    return {x:c.x+ox*Math.cos(a)-oy*Math.sin(a), y:c.y+ox*Math.sin(a)+oy*Math.cos(a)};
+  }
+  B.enemyRopeOrigin=ropeOrigin;
+  function lineBlocked(x0,y0,x1,y1){
+    const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/8);
+    for(let i=1;i<n;i++){ const x=x0+(x1-x0)*i/n, y=y0+(y1-y0)*i/n; if(solidAt(x,y)) return true; }
+    return false;
+  }
   function throwRope(e,tx,ty,kind){
-    const c=center(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
+    const c=ropeOrigin(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
     B.ropes.push({e, kind, x:c.x, y:c.y, vx:(tx-c.x)/d*11, vy:(ty-c.y)/d*11, st:'fly', t:0, len:0, mode:'hold', mash:0, decide:0, tx, ty});
   }
   function ropeTick(){
     for(let i=B.ropes.length-1;i>=0;i--){
-      const r=B.ropes[i], e=r.e, c=center(e); r.t++;
+      const r=B.ropes[i], e=r.e, c=ropeOrigin(e); r.t++;
       if(!e.alive){ B.ropes.splice(i,1); continue; }
       if(r.st==='fly'){
         r.x+=r.vx; r.y+=r.vy;
@@ -211,6 +224,12 @@
           if(ov(r.x-6,r.y-6,12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ r.st='hold'; r.len=Math.hypot(p.x+SW/2-c.x,p.y+FEET_OFF*0.6-c.y); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} continue; }
           if(solidAt(r.x,r.y)||r.t>40){ B.ropes.splice(i,1); continue; }
         }else{                                                  // climbing / travelling: rope to a ledge or a ceiling
+          if(r.kind==='travel'&&solidAt(r.x,r.y)&&Math.hypot(r.x-r.tx,r.y-r.ty)>=12){
+            // it bit the rock on the way: that's the anchor now (if it can still swing to its floor)
+            r.x-=r.vx; r.y-=r.vy; r.tx=r.x; r.ty=r.y;
+            if(r.anchor&&r.y<Math.min(e.y,r.dest.y)) r.anchor={x:r.x,y:r.y};
+            else{ B.ropes.splice(i,1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} continue; }
+          }
           if(Math.hypot(r.x-r.tx,r.y-r.ty)<12||r.t>30){ r.x=r.tx; r.y=r.ty; r.st=r.kind==='travel'?'swing':'climb'; r.t=0; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} }
         }
         continue;
@@ -225,7 +244,10 @@
           const a0=Math.atan2(s0.y+h-A.y,s0.x+w2-A.x), a1=Math.atan2(d.y+h-A.y,d.x+w2-A.x);
           const r0=Math.hypot(s0.x+w2-A.x,s0.y+h-A.y), r1=Math.hypot(d.x+w2-A.x,d.y+h-A.y);
           const ang=a0+(a1-a0)*k, rad=r0+(r1-r0)*k;
-          e.x=A.x+Math.cos(ang)*rad-w2; e.y=A.y+Math.sin(ang)*rad-h;
+          const nx=A.x+Math.cos(ang)*rad-w2, ny=A.y+Math.sin(ang)*rad-h;
+          if(u>0.05&&!boxFree(nx,ny,e.w,e.h)){                  // swung into rock: the rope can't pull it through — it drops
+            B.ropes.splice(i,1); e.ang=0; e.og=false; e._falling=true; e.vy=0; continue; }
+          e.x=nx; e.y=ny;
           e.ang=(a1-a0)*Math.sin(k*Math.PI)*0.6;
         }else{                                                    // no ceiling: hooked to the far ledge, it hauls itself over
           e.x=s0.x+(d.x-s0.x)*k; e.y=s0.y+(d.y-s0.y)*k-Math.sin(k*Math.PI)*Math.min(2*T,dist*0.3);
@@ -250,6 +272,8 @@
         if(df===3&&e.heat>0.35) r.mode='pull';                  // hard: reel him into the blast
         r.decide=40+Math.random()*30|0;
       }
+      if(lineBlocked(c.x,c.y,mx,my)){ r.blockT=(r.blockT||0)+1; if(r.blockT>8){ releaseRope(e); e.ropeCd=200; continue; } } else r.blockT=0;
+      if(Math.hypot(mx-c.x,my-c.y)-r.len>3*T){ releaseRope(e); e.ropeCd=240; continue; }     // too much strain: it snaps
       if(r.mode==='pull') r.len=Math.max(e.w*0.5+T*0.6, r.len-(DIFF()===3?2.6:1.8));
       const dx=mx-c.x, dy=my-c.y, d=Math.hypot(dx,dy)||1;
       if(d>r.len){
@@ -452,13 +476,13 @@
   // enemy shut down for good is a plain platform (and can be pushed around).
   function surf(e,x){
     if(x<e.x||x>e.x+e.w) return null;
-    if(e._permOff||e._ai==='square') return e.y;
+    if(e._ai==='square') return e.y;                            // flat — alive or shut down
     const cx=e.x+e.w/2, dx=x-cx;
     if(e._ai==='circle'){ const r=e.w/2; return e.y+r-Math.sqrt(Math.max(0,r*r-dx*dx)); }
     return e.y+Math.abs(dx)/(e.w/2)*e.h;                        // triangle
   }
   function slopeAt(e,x){
-    if(e._permOff||e._ai==='square') return 0;
+    if(e._ai==='square') return 0;
     const dx=x-(e.x+e.w/2); if(Math.abs(dx)<1) return 0;          // the exact centre holds
     if(e._ai==='circle'){ const r=e.w/2; return Math.max(-4,Math.min(4,dx/Math.sqrt(Math.max(1,r*r-dx*dx)))); }
     return Math.sign(dx)*e.h/(e.w/2);
@@ -468,7 +492,7 @@
   // the wheel's centre
   const WHEEL=14;
   function support(e,cx){
-    if(e._permOff||e._ai==='square'){ const x=Math.max(e.x,Math.min(e.x+e.w,cx)); return Math.abs(x-cx)<=WHEEL?x:null; }
+    if(e._ai==='square'){ const x=Math.max(e.x,Math.min(e.x+e.w,cx)); return Math.abs(x-cx)<=WHEEL?x:null; }
     return cx>=e.x&&cx<=e.x+e.w?cx:null;
   }
   function isOnTop(e){ const x=support(e,p.x+SW/2); if(x==null) return false; const s=surf(e,x); return s!=null&&p.y+FEET_OFF<=s+8; }
@@ -625,12 +649,33 @@
     if(e._iso){ ctx.strokeStyle='rgba(255,160,70,'+(0.55+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(3,s*0.07); ctx.save(); ctx.scale(1.12,1.12); shape(); ctx.stroke(); ctx.restore(); }
     ctx.restore();
   }
+  // a slack rope hangs and lies on the floor like a cord (same as MIND's); a taut one is straight
+  function cordFor(r,c){
+    const E={x:r.x,y:r.y}, d=Math.hypot(E.x-c.x,E.y-c.y), L=r.st==='hold'?Math.max(d,r.len):d;
+    if(L-d<3){ r._cord=null; return [c,E]; }
+    const n=Math.max(6,Math.min(30,Math.round(L/12)));
+    let cd=r._cord;
+    if(!cd||cd.n!==n){ const P=[]; for(let k=0;k<n;k++){ const t=k/(n-1); P.push({x:c.x+(E.x-c.x)*t,y:c.y+(E.y-c.y)*t,px:c.x+(E.x-c.x)*t,py:c.y+(E.y-c.y)*t}); } cd=r._cord={n,P}; }
+    const P=cd.P, seg=L/(n-1);
+    if(cd.fr!==fr){ cd.fr=fr;
+      for(let k=1;k<n-1;k++){ const q=P[k], vx=(q.x-q.px)*0.985, vy=(q.y-q.py)*0.985; q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+0.45; }
+      P[0].x=c.x; P[0].y=c.y; P[n-1].x=E.x; P[n-1].y=E.y;
+      for(let it=0;it<12;it++){
+        for(let k=0;k<n-1;k++){ const a=P[k], b=P[k+1], dx=b.x-a.x, dy=b.y-a.y, dd=Math.hypot(dx,dy)||0.001, df=(dd-seg)/dd*0.9;
+          const fa=k===0?0:1, fb=k+1===n-1?0:1, s2=fa+fb||1; a.x+=dx*df*fa/s2; a.y+=dy*df*fa/s2; b.x-=dx*df*fb/s2; b.y-=dy*df*fb/s2; }
+        for(let k=1;k<n-1;k++){ const q=P[k]; if(!solidAt(q.x,q.y)) continue;
+          if(!solidAt(q.px,q.y)) q.x=q.px; else if(!solidAt(q.x,q.py)) q.y=q.py; else { let g=0; while(solidAt(q.x,q.y)&&g<12){ q.y-=3; g++; } }
+          q.px+=(q.x-q.px)*0.6; }
+      }
+    }
+    return P.map(q=>({x:q.x,y:q.y}));
+  }
   function drawRopes(){
     for(const r of B.ropes){
-      const c=center(r.e), x0=sx(c.x), y0=sy(c.y), x1=sx(r.x), y1=sy(r.y);
-      const sag=r.st==='hold'?Math.max(0,r.len-Math.hypot(r.x-c.x,r.y-c.y))*0.5:6;
-      ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.beginPath(); ctx.moveTo(x0,y0);
-      ctx.quadraticCurveTo((x0+x1)/2,(y0+y1)/2+sw(sag),x1,y1); ctx.stroke();
+      const c=ropeOrigin(r.e), pts=cordFor(r,c);
+      ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(sx(pts[0].x),sy(pts[0].y));
+      for(let k=1;k<pts.length;k++) ctx.lineTo(sx(pts[k].x),sy(pts[k].y)); ctx.stroke();
+      const x1=sx(r.x), y1=sy(r.y);
       ctx.strokeStyle='#7a5a30'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle='#ffe0a0'; ctx.beginPath(); ctx.arc(x1,y1,sw(4),0,Math.PI*2); ctx.fill();
       ctx.restore();
