@@ -181,7 +181,7 @@ function readGamepad(){
   // d-pad or stick moves the cursor, A picks, B resumes
   if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
   if(rose(1)&&_gameState!=='game') Kj['Escape']=true;      // B backs out of menus
-  if(typeof _paused!=='undefined'&&_paused&&_gameState==='game'){
+  if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){   // pause menu / continue screen: d-pad + stick move the cursor
     const sy=ay<-0.5?-1:ay>0.5?1:0;
     if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
     if(rose(13)||(sy>0&&GP.prevSy<=0)) Kj['ArrowDown']=true;
