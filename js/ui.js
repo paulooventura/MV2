@@ -197,7 +197,7 @@ function _optionsInput(ev){
   if(_optRow===0&&(dec||inc||ev.confirm)){ OPT.musicMode=OPT.musicMode==='ost'?'psg':'ost'; _saveOpts();_switchMusicMode();return true; }
   if(_optRow===1&&(dec||inc)){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+(inc?0.05:-0.05))); _saveOpts();_applyBgmVolumes();return true; }
   if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
-  if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(); return true; }
+  if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
   if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
   if(_optRow>=OPT_FIXED_ROWS&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
   return true;
@@ -477,7 +477,7 @@ function drawOptions(){
   _drawSnesStarfield();
   const padX=80, panelW=W-padX*2, rowH=34, scl=2;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
-    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'MODERN'):'-',hint:'LOOK + SOUND OF THE MACHINE'},
+    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
   BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
   const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));

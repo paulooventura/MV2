@@ -20,7 +20,12 @@
 //  stepped palette fades. The CRT pass (crt_room.js) reads the mode for its
 //  224 scanlines, its blur and the Model 1 "jailbars". Sound: sound16.js.
 //
-//  Mode: Options menu (CONSOLE), the A/B buttons under the screen,
+//  C · POSH (mode 'off'): none of the console treatment — full resolution,
+//  full colour, smooth, clean sound — the game as it looks today. It's the
+//  default; A and B are the nostalgia switches. Picking POSH turns the CRT
+//  off, picking A or B from POSH turns it on (the TV can still be flipped).
+//
+//  Mode: Options menu (CONSOLE), the A/B/C buttons under the screen,
 //  localStorage mv2.console = snes | md | off, or ?console=… in the URL.
 // ============================================================
 (function(){
@@ -30,13 +35,14 @@
     md:  {name:'MEGA DRIVE', w:320, h:224, hw:640, hh:448}
   };
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
-  let mode=(()=>{ if(qs&&(MODES[qs]||qs==='off')) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||v==='off') return v; }catch(e){} return 'snes'; })();
+  let mode=(()=>{ if(qs&&(MODES[qs]||qs==='off')) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||v==='off') return v; }catch(e){} return 'off'; })();
   const listeners=[];
   const api={
     get mode(){ return mode; },
-    get name(){ return MODES[mode]?MODES[mode].name:'MODERN'; },
-    set(m){ if(!(MODES[m]||m==='off')||m===mode) return; mode=m; try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); },
-    cycle(){ api.set(mode==='snes'?'md':'snes'); },
+    get name(){ return MODES[mode]?MODES[mode].name:'POSH'; },
+    set(m){ if(!(MODES[m]||m==='off')||m===mode) return; const was=mode; mode=m;
+      try{ if(window.MV_TV){ if(m==='off') MV_TV.on=false; else if(was==='off') MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); },
+    cycle(dir){ const L=['off','snes','md']; const i=L.indexOf(mode); api.set(L[(i+(dir<0?2:1))%3]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES
@@ -154,7 +160,7 @@
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';
     bar.style.cssText='display:flex;gap:6px;justify-content:center;align-items:center;margin:8px auto 2px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;color:#7868a0';
-    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
+    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
     if(window.MV_TV){ bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><button type="button" class="mv-tvbtn" aria-pressed="'+MV_TV.on+'">'+(MV_TV.on?'CRT TV: ON':'CRT TV: OFF')+'</button>'); }
     bar.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.classList.contains('mv-tvbtn')){ MV_TV.toggle(); const c=document.getElementById('c'); if(c&&c.focus) c.focus(); return; }

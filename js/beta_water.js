@@ -27,7 +27,7 @@
   B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[];
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.bubbles=[]; B.ridePlat=null; };
+  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.wRings=[]; };
   B.onEntities=function(ents, F, cell){
     for(const e of ents){
       const g=cell(e), id=e.__identifier;
@@ -45,12 +45,24 @@
     }
     // pool floor per column: the first solid cell, but never below the water
     // entity's own bottom (a pit under the pool stays a pit, not a water slab)
+    // Shores: past each side of the pool the floor carries on at about the
+    // rim's height. Those floor columns join the pool (dry at first), so water
+    // pushed up over the rim really spills out onto the floor — and runs back
+    // in when the pool settles. A wall (solid above the rim) or a drop ends it.
+    const shoreFloor=(c,w)=>{ if(gridSolid(c,w.r0-1)||gridSolid(c,w.r0-2)) return null;
+      for(let r=w.r0;r<=w.r0+2;r++) if(gridSolid(c,r)) return r; return null; };
     for(const w of B.waters){
+      let L=0,R=0;
+      while(L<8&&shoreFloor(w.c0-L-1,w)!=null) L++;
+      while(R<8&&shoreFloor(w.c1+R+1,w)!=null) R++;
+      w.px0=w.x0; w.px1=w.x1; w.x0-=L*T; w.x1+=R*T; w.n=Math.ceil((w.x1-w.x0)/w.step);
       for(let i=0;i<w.n;i++){
         const x=Math.min(w.x1-1,w.x0+i*w.step+w.step/2), c=Math.floor(x/T);
-        let r=w.r0; while(r<=w.r1&&!gridSolid(c,r)) r++;
+        let r;
+        if(x<w.px0||x>=w.px1){ r=shoreFloor(c,w); }
+        else{ r=w.r0; while(r<=w.r1&&!gridSolid(c,r)) r++; }
         w.bottom.push(r*T);
-        w.amt.push(Math.max(0,r*T-w.base)); w.occ.push(0); w.flux.push(0); w.pull.push(0); w.s.push(w.base);
+        w.amt.push(Math.max(0,r*T-w.base)); w.occ.push(0); w.flux.push(0); w.pull.push(0); w.s.push(Math.min(w.base,r*T));
       }
       w.open=w.bottom.map((b,i)=>b>w.r1*T);                // columns with the pit under them
       w.vol0=w.amt.reduce((a,b)=>a+b,0);
@@ -263,10 +275,14 @@
         const i0=colOf(w,t.x), pulse=0.75+0.25*Math.sin(fr*0.35);   // a throb, so ripples run off it
         // horizontal: move water downstream along the jet
         for(let k=0;k<12;k++){ const x=t.x+ux*k*16, i=colOf(w,x); if(x<w.x0||x>=w.x1) break; colFlux(w,ux>0?i:i-1,ux*2.8*pw*pulse*(1-k/14)); }
-        // vertical: heave a mound (aim up) or open a dip (aim down) over the jet
-        const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0,1-depth/220);
-        const hx=t.x+ux*Math.min(120,depth*Math.abs(ux)/(Math.abs(uy)+0.2));
-        for(let k=-4;k<=4;k++){ const j=colOf(w,hx)+k; if(j<0||j>=w.n) continue; w.pull[j]+=(-uy)*70*pw*pulse*reach*(1-Math.abs(k)/5); }
+        // the blast blows a pocket of air out of the nozzle: it grows with the
+        // charge to 3x3 blocks at full power, and the water it pushes out of
+        // that space has to go somewhere — the whole pool rises and sloshes
+        let b=B.xBub;
+        if(!b||b.free||b.w!==w){ b=B.xBub={w,x:t.x,y:t.y,r:6,free:false,vx:0,vy:0}; }
+        const goal=8+40*ch; b.r+=(goal-b.r)*0.12; b.held=fr;
+        b.x=t.x+ux*b.r*0.9; b.y=t.y+uy*b.r*0.9; b.ux=ux; b.uy=uy;
+        if(fr%14===0) ring(w,b.x,b.y,'air',0.5+ch);
         if(fr%3===0) for(let k=0;k<2;k++) B.bubbles.push({x:t.x+ux*(18+Math.random()*30),y:t.y+uy*(18+Math.random()*30),r:2+Math.random()*3,vy:-0.3+uy*2,vx:ux*3,w});
       }else if(uy>0.25){
         // above the water, blowing at it: where does the blast meet the surface?
@@ -288,6 +304,7 @@
         const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0.15,1-depth/260);
         for(let k=-6;k<=6;k++){ const j=i0+k; if(j<0||j>=w.n) continue; w.pull[j]-=52*pw*reach*(0.8+0.2*Math.sin(fr*0.3))*(1-Math.abs(k)/7); }   // dimple over the tip
         for(let k=1;k<=10;k++){ colFlux(w,i0-k,0.8*pw*(1-k/11)); colFlux(w,i0+k-1,-0.8*pw*(1-k/11)); }      // water runs in from both sides
+        if(fr%18===0) ring(w,t.x,t.y,'mag',0.4+0.6*pw);
         if(fr%2===0){                                           // molecules spiralling into the poles
           const ang=fr*0.21, r=26+Math.random()*30;
           B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*2,vy:0,vx:0,w,to:{x:t.x,y:t.y},ang,rad:r});
@@ -295,6 +312,53 @@
       }
     }
   }
+  // ── the XLR's air pocket ───────────────────────────────────────
+  // Held: it sits on the nozzle. Let go: it floats up, wobbling, and bursts
+  // at the surface. While it exists its volume is taken out of the pool, so
+  // the water around it is shoved out and away in every direction.
+  function cavityOcc(w){
+    const b=B.xBub; if(!b||b.w!==w) return;
+    const i0=colOf(w,b.x-b.r), i1=colOf(w,b.x+b.r);
+    for(let i=i0;i<=i1;i++){
+      const dx=w.x0+(i+0.5)*w.step-b.x; if(Math.abs(dx)>=b.r) continue;
+      const h=Math.sqrt(b.r*b.r-dx*dx);
+      if(w.amt[i]>0.5) w.occ[i]+=overlap(b.y-h,b.y+h,w.level-2,w.bottom[i]);
+    }
+  }
+  function airBubbleTick(){
+    const b=B.xBub; if(!b) return;
+    if(!b.free&&b.held!==fr-1&&b.held!==fr){                   // let go (or the nozzle left the water)
+      b.free=true; b.vx=(b.ux||0)*3; b.vy=(b.uy||0)*3-0.5;
+      ring(b.w,b.x,b.y,'air',1.6);
+    }
+    if(!b.free) return;
+    const w=b.w;
+    b.vy=Math.max(-5,b.vy-0.14); b.vx*=0.95; b.x+=b.vx; b.y+=b.vy;
+    b.x=Math.max(w.x0+b.r*0.5,Math.min(w.x1-b.r*0.5,b.x));
+    if(fr%3===0) B.bubbles.push({x:b.x+(Math.random()-0.5)*b.r,y:b.y+b.r*0.8,r:1.5+Math.random()*2,vy:-1,w});
+    const s=surfaceAt(w,b.x);
+    if(b.y-b.r*0.2<s){                                          // bursts through the surface
+      splash(w,b.x,Math.min(9,2+b.r*0.14),true);
+      for(let k=0;k<Math.round(6+b.r/3);k++){ const a=-Math.PI*(0.1+Math.random()*0.8); PFXS.push({x:b.x+(Math.random()-0.5)*b.r,y:s-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(2+Math.random()*b.r*0.08),life:20+Math.random()*12|0,maxLife:32,r:1.5+Math.random()*2.5,col:k%3?'#bfe6ff':'#ffffff'}); }
+      ring(w,b.x,s+4,'air',1.2);
+      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(Math.min(1,0.3+b.r/60)); }catch(e){}
+      B.xBub=null;
+    }
+  }
+  // ── ripples: rings that run out from the tip through the whole pool ──
+  // Each ring is drawn inside the water and gives the surface a push outward
+  // from the ring's centre, so the waves really travel across the pool.
+  B.wRings=[];
+  function ring(w,x,y,kind,k){
+    if(!w) return;
+    B.wRings.push({w,x,y,r:4,k,kind,life:60});
+    const i=colOf(w,x), P=0.9*k;
+    colFlux(w,i,P); colFlux(w,i-1,-P);
+  }
+  function ringsTick(){
+    for(let j=B.wRings.length-1;j>=0;j--){ const g=B.wRings[j]; g.r+=3+g.k*1.2; g.life--; if(g.life<=0) B.wRings.splice(j,1); }
+  }
+
   // one charged push released into the water: a surge of water + a ring
   function surge(w,tip,ch){
     const i=colOf(w,tip.x), P=3+7*ch;
@@ -341,6 +405,7 @@
     platformTick();
     isolatorTick();
     if(!B.waters.length) return;
+    airBubbleTick(); ringsTick();
     hookWaterTick();
     magWaterTick();
     const list=bodies();
@@ -352,9 +417,10 @@
         if(c1<0||c0>=w.n||c1<c0) continue;
         for(let i=c0;i<=c1;i++){
           const cx0=w.x0+i*w.step, fx=overlap(b.x,b.x+b.w,cx0,cx0+w.step)/w.step;
-          w.occ[i]+=overlap(b.y,b.y+b.h,w.level-2,w.bottom[i])*fx*0.9;   // vs the mean level: no feedback loop
+          if(w.amt[i]>0.5) w.occ[i]+=overlap(b.y,b.y+b.h,w.level-2,w.bottom[i])*fx*0.9;   // vs the mean level: no feedback loop
         }
       }
+      cavityOcc(w);                                          // the XLR's air bubble takes up room too
       // 2) splashes as things cross the surface
       for(const b of list){
         const cx=b.x+b.w/2, cy=b.y+b.h/2, inside=cx>=w.x0&&cx<w.x1&&cy>surfaceAt(w,cx);
@@ -381,8 +447,9 @@
           w.amt[i]-=f*0.5; w.amt[i+1]+=f*0.5;
         }
       }
-      for(let i=0;i<w.n;i++){ w.s[i]=w.bottom[i]-w.amt[i]-w.occ[i]+Math.sin(fr*0.04+i*0.45)*0.35; w.pull[i]=0; }   // + a living, slight lap
-      let lv=0; for(let i=0;i<w.n;i++) lv+=w.s[i]; w.level=lv/w.n;
+      let lv=0, nw=0;
+      for(let i=0;i<w.n;i++){ const wet=w.amt[i]>0.5; w.s[i]=w.bottom[i]-w.amt[i]-w.occ[i]+(wet?Math.sin(fr*0.04+i*0.45)*0.35:0); w.pull[i]=0; if(wet){ lv+=w.s[i]; nw++; } }   // + a living, slight lap
+      w.level=nw?lv/nw:w.base;
       // 5) the jacks move the water itself (mass + ripples), under and over it
       itemWater(w);
       // ... and the XLR's current carries things along
@@ -541,12 +608,34 @@
       const g=ctx.createLinearGradient(0,sy(top),0,sy(bot));
       g.addColorStop(0,elec?'rgba(150,220,255,0.55)':'rgba(70,150,230,0.44)'); g.addColorStop(1,elec?'rgba(60,110,220,0.72)':'rgba(18,46,124,0.7)');
       // the body of water as one shape: the moving surface on top, the floor under it
-      ctx.fillStyle=g; ctx.beginPath();
-      ctx.moveTo(sx(w.x0),sy(w.s[0]));
-      for(let i=0;i<w.n;i++) ctx.lineTo(sx(w.x0+(i+0.5)*w.step),sy(w.s[i]));
-      ctx.lineTo(sx(w.x1),sy(w.s[w.n-1]));
-      for(let i=w.n-1;i>=0;i--){ ctx.lineTo(sx(w.x0+(i+1)*w.step),sy(w.bottom[i])); ctx.lineTo(sx(w.x0+i*w.step),sy(w.bottom[i])); }
-      ctx.closePath(); ctx.fill();
+      const body=new Path2D();
+      body.moveTo(sx(w.x0),sy(w.s[0]));
+      for(let i=0;i<w.n;i++) body.lineTo(sx(w.x0+(i+0.5)*w.step),sy(w.s[i]));
+      body.lineTo(sx(w.x1),sy(w.s[w.n-1]));
+      for(let i=w.n-1;i>=0;i--){ body.lineTo(sx(w.x0+(i+1)*w.step),sy(w.bottom[i])); body.lineTo(sx(w.x0+i*w.step),sy(w.bottom[i])); }
+      body.closePath();
+      const ab=B.xBub&&B.xBub.w===w?B.xBub:null;
+      ctx.fillStyle=g;
+      if(ab){                                               // the air pocket: a hole in the water
+        const wob=b2=>sw(ab.r)*(1+0.05*Math.sin(fr*0.4+b2));
+        ctx.save(); const cut=new Path2D(); cut.rect(-10,-10,W+20,H+20);
+        cut.ellipse(sx(ab.x),sy(ab.y),wob(0),wob(1.6),0,0,Math.PI*2); ctx.clip(cut,'evenodd');
+        ctx.fill(body); ctx.restore();
+        ctx.save(); ctx.clip(body);
+        ctx.strokeStyle='rgba(235,250,255,0.9)'; ctx.lineWidth=Math.max(2,sw(3));
+        ctx.beginPath(); ctx.ellipse(sx(ab.x),sy(ab.y),wob(0),wob(1.6),0,0,Math.PI*2); ctx.stroke();
+        ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=Math.max(2,sw(4));
+        ctx.beginPath(); ctx.arc(sx(ab.x),sy(ab.y),sw(ab.r)*0.7,Math.PI*1.1,Math.PI*1.45); ctx.stroke();
+        ctx.restore();
+      }else ctx.fill(body);
+      // ripples running out through the water
+      const rs=B.wRings.filter(g2=>g2.w===w);
+      if(rs.length){ ctx.save(); ctx.clip(body);
+        for(const g2 of rs){ const a=(g2.life/60)*Math.min(1,0.35+0.4*g2.k);
+          ctx.strokeStyle=g2.kind==='mag'?'rgba(255,170,200,'+(a*0.7)+')':'rgba(220,245,255,'+(a*0.75)+')';
+          ctx.lineWidth=Math.max(2,sw(3)*(0.6+g2.life/60));
+          ctx.beginPath(); ctx.arc(sx(g2.x),sy(g2.y),sw(g2.r),0,Math.PI*2); ctx.stroke(); }
+        ctx.restore(); }
       // where the pool has no floor (the pit) the water fades into the dark below
       for(let i=0;i<w.n;i++){ if(!w.open[i]) continue;
         const y0=sy(w.bottom[i]), gg=ctx.createLinearGradient(0,y0,0,y0+sw(3*T));
@@ -555,10 +644,15 @@
       // surface: a bright line, thicker and whiter where the water is moving
       ctx.lineJoin='round';
       ctx.strokeStyle='rgba(225,247,255,0.8)'; ctx.lineWidth=Math.max(3,sw(4)); ctx.beginPath();
-      ctx.moveTo(sx(w.x0),sy(w.s[0]));
-      for(let i=0;i<w.n;i++) ctx.lineTo(sx(w.x0+(i+0.5)*w.step),sy(w.s[i]));
-      ctx.lineTo(sx(w.x1),sy(w.s[w.n-1])); ctx.stroke();
-      for(let i=1;i<w.n-1;i++){ const sl=Math.abs(w.s[i+1]-w.s[i-1]); if(sl>3){ ctx.fillStyle='rgba(255,255,255,'+Math.min(0.9,sl*0.06)+')'; ctx.fillRect(sx(w.x0+i*w.step),sy(w.s[i])-sw(3),sw(w.step),sw(5)); } }
+      let run=false;                                        // only where there's water (dry shore: nothing)
+      for(let i=0;i<w.n;i++){
+        const wet=w.amt[i]>0.5, x=sx(w.x0+(i+0.5)*w.step), y=sy(w.s[i]);
+        if(wet&&!run){ ctx.moveTo(i===0?sx(w.x0):sx(w.x0+i*w.step),y); run=true; }
+        if(wet) ctx.lineTo(i===w.n-1?sx(w.x1):x,y);
+        else if(run){ ctx.lineTo(sx(w.x0+i*w.step),sy(w.s[i-1])); run=false; }
+      }
+      ctx.stroke();
+      for(let i=1;i<w.n-1;i++){ if(w.amt[i]<=0.5) continue; const sl=Math.abs(w.s[i+1]-w.s[i-1]); if(sl>3){ ctx.fillStyle='rgba(255,255,255,'+Math.min(0.9,sl*0.06)+')'; ctx.fillRect(sx(w.x0+i*w.step),sy(w.s[i])-sw(3),sw(w.step),sw(5)); } }
       // caustics: soft light ripples drifting through the pool
       ctx.save(); ctx.globalCompositeOperation='lighter';
       for(let k=0;k<10;k++){

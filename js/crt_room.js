@@ -22,7 +22,9 @@
   const q=(()=>{ try{ return new URLSearchParams(location.search); }catch(e){ return new URLSearchParams(''); } })();
   const forced=q.get('tv');
   const store={ get(){ try{ return localStorage.getItem('mv2.tv'); }catch(e){ return null; } }, set(v){ try{ localStorage.setItem('mv2.tv',v); }catch(e){} } };
-  let crtOn=forced==='0'?false:(forced==='1'||forced==='gl')?true:store.get()!=='off';
+  // no choice saved yet: the TV comes with the console look (A/B); POSH is clean
+  const consoleSaved=(()=>{ try{ return q.get('console')||localStorage.getItem('mv2.console'); }catch(e){ return null; } })();
+  let crtOn=forced==='0'?false:(forced==='1'||forced==='gl')?true:store.get()?store.get()!=='off':(consoleSaved==='snes'||consoleSaved==='md');
   const isPhone=()=>document.documentElement.classList.contains('phone-play');
 
   const CSS=`
