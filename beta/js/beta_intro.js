@@ -3,8 +3,8 @@
 //  title menu (STORY MODE / OPTIONS). Story mode plays the story pages,
 //  then drops straight into Awdjoo 1.1 (no player-select step).
 //
-//  Splash art: assets/splash/mmr-logo.png and assets/splash/paulo-ventura-logo.png.
-//  Until those files exist, a drawn wordmark stands in.
+//  Splash art: assets/splash/mmr-logo.jpg (on white) and assets/splash/paulo-ventura-logo.png
+//  (fills the screen). If a file fails to load, a drawn wordmark stands in.
 //  Each splash comes in the console way: big mosaic blocks + dark, resolving
 //  to full resolution, holds, then fades to black.
 //  ?lvl=1.1 / ?lvl=1.2 still skips straight into a stage (dev / selftest).
@@ -16,8 +16,8 @@
 
   const IN=48, HOLD=110, OUT=30, LEN=IN+HOLD+OUT;
   const SPLASHES=[
-    {src:'assets/splash/mmr-logo.png', word:'MMR', sub:'PRESENTS', pal:['#fff6d8','#ffd76a','#ffffff','#c8501e','#ff8a3c','#ffe39a'], rim:'#f6c94a', glow:'rgba(255,150,60,0.7)'},
-    {src:'assets/splash/paulo-ventura-logo.png', word:'PAULO VENTURA', sub:'A GAME BY', subTop:true, pal:['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'], rim:'#f6c94a', glow:'rgba(160,120,255,0.75)'}
+    {src:'assets/splash/mmr-logo.jpg', bg:'#fff', fit:'contain', word:'MMR', sub:'PRESENTS', pal:['#fff6d8','#ffd76a','#ffffff','#c8501e','#ff8a3c','#ffe39a'], rim:'#f6c94a', glow:'rgba(255,150,60,0.7)'},
+    {src:'assets/splash/paulo-ventura-logo.png', fit:'cover', word:'PAULO VENTURA', sub:'A GAME BY', subTop:true, pal:['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'], rim:'#f6c94a', glow:'rgba(160,120,255,0.75)'}
   ];
   SPLASHES.forEach(s=>{ const im=new Image(); im.onload=()=>{ s.ready=true; }; im.onerror=()=>{ s.ready=false; }; im.src=s.src; s.img=im; });
 
@@ -36,9 +36,11 @@
   }
   function drawSplash(){
     const s=SPLASHES[idx];
-    ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
-    if(s.ready&&s.img.naturalWidth){
-      const k=Math.min(W*0.7/s.img.naturalWidth, H*0.6/s.img.naturalHeight);
+    const art=s.ready&&s.img.naturalWidth;
+    ctx.fillStyle=art&&s.bg?s.bg:'#000'; ctx.fillRect(0,0,W,H);
+    if(art){
+      // cover: the art has its own background, fill the screen; contain: the logo sits on `bg`
+      const k=s.fit==='cover'?Math.max(W/s.img.naturalWidth, H/s.img.naturalHeight):Math.min(W*0.8/s.img.naturalWidth, H*0.86/s.img.naturalHeight);
       const w=Math.round(s.img.naturalWidth*k), h=Math.round(s.img.naturalHeight*k);
       ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
       ctx.drawImage(s.img,(W-w)>>1,(H-h)>>1,w,h);

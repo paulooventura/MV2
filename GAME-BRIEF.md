@@ -67,8 +67,8 @@ Awdjoo Town **1.1 → 1.2** from LDtk (`assets/levels/awdjoo-beta.ldtk`,
 MAG carry (`beta/js/beta_*.js`). Boot: MMR splash → Paulo Ventura splash
 (mosaic pixelate-in) → title (Story Mode / Options) → story → 1.1.
 Esc / Start pauses (Resume game · Options · Exit to main menu); Esc / Start on
-the title asks “Shut down?” → CRT power-off screen. Logo art still to come:
-`assets/splash/mmr-logo.png`, `assets/splash/paulo-ventura-logo.png`.
+the title asks “Shut down?” → CRT power-off screen. Logos:
+`assets/splash/mmr-logo.jpg` (on white), `assets/splash/paulo-ventura-logo.png` (full screen).
 Menu QA: `npm run selftest:flow`.
 
 ### Classic Awdjoo (lab G, `awdjoo-classic.html`) — the old main game
