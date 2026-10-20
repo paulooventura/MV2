@@ -488,9 +488,9 @@ function _updatePlayerMoveX(pl){
   let cap;
   if(sprint){
     const r0=Math.min(1,pl.runRamp||0), run=r0*r0*(3-2*r0);
-    cap=MOVE_WALK*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK)*run;
+    cap=MOVE_WALK_TOP*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK_TOP)*run;
   }else{
-    cap=MOVE_WALK*MOVE_PEAK*spinEase;
+    cap=(grounded?MOVE_WALK_TOP:MOVE_WALK)*MOVE_PEAK*spinEase;   // slower walk on the ground; air steering unchanged
     if(!grounded&&dir) cap=Math.max(cap,Math.abs(pl.vx));
   }
   if(onSlope&&pl._slopeAngle){
@@ -498,7 +498,7 @@ function _updatePlayerMoveX(pl){
     const climbing=dir*sinA<-0.03;
     if(climbing){
       const run=Math.min(1,pl.runRamp||0);
-      cap=Math.min(cap, sprint?MOVE_WALK*0.58+(MOVE_RUN-MOVE_WALK)*run*0.38:MOVE_WALK*0.52);
+      cap=Math.min(cap, sprint?MOVE_WALK*0.58+(MOVE_RUN-MOVE_WALK)*run*0.38:MOVE_WALK_TOP*0.6);
     }else cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
@@ -817,13 +817,24 @@ function updateHook(){
       sfx('jump'); OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     const wasTight=h._tight, wasSlack=h._slack;
+    // reel in / give slack: the cord coils into the jack or pays out of it (cues: render.js + sfx)
+    const rl0=h.rl;
     if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
     if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+    h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
+    h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
+    if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%4===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
+    const _pump=isLf()||isRt();
     if(isLf()){p.vx-=1.2;p.fc=false;}
     else if(isRt()){p.vx+=1.2;p.fc=true;}
     p.vy+=GRAV; p.vy=Math.min(p.vy,14);
     p.vx=Math.max(-14,Math.min(14,p.vx));
-    p.vx*=0.999; p.vy*=0.999;
+    // Paulo (Oct 20): a real pendulum runs down — air drag and the cord's own
+    // give bleed the swing until MIND just hangs there (pumping keeps it going)
+    const _spd=Math.hypot(p.vx,p.vy);
+    const _drag=_pump?0.998:_spd<1.6?0.96:0.993;        // the last little sway dies quickly, like a real rope settling
+    p.vx*=_drag; if(p.vy<0||_pump) p.vy*=_drag;          // (gravity itself is never damped away)
+    if(!_pump&&_spd<0.25){ p.vx*=0.5; }
     const _rSteps=Math.max(1,Math.ceil(Math.max(Math.abs(p.vx),Math.abs(p.vy))/3));
     const gridOn=typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function';
     const keepVx=p.vx, keepVy=p.vy;

@@ -15,6 +15,8 @@
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
 const MOVE_BUILD=60;
 const MOVE_WALK=10.5;
+// Paulo (Oct 20): top speed without the run button is lower; holding run still reaches MOVE_RUN.
+const MOVE_WALK_TOP=7.8;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=12.4;
 const MOVE_ACCEL=0.40;

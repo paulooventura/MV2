@@ -749,13 +749,13 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     if(!p._hitDone){
       const _wx=p.fistWX,_wy=p.fistWY,_wr=12;
       const _charged=(p.pCharge||0)>20;
-      let _hit=false;
+      let _hit=false, _hitKind='';
 
       // Breakable walls
       for(const bw of BWALLS){
         if(bw.hp<=0)continue;
         if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
-          p._hitDone=true;_hit=true;
+          p._hitDone=true;_hit=true;_hitKind='block';
           // Paulo: a loaded punch smashes the whole omni block and cracks the ones around it
           if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(bw)&&!bw.only){
             const cx0=bw.x+bw.w/2, cy0=bw.y+bw.h/2;
@@ -782,7 +782,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         for(const pl of allP()){
           if(pl.tp!=='solid')continue;
           if(_wx+_wr>pl.x&&_wx-_wr<pl.x+pl.w&&_wy+_wr>pl.y&&_wy-_wr<pl.y+pl.h){
-            p._hitDone=true;_hit=true;
+            p._hitDone=true;_hit=true;_hitKind='wall';
             p.vx-=Math.cos(punchAngle)*(_charged?3.5:2);
             p.vy-=Math.sin(punchAngle)*(_charged?2:1);
             p._pRecoil=8;sfx('hit');break;
@@ -793,7 +793,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       if(!_hit){
         for(const c of CRATES){
           if(_wx+_wr>c.x&&_wx-_wr<c.x+c.w&&_wy+_wr>c.y&&_wy-_wr<c.y+c.h){
-            p._hitDone=true;_hit=true;
+            p._hitDone=true;_hit=true;_hitKind='crate';
             c.vx+=Math.cos(punchAngle)*(_charged?14:8)*(1+p.momentum*0.8);
             c.vy+=Math.sin(punchAngle)*(_charged?10:6);
             p.vx-=Math.cos(punchAngle)*1.5;
@@ -808,7 +808,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         if(eh.w<=0||eh.h<=0) continue;
         const fistW=26,fistH=26;
         if(_fistHitsHB(_wx-fistW*0.5,_wy-fistH*0.5,fistW,fistH,eh)){
-          p._hitDone=true;_hit=true;
+          p._hitDone=true;_hit=true;_hitKind='enemy';
           const _charged=(p.pCharge||0)>20||(p.pCd>4);
           if(_enemyRebootInterruptable(e)){
             _tryInterruptMindReboot(e);
@@ -821,6 +821,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           sfx('hit');
         }
       }
+      // Paulo (Oct 20): a punch that lands should look and sound like it (beta_impact.js)
+      if(_hit&&typeof _punchConnect==='function') try{ _punchConnect(_wx,_wy,punchAngle,_charged,_hitKind); }catch(e){}
     }
     if(!hidden) drawFist(gx, gy, facing, false, 0, true, snapFrac);
   }
@@ -2011,6 +2013,35 @@ function drawItemDrops(){
     drawTextC(tag,cx,dy+dh+2,enh?'#e2b64a':(cols[d.item]||C.WHITE),1);
   }
 }
+// RCA rope tip: a strong magnet puck on the end of the cord (Paulo, Oct 20).
+// ang points from the tip back along the cord. Latched: it clamps flat and its field pulses.
+function _drawRopeMagnetTip(x,y,ang,latched,glow){
+  const r=Math.max(4,6.5/(typeof SMS_SCALE!=='undefined'?SMS_SCALE:1)*1.4);
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang+Math.PI);       // +x faces away from the cord (into the surface)
+  if(latched){
+    const pulse=0.5+0.5*Math.sin(fr*0.25);
+    ctx.strokeStyle=glow; ctx.lineWidth=1.5;
+    for(let k=1;k<=2;k++){ ctx.globalAlpha=(0.55-k*0.18)*(0.6+0.4*pulse); ctx.beginPath(); ctx.arc(r*0.2,0,r*(1.2+k*0.55+pulse*0.25),-1.2,1.2); ctx.stroke(); }
+    ctx.globalAlpha=1;
+  }
+  ctx.fillStyle='#1a1420'; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-r*1.1,-r,r*1.6,r*2,r*0.4):ctx.rect(-r*1.1,-r,r*1.6,r*2); ctx.fill();   // housing on the cord
+  ctx.fillStyle='#d8d4e0'; ctx.fillRect(r*0.2,-r,r*0.5,r);                         // N face (silver)
+  ctx.fillStyle='#e0303c'; ctx.fillRect(r*0.2,0,r*0.5,r);                          // S face (red)
+  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-r*1.0,-r*0.85,r*1.2,r*0.35);
+  ctx.restore();
+}
+// The jack end: the cord coils in and out of a spool — it spins while reeling / paying out
+function _drawRopeSpool(x,y,h,col,glow){
+  if(h._reel) h._spoolA=(h._spoolA||0)+h._reel*0.45;
+  const r=Math.max(4,5/(typeof SMS_SCALE!=='undefined'?SMS_SCALE:1)*1.5), a=h._spoolA||0;
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='#120c18'; ctx.beginPath(); ctx.arc(0,0,r+1.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,r*0.75,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=h._reel?glow:col; ctx.lineWidth=1.5;
+  for(let k=0;k<3;k++){ const t=a+k*Math.PI*2/3; ctx.beginPath(); ctx.moveTo(Math.cos(t)*r*0.2,Math.sin(t)*r*0.2); ctx.lineTo(Math.cos(t)*r,Math.sin(t)*r); ctx.stroke(); }
+  if(h._reel){ ctx.globalAlpha=0.35+0.25*Math.sin(fr*0.6); ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
 function drawRopePickup(){
   if(!_mapRopePickup||_mapRopePickup.got) return;
   const r=_mapRopePickup;
@@ -2297,10 +2328,9 @@ function drawFX(){
       ctx.strokeStyle=_ropeDash;ctx.lineWidth=3;ctx.setLineDash([5,3]);
       ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));ctx.stroke();
       ctx.setLineDash([]);
-      ctx.beginPath();ctx.arc(sx(p.hook.ex),sy(p.hook.ey),5,0,Math.PI*2);
-      ctx.fillStyle=_ropeGlow;ctx.fill();
-      ctx.beginPath();ctx.arc(sx(p.hook.ex),sy(p.hook.ey),3,0,Math.PI*2);
-      ctx.fillStyle='#ffffff';ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;
+      _drawRopeMagnetTip(sx(p.hook.ex),sy(p.hook.ey),Math.atan2(by-sy(p.hook.ey),bx-sx(p.hook.ex)),false,_ropeGlow);
+      p.hook._spoolA=(p.hook._spoolA||0)+0.6;               // the cord whips out of the jack
+      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow);
     }else{
       const end=ropePlayerEndWorld();
       const taut=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
@@ -2318,17 +2348,15 @@ function drawFX(){
         }
         ctx.stroke();
       }
-      for(let i=0;i<wpts.length-1;i+=2){
-        const a=wpts[i], b=wpts[Math.min(i+1,wpts.length-1)];
-        const rx=(a.x+b.x)*0.5, ry=(a.y+b.y)*0.5;
-        if(i%3===0){
-          ctx.beginPath();ctx.arc(rx,ry,1.5,0,Math.PI*2);
-          ctx.fillStyle=(i%6===0)?_ropeDotA:_ropeDotB;ctx.fill();
-        }
-      }
-      const ax=wpts[0].x, ay=wpts[0].y;
-      ctx.beginPath();ctx.arc(ax,ay,5,0,Math.PI*2);ctx.fillStyle=_ropeAnchorA;ctx.fill();
-      ctx.beginPath();ctx.arc(ax,ay,3,0,Math.PI*2);ctx.fillStyle=_ropeAnchorB;ctx.fill();
+      // braid marks that travel along the cord: they run toward the jack while
+      // reeling in and away from it while paying out slack (Paulo, Oct 20)
+      ctx.save(); ctx.setLineDash([2,8]); ctx.lineDashOffset=-(p.hook._reelPhase||0)/SMS_SCALE;
+      ctx.strokeStyle=_ropeDotA; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(wpts[wpts.length-1].x,wpts[wpts.length-1].y);
+      for(let i=wpts.length-2;i>=0;i--) ctx.lineTo(wpts[i].x,wpts[i].y);
+      ctx.stroke(); ctx.restore();
+      const ax=wpts[0].x, ay=wpts[0].y, nb=wpts[Math.min(1,wpts.length-1)];
+      _drawRopeMagnetTip(ax,ay,Math.atan2(nb.y-ay,nb.x-ax),true,_ropeGlow);
+      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow);
     }
   }
 }

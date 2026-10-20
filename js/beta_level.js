@@ -956,6 +956,7 @@
     boomTick();
     enemyTick();
     if(B.enemyAITick) B.enemyAITick();
+    if(B.impactTick) B.impactTick();
     if(B.waterTick) B.waterTick();
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.hurtTick) MV_BETA_AUDIO.hurtTick();
     if(B.feelTick) B.feelTick();
@@ -1167,6 +1168,7 @@
     if(_gameState!=='game') return;
     if(B.drawEnemyFx) B.drawEnemyFx();
     if(B.drawMagLock) B.drawMagLock();
+    if(B.drawImpactFx) B.drawImpactFx();
     if(B.laitu&&typeof drawLaituFigure==='function'){
       const cx=sx(B.laitu.x), feet=sy(B.laitu.feet);
       if(cx>-60&&cx<W+60){

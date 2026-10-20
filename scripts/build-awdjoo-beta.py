@@ -50,12 +50,12 @@ for r in range(-SKY, MAP_ROWS):              # world border
     put(0, r, SOLID); put(COLS - 1, r, SOLID)
 
 # ── Family home (west) ────────────────────────────────────────────
-# Roof steps (map rows 2-7), brick shell, ceiling row 8.
-for r, (c0, c1) in {2: (13, 17), 3: (11, 19), 4: (8, 22), 5: (6, 24), 6: (3, 27), 7: (1, 29)}.items():
+# Roof steps (map rows 0-5), brick shell, ceiling row 6 (Paulo, Oct 20: two rows taller upstairs).
+for r, (c0, c1) in {0: (13, 17), 1: (11, 19), 2: (8, 22), 3: (6, 24), 4: (3, 27), 5: (1, 29)}.items():
     rect(c0, c1, r, r, SOLID); paint(c0, c1, r, r, SK_ROOF)
-rect(0, 30, 8, 8, SOLID); paint(0, 30, 8, 8, SK_BRICK)        # ceiling
-rect(1, 1, 7, 19, SOLID); paint(0, 1, 7, 19, SK_BRICK)        # west wall
-rect(30, 30, 8, 16, SOLID); paint(30, 30, 8, 16, SK_BRICK)    # east wall; door rows 17-19
+rect(0, 30, 6, 6, SOLID); paint(0, 30, 6, 6, SK_BRICK)        # ceiling
+rect(1, 1, 5, 19, SOLID); paint(0, 1, 5, 19, SK_BRICK)        # west wall
+rect(30, 30, 6, 16, SOLID); paint(30, 30, 6, 16, SK_BRICK)    # east wall; door rows 17-19
 # Bedroom loft: solid wood, open only at the KITCHEN end (cols 2-5) so the
 # bedrooms are reached by walking through the living room + kitchen.
 rect(6, 29, 14, 14, SOLID); paint(6, 29, 14, 14, SK_WOOD)
@@ -152,15 +152,14 @@ ent('Laitu', 50, 11, 1, 3)
 # Enemy A (sine wave); the one out past the left of Laitu's house is B (triangle).
 ent('Enemy', 78, 13, ai='circle', range=4)
 ent('Enemy', 36, 19, ai='tri', range=4)
-for c, r, txt in [(5, 11, 'BEDROOM 1'), (16, 11, 'BEDROOM 2'), (6, 16, 'KITCHEN'), (16, 16, 'LIVING ROOM'),
-                  (61, 9, "LAITU'S HOUSE")]:
-    ent('Label', c, r, text=txt)
-ent('Room', 2, 9, 28, 11, style='home', loft=14 + SKY)
+# Paulo (Oct 20): no room names — you can see which room is which
+ent('Label', 61, 9, text="LAITU'S HOUSE")
+ent('Room', 2, 7, 28, 13, style='home', loft=14 + SKY)
 ent('Room', 57, 7, 17, 7, style='laitu')
 # drawing-only decor anchors (cell = anchor point)
-ent('Decor', 6, 0, kind='chimney', dy=16, len=112)
+ent('Decor', 6, -2, kind='chimney', dy=16, len=112)
 ent('Decor', 69, 1, kind='chimney', dx=8, len=64)
-for c, r, kind in [(16, 5, 'attic'), (33, 20, 'lamp'), (48, 14, 'lamp'), (102, 20, 'lamp'), (97, 20, 'sign'), (21, 46, 'tree')]:
+for c, r, kind in [(16, 3, 'attic'), (33, 20, 'lamp'), (48, 14, 'lamp'), (102, 20, 'lamp'), (97, 20, 'sign'), (21, 46, 'tree')]:
     ent('Decor', c, r, kind=kind)
 
 # ── Seeds sit on the floor ────────────────────────────────────────

@@ -61,7 +61,28 @@
     return e;
   };
 
-  const solidAt=(x,y)=>typeof gridWorldSolid==='function'?gridWorldSolid(x,y):false;
+  // Paulo (Oct 20): the dirt under a slope is solid to them too — they never sink into a hill
+  function solidAt(x,y){
+    if(typeof gridWorldSolid!=='function') return false;
+    if(gridWorldSolid(x,y)) return true;
+    const c=Math.floor(x/T), r=Math.floor(y/T);
+    if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); return sy!=null&&y>=sy; }
+    return false;
+  }
+  // the top of the ground under x near `feet` (a slope's line, or a block's top)
+  function groundTop(x,feet){
+    const c=Math.floor(x/T);
+    for(let r=Math.floor((feet-T)/T);r<=Math.floor((feet+T)/T);r++){
+      if(gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); if(sy!=null&&sy>=feet-T&&sy<=feet+T) return sy; }
+      if(gridSolid(c,r)&&!gridSolid(c,r-1)&&!gridIsSlope(c,r-1)&&r*T>=feet-T) return r*T;
+    }
+    return null;
+  }
+  function floorSnap(e,feet){                   // feet onto the highest ground under its width
+    let top=null;
+    for(const x of [e.x+4,e.x+e.w/2,e.x+e.w-4]){ const g=groundTop(x,feet); if(g!=null&&(top==null||g<top)) top=g; }
+    return top!=null?top-e.h:Math.floor((feet+4)/T)*T-e.h;
+  }
   function boxFree(x,y,w,h){                 // no solid cell inside the box (sampled every half tile)
     for(let yy=y+2;yy<y+h-1;yy+=T/2) for(let xx=x+2;xx<x+w-1;xx+=T/2){ if(solidAt(xx,yy)) return false; }
     if(solidAt(x+w-2,y+h-3)||solidAt(x+2,y+h-3)) return false;
@@ -374,7 +395,10 @@
     const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
     const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
     const lead=dir>0?nx+e.w-12:nx+12;
-    if(!boxFree(nx,e.y,e.w,e.h)||enemyIn(e,nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
+    if(!boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)){   // a slope: climb it a few px at a time
+      for(let up=1;up<=Math.ceil(spd)+2;up++) if(boxFree(nx,e.y-up,e.w,e.h)){ e.y-=up; break; }
+    }
+    if(!boxFree(nx,e.y,e.w,e.h)||enemyIn(e,nx,e.y,e.w,e.h)||!floorAtPoint(lead,e.y+e.h,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
     e.x=nx; e.vx=dir*spd; e.roll=(e.roll||0)+dir*spd/(e.w/2);
     if(!floorUnder(e.x,e.w,feet)){ e.og=false; e._falling=true; }   // the slope drops away a little: settle onto it
   }
@@ -396,7 +420,7 @@
     const lp=platUnder(e.x,e.w,feet);
     if(lp&&e.vy>=0){ e.y=lp.y-e.h; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; e._plat=lp; e._platOff=e.x-lp.x; return; }
     if(floorUnder(e.x,e.w,feet)){
-      const row=Math.floor((feet+4)/T); e.y=row*T-e.h;
+      e.y=floorSnap(e,feet);
       if(e._falling) land(e,e.vy);
       e.vy=0; e.og=true; e._falling=false; e.baseY=e.y;
     }else{ e.y=ny; e.og=false; if(e.y>((typeof WH!=='undefined'?WH:4000)+200)){ e.alive=false; e._permOff=true; } }
@@ -581,7 +605,7 @@
     else e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
     const feet=e.y+e.h+e.vy, pl=platUnder(e.x,e.w,feet);
     if(pl&&e.vy>=0){ e.y=pl.y-e.h; e.vy=0; e.og=true; e._plat=pl; e._platOff=e.x-pl.x; e._shutSettled=true; return; }
-    if(floorUnder(e.x,e.w,feet)&&e.vy>=0){ e.y=Math.floor((feet+4)/T)*T-e.h; e.vy=0; e.og=true; e._shutSettled=true; return; }
+    if(floorUnder(e.x,e.w,feet)&&e.vy>=0){ e.y=floorSnap(e,feet); e.vy=0; e.og=true; e._shutSettled=true; return; }
     e.y+=e.vy; e.og=false;
   }
 
