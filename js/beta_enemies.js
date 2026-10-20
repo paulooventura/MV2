@@ -37,7 +37,7 @@
   // sizes from Paulo's size chart (Oct 20), measured against an omni block
   // (1 block = 32 px) drawn next to them: A ≈ 0.9 block across, B ≈ 2 blocks
   // tall × 1.6 wide, C ≈ 2.5 blocks square
-  const SIZE={circle:{w:30,h:30}, tri:{w:52,h:64}, square:{w:80,h:80}};
+  const SIZE={circle:{w:30,h:30}, tri:{w:74,h:64}, square:{w:80,h:80}};   // the triangle is equilateral (h = w·√3/2)
   // Paulo (Oct 20): nothing happens to them from far away — they only start to
   // glow red within 3 blocks (full red and boom at 1), push from 2 blocks, and
   // the jacks only move an enemy that's within reach (MAX_ITEM_R from MIND).

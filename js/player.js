@@ -560,7 +560,7 @@ function computeConnectorArmPose(pl=p){
     ?Math.atan2((pl.hook.st==='on'?pl.hook.ay:pl.hook.ey)-cptY,(pl.hook.st==='on'?pl.hook.ax:pl.hook.ex)-(pl.x+SW/2))
     :Math.atan2(pl.aimDY,pl.aimDX);
   const duckAngle=fc?0:Math.PI;
-  const aimDuckBlend=pl.og?ca2:0;
+  const aimDuckBlend=(pl.og&&!_itemDownAim(pl))?ca2:0;        // using an item while holding DOWN: the arm points down
   const recoilMax=pl._lastRecoilMax||14;
   const _rf=pl.fireRecoil>0?pl.fireRecoil/recoilMax:0;
   const recoilSnap=recoilMax>=18?1.25:1;
@@ -615,8 +615,15 @@ function connectorTipWorld(itemOverride=ITEM){
   const a=pose.aimAngle;
   return {x:pose.tipX+Math.cos(a)*47, y:pose.tipY+Math.sin(a)*47};
 }
+// Paulo (Oct 20): standing still and holding DOWN, he ducks — and the items
+// can be used straight down too (MAG locks him to the floor, RCA ropes the
+// ground under his wheel, XLR launches him, TRS bounces off the floor upward)
+function _itemDownAim(pl){
+  if(pl!==p||!pl.og||typeof isDn!=='function'||!isDn()||ITEM<0) return false;
+  return _bindDown('swap')||(typeof _bindJ==='function'&&_bindJ('swap'))||!!pl.laserCharging||!!pl.xlrOn||!!pl.magOn||!!(pl.hook&&pl.hook.st==='ext');
+}
 function connectorAimAngle(){
-  const ca2=p.og?p.crouchAmt:0;
+  const ca2=(p.og&&!_itemDownAim(p))?p.crouchAmt:0;
   const rawAngle=Math.atan2(p.aimDY,p.aimDX);
   const duckAngle=p.fc?0:Math.PI;
   return rawAngle*(1-ca2*0.85)+duckAngle*(ca2*0.85);
@@ -636,11 +643,23 @@ function fireItem(charged=false){
   const ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
   p.aimDX=ax; p.aimDY=ay;
   const a=Math.atan2(ay,ax);
-  const shotA=(ITEM===0&&p.crouchAmt>0.18&&p.og)?connectorAimAngle():a;
+  const shotA=(ITEM===0&&p.crouchAmt>0.18&&p.og&&!_itemDownAim(p))?connectorAimAngle():a;
   if(Math.cos(a)>0.05) p.fc=true; else if(Math.cos(a)<-0.05) p.fc=false;
   const c=connectorTipWorld(ITEM);
 
   if(ITEM===1){ // RCA GRAPPLING HOOK
+    if(p.hook.st==='idle'&&typeof _itemDownAim==='function'&&_itemDownAim(p)){
+      // aimed straight down while standing: a rope attachment right under the wheel
+      const fx=p.x+SW/2, feet=p.y+FEET_OFF;
+      const st=typeof gridStandY==='function'?gridStandY(fx,feet,{maxUp:8,maxDrop:12}):null;
+      const gy=st!=null?(st.y!=null?st.y:st):feet;
+      p.hook={st:'on',ex:fx,ey:gy,evx:0,evy:0,ax:fx,ay:gy,nx:0,ny:-1,rl:0,ox:fx,oy:gy,tgt:null,plat:null};
+      const h=p.hook, a2=ropePlayerEndWorld();
+      h.pivots=[]; h.vr=null; h.rl=Math.max(Math.hypot(h.ax-a2.x,h.ay-a2.y),ROPE_RL_MIN);
+      h._path=[{x:h.ax,y:h.ay},{x:a2.x,y:a2.y}]; h._tension=0; h._slack=true; h._tight=false; h._grace=14;
+      sfx('hook_latch'); p.fireRecoil=5; p.fireRecoilA=Math.PI/2;
+      return;
+    }
     if(p.hook.st==='idle'){
       p.hook={st:'ext',ex:c.x,ey:c.y,evx:Math.cos(a)*CSPD,evy:Math.sin(a)*CSPD,ax:0,ay:0,rl:0,ox:c.x,oy:c.y,tgt:null};
       sfx('hook'); p.fireRecoil=7; p.fireRecoilA=a;
@@ -655,6 +674,16 @@ function fireItem(charged=false){
     const spd=charged?(enh?13:11):(enh?22:19);
     const pow=charged?(enh?3.6:3.0):(enh?1.28:1.0);
     const pitch=enh?0.58:1;
+    if(_itemDownAim(p)){
+      // shot straight into the floor under him: it just ricochets back up
+      const fx=p.x+SW/2, fy=p.y+FEET_OFF-4;
+      for(let k=0;k<6;k++) PFXS.push({x:fx+(Math.random()-0.5)*14,y:fy,vx:(Math.random()-0.5)*3,vy:-Math.random()*2.5,life:12,maxLife:12,r:2,col:'#ffe080'});
+      p.shots.push({x:fx,y:fy-6,vx:(Math.random()-0.5)*0.6,vy:-spd,life:charged?(enh?400:320):(enh?240:180),type:'laser',bounces:1,power:pow,charged:!!charged,
+        enhanced:enh,owner:p.hero||'mind',born:fr,tracer:[]});
+      sfx(charged?'laser_charged_fire':'laser',pitch);
+      p.flashF=charged?16:7; p.fireRecoil=recoilAmt; p.fireRecoilA=Math.PI/2;
+      return;
+    }
     p.shots.push({x:c.x,y:c.y,vx:Math.cos(shotA)*spd,vy:Math.sin(shotA)*spd,
       life:charged?(enh?400:320):(enh?240:180),type:'laser',bounces:0,power:pow,charged:!!charged,
       enhanced:enh,owner:p.hero||'mind',born:fr,tracer:[]});

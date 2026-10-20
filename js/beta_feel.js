@@ -151,7 +151,9 @@
     if(fr%5===0) PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*20,y:p.y+FEET_OFF+d,vx:(Math.random()-0.5)*3,vy:-1-Math.random(),life:14,maxLife:14,r:2,col:'#aaddff'});
   }
   B.onXlrRelease=function(held){
-    const a=aimUnit(); if(a.y<0.55) return;
+    // the aim it had while held (letting go of DOWN on the same frame must not cancel the launch)
+    const la=B.xlrAim, a=la?(()=>{ const l=Math.hypot(la.x,la.y)||1; return {x:la.x/l,y:la.y/l}; })():aimUnit();
+    if(a.y<0.55) return;
     const d=floorBelow(FEEL.LAUNCH_REACH);
     if(d>FEEL.LAUNCH_REACH) return;
     const charge=Math.min(1,held/FEEL.XLR_FULL);

@@ -602,7 +602,7 @@ function _pinBoxToTip(box, tip, aimA){
 function _clearMagHoldFlags(){
   if(!p) return;
   p._magHold=null;
-  p._magWorldStick=false;
+  p._magWorldStick=false; p._magFloorLock=false;
   p._magWorldX=null; p._magWorldY=null; p._magWorldNx=0; p._magWorldNy=0;
 }
 function _releaseMagHolds(home){
@@ -805,12 +805,18 @@ function updateMAG(){
   p.flashF=4;
   if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_tip.x,y:_tip.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
   const hold=Math.min(1,(p.magHeld||0)/160)*1.15+1;
-  const locked=!!(p._magHold&&p._magHold.ref);
-
+  // standing and aiming it straight down (DOWN held): it locks him to the floor
+  if(!locked&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&(p.og||_playerOnGround(p))){
+    p._magHold={kind:'world', ref:p}; p._magWorldStick=true; p._magFloorLock=true;
+    p._magWorldX=p.x+SW/2; p._magWorldY=p.y+FEET_OFF; p._magWorldNx=0; p._magWorldNy=-1;
+    try{ sfx('grap_attach'); }catch(e){}
+    return;
+  }
   if(locked){
     const obj=p._magHold.ref;
     if(p._magHold.kind==='world'){
       p._magWorldStick=true;
+      if(p._magFloorLock){ p.vx=0; p.vy=0; }                 // nothing moves him (pushes, slopes, currents)
       return;
     }
     if(obj.hp===0){ _releaseMagHolds(false); return; }
@@ -876,7 +882,8 @@ function updateMAG(){
   const world=!pulled?_magWorldHit(_tip,_a):null;
   if(world&&world.dist<=22&&(p.magHeld||0)>8){
     const floorish=world.ny<-0.55||(Math.sin(_a)>0.45&&(p.og||_playerOnGround(p)));
-    if(!(floorish&&(p.og||_playerOnGround(p)))){
+    // aimed straight down while standing: it locks him to the floor (Paulo)
+    if(!(floorish&&(p.og||_playerOnGround(p)))||Math.sin(_a)>0.8){
       p._magHold={kind:'world', ref:p};
       p._magWorldStick=true;
       p._magWorldX=world.x; p._magWorldY=world.y;

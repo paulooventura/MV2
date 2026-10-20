@@ -756,6 +756,16 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         if(bw.hp<=0)continue;
         if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
           p._hitDone=true;_hit=true;
+          // Paulo: a loaded punch smashes the whole omni block and cracks the ones around it
+          if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(bw)&&!bw.only){
+            const cx0=bw.x+bw.w/2, cy0=bw.y+bw.h/2;
+            for(const o of BWALLS){
+              if(o===bw||o.hp<=0||o.only) continue;
+              if(Math.abs(o.x+o.w/2-cx0)<=bw.w*1.5&&Math.abs(o.y+o.h/2-cy0)<=bw.h*1.5)
+                _damageBwall(o,'punch',{shakeX:Math.sign(o.x-bw.x)*3,shakeY:Math.sign(o.y-bw.y)*3});
+            }
+            _damageBwall(bw,(bw.hp||1)+1,{shakeX:Math.cos(punchAngle)*6,shakeY:Math.sin(punchAngle)*6});
+          }else
           _damageBwall(bw,_charged?'punchCharged':'punch',{
             shakeX:Math.cos(punchAngle)*4,shakeY:Math.sin(punchAngle)*4,
             vx:bw.movable?Math.cos(punchAngle)*(_charged?8:5):0,

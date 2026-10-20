@@ -450,7 +450,7 @@
     magnetTick();
     // XLR / MAG act when the button is let go
     const xlrNow=!!(p&&p.xlrOn&&ITEM===2), magNow=!!(p&&p.magOn&&ITEM===3);
-    if(xlrNow) B.chX++; else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
+    if(xlrNow){ B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY}; } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
     if(magNow) B.chM++; else if(B.chM>0){ if(!B.mag.lockedThisHold) fireCube('pull',B.chM); B.chM=0; B.mag.lockedThisHold=false; }
   }
   // Dominant aim axis → one of the four cell directions.
@@ -681,7 +681,15 @@
       p.itemStamina=M.power;
     }
     M.wasOn=on;
-    if(!on||p.itemStamina<=0){ while(M.held.length) dropHeld(M.held.pop()); return; }
+    if(!on||p.itemStamina<=0){ B.magLock=null; while(M.held.length) dropHeld(M.held.pop()); return; }
+    // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
+    // MIND to the floor — nothing moves him (pushes, currents, slopes) until he lets go
+    if(B.magLock||(typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p))){
+      if(!B.magLock){ B.magLock={x:p.x,y:p.y}; while(M.held.length) dropHeld(M.held.pop()); try{ sfx('grap_attach'); }catch(e){} B.shake=Math.max(B.shake||0,2); }
+      p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true;
+      if(fr%4===0){ const t=magTip(); PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*30,y:p.y+FEET_OFF-2,vx:(Math.random()-0.5)*1.5,vy:-Math.random()*1.5,life:12,maxLife:12,r:2,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
+      return;
+    }
     const tip=magTip();
     M.tips.push({x:tip.x,y:tip.y}); if(M.tips.length>6) M.tips.shift();
     // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
