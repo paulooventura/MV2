@@ -77,19 +77,28 @@
 
   // ── frags ───────────────────────────────────────────────────────
   B.frags=B.frags||[];
-  const FRAG_DIRS={
-    circle:[0,1,2,3,4,5,6,7].map(i=>[Math.cos(i*Math.PI/4),Math.sin(i*Math.PI/4)]),
-    tri:[[0,-1],[-0.8,0.6],[0.8,0.6]],
-    square:[[-0.72,-0.72],[0.72,-0.72],[-0.72,0.72],[0.72,0.72]]
+  // Frags, sized to the drawing (1 grid square = 1 tile): in the air they fly
+  // straight out a couple of squares; from the ground they arc up about three
+  // squares and land three or four squares away, then bounce once.
+  const AIR8=[0,1,2,3,4,5,6,7].map(i=>[Math.cos(i*Math.PI/4),Math.sin(i*Math.PI/4)]);
+  const FRAG_AIR={ circle:AIR8, tri:[[0,-1],[-0.87,0.5],[0.87,0.5]], square:[[-0.71,-0.71],[0.71,-0.71],[-0.71,0.71],[0.71,0.71]] };
+  const FRAG_GROUND={                       // [vx, vy] launch from the floor
+    circle:[[-4,-2.4],[-2.7,-7],[0,-7.6],[2.7,-7],[4,-2.4]],
+    tri:[[0,-7.6],[-2.7,-6.4],[2.7,-6.4]],                       // the two bottom corners bounce off the floor
+    square:[[-2.9,-7],[2.9,-7],[-3.6,-4.2],[3.6,-4.2]]            // top corners up, bottom corners skip out low
   };
   function explode(e){
     const c=center(e), ground=e.og||floorUnder(e.x,e.w,e.y+e.h);
-    const corner=(dx,dy)=>e._ai==='circle'?{x:c.x+dx*e.w*0.4,y:c.y+dy*e.h*0.4}:{x:c.x+dx*e.w*0.5,y:c.y+dy*e.h*0.5};
-    for(const [dx,dy0] of FRAG_DIRS[e._ai]){
-      let dy=dy0;
-      if(ground&&dy>0.3){ if(e._ai==='circle'&&Math.abs(dx)<0.3) continue; dy=-Math.abs(dy)*0.85; }   // the floor turns them up
-      const o=corner(dx,dy0), sp=6.2+Math.random()*1.4;
-      B.frags.push({x:o.x, y:Math.min(o.y,e.y+e.h-6), vx:dx*sp, vy:dy*sp-2.2, t:0, settle:0, owner:e});
+    if(ground){
+      for(const [vx,vy] of FRAG_GROUND[e._ai]){
+        const ox=Math.sign(vx)*e.w*(Math.abs(vx)>3.3?0.5:0.35), oy=vy<-6.5?-e.h*0.45:e.h*0.25;
+        B.frags.push({x:c.x+ox, y:Math.min(c.y+oy,e.y+e.h-6), vx:vx*(0.92+Math.random()*0.16), vy:vy*(0.92+Math.random()*0.16), t:0, settle:0, owner:e, bounce:0});
+      }
+    }else{
+      for(const [dx,dy] of FRAG_AIR[e._ai]){
+        const sp=4.4+Math.random()*0.6, r=e._ai==='circle'?0.42:0.5;
+        B.frags.push({x:c.x+dx*e.w*r, y:c.y+dy*e.h*r, vx:dx*sp, vy:dy*sp-0.8, t:0, settle:0, owner:e, bounce:0});
+      }
     }
     B.blasts.push({x:c.x, y:c.y, t:0, amp:1});
     B.shake=Math.max(B.shake||0,8);
@@ -109,7 +118,7 @@
       f.vy=Math.min(f.vy+GRAV*0.6,13);
       const nx=f.x+f.vx, ny=f.y+f.vy;
       if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
-      if(solidAt(f.x,ny)){ if(f.vy>0){ f.vy*=-0.35; f.vx*=0.7; if(Math.abs(f.vy)<1.2&&Math.abs(f.vx)<0.6) f.settle=1; } else f.vy*=-0.3; }
+      if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
       else f.y=ny;
       if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
       if(f.t%3===0) PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#ff5500':'#ffcc33'});
@@ -200,7 +209,8 @@
   function startTumble(e,dir){
     const step=e.w;                                          // one side length
     const nx=e.x+dir*step, feet=e.y+e.h;
-    if(nx<e.mn||nx+e.w>e.mx) return false;
+    if(e._plat){ const pl=e._plat; if(nx<pl.x-4||nx+e.w>pl.x+pl.w+4) return false; }
+    else if(nx<e.mn||nx+e.w>e.mx) return false;
     if(!boxFree(nx,e.y,e.w,e.h)){
       // the triangle ropes itself up onto a step it can't roll over
       if(e._ai==='tri'&&!ropeOf(e)){
@@ -222,8 +232,9 @@
     e.ang=tb.dir*(e._ai==='tri'?Math.PI*2/3:Math.PI/2)*k;
     if(k>=1){
       e.x=tb.nx; e.ang=0; e.tumble=null;
+      if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
       try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); }catch(_e){}
-      if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; }
+      if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
       else land(e,1.5);
     }
   }
@@ -242,7 +253,7 @@
       for(const o of ENEMS){ if(o===e||!o.alive||!o._betaEnemy) continue; if(ov(e.x+6,ny+e.h-12,e.w-12,12,o.x,o.y,o.w,o.h)){ _damageEnemy(o,Math.round(12+e.vy*2),e.x+e.w/2,e.y+e.h,0.6); e.vy=-3; } }
     }
     const lp=platUnder(e.x,e.w,feet);
-    if(lp&&e.vy>=0){ e.y=lp.y-e.h; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; return; }
+    if(lp&&e.vy>=0){ e.y=lp.y-e.h; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; e._plat=lp; e._platOff=e.x-lp.x; return; }
     if(floorUnder(e.x,e.w,feet)){
       const row=Math.floor((feet+4)/T); e.y=row*T-e.h;
       if(e._falling) land(e,e.vy);
@@ -279,8 +290,14 @@
       e.x=nx; if(boxFree(e.x,ny,e.w,e.h)) e.y=ny;
       return;
     }
-    const pl=platUnder(e.x,e.w,e.y+e.h);
-    if(pl&&e.og){ e.x+=pl.dx||0; e.y=pl.y-e.h; if(e.tumble){ e.tumble.x0+=pl.dx||0; e.tumble.nx+=pl.dx||0; } e.mn+=pl.dx||0; e.mx+=pl.dx||0; }
+    const pl=e._plat||platUnder(e.x,e.w,e.y+e.h);
+    if(pl&&e.og&&!e._falling){
+      if(!e._plat){ e._plat=pl; e._platOff=e.x-pl.x; }
+      const dx=(pl.x+e._platOff)-e.x;                         // ride exactly with it
+      e.x+=dx; e.y=pl.y-e.h;
+      if(e.tumble){ e.tumble.x0+=dx; e.tumble.nx+=dx; }
+      e.mn+=dx; e.mx+=dx;
+    }
     if(e.tumble){ tumbleTick(e); return; }
     if(!e.og){ fallTick(e); return; }
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
@@ -292,11 +309,43 @@
     }
   }
 
+  // An AI enemy is not shoved by MIND's body or seated by the game's floor
+  // snapping (that dropped them through moving platforms): MIND gets pushed
+  // out of it instead.
+  const _origSep=window._applyBodySeparation;
+  window._applyBodySeparation=function(pl,e,sep){
+    if(!e||!e._ai||!sep) return _origSep.apply(this, arguments);
+    const s2={ax:(sep.ax||0)-(sep.bx||0), ay:(sep.ay||0)-(sep.by||0), bx:0, by:0};
+    return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
+  };
+  // shut-down bodies: our own gravity (they stay on their platform or ledge)
+  const _origShut=window._updateMinionShut;
+  window._updateMinionShut=function(e){ if(e&&e._ai) return; return _origShut.apply(this, arguments); };
+  function bodyTick(e){                        // dead or alive: platforms carry, gravity pulls
+    if(e._plat){
+      const pl=e._plat;
+      if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w&&!e._falling&&!(e._thrownF>0)&&!e._betaHeld){ e.x=pl.x+e._platOff; e.y=pl.y-e.h; e.vy=0; e.og=true; return true; }
+      e._plat=null;
+    }
+    return false;
+  }
+  function deadTick(e){
+    if(e.shutF>0) e.shutF--;
+    if(bodyTick(e)) return;
+    if(e._betaHeld||(e._thrownF||0)>0) return;
+    if(e._ai==='circle'&&B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
+    else e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
+    const feet=e.y+e.h+e.vy, pl=platUnder(e.x,e.w,feet);
+    if(pl&&e.vy>=0){ e.y=pl.y-e.h; e.vy=0; e.og=true; e._plat=pl; e._platOff=e.x-pl.x; e._shutSettled=true; return; }
+    if(floorUnder(e.x,e.w,feet)&&e.vy>=0){ e.y=Math.floor((feet+4)/T)*T-e.h; e.vy=0; e.og=true; e._shutSettled=true; return; }
+    e.y+=e.vy; e.og=false;
+  }
+
   B.enemyAITick=function(){
     if(!p) return;
     for(const e of ENEMS){
       if(!e._ai) continue;
-      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); continue; }
+      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
       if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; continue; }
       think(e);
     }
@@ -307,53 +356,50 @@
 
   // ── drawing ────────────────────────────────────────────────────
   function lerpCol(a,b,k){ const pa=a.match(/\w\w/g).map(h=>parseInt(h,16)), pb=b.match(/\w\w/g).map(h=>parseInt(h,16)); return 'rgb('+pa.map((v,i)=>Math.round(v+(pb[i]-v)*k)).join(',')+')'; }
-  function face(g,s,heat,ai,off){
-    g.fillStyle=off?'#555':heat>0.6?'#fff2c0':'#f2ecff';
-    const ey=ai==='tri'?s*0.05:-s*0.12;
-    if(ai==='square'){                                    // square brackets for eyes, a box mouth (the sketch)
-      g.fillRect(-s*0.3,ey-s*0.1,s*0.2,s*0.05); g.fillRect(-s*0.3,ey-s*0.1,s*0.05,s*0.16);
-      g.fillRect(s*0.1,ey-s*0.1,s*0.2,s*0.05); g.fillRect(s*0.25,ey-s*0.1,s*0.05,s*0.16);
-      g.strokeStyle=g.fillStyle; g.lineWidth=s*0.05; g.strokeRect(-s*0.18,s*0.12,s*0.36,s*0.18);
-    }else if(ai==='tri'){                                 // angry v-brows
-      g.lineWidth=s*0.06; g.strokeStyle=g.fillStyle;
-      g.beginPath(); g.moveTo(-s*0.2,ey-s*0.02); g.lineTo(-s*0.06,ey+s*0.08); g.moveTo(s*0.2,ey-s*0.02); g.lineTo(s*0.06,ey+s*0.08); g.stroke();
-      g.beginPath(); g.moveTo(-s*0.1,ey+s*0.25); g.lineTo(0,ey+s*0.19); g.lineTo(s*0.1,ey+s*0.25); g.stroke();
+  // The look follows Paulo's drawing: red-ink outlines and faces on a pale
+  // body; the body fills red as MIND gets close, and flashes white on the fuse.
+  const INK='#c41a1a', INK_D='#5a0a0a';
+  function inkFace(g,s,ai,col,off){
+    g.strokeStyle=col; g.fillStyle=col; g.lineCap='round'; g.lineJoin='round';
+    if(ai==='square'){                               // ⌐ ¬ eyes, a box mouth low on the face
+      g.lineWidth=Math.max(2,s*0.065);
+      g.beginPath(); g.moveTo(-s*0.3,-s*0.08); g.lineTo(-s*0.3,-s*0.24); g.lineTo(-s*0.1,-s*0.24); g.stroke();
+      g.beginPath(); g.moveTo(s*0.08,-s*0.24); g.lineTo(s*0.28,-s*0.24); g.lineTo(s*0.28,-s*0.08); g.stroke();
+      g.strokeRect(-s*0.3,s*0.08,s*0.3,s*0.2);
+      if(off){ g.beginPath(); g.moveTo(-s*0.3,-s*0.16); g.lineTo(-s*0.1,-s*0.16); g.moveTo(s*0.08,-s*0.16); g.lineTo(s*0.28,-s*0.16); g.stroke(); }
+    }else if(ai==='tri'){                             // slanted brows over dot eyes, a small ^ mouth
+      g.lineWidth=Math.max(2,s*0.06);
+      g.beginPath(); g.moveTo(-s*0.17,-s*0.02); g.lineTo(-s*0.04,s*0.06); g.moveTo(s*0.17,-s*0.02); g.lineTo(s*0.04,s*0.06); g.stroke();
+      if(!off){ g.beginPath(); g.arc(-s*0.09,s*0.12,s*0.03,0,Math.PI*2); g.arc(s*0.09,s*0.12,s*0.03,0,Math.PI*2); g.fill(); }
+      g.beginPath(); g.moveTo(-s*0.07,s*0.3); g.lineTo(0,s*0.24); g.lineTo(s*0.07,s*0.3); g.stroke();
+    }else{                                            // Enemy A: a dot eye and a sine wave
+      g.lineWidth=Math.max(2,s*0.07);
+      g.beginPath(); for(let i=0;i<=24;i++){ const x=-s*0.34+s*0.68*i/24, y=s*0.08+Math.sin(i/24*Math.PI*2+(off?0:fr*0.15))*s*0.13; i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke();
+      if(!off){ g.beginPath(); g.arc(s*0.12,-s*0.18,s*0.06,0,Math.PI*2); g.fill(); }
     }
   }
   function drawAi(e){
     const off=!e.alive, heat=off?0:e.heat||0, flash=e.fuse&&(e.fuse>>2)%2===0;
-    const base=e._ai==='circle'?'4a2a8a':e._ai==='square'?'3a4660':'2e5a46';
-    const col=off?'#2a2830':flash?'#ffffff':lerpCol(base,'e83a2a',heat);
+    const fill=off?'#6a6470':flash?'#ffffff':lerpCol('f6efe2','e8392a',heat);
+    const ink=off?'#2a2830':heat>0.55?'#fff4e0':INK;
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), s=sw(e.w);
     ctx.save();
     if(heat>0.15&&!off){ const g=ctx.createRadialGradient(cx,cy,0,cx,cy,s*1.1); g.addColorStop(0,'rgba(255,80,40,'+(0.35*heat)+')'); g.addColorStop(1,'rgba(255,80,40,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,s*1.1,0,Math.PI*2); ctx.fill(); }
     if(e.hitF>0&&!off&&(e.hitF&2)) ctx.globalAlpha=0.6;
-    if(e._ai==='circle'){
-      ctx.translate(cx,cy);
-      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(0,0,s/2,0,Math.PI*2); ctx.fill();
-      ctx.lineWidth=Math.max(2,s*0.06); ctx.strokeStyle='#0c0618'; ctx.stroke();
-      // the sine wave across its face
-      ctx.strokeStyle=off?'#666':heat>0.6?'#fff2c0':'#9ff0ff'; ctx.lineWidth=Math.max(2,s*0.07); ctx.beginPath();
-      for(let i=0;i<=20;i++){ const x=-s*0.36+s*0.72*i/20, y=Math.sin(i/20*Math.PI*2+(off?0:fr*0.15))*s*0.16; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
-      ctx.stroke();
-    }else if(e._ai==='square'){
-      // tipping over: rotate round the bottom corner it is falling over
-      const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
-      if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
-      ctx.translate(cx,cy);
-      ctx.fillStyle=col; ctx.fillRect(-s/2,-s/2,s,s);
-      ctx.lineWidth=Math.max(2,s*0.06); ctx.strokeStyle='#0c0618'; ctx.strokeRect(-s/2,-s/2,s,s);
-      ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(-s/2+3,-s/2+3,s-6,s*0.18);
-      face(ctx,s,heat,'square',off);
-    }else{
-      const tb=e.tumble, h=sw(e.h);
-      const piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
-      if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
-      ctx.translate(cx,cy);
-      ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(0,-h/2); ctx.lineTo(s/2,h/2); ctx.lineTo(-s/2,h/2); ctx.closePath(); ctx.fill();
-      ctx.lineWidth=Math.max(2,s*0.06); ctx.strokeStyle='#0c0618'; ctx.lineJoin='round'; ctx.stroke();
-      face(ctx,s,heat,'tri',off);
-    }
+    const lw=Math.max(3,s*0.08);
+    // rotation for tipping / tumbling: round the bottom corner it goes over
+    const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
+    if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
+    ctx.translate(cx,cy);
+    ctx.fillStyle=fill; ctx.strokeStyle=off?'#2a2830':INK_D; ctx.lineWidth=lw+2; ctx.lineJoin='round';
+    const shape=()=>{ ctx.beginPath();
+      if(e._ai==='circle') ctx.arc(0,0,s/2,0,Math.PI*2);
+      else if(e._ai==='square') ctx.rect(-s/2,-s/2,s,s);
+      else { const h=sw(e.h); ctx.moveTo(0,-h/2); ctx.lineTo(s/2,h/2); ctx.lineTo(-s/2,h/2); ctx.closePath(); } };
+    shape(); ctx.fill(); ctx.stroke();                        // dark edge for the 16-bit read
+    ctx.strokeStyle=off?'#4a4450':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=lw*0.6; shape(); ctx.stroke();   // the red ink line
+    ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
+    inkFace(ctx,s,e._ai,ink,off);
     ctx.restore();
   }
   function drawRopes(){
