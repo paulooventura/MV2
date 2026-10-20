@@ -22,7 +22,8 @@
     HOVER_R:200,   HOVER_R_ENH:280, LAUNCH_REACH:3*T
   };
   B.FEEL=FEEL;
-  const st={wallCd:0, bounceT:0, tuckT:0, lastLaunch:null};
+  const st={wallCd:0, bounceT:0, tuckT:0, lastLaunch:null, heat:0, coast:false, coastV:0, rope:0};
+  const WT=()=>(B.WEIGHT&&B.WEIGHT.mindTotal)||9.5;     // MIND's weight (wheel + box + head + fists)
   B.feel=st;
 
   const on=()=>B.on&&typeof p!=='undefined'&&p;
@@ -42,7 +43,24 @@
     return typeof gridSolid==='function'&&gridSolid(c,r)&&!gridIsSlope(c,r);
   }
 
-  // ── Movement wrapper: turtle tuck, wall bounce, wheel bounce ─────
+  // How far MIND must tuck (0 = standing tall, 1 = fully tucked) to fit under the
+  // ceiling at an x offset; null if even a full tuck will not fit.
+  function tuckNeeded(pl,dx){
+    const feet=pl.y+FEET_OFF, cx=pl.x+SW/2+dx, L=cx-WHEEL_R+3, R=cx+WHEEL_R-3;
+    const tallTop=feet-(STAND_H+WHEEL_R);
+    let ceil=-1e9;
+    for(let r=Math.floor((feet-WHEEL_R-2)/T); r>=Math.floor(tallTop/T)-1; r--){
+      let hit=false; for(let c=Math.floor(L/T);c<=Math.floor(R/T);c++) if(gridSolid(c,r)&&!gridIsSlope(c,r)){ hit=true; break; }
+      if(hit){ ceil=(r+1)*T; break; }
+    }
+    if(ceil<=tallTop) return 0;
+    const room=feet-WHEEL_R-ceil;
+    if(room<DUCK_H-1) return null;
+    return Math.max(0,Math.min(1,(STAND_H-room)/(STAND_H-DUCK_H)));
+  }
+  B.tuckNeeded=tuckNeeded;
+
+  // ── Movement wrapper: low-ceiling tuck, turtle tuck, wall bounce, wheel bounce ──
   const _origMove=window._movePlayerWithColl;
   window._movePlayerWithColl=function(pl,vx,vy){
     if(!on()||pl!==p) return _origMove.apply(this, arguments);
@@ -54,6 +72,10 @@
       const over=(r+1)*T-b.headY;
       if(over>0&&over<14&&rowSolid(r)&&!rowSolid(r+1)){ pl.y+=over+0.5; if(pl.vy<0) pl.vy=0; if(vy<0) vy=0; }
     }
+    // Low ceiling: the head sinks into the box just enough to fit, rolling in or standing under it
+    const here=tuckNeeded(pl,0), ahead=pl.og&&Math.abs(vx)>0.2?tuckNeeded(pl,Math.sign(vx)*(Math.abs(vx)+6)):0;
+    const need=Math.max(here||0,ahead||0);
+    if(need>0){ pl.crouchAmt=Math.max(pl.crouchAmt||0,Math.min(1,need+0.03)); pl._autoHeadTuck=Math.max(pl._autoHeadTuck||0,need); st.lowCeil=6; }
     const x0=pl.x, y0=pl.y, vx0=pl.vx, vy0=pl.vy, og0=!!pl.og;
     _origMove.call(this, pl, vx, vy);
     const movedX=pl.x-x0;
@@ -88,7 +110,7 @@
       const fx=dir>0?body.x+body.w+3:body.x-3;
       const midY=body.feetY-44;
       if(solidCellAt(fx,midY)||solidCellAt(fx,body.feetY-70)){
-        pl.vx=-vx0*FEEL.WALL_REST;
+        pl.vx=-vx0*FEEL.WALL_REST*Math.sqrt(9.5/WT());
         if(pl.og) pl.vy=Math.min(pl.vy,-Math.min(3,Math.abs(vx0)*0.18));   // a little hop off the rubber
         st.wallCd=FEEL.WALL_CD; pl.suspComp=Math.max(pl.suspComp||0,6);
         try{ sfx('hit'); }catch(e){}
@@ -97,7 +119,7 @@
     }
     // 3) Rubber wheel landing bounce
     if(!og0&&pl.og&&vy0>=FEEL.LAND_MIN&&!(pl.hook&&pl.hook.st==='on')){
-      const up=Math.min(FEEL.LAND_MAX,(vy0-FEEL.LAND_MIN*0.55)*FEEL.LAND_REST);
+      const up=Math.min(FEEL.LAND_MAX,(vy0-FEEL.LAND_MIN*0.55)*FEEL.LAND_REST*Math.sqrt(9.5/WT()));
       if(up>0.9){
         pl.vy=-up; pl.og=false; pl._groundHold=0; st.bounceT=14;
         pl.suspComp=Math.max(pl.suspComp||0,Math.min(14,vy0*1.1));
@@ -109,6 +131,9 @@
   const _origReact=window._applyPushWallReaction;
   window._applyPushWallReaction=function(pl,ox,oy,aimA){
     if(on()&&pl===p&&Math.sin(aimA)>0.55) return;     // beta: hover + launch handle the floor
+    if(on()&&pl===p&&Math.sin(aimA)<-0.5){             // mostly up: no sideways drift while pushing blocks up
+      const args=[...arguments]; args[3]=-Math.PI/2; return _origReact.apply(this, args);
+    }
     return _origReact.apply(this, arguments);
   };
   function xlrHover(){
@@ -199,11 +224,108 @@
     return _origPose.apply(this, arguments);
   };
 
+  // ── Rolling off a slope: the wheel keeps its speed onto the flat and slows by
+  //   rolling resistance (heavier = a touch more drag), not the walking brake.
+  const ROLL={DRAG:0.995, RESIST:0.025};
+  const _origMoveX=window._updatePlayerMoveX;
+  window._updatePlayerMoveX=function(pl){
+    if(!on()||pl!==p) return _origMoveX.apply(this, arguments);
+    const vxIn=pl.vx, dir=typeof _moveInputX==='function'?_moveInputX():0;
+    const grounded=!!pl.og, onSlope=!!(grounded&&pl._onSlope);
+    const r=_origMoveX.apply(this, arguments);
+    if(onSlope&&Math.abs(vxIn)>2) st.coast=true;
+    if(st.coast){
+      if(!grounded||dir===-Math.sign(vxIn)||Math.abs(vxIn)<0.3||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0){ if(grounded||Math.abs(vxIn)<0.3) st.coast=onSlope; }
+      else if(!onSlope&&!dir){
+        const drag=ROLL.RESIST*(WT()/9.5);
+        pl.vx=Math.sign(vxIn)*Math.max(0,Math.abs(vxIn)*ROLL.DRAG-drag);
+        if(Math.abs(pl.vx)<0.3){ pl.vx=0; st.coast=false; }
+      }
+    }
+    return r;
+  };
+
+  // ── Wall cling heats the wheel: it glows orange, sizzles, and burns power.
+  //   Power empty = the grip gives out.
+  const HEAT={RISE:1/140, COOL:0.025, DRAIN:1.35, HOLD:25};
+  function wallTick(){
+    // Cling: in the air, pressing into a wall, the rubber wheel grabs it (the game's own
+    // wall-grip: slow slide, charged wall jump) — for as long as the power lasts.
+    if(st.clingCd>0) st.clingCd--;
+    if(p.og) st.clingCd=0;
+    if(!p.og&&p.wallGrip<=0&&st.clingCd<=0&&!(p.hook&&p.hook.st!=='idle')&&p.vy>-1.5&&(p.itemStamina||0)>8){
+      const wt=_wallTouchInfo(p), dir=typeof _moveInputX==='function'?_moveInputX():0;
+      if(wt.touch&&dir&&dir===wt.dir){ p.wallGrip=90; p.wallDir=wt.dir; p._wallChargeReady=false; p.vx=0; try{ sfx('land'); }catch(e){} }
+    }
+    if(p.wallGrip>0){
+      st.heat=Math.min(1,st.heat+HEAT.RISE);
+      p.itemStamina=Math.max(0,(p.itemStamina||0)-HEAT.DRAIN);
+      if(p.itemStamina>0&&p.wallGrip<HEAT.HOLD) p.wallGrip=HEAT.HOLD;       // hold on while there is power
+      if(p.itemStamina<=0){ p.wallGrip=0; p._wallChargeReady=false; p.vx=-(p.wallDir||0)*1.5; st.clingCd=9999; }   // burnt out: no grip until he lands
+      if(fr%3===0) PFXS.push({x:p.x+SW/2+(p.wallDir||0)*WHEEL_R,y:p.y+FEET_OFF-WHEEL_R+(Math.random()-0.5)*20,vx:-(p.wallDir||0)*(0.5+Math.random()),vy:-0.5-Math.random()*1.5,life:10+Math.random()*8|0,maxLife:18,r:1.5,col:st.heat>0.6?'#ffd060':'#ff8030'});
+      if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.sizzle(st.heat);
+    }else st.heat=Math.max(0,st.heat-HEAT.COOL);
+  }
+  const _origDrawChar=window.drawCharacter;
+  window.drawCharacter=function(){
+    const r=_origDrawChar.apply(this, arguments);
+    if(on()&&st.heat>0.02){
+      const cx=sx(p.x+SW/2), cy=sy(p.y+FEET_OFF-WHEEL_R), R=sw(WHEEL_R);
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const g=ctx.createRadialGradient(cx,cy,R*0.3,cx,cy,R*1.6);
+      g.addColorStop(0,'rgba(255,170,60,'+(0.55*st.heat)+')'); g.addColorStop(0.6,'rgba(255,90,20,'+(0.35*st.heat)+')'); g.addColorStop(1,'rgba(255,60,0,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,R*1.6,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,'+(140+80*st.heat|0)+',60,'+(0.5+0.5*st.heat)+')'; ctx.lineWidth=sw(3); ctx.beginPath(); ctx.arc(cx,cy,R-1,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    if(on()&&(st.heat>0.02||p.wallGrip>0)) meter(p.itemStamina/100,'POWER',st.heat>0.6?'#ff7030':'#ffb040',0);
+    if(on()&&p.hook&&p.hook.st==='on') meter(1-Math.min(1,st.rope),'ROPE',st.rope>0.75?'#ff4040':st.rope>0.45?'#ffc040':'#60e080',p.wallGrip>0?14:0);
+    return r;
+  };
+  function meter(f,label,col,dy){
+    const cx=sx(p.x+SW/2), y=sy(p.y)-6-dy, w=sw(48);
+    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(cx-w/2-1,y-1,w+2,7);
+    ctx.fillStyle=col; ctx.fillRect(cx-w/2,y,w*Math.max(0,Math.min(1,f)),5);
+    drawText(label,cx+w/2+4,y-1,'#e8dcc0',1);
+  }
+
+  // ── RCA rope: holds about twice the strain before it snaps; a tension meter
+  //   shows how close it is, it creaks as it strains and twangs when it bites or snaps.
+  const ROPE_STRENGTH=1.9;
+  const _origTension=window._ropeApplyTension;
+  window._ropeApplyTension=function(h){
+    const r=_origTension.apply(this, arguments);
+    if(on()&&h===p.hook){
+      const limit=Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)*ROPE_STRENGTH;
+      st.rope=(h._tension||0)/limit;
+      h._tension=(h._tension||0)/ROPE_STRENGTH;              // the game's snap test now needs ~2x the strain
+      if(st.rope>0.45&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(Math.min(1,st.rope));
+    }
+    return r;
+  };
+  let hookWas='idle';
+  function ropeSounds(){
+    const s0=p.hook?p.hook.st:'idle';
+    if(s0==='on'&&hookWas!=='on'&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true);
+    if(s0==='idle'&&hookWas==='on'&&st.rope>0.9&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false);
+    if(s0!=='on') st.rope=0;
+    hookWas=s0;
+  }
+
   B.feelTick=function(){
     if(!on()) return;
     xlrHover();
     hookTick();
+    wallTick();
+    ropeSounds();
     if(st.tuckT>0){ st.tuckT--; p._autoHeadTuck=Math.max(p._autoHeadTuck||0,st.tuckT>6?1:st.tuckT/6); }
+    else{
+      // the head pops back out once nothing is overhead (it never stays stuck in the box)
+      if(st.lowCeil>0) st.lowCeil--;
+      const need=tuckNeeded(p,0)||0;
+      if(need<=0.01&&st.lowCeil<=0) p._autoHeadTuck=Math.max(0,(p._autoHeadTuck||0)-0.12);
+      else p._autoHeadTuck=Math.max(need,(p._autoHeadTuck||0)-0.12);
+    }
     if(st.bounceT>0){
       st.bounceT--;
       // a jump pressed during the little landing bounce still counts as a jump

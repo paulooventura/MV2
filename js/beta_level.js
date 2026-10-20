@@ -48,13 +48,15 @@
     const level=await parseLdtkProject(raw, PATH);   // Collision grid + seeds (Knowl) via lab F
     applyLdtkLevel(level);
     applyBeta(raw, level);
-    if(typeof _playBGM==='function'&&typeof OPT!=='undefined') _playBGM('game', OPT.musicVol);
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('stage',{restart:true});
+    else if(typeof _playBGM==='function'&&typeof OPT!=='undefined') _playBGM('game', OPT.musicVol);
   }
 
   function applyBeta(raw, level){
     B.on=true; B.level=level; B.open=false; B.cleared=false; B.talked=0;
     B.rooms=[]; B.labels=[]; B.rings=[]; B.shells=[]; B.decor=[]; B.crateCells=new Set(); B.flying=[];
-    B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0;
+    B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[];
+    B.stats={shutdowns:0, permOff:0, booms:0, hits:0, frames:0, items:0}; B.popup=null; B.results=null; B.lastMask=0; B.shake=0;
     B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]};
     const lv=raw.levels[0];
     B.sky=(F(lv,'skyRows')|0)||0;
@@ -119,7 +121,7 @@
             label:kind==='omni'?'BLOCK':kind.toUpperCase(), homeX:x, homeY:y, homeCol:g.c, homeRow:g.r,
             col:kind==='push'?'#3070d0':kind==='pull'?'#d0362c':'#7a3cc8'});
           if(hard) bw.only=kind;
-          bw.cube=true; bw.noKnock=true; bw._ox=0; bw._oy=0; bw.wedge=!!F(e,'wedge');
+          bw.cube=true; bw.noKnock=true; bw._ox=0; bw._oy=0; bw.wedge=!!F(e,'wedge'); bw.stay=!!F(e,'stay');
           BWALLS.push(bw);
           break;
         }
@@ -160,8 +162,8 @@
     p2=null; _unlockedMask=0; ITEM=-1;
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
-      let zi=ZONES.findIndex(z=>z.name==='AWDJOO L1 BETA');
-      if(zi<0){ ZONES.push({name:'AWDJOO L1 BETA', sub:'The Journey Begins'}); zi=ZONES.length-1; }
+      let zi=ZONES.findIndex(z=>z.name==='AWDJOO TOWN 1.1');
+      if(zi<0){ ZONES.push({name:'AWDJOO TOWN 1.1', sub:'The Journey Begins'}); zi=ZONES.length-1; }
       _zoneIdx=zi; _zoneCardT=180;
     }
     if(typeof uiShowToast==='function') uiShowToast('THE JOURNEY BEGINS — 3 CRYSTALS + 6 SEEDS OPEN THE ARCH');
@@ -170,7 +172,7 @@
 
   function counts(){
     let crystals=0, seeds=0;
-    for(const k of KDROP){ if(!k.got) continue; if(k.kind==='crystal') crystals++; else seeds++; }
+    for(const k of KDROP){ if(!k.got||k._carried||k._fly) continue; if(k.kind==='crystal') crystals++; else seeds++; }
     return {crystals, seeds};
   }
 
@@ -227,7 +229,7 @@
     bw._ox=fromX-bw.x; bw._oy=fromY-bw.y; bw._spd=6; bw._fallN=0;
   }
   const busy=bw=>Math.abs(bw._ox)>0.01||Math.abs(bw._oy)>0.01;
-  const holdsStill=bw=>bw.only==='laser'||bw.wedge;
+  const holdsStill=bw=>bw.only==='laser'||bw.wedge||bw.stay;
   function cubeSettleNow(){                   // level load: drop everything to rest, no animation
     let moved=true, guard=0;
     while(moved&&guard++<200){
@@ -257,6 +259,7 @@
     const list=cubes().sort((a,b)=>b.homeRow-a.homeRow);   // bottom first: stacks fall together
     for(const bw of list){
       if(bw.hitGlow>0) bw.hitGlow--;
+      if(bw.shakeX) bw.shakeX=Math.abs(bw.shakeX)<0.5?0:-bw.shakeX*0.6;
       if(busy(bw)){                           // ease the picture toward the cell
         const s=bw._spd||8;
         bw._ox=Math.abs(bw._ox)<=s?0:bw._ox-Math.sign(bw._ox)*s;
@@ -265,18 +268,13 @@
       }
       if(!holdsStill(bw)&&cellFree(bw.homeCol,bw.homeRow+1)){
         bw._fallN=(bw._fallN||0)+1;
-        if(bw._slide&&bw._slide.dr<0) bw._slide=null;
         moveCube(bw,0,1,Math.max(2,7-bw._fallN));
         if(!cellFree(bw.homeCol,bw.homeRow+1,true)){ try{ sfx('omniblock_chip'); }catch(e){} bw.shakeY=2; }
         continue;
       }
       bw._fallN=0;
-      if(bw._slide&&bw._slide.left>0){
-        const {dc,dr}=bw._slide;
-        if(cellFree(bw.homeCol+dc,bw.homeRow+dr)){ moveCube(bw,dc,dr,CUBE.SLIDE_FR); bw._slide.left--; }
-        else bw._slide=null;
-      }
     }
+    chainTick();
     flyTick();
     magnetTick();
     // XLR / MAG act when the button is let go
@@ -290,32 +288,87 @@
     if(Math.abs(ay)>Math.abs(ax)*1.1) return {dc:0, dr:ay>0?1:-1};
     return {dc:ax>=0?1:-1, dr:0};
   }
+  // A push shoves the whole line of cubes in front of the target (Sokoban style):
+  // it moves only if the cell past the far end is free. A pull-only or laser
+  // block in the line stops an XLR push; push-only blocks stop a MAG pull.
+  const B_CHAINS=[];
+  function lineFrom(bw,dc,dr,mode){
+    const list=[bw];
+    let c=bw.homeCol+dc, r=bw.homeRow+dr;
+    for(let guard=0;guard<40;guard++){
+      const nb=cubeAt(c,r);
+      if(!nb) break;
+      if(nb.only==='laser'||(mode==='push'&&nb.only==='pull')||(mode==='pull'&&nb.only==='push')) return null;
+      list.push(nb); c+=dc; r+=dr;
+    }
+    return list;
+  }
+  function cubeAt(c,r){ for(const b of cubes()) if(b.homeCol===c&&b.homeRow===r) return b; return null; }
+  B.cubeAt=cubeAt;
+  function chainTick(){
+    for(let i=B_CHAINS.length-1;i>=0;i--){
+      const ch=B_CHAINS[i];
+      if(ch.list.some(b=>b.hp<=0||b._carried||b._fly||b.homeCol==null)){ B_CHAINS.splice(i,1); continue; }
+      if(ch.list.some(busy)) continue;
+      const far=ch.list[ch.list.length-1];
+      if(ch.left<=0||!cellFree(far.homeCol+ch.dc,far.homeRow+ch.dr)){
+        if(ch.left===ch.cells){ for(const b of ch.list){ b.shakeX=ch.dc*2; b.hitGlow=10; } try{ sfx('omniblock_chip'); }catch(e){} }
+        B_CHAINS.splice(i,1); continue;
+      }
+      for(let k=ch.list.length-1;k>=0;k--) moveCube(ch.list[k],ch.dc,ch.dr,CUBE.SLIDE_FR);
+      ch.left--;
+    }
+  }
   function fireCube(mode, held){
     if(typeof _tipField!=='function') return;
     // measure from MIND's shoulder, not the jack tip, so a cube right against him still counts
     const tip=shoulder(), a=Math.atan2(p.aimDY,p.aimDX);
-    let best=null, bd=1e9;
+    let best=null, bd=1e9, bs=1e9;
     for(const bw of cubes()){
       if(bw.only==='laser') continue;
       if(mode==='push'&&bw.only==='pull') continue;
       if(mode==='pull'&&bw.only==='push') continue;
       const cx=bw.x+T/2, cy=bw.y+T/2;
       const f=_tipField(tip,a,cx,cy,CUBE.RANGE);
-      if(!f||f.dist>=bd) continue;
+      if(!f) continue;
+      const perp=f.dist*Math.sqrt(Math.max(0,1-f.align*f.align));   // prefer the cube right on the aim line
+      const score=f.dist+perp*3;
+      if(score>=bs) continue;
       if(!losClear(cx,cy,bw.homeCol,bw.homeRow)) continue;     // a wall (or another cube) is in the way
-      bd=f.dist; best=bw;
+      bs=score; bd=f.dist; best=bw;
     }
     if(!best) return;
     const charge=Math.min(1,held/CUBE.CHARGE_FULL);
     const near=bd<=CUBE.NEAR?1:Math.max(0,1-(bd-CUBE.NEAR)/(CUBE.RANGE-CUBE.NEAR));
     const cells=Math.max(1,Math.min(3,Math.round(1+2*charge*near)));
     const ax=aimAxis();
-    const sgn=mode==='push'?1:-1;
-    best._slide={dc:ax.dc*sgn, dr:ax.dr*sgn, left:cells};
-    best.wedge=false;                                   // once moved it is just a cube
+    const sgn=mode==='push'?1:-1, dc=ax.dc*sgn, dr=ax.dr*sgn;
+    const list=mode==='push'?lineFrom(best,dc,dr,mode):[best];
     best.hitGlow=16;
-    B.lastFire={mode, cells, charge:+charge.toFixed(2), dist:Math.round(bd), dc:ax.dc*sgn, dr:ax.dr*sgn};
+    if(!list){ best.shakeX=dc*2; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, blocked:true}; return; }
+    for(const b of list) b.wedge=false;                 // once moved, a trapdoor block is just a cube
+    // heavier lines travel less far: up to ~7 weight units go the full distance
+    const lineW=list.reduce((w,b)=>w+weightOf('cube',b),0);
+    const go=Math.max(1,Math.round(cells*Math.min(1,7/lineW)));
+    B_CHAINS.push({list, dc, dr, left:go, cells:go});
+    B.lastFire={mode, cells:go, charge:+charge.toFixed(2), dist:Math.round(bd), dc, dr, line:list.length, weight:lineW};
   }
+
+  // ── Weight (Paulo: everything has its own weight). One unit ≈ one omni
+  //   cube's third. MIND = wheel + box + head + fists. Used by the magnet's
+  //   grip, how fast things fly when thrown, what a thrown thing does when it
+  //   hits, and how MIND bounces (js/beta_feel.js).
+  const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
+    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3};
+  WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
+  B.WEIGHT=WEIGHT;
+  function weightOf(kind,ref){
+    if(kind==='cube') return WEIGHT[ref.only||'omni']||3;
+    if(kind==='knowl') return ref.kind==='crystal'?WEIGHT.crystal:WEIGHT.seed;
+    if(kind==='enemy') return WEIGHT[ref.type]||6;
+    return WEIGHT.object;
+  }
+  B.weightOf=weightOf;
 
   // ── Thrown cubes: real flight until they come to rest, then they snap into a cell
   function solidPx(x,y){
@@ -336,7 +389,7 @@
     for(let i=B.flying.length-1;i>=0;i--){
       const bw=B.flying[i];
       if(bw.hp<=0){ B.flying.splice(i,1); continue; }
-      bw.vy=Math.min(bw.vy+0.5,15); bw.vx*=0.995;
+      bw.vy=Math.min(bw.vy+GRAV,15); bw.vx*=0.995;
       const steps=Math.max(1,Math.ceil(Math.max(Math.abs(bw.vx),Math.abs(bw.vy))/6));
       let ground=false;
       for(let s=0;s<steps;s++){
@@ -350,12 +403,12 @@
         }else bw.y=ny;
       }
       bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.6:0.98);
-      // thrown cubes bump enemies
-      const sp=Math.hypot(bw.vx,bw.vy);
+      // a thrown cube hits by its momentum (weight × speed)
+      const sp=Math.hypot(bw.vx,bw.vy), mom=sp*weightOf('cube',bw);
       if(sp>4) for(const e of ENEMS){
         if(!e.alive||e._betaHeld||!(typeof _enemyBodyPresent!=='function'||_enemyBodyPresent(e))) continue;
         if(ov(bw.x,bw.y,T,T,e.x,e.y,e.w,e.h)&&(e._cubeHitF||0)<=0){
-          if(typeof _damageEnemy==='function') _damageEnemy(e,Math.round(8+sp*1.5),bw.x+T/2,bw.y+T/2,1);
+          if(typeof _damageEnemy==='function') _damageEnemy(e,Math.round(4+mom*0.5),bw.x+T/2,bw.y+T/2,Math.min(2,weightOf('cube',bw)/weightOf('enemy',e)*2));
           e._cubeHitF=20; bw.vx*=-0.4; bw.vy=-2;
         }
       }
@@ -368,21 +421,52 @@
       }
     }
     for(const e of ENEMS) if(e._cubeHitF>0) e._cubeHitF--;
+    knowlFlyTick();
+  }
+
+  // ── Knowls can be carried by the MAG and thrown; touching an enemy charges it
+  const KR=11;
+  function knowlFlyTick(){
+    for(const k of KDROP){
+      if(!k._fly) continue;
+      k.vy=Math.min(k.vy+GRAV*0.8,12); k.vx*=0.99;
+      const nx=k.x+k.vx; if(solidPx(nx+Math.sign(k.vx)*KR,k.y)){ k.vx*=-0.4; } else k.x=nx;
+      const ny=k.y+k.vy;
+      if(solidPx(k.x,ny+KR)){ k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1; }
+      else if(solidPx(k.x,ny-KR)){ k.vy=Math.abs(k.vy)*0.3; }
+      else { k.y=ny; k._rest=0; }
+      knowlTouchesEnemy(k);
+      if((k._rest||0)>6||(k._flyT=(k._flyT||0)+1)>600){
+        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0;
+        const fy=typeof gridStandY==='function'?gridStandY(k.x,k.y+KR,{maxUp:8,maxDrop:T}):null;
+        if(fy!=null&&k.kind==='seed') k.y=fy-15;
+        k.ox=k.x; k.oy=k.y; k.got=false;
+      }else{ k.ox=k.x; k.oy=k.y; }
+    }
+  }
+  function knowlTouchesEnemy(k){
+    for(const e of ENEMS){
+      if(!e._betaEnemy||(e._knowlCd||0)>0) continue;
+      if(!ov(k.x-KR,k.y-KR,KR*2,KR*2,e.x,e.y,e.w,e.h)) continue;
+      energize(e,'knowl'); e._knowlCd=90;
+      if(k._fly){ k.vx*=-0.5; k.vy=-2.5; }
+    }
   }
 
   const LAITU_SCALE=1.75;                       // a bit taller than MIND
   const LAITU_TALK=['THEY TOOK THE ELDERS. FOLLOW THE SEEDS!','THE ARCH WANTS 3 CRYSTALS AND 6 SEEDS.',
     'YOUR HOME HIDES THE KNOWL TREE, MIND.','A MAGNET CAN CARRY WHAT A PUNCH CANNOT.',
-    'AIM THE XLR AT THE FLOOR AND LET IT RIP!'];
+    'AIM THE XLR AT THE FLOOR AND LET IT RIP!','KNOWLS WAKE ANYTHING UP. CAREFUL!'];
 
-  // ── Magnet carry (Paulo): hold the MAG to lock omni cubes, an enemy or a
-  //   movable object to the jack and carry it. Full power holds up to 3 cubes,
-  //   or 1 enemy / object. As power drains the grip loosens one cube at a time
-  //   (3 above 2/3 power, 2 above 1/3); the last thing held lets go only at 0%.
-  //   Held things sit flush on the magnet's poles; letting go throws them with
-  //   the swing of the arm.
-  const MAG={LOCK:84, DRAIN:0.35, GAME_DRAIN:1.2, ENH_DRAIN:0.78, THROW:1.25, MAXV:20};
-  const magCap=pw=>pw>200/3?3:pw>100/3?2:pw>0?1:0;
+  // ── Magnet carry (Paulo): hold the MAG to lock things to the poles and carry
+  //   them. Grip is a weight budget: full power holds 9 units = 3 omni cubes,
+  //   or one enemy / pull block / knowl / object. As power drains the budget
+  //   shrinks and the outer cubes slip off; the last thing held lets go only
+  //   at 0%. Held things sit flush on the poles; letting go throws them with
+  //   the swing of the arm — lighter things fly faster.
+  const MAG={LOCK:84, DRAIN:0.35, GAME_DRAIN:1.2, ENH_DRAIN:0.78, THROW:1.25, MAXV:20, GRIP:9};
+  const magCap=pw=>MAG.GRIP*Math.max(0,pw)/100;
+  const heldWeight=()=>B.mag.held.reduce((s,h)=>s+weightOf(h.kind,h.ref),0);
   function magTip(){
     // The MAG art is drawn at the arm's tip, rotated to the aim; its pole faces end
     // 30 art px out (prong 24 + pole pad 6), scaled by the item art scale.
@@ -393,20 +477,24 @@
     const pole=30*(typeof _itemArtScale==='function'?_itemArtScale(3):0.88);
     return {x:base.x+Math.cos(a)*pole, y:base.y+Math.sin(a)*pole, ux:Math.cos(a), uy:Math.sin(a)};
   }
-  function throwVel(){
-    const h=B.mag.tips; if(h.length<2) return {vx:p.vx||0, vy:(p.vy||0)};
-    const a=h[0], b=h[h.length-1], n=Math.max(1,h.length-1);
-    let vx=(b.x-a.x)/n*MAG.THROW, vy=(b.y-a.y)/n*MAG.THROW;
+  function throwVel(w){
+    const h=B.mag.tips; let vx, vy;
+    if(h.length<2){ vx=p.vx||0; vy=p.vy||0; }
+    else{ const a=h[0], b=h[h.length-1], n=Math.max(1,h.length-1); vx=(b.x-a.x)/n*MAG.THROW; vy=(b.y-a.y)/n*MAG.THROW; }
+    const k=Math.max(0.55,Math.min(1.5,Math.sqrt(3/Math.max(0.3,w||3))));   // heavy things leave slower
+    vx*=k; vy*=k;
     const s=Math.hypot(vx,vy); if(s>MAG.MAXV){ vx*=MAG.MAXV/s; vy*=MAG.MAXV/s; }
     return {vx, vy};
   }
   function dropHeld(h){
-    const v=throwVel();
+    const v=throwVel(weightOf(h.kind,h.ref));
     if(h.kind==='cube') throwCube(h.ref, v.vx, v.vy);
+    else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
     else if(h.kind==='enemy'){
       const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy;
+      e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true;
+      if(!e.alive) e._shutSettled=false;
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
-      e._thrownF=60;
     }else { h.ref._betaHeld=false; h.ref.vx=v.vx; h.ref.vy=v.vy; }
   }
   function magnetTick(){
@@ -416,40 +504,46 @@
       // the magnet keeps its own power while held (the game's 1.2/frame drain empties it in
       // about a second); carrying drains slower so you can actually walk somewhere.
       if(!M.wasOn){ M.power=Math.min(100,p.itemStamina+(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[3]?MAG.ENH_DRAIN:MAG.GAME_DRAIN)); M.tips.length=0; }
-      M.power=Math.max(0,M.power-MAG.DRAIN*(M.held.length?1:0.6));
+      M.power=Math.max(0,M.power-MAG.DRAIN*(M.held.length?Math.max(0.6,heldWeight()/6):0.6));
       p.itemStamina=M.power;
     }
     M.wasOn=on;
     if(!on||p.itemStamina<=0){ while(M.held.length) dropHeld(M.held.pop()); return; }
     const tip=magTip();
     M.tips.push({x:tip.x,y:tip.y}); if(M.tips.length>6) M.tips.shift();
-    // grip loosens as power falls: drop the outermost cube first
-    const cubesHeld=M.held.filter(h=>h.kind==='cube');
-    if(cubesHeld.length>magCap(p.itemStamina)){ const h=M.held.pop(); dropHeld(h); try{ sfx('omniblock_chip'); }catch(e){} }
+    // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
+    if(M.held.length>1&&heldWeight()>magCap(p.itemStamina)+0.01){ dropHeld(M.held.pop()); try{ sfx('omniblock_chip'); }catch(e){} }
     // lock new things that come within reach of the poles (never through a wall)
-    const hasOther=M.held.some(h=>h.kind!=='cube');
-    if(!hasOther&&M.held.length<magCap(p.itemStamina)){
+    const onlyCubes=M.held.every(h=>h.kind==='cube');
+    if(onlyCubes){
       let best=null, bd=MAG.LOCK;
       const reach=M.held.length?M.held.length*(T+1):0;   // the next cube locks onto the outer face
+      const room=M.held.length?magCap(p.itemStamina)-heldWeight():MAG.GRIP;
       const consider=(kind,ref,cx,cy,c,r)=>{
-        const dx=cx-tip.x, dy=cy-tip.y, d=Math.hypot(dx,dy)-reach;
+        if(weightOf(kind,ref)>room+0.01) return;
+        const dx=cx-tip.x, dy=cy-tip.y, dd=Math.hypot(dx,dy), d=dd-reach;
         if(d>=bd) return;
-        if(Math.hypot(dx,dy)>18&&(dx*tip.ux+dy*tip.uy)/Math.hypot(dx,dy)<0.2) return;      // in front of the poles
+        if(dd>18&&(dx*tip.ux+dy*tip.uy)/dd<0.2) return;      // in front of the poles
         if(!losClear(cx,cy,c,r)) return;
         bd=d; best={kind,ref};
       };
-      for(const bw of cubes()) if(!bw.only) consider('cube',bw,bw.x+T/2,bw.y+T/2,bw.homeCol,bw.homeRow);
+      for(const bw of cubes()) if(!bw.only||bw.only==='pull') consider('cube',bw,bw.x+T/2,bw.y+T/2,bw.homeCol,bw.homeRow);
       if(!M.held.length){
-        for(const e of ENEMS){ if(!e.alive||e.mind||(typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e))) continue; consider('enemy',e,e.x+e.w/2,e.y+e.h/2); }
+        for(const e of ENEMS){ if(e.mind||(e.alive&&typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e))) continue; consider('enemy',e,e.x+e.w/2,e.y+e.h/2); }
+        for(const k of KDROP){ if(k.got&&!k._fly) continue; consider('knowl',k,k.x,k.y); }
         for(const c of CRATES) consider('object',c,c.x+c.w/2,c.y+c.h/2);
       }
       if(best){
         if(best.kind==='cube'){
           const r=best.ref; gridSmashCell(r.homeCol,r.homeRow);
           r.homeCol=r.homeRow=r.homeX=r.homeY=null;          // no home while carried (the game would keep re-opening it)
-          r._carried=true; r._slide=null; r._ox=r._oy=0; r.wedge=false;
+          r._carried=true; r._ox=r._oy=0; r.wedge=false;
+        }else if(best.kind==='knowl'){
+          const k=best.ref; k._carried=true; k._fly=false; k.got=true; k.w=22; k.h=22;
+        }else{
+          best.ref._betaHeld=true;
+          if(best.kind==='enemy'){ best.ref._shutSettled=true; best.ref.mn=-1e6; best.ref.mx=1e6; }
         }
-        else best.ref._betaHeld=true;
         M.held.push(best); M.lockedThisHold=true; p.flashF=Math.max(p.flashF||0,6);
         try{ sfx('hook_latch'); }catch(e){}
       }
@@ -457,10 +551,11 @@
     // carry: the first thing sits flush on the poles, cubes stack outward along the aim
     let along=0;
     for(const h of M.held){
-      const r=h.ref, w=r.w||T, hh=r.h||T;
+      const r=h.ref, w=h.kind==='knowl'?22:(r.w||T), hh=h.kind==='knowl'?22:(r.h||T);
       const half=Math.abs(tip.ux)*w/2+Math.abs(tip.uy)*hh/2;    // face-to-pole distance for this box
       const cx=tip.x+tip.ux*(along+half), cy=tip.y+tip.uy*(along+half);
-      r.x=cx-w/2; r.y=cy-hh/2; r.vx=0; r.vy=0;
+      if(h.kind==='knowl'){ r.x=r.ox=cx; r.y=r.oy=cy; r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }
+      else { r.x=cx-w/2; r.y=cy-hh/2; r.vx=0; r.vy=0; }
       if(h.kind==='enemy'){ r.shotCd=Math.max(r.shotCd||0,30); r.hitF=Math.max(r.hitF||0,2); }
       along+=half*2;
     }
@@ -477,6 +572,101 @@
     if(B.on&&p&&e){ const hb=typeof _enemyItemHB==='function'?_enemyItemHB(e):e; if(!losClear(hb.x+hb.w/2,hb.y+hb.h/2)) return; }
     return _origItemForce.apply(this, arguments);
   };
+
+  // ── Enemies (Paulo): a shut-down enemy refills its energy for 5 s and gets
+  //   back up. The third shutdown keeps it down for good. A knowl touching an
+  //   enemy (carried or thrown) charges it: full energy, up again if it was
+  //   down, and its 3 shutdowns start over. The Knowl tree does the same to
+  //   anything near it, MIND included.
+  const REVIVE_FR=300, SHUT_LIMIT_BETA=3, TREE_R=300;
+  function energize(e,why){
+    e._downs=0; e._permOff=false;
+    if(!e.alive) revive(e); else e.hp=e.mhp;
+    e._glowF=40;
+    if(why==='knowl'){ try{ sfx('knowl_pickup'); }catch(_e){} }
+  }
+  B.energize=energize;
+  function revive(e){
+    e.alive=true; e.hp=e.mhp; e.shutF=0; e._shutSettled=false; e._mindOff=null; e._revT=0;
+    e.hitF=8; e.vy=-3; e.og=false; e._glowF=40;
+    if(e._reCenter||e.mn<-1e5){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
+    try{ sfx('chargeReady'); }catch(_e){}
+  }
+  function enemyTick(){
+    const tree=B.decor.find(d=>d.kind==='tree');
+    const tx=tree?tree.x+T/2:null, ty=tree?tree.y-200:null;
+    for(const e of ENEMS){
+      if(!e._betaEnemy) continue;
+      if(e._knowlCd>0) e._knowlCd--;
+      if(e._glowF>0) e._glowF--;
+      // count each fall
+      if(e._wasAlive!==false&&!e.alive){ e._downs=(e._downs||0)+1; e._revT=0; B.stats.shutdowns++;
+        if(e._downs>=SHUT_LIMIT_BETA){ e._permOff=true; B.stats.permOff++; } }
+      e._wasAlive=e.alive;
+      if(!e.alive&&!e._permOff&&!e._betaHeld){
+        e._revT=(e._revT||0)+1;
+        e.hp=Math.min(e.mhp,Math.ceil(e.mhp*e._revT/REVIVE_FR));     // the bar fills back up
+        if(e._revT>=REVIVE_FR) revive(e);
+      }
+      // patrol range follows a thrown enemy once it settles
+      if(e._reCenter&&(e._thrownF||0)<=0&&e.alive&&e.og){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
+      if(e._reCenter&&!e.alive&&e._shutSettled&&(e._thrownF||0)<=0){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
+      if(tree&&Math.hypot(e.x+e.w/2-tx,e.y+e.h/2-ty)<TREE_R&&(!e.alive||e.hp<e.mhp||e._downs)) energize(e,'tree');
+    }
+    if(tree&&p&&Math.hypot(p.x+SW/2-tx,p.y+FEET_OFF-60-ty)<TREE_R&&p.hp<p.maxHp){
+      p.hp=Math.min(p.maxHp,p.hp+1.5); if(typeof _syncLivesFromHp==='function') _syncLivesFromHp(p);
+    }
+  }
+
+  // ── TRS cage blocks go off: a blast that hurts nearby cubes, enemies and
+  //   MIND (never lethally) and sets off neighbouring cage blocks. The more
+  //   blasts going at once, the harder each one hits.
+  const BOOM={R:80, DMG:14, FUSE:7, WINDOW:30, MAX_P:34};
+  function boomTick(){
+    for(const bw of BWALLS){
+      if(bw.only!=='laser') continue;
+      if(bw._fuse>0&&--bw._fuse===0&&bw.hp>0) bw.hp=0;
+      if(bw._wasUp!==false&&bw.hp<=0&&!bw._boomed){ bw._boomed=true; explode(bw); }
+      bw._wasUp=bw.hp>0;
+    }
+    B.booms=B.booms.filter(t=>fr-t<BOOM.WINDOW);
+    if(!B.booms.length){ B.chainHurtP=0; for(const e of ENEMS) e._chainHurt=0; }
+  }
+  function explode(bw){
+    const cx=bw.x+bw.w/2, cy=bw.y+bw.h/2;
+    if(bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow);
+    B.booms.push(fr); B.stats.booms++;
+    const amp=1+0.35*(B.booms.length-1);                 // chain reactions hit harder
+    B.blasts.push({x:cx,y:cy,t:0,amp});
+    if(B.onBoom) B.onBoom(amp);
+    B.shake=Math.max(B.shake||0,Math.min(14,6*amp));
+    const dmg=BOOM.DMG*amp;
+    for(const o of BWALLS){
+      if(o===bw||o.hp<=0) continue;
+      const d=Math.hypot(o.x+o.w/2-cx,o.y+o.h/2-cy); if(d>BOOM.R) continue;
+      if(o.only==='laser'){ if(!(o._fuse>0)) o._fuse=BOOM.FUSE+((Math.random()*4)|0); continue; }
+      if(o.cube&&!o.only){ o.hp=Math.max(0,o.hp-dmg*1.6); o.hitGlow=12; }
+    }
+    for(const e of ENEMS){
+      if(!e.alive) continue;
+      const d=Math.hypot(e.x+e.w/2-cx,e.y+e.h/2-cy); if(d>BOOM.R+30) continue;
+      // a chain hurts, but never takes more than ~60% of an enemy's energy, and never the last of it
+      const hit=Math.min(Math.round(dmg),Math.max(0,e.hp-1),Math.max(0,Math.round(e.mhp*0.6-(e._chainHurt||0))));
+      if(hit>0&&typeof _damageEnemy==='function'){ _damageEnemy(e,hit,cx,cy,1.2); e._chainHurt=(e._chainHurt||0)+hit; }
+    }
+    if(p){
+      const d=Math.hypot(p.x+SW/2-cx,p.y+FEET_OFF-50-cy);
+      if(d<BOOM.R+30){
+        const hit=Math.min(Math.round(dmg*0.6),Math.max(0,p.hp-1),Math.max(0,BOOM.MAX_P-(B.chainHurtP||0)));   // MIND: at most ~a third of his energy per chain
+        B.chainHurtP=(B.chainHurtP||0)+hit;
+        const k=1/(Math.max(20,d)), kx=(p.x+SW/2-cx)*k, ky=(p.y+FEET_OFF-50-cy)*k;
+        if(hit>0&&typeof applyPlayerHit==='function') applyPlayerHit(kx*6*amp,ky*5*amp-2,hit);
+        else { p.vx+=kx*6; p.vy+=ky*5-2; }
+      }
+    }
+    for(let i=0;i<22;i++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*5*amp;
+      PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:16+Math.random()*16|0,maxLife:32,r:2+Math.random()*3,col:i%3?'#ffd040':'#ff7020'}); }
+  }
 
   // ── Seeds: picked up by the whole body (they sit on the floor, below MIND's core)
   function seedPickups(){
@@ -523,7 +713,12 @@
     if(B.on&&_gameState==='game'){ seedPickups(); cratePickups(); }
     _origUpdateKnowls.apply(this, arguments);
     if(!B.on||_gameState!=='game') return;
+    B.stats.frames++;
+    const fresh=_unlockedMask&~B.lastMask; B.lastMask=_unlockedMask;
+    if(fresh){ for(let i=0;i<4;i++) if(fresh&(1<<i)){ B.stats.items++; openPopup(i); break; } }
     cubeTick();
+    boomTick();
+    enemyTick();
     if(B.feelTick) B.feelTick();
     for(const e of ENEMS) if(e._thrownF>0) e._thrownF--;
     goalOpen=false;                                   // main.js must not zone-hop
@@ -548,8 +743,7 @@
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
         B.cleared=true;
-        try{ sfx('chargeReady'); }catch(e){}
-        if(typeof uiShowToast==='function') uiShowToast('LEVEL 1 CLEAR (BETA)');
+        openResults();
       }
     }
     // Laitu: wanders like an NPC, stops and faces MIND when close, talks.
@@ -586,7 +780,7 @@
     if(!B.on) return _origDrawKnowl.apply(this, arguments);
     const D=window.MV_BETA_DECOR;
     for(const k of KDROP){
-      if(k.got) continue;
+      if(k.got&&!k._carried&&!k._fly) continue;
       if(k.kind==='crystal'){ if(D) D.crystal(k); }
       else if(D) D.seed(k);
     }
@@ -723,13 +917,13 @@
     }
     const n=counts();
     ctx.fillStyle=C.BLACK; ctx.fillRect(6, H-44, 520, 38);
-    drawText('G · AWDJOO L1 BETA', 10, H-40, C.SILVER, 1);
+    drawText('AWDJOO TOWN 1.1  '+fmtTime(B.stats.frames), 10, H-40, C.SILVER, 1);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
       ctx.fillStyle='#2a1020'; ctx.fillRect(200,H-41,150,8);
       ctx.fillStyle=pw>66?'#e04848':pw>33?'#e08a3a':'#e0c040'; ctx.fillRect(200,H-41,150*pw/100,8);
       ctx.fillStyle='#000'; ctx.fillRect(250,H-41,1,8); ctx.fillRect(300,H-41,1,8);
-      drawText('MAG '+Math.round(pw)+'%  GRIP '+cap+(held?'  HOLDING '+held:''), 356, H-41, C.SILVER, 1);
+      drawText('MAG '+Math.round(pw)+'%  GRIP '+cap.toFixed(1)+'/9'+(held?'  HOLDING '+held:''), 356, H-41, C.SILVER, 1);
     }else if(ITEM===2&&p&&B.chX>0){
       const c=Math.min(1,B.chX/45);
       ctx.fillStyle='#101830'; ctx.fillRect(200,H-41,150,8);
@@ -748,9 +942,176 @@
       drawTextC('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds, W/2, by+70, C.SILVER, 1);
       ctx.globalAlpha=1;
     }
-    if(B.cleared){ ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,H/2-40,W,80); drawTextC('LEVEL 1 CLEAR', W/2, H/2-24, C.YELLOW, 3); drawTextC('BETA · THE JOURNEY BEGINS', W/2, H/2+12, C.SILVER, 2); }
+    drawEnemyBars();
   };
 
+  // ── Energy bars over the enemies: fill, plus pips for the shutdowns left
+  function drawEnemyBars(){
+    for(const e of ENEMS){
+      if(!e._betaEnemy) continue;
+      const show=!e.alive||e.hp<e.mhp||e._glowF>0||e._betaHeld;
+      if(!show) continue;
+      const x=sx(e.x+e.w/2), y=sy(e.y)-12, w=sw(44);
+      if(x<-60||x>W+60||y<-20||y>H+20) continue;
+      const f=Math.max(0,Math.min(1,e.hp/e.mhp));
+      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(x-w/2-1,y-1,w+2,7);
+      ctx.fillStyle=e._permOff?'#555':!e.alive?(fr%20<10?'#40c0ff':'#2a90d0'):f>0.5?'#40e070':f>0.25?'#e0b030':'#e04040';
+      ctx.fillRect(x-w/2,y,w*f,5);
+      const left=Math.max(0,SHUT_LIMIT_BETA-(e._downs||0));
+      for(let i=0;i<SHUT_LIMIT_BETA;i++){ ctx.fillStyle=i<left?'#ffd040':'#3a3a3a'; ctx.fillRect(x-w/2+i*7,y-6,5,4); }
+      if(e._permOff) drawTextC('OFF',x,y-16,'#888',1);
+      else if(!e.alive) drawTextC('REBOOTING',x,y-16,'#7fd0ff',1);
+      if(e._glowF>0){ ctx.globalAlpha=e._glowF/40*0.5; ctx.fillStyle='#7dffcf'; ctx.beginPath(); ctx.arc(x,sy(e.y+e.h/2),sw(e.w*0.8),0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+    }
+  }
+  function fmtTime(frames){
+    const t=frames/60, m=Math.floor(t/60), s=Math.floor(t%60), cs=Math.floor((t*100)%100);
+    return m+':'+String(s).padStart(2,'0')+'.'+String(cs).padStart(2,'0');
+  }
+  B.fmtTime=fmtTime;
+
+  // ── Item window: what you found and what it does (game pauses, slow music)
+  const ITEM_INFO=[
+    {name:'TRS LASER CANNON', lines:['HOLD Q TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
+    {name:'RCA GRAPPLING HOOK', lines:['PRESS Q TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. W/S REEL IN AND OUT,','SPACE JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
+    {name:'XLR PUSH JACK', lines:['HOLD Q TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (S+Q):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
+    {name:'MAG MAGNET', lines:['HOLD Q TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. A QUICK TAP PULLS A BLOCK.']}
+  ];
+  function openPopup(i){
+    B.popup={item:i, t:0};
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('item',{restart:true,volume:0.8});
+  }
+  function closePopup(){
+    B.popup=null;
+    for(const k in K) delete K[k];
+    if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('stage');
+  }
+  function drawPopup(){
+    const P=B.popup, a=Math.min(1,P.t/12);
+    ctx.globalAlpha=a*0.75; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=a;
+    const bw=Math.min(W-40,620), bh=320, bx=(W-bw)/2, by=(H-bh)/2-20+(1-a)*30;
+    ctx.fillStyle='#120a24'; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
+    ctx.strokeStyle='#5a3a8a'; ctx.lineWidth=1; ctx.strokeRect(bx+8,by+8,bw-16,bh-16);
+    drawTextC('YOU FOUND', W/2, by+20, C.SILVER, 1);
+    const info=ITEM_INFO[P.item];
+    drawTextC(info.name, W/2, by+36, C.YELLOW, 3);
+    // the crate, big, with the jack on its label
+    if(window.MV_BETA_DECOR){
+      ctx.save(); const cx=W/2, cy=by+122; ctx.translate(cx,cy); ctx.scale(1.8,1.8); ctx.translate(-cx,-cy);
+      MV_BETA_DECOR.itemCrateScreen(P.item, cx, cy+20, true);
+      ctx.restore();
+    }
+    info.lines.forEach((l,i)=>drawTextC(l, W/2, by+176+i*18, '#e8dcc0', 1));
+    if(P.t>40&&fr%40<28) drawTextC('PRESS ENTER OR Q TO CONTINUE', W/2, by+bh-22, C.YELLOW, 1);
+    ctx.globalAlpha=1;
+  }
+
+  // ── Stage clear: fanfare, then the results with the score and the time
+  function score(){
+    const n=counts(), st=B.stats, secs=st.frames/60;
+    const rows=[
+      ['KNOWL SEEDS', n.seeds+' / '+B.need.seeds, n.seeds*100],
+      ['KNOWL CRYSTALS', n.crystals+' / '+B.need.crystals, n.crystals*300],
+      ['ITEMS FOUND', st.items+' / 4', st.items*200],
+      ['ENEMY SHUTDOWNS', String(st.shutdowns), st.shutdowns*50],
+      ['ENEMIES OFF FOR GOOD', String(st.permOff), st.permOff*100],
+      ['CAGE BLASTS', String(st.booms), st.booms*20],
+      ['TIME BONUS', fmtTime(st.frames), Math.max(0,Math.round((480-secs)*5))],
+      ['NO-HIT BONUS', st.hits+' HITS', st.hits===0?1000:st.hits<=2?400:0]
+    ];
+    const total=rows.reduce((s,r)=>s+r[2],0);
+    const ach=[];
+    if(secs<240) ach.push('SPEED RUNNER - UNDER 4:00');
+    if(st.hits===0) ach.push('UNTOUCHED - NO HITS TAKEN');
+    if(st.booms>=5) ach.push('DEMOLITION CREW - 5+ CAGE BLASTS');
+    if(st.shutdowns===0) ach.push('GENTLE SOUL - NO ENEMY SHUT DOWN');
+    if(st.permOff>=2) ach.push('LIGHTS OUT - 2 ENEMIES OFF FOR GOOD');
+    if(st.items>=4) ach.push('FULL KIT - ALL 4 JACKS');
+    const rank=total>=5000?'S':total>=4000?'A':total>=3000?'B':'C';
+    let best=null;
+    try{
+      best=JSON.parse(localStorage.getItem('mv2.awdjoo11.best')||'null');
+      const nb={time:best&&best.time<st.frames?best.time:st.frames, score:best&&best.score>total?best.score:total};
+      localStorage.setItem('mv2.awdjoo11.best',JSON.stringify(nb));
+    }catch(e){}
+    return {rows,total,ach,rank,best,frames:st.frames};
+  }
+  function openResults(){
+    B.results={t:0, sc:score(), music:false};
+    if(window.MV_BETA_AUDIO){ MV_BETA_AUDIO.stopAll(); const ms=MV_BETA_AUDIO.fanfare(); B.results.musicAt=Math.round((ms||3000)/1000*60); }
+  }
+  function drawResults(){
+    const R=B.results, a=Math.min(1,R.t/20), sc=R.sc;
+    ctx.globalAlpha=a*0.85; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=a;
+    const bw=Math.min(W-40,640), bh=Math.min(H-40,560), bx=(W-bw)/2, by=(H-bh)/2;
+    ctx.fillStyle='#120a24'; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
+    drawTextC('AWDJOO TOWN 1.1 CLEAR!', W/2, by+18, C.YELLOW, 3);
+    drawTextC('THE JOURNEY BEGINS', W/2, by+48, C.SILVER, 1);
+    let y=by+76; const shown=Math.min(sc.rows.length,Math.floor(R.t/14));
+    let run=0;
+    sc.rows.forEach((r,i)=>{
+      if(i>=shown) return; run+=r[2];
+      drawText(r[0], bx+30, y, '#e8dcc0', 1); drawText(r[1], bx+bw*0.52, y, C.SILVER, 1);
+      const pts=String(r[2]); drawText(pts, bx+bw-30-textW(pts,1), y, '#7dffcf', 1); y+=20;
+    });
+    if(shown>=sc.rows.length){
+      ctx.fillStyle='#5a3a8a'; ctx.fillRect(bx+24,y+2,bw-48,1); y+=12;
+      drawText('TOTAL', bx+30, y, C.YELLOW, 2); const tt=String(sc.total); drawText(tt, bx+bw-30-textW(tt,2), y, C.YELLOW, 2); y+=30;
+      drawTextC('RANK '+sc.rank, W/2, y, sc.rank==='S'?'#ffd040':'#e8dcc0', 3); y+=34;
+      if(sc.best) drawTextC('BEST TIME '+fmtTime(Math.min(sc.best.time,sc.frames))+'   BEST SCORE '+Math.max(sc.best.score,sc.total), W/2, y, C.SILVER, 1);
+      y+=20;
+      sc.ach.forEach(t=>{ drawTextC('* '+t, W/2, y, '#ffd040', 1); y+=16; });
+      if(R.t>sc.rows.length*14+60&&fr%40<28) drawTextC('PRESS ENTER TO PLAY AGAIN', W/2, by+bh-22, C.YELLOW, 1);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // Pause the world under the item window and the results; keys close them.
+  window.addEventListener('keydown',ev=>{
+    if(!B.on) return;
+    const go=['Enter','Space','KeyQ','KeyE','Escape','NumpadEnter'].includes(ev.code);
+    if(B.popup&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
+    else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){ ev.preventDefault(); try{ location.reload(); }catch(e){} }
+  },true);
+  const _origUpdate=window.update;
+  window.update=function(){
+    if(B.on&&B.popup){ B.popup.t++; if(B._closeReq){ B._closeReq=false; closePopup(); } return; }
+    if(B.on&&B.results){
+      B.results.t++;
+      if(!B.results.music&&B.results.t>=B.results.musicAt){ B.results.music=true; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.6}); }
+      return;
+    }
+    return _origUpdate.apply(this, arguments);
+  };
+  const _origDraw=window.draw;
+  window.draw=function(){
+    const sh=B.on&&B.shake>0.3?B.shake:0;
+    if(sh){ ctx.save(); ctx.translate((Math.random()-0.5)*sh,(Math.random()-0.5)*sh); B.shake*=0.86; }
+    try{ _origDraw.apply(this, arguments); } finally{ if(sh) ctx.restore(); }
+    if(!B.on||_gameState!=='game') return;
+    for(let i=B.blasts.length-1;i>=0;i--){                 // blast flashes + rings
+      const b=B.blasts[i]; b.t++;
+      const k=b.t/26, r=sw(20+70*k*Math.min(1.6,b.amp));
+      ctx.globalAlpha=Math.max(0,1-k)*0.8; ctx.fillStyle='#fff2a0'; ctx.beginPath(); ctx.arc(sx(b.x),sy(b.y),r*0.55,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#ff9030'; ctx.lineWidth=sw(4); ctx.beginPath(); ctx.arc(sx(b.x),sy(b.y),r,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
+      if(b.t>26) B.blasts.splice(i,1);
+    }
+    if(B.popup) drawPopup();
+    if(B.results) drawResults();
+  };
+  const _origPlayBGM=window._playBGM;
+  window._playBGM=function(type){
+    if(B.on&&type==='game'&&window.MV_BETA_AUDIO){ MV_BETA_AUDIO.play(B.popup?'item':'stage'); return; }
+    return _origPlayBGM.apply(this, arguments);
+  };
+  const _origPlayerHit=window.applyPlayerHit;
+  window.applyPlayerHit=function(){ if(B.on&&B.stats&&_shutdownTimer<=0) B.stats.hits++; return _origPlayerHit.apply(this, arguments); };
+  B.openPopup=openPopup; B.openResults=openResults;
+
+  B.onBoom=amp=>{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(amp); };
   B.drawBlock=drawBetaBlock; B.fireCube=fireCube; B.cubes=cubes; B.throwCube=throwCube; B.counts=counts;
   window.startBetaLab=startBetaLab;
   window.applyBeta=applyBeta;

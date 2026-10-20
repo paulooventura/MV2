@@ -277,6 +277,7 @@ function drawHostileWheel(cx,cy,angle){
 
 /* -- HS8 Body â€” shaded studio monitor cabinet -- */
 function drawBody(bx,by,facing,ca2=0,status=null){
+  facing=!facing;   // the speaker (woofer + tweeter) faces the way MIND is heading
   const bw=52,bh=42;
   const x=bx-bw/2,y=by;
   const isVenture=p.hero==='venture';
@@ -622,31 +623,27 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#c8c8d0';ctx.beginPath();ctx.arc(44,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
 
   }else if(itemIdx===2){
-    // XLR: cylindrical barrel (real ~19mm Ø), three pins — not a disc
-    _connPx(-20,-4,10,8,'#101012');
-    _connPx(-20,-3,10,2,'#2a2a30');
-    _connPx(-10,-8,10,16,'#101014');
-    _connPx(-9,-7,9,3,'#2a2a32');
-    for(let i=0;i<5;i++) _connPx(-9+i*2,-6,1,12,'#08080c');
-    _connPx(0,-8,30,16,'#3a3e46');
-    _connPx(0,-8,30,4,'#6a6e76');
-    _connPx(0,5,30,3,'#1c2026');
-    _connPx(1,-6,28,2,'#4a4e56');
-    for(let k=0;k<6;k++) _connPx(3+k*4.4,-7,1.2,14,'#2a2e34');
-    _connPx(30,-7,7,14,'#5a5e66');
-    _connPx(31,-6,5,3,'#8a8e96');
-    _connPx(31,4,5,2,'#2a2e34');
-    // Male XLR: the metal shroud runs past the insert and three silver pins stick out of it.
-    const fx=40;
-    _connPx(37,-6,3,12,'#1a1c22');                 // insert face (dark)
-    _connPx(37,-8,10,2.4,'#8a8e96');               // shroud rims, open at the front
-    _connPx(37,5.6,10,2.4,'#5a5e66');
-    _connPx(46,-8,1.4,2.4,'#b0b4bc'); _connPx(46,5.6,1.4,2.4,'#7a7e86');
-    [[-3.6,8.6],[0,9.4],[3.6,8.6]].forEach(([py2,len])=>{
-      _connPx(40,py2-0.9,len*0.62,1.8,'#c8ccd4');  // pin
-      _connPx(40,py2-0.9,len*0.62,0.6,'#f0f2f6');
-      ctx.beginPath();ctx.arc(40+len*0.62,py2,0.9,0,Math.PI*2);ctx.fillStyle='#e2e6ec';ctx.fill();
-    });
+    // XLR male plug, side view: rubber boot → black grip barrel → round silver
+    // shell whose rounded nose hides the three pins (only their tips peek out).
+    const rr=(x,y,w,h,r,fill)=>{ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fillStyle=fill; ctx.fill(); };
+    // boot (tapers into the coil)
+    ctx.beginPath(); ctx.moveTo(-20,-3.5); ctx.lineTo(-6,-6.5); ctx.lineTo(-6,6.5); ctx.lineTo(-20,3.5); ctx.closePath(); ctx.fillStyle='#101012'; ctx.fill();
+    for(let i=0;i<4;i++) _connPx(-17+i*3.2,-4.5+i*0.5,1,9-i*1,'#1e1e24');
+    // grip barrel with a soft highlight
+    const gb=ctx.createLinearGradient(0,-8,0,8); gb.addColorStop(0,'#5a5e68'); gb.addColorStop(0.3,'#30343c'); gb.addColorStop(1,'#14161a');
+    rr(-7,-8,27,16,4,gb);
+    for(let k=0;k<5;k++) _connPx(-3+k*4.2,-7.4,1.1,14.8,'rgba(0,0,0,0.35)');
+    rr(4,-9.6,9,3,1.4,'#8a8e96');                    // latch button
+    _connPx(5,-9.6,7,1,'#c8ccd4');
+    // round silver shell
+    const sg=ctx.createLinearGradient(0,-8.5,0,8.5); sg.addColorStop(0,'#f0f2f6'); sg.addColorStop(0.35,'#b8bcc6'); sg.addColorStop(0.7,'#7a7e88'); sg.addColorStop(1,'#4a4e56');
+    rr(18,-8.5,26,17,[2,8,8,2],sg);
+    ctx.strokeStyle='rgba(30,32,40,0.6)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(21,-8); ctx.lineTo(21,8); ctx.stroke();
+    // the open front: a dark mouth, rounded, with the three pin tips
+    ctx.beginPath(); ctx.ellipse(43,0,2.2,6.4,0,0,Math.PI*2); ctx.fillStyle='#16181e'; ctx.fill();
+    const fx=43;
+    [[-3.4],[0],[3.4]].forEach(([py2])=>{ ctx.beginPath(); ctx.arc(44.2,py2,1.05,0,Math.PI*2); ctx.fillStyle='#e8d8a0'; ctx.fill(); });
+    _connPx(24,-6.8,16,1.2,'rgba(255,255,255,0.55)');   // shine
     if(enh){
       _drawGreenVeins([
         [[-16,-1.0],[-6,1.2],[4,-1.4],[14,1.0],[24,-0.6],[34,0.8],[fx,0]],

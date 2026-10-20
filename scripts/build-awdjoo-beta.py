@@ -72,7 +72,7 @@ for r, c1 in {28: 13, 29: 12, 30: 11, 31: 10}.items():       # stair wall slants
     rect(c1 + 1, 29, r, r, AIR)
 rect(9, 29, 32, 45, AIR)                  # tree room
 rect(27, 29, 30, 30, SOLID)               # crystal ledge (RCA only)
-rect(7, 8, 39, 45, AIR)                   # (2x7 omni column, filled by cubes)
+rect(7, 8, 32, 45, AIR)                   # (2x14 omni wall between the west room and the tree room)
 paint(1, 29, 22, 45, SK_STONE_BG)
 
 # ── Laitu's basement (cave under the hill) ────────────────────────
@@ -104,11 +104,13 @@ boxes('push', [(64, 15), (65, 15)], wedge=1)                       # ... on 2 pu
 boxes('omni', [(27, 13), (29, 13), (27, 12), (28, 12), (29, 12)])  # box around the XLR crate
 boxes('omni', [(c, r) for c in (12, 13) for r in range(22, 26)])   # column across the hallway
 boxes('omni', [(7, 26), (7, 27)])                                  # hallway lip
-boxes('omni', [(c, r) for c in range(1, 7) for r in (44, 45)] + [(1, 43)])   # rubble at the foot of the west room
-boxes('omni', [(c, r) for c in (7, 8) for r in range(39, 46)])     # column into the tree room
+boxes('omni', [(c, r) for c in (7, 8) for r in range(32, 46)])     # 2x14 omni wall into the tree room
 boxes('omni', [(c, r) for c in (52, 53) for r in range(24, 33)])   # column, ceiling to ledge
-boxes('push', [(38, r) for r in range(29, 33)])                    # push stack on the ledge
-boxes('push', [(57, r) for r in range(34, 39)])                    # push stack sealing the TRS room
+boxes('push', [(c, r) for c in (44, 45) for r in range(24, 33)])   # 2x9 push wall, west of the omni wall
+boxes('pull', [(c, 33) for c in range(32, 36)], wedge=1)           # 4 pull blocks capping the drop into the pit
+boxes('pull', [(56, r) for r in range(34, 39)])                    # pull wall in front of ...
+boxes('push', [(57, r) for r in range(34, 39)])                    # ... the push wall sealing the TRS gallery
+boxes('push', [(c, 49) for c in range(43, 52)], stay=1)            # floating push platform in the pit: push blocks up into stairs
 boxes('laser', [(c, r) for c in (73, 74, 75) for r in (1, 2, 3) if (c, r) != (74, 2)])   # cage on Laitu's roof
 
 # ── Pickups ───────────────────────────────────────────────────────
@@ -154,7 +156,7 @@ for e in ents:
 boxes_ = [e for e in ents if e['kind'] == 'Box']
 crates = {(e['c'], e['r']) for e in ents if e['kind'] in ('Item', 'Rca')}
 for e in boxes_: g[e['r']][e['c']] = AIR
-def fixed(e): return e['fields'].get('kind') == 'laser' or e['fields'].get('wedge')
+def fixed(e): return e['fields'].get('kind') == 'laser' or e['fields'].get('wedge') or e['fields'].get('stay')
 settled = 0
 changed = True
 while changed:
@@ -240,7 +242,8 @@ for e in ents:
         kind = e['fields']['kind']
         d.rectangle([x + 1, y + 1, x + S - 2, y + S - 2], fill=col[kind], outline='#000')
         if kind == 'push': d.line([x + 2, y + 2, x + S - 3, y + S - 3], fill='#fff')
-        if e['fields'].get('wedge'): d.line([x + 1, y + S - 2, x + S - 2, y + S - 2], fill='#fff')
+        if e['fields'].get('wedge') or e['fields'].get('stay'): d.line([x + 1, y + S - 2, x + S - 2, y + S - 2], fill='#fff')
+        if kind == 'pull': d.line([x + 2, y + S - 3, x + S - 3, y + 2], fill='#fff')
     elif k == 'Knowl': d.ellipse([x + 1, y + 1, x + S - 1, y + S - 1], fill='#66ffaa', outline='#205030')
     elif k == 'Crystal': d.polygon([(x + 5, y - 2), (x + 11, y + 5), (x + 5, y + 12), (x - 1, y + 5)], fill='#40c8e8', outline='#000')
     elif k in ('Item', 'Rca'):
@@ -257,9 +260,9 @@ for e in ents:
     elif k == 'Label': d.text((x, y), e['fields']['text'], fill='#f0d8a8')
 lg = ROWS * S + 10
 d.rectangle([0, ROWS * S, COLS * S, ROWS * S + 60], fill='#f3ead8')
-for i, (c, t) in enumerate([('#8a4ad8', 'omni cube'), ('#2f6fd8', 'push (XLR)'), ('#d8a820', 'TRS cage'), ('#40c8e8', 'crystal'),
+for i, (c, t) in enumerate([('#8a4ad8', 'omni cube'), ('#2f6fd8', 'push (XLR)'), ('#d0362c', 'pull (MAG)'), ('#d8a820', 'TRS cage'), ('#40c8e8', 'crystal'),
                             ('#66ffaa', 'seed'), ('#c08a4a', 'item crate')]):
-    x = 10 + i * 195; d.rectangle([x, lg, x + 12, lg + 12], fill=c, outline='#000'); d.text((x + 18, lg + 1), t, fill='#000')
-d.text((10, lg + 26), 'Awdjoo Town - Level 1 - The Journey Begins (BETA)   1 cell = 32px   white underline = wedged trapdoor block', fill='#000')
+    x = 10 + i * 168; d.rectangle([x, lg, x + 12, lg + 12], fill=c, outline='#000'); d.text((x + 18, lg + 1), t, fill='#000')
+d.text((10, lg + 26), 'Awdjoo Town - Level 1 - The Journey Begins (BETA)   1 cell = 32px   white underline = held in place until its item moves it', fill='#000')
 im.save(os.path.join(out, 'awdjoo-beta-preview.png'))
 print('wrote assets/levels/awdjoo-beta-preview.png')

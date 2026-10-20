@@ -511,7 +511,7 @@
   }
   // A wooden crate with a paper label showing the jack inside (all male plugs).
   const ITEM_NAMES=['TRS','RCA','XLR','MAG'];
-  function itemCrate(idx,cx,bottom,enh){
+  function itemCrate(idx,cx,bottom,enh,noName){
     const w=46, h=40, x=cx-w/2, y=bottom-h;
     if(!inView(x-10,y-20,w+20,h+30)) return;
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(X(cx),Y(bottom),S(24),S(3),0,0,Math.PI*2); ctx.fill();
@@ -527,7 +527,7 @@
     if(typeof drawConnectorTip==='function') drawConnectorTip(idx===3?-14:-16,0,0,0,idx,enh);
     ctx.restore();
     // name under the crate
-    drawTextC(ITEM_NAMES[idx]||'?', X(cx), Y(bottom+3), enh?'#7dffcf':'#ffe8b0', 1);
+    if(!noName) drawTextC(ITEM_NAMES[idx]||'?', X(cx), Y(bottom+3), enh?'#7dffcf':'#ffe8b0', 1);
     // a shine sweeps across now and then so it reads as a pickup
     const t=((fr+idx*40)%150)/150;
     if(t<0.25){ ctx.save(); ctx.globalAlpha=0.35*(1-Math.abs(t*8-1)); ctx.fillStyle='#fff';
@@ -587,5 +587,10 @@
     choirTick(B);
   }
 
-  window.MV_BETA_DECOR={P, world, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
+  function itemCrateScreen(idx,cx,bottom,noName){
+    Z=sw(1000)/1000;
+    const ox=typeof _mapEdScreenOx==='function'?_mapEdScreenOx():0;
+    itemCrate(idx, (cx-ox)/Z+_rcamX, bottom/Z+_rcamY, false, noName);
+  }
+  window.MV_BETA_DECOR={P, world, itemCrateScreen, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
 })();
