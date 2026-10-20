@@ -648,6 +648,10 @@ function fireItem(charged=false){
   const c=connectorTipWorld(ITEM);
 
   if(ITEM===1){ // RCA GRAPPLING HOOK
+    if(p.hook.st==='on'||p.hook.st==='ext'){                       // another rope: the old one lets go, the new one flies
+      if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);
+      p.hook.st='idle'; p.hook.ox=NaN; p.hook.oy=NaN; p.hook.tgt=null; p.hook.plat=null; p.hook._path=null; p.hook.pivots=null; p.hook.vr=null;
+    }
     if(p.hook.st==='idle'&&typeof _itemDownAim==='function'&&_itemDownAim(p)){
       // aimed straight down while standing: a rope attachment right under the wheel
       const fx=p.x+SW/2, feet=p.y+FEET_OFF;
@@ -792,15 +796,15 @@ function updateHook(){
     }
     p.wallGrip=0;
     if(!p._hasAimInput) _aimHook(h.ax,h.ay);
+    // Paulo (Oct 20): jumping on the rope does NOT let go of it — the rope only
+    // comes off if the strain snaps it or he throws another rope. A jump is a kick:
+    // off the ground a real jump, in the air a pump along the swing.
     if(isJumpJ()){
-      const a=ropePlayerEndWorld();
-      const dx=h.ax-a.x, dy=h.ay-a.y, d=Math.hypot(dx,dy)||1;
-      const boost=5.2;
-      p.vx+=dx/d*boost; p.vy+=dy/d*boost;
-      p.vy=Math.min(p.vy,JMX*0.85);
-      _releaseHookAim(h.ax,h.ay); _hookOff(); sfx('jump');
-      OPT.binds.jump.forEach(c=>delete Kj[c]);
-      return;
+      if(p.og||_playerOnGround(p)){ p.vy=JI; p.og=false; p._groundHold=0; }
+      else{ const a=ropePlayerEndWorld(); const dx=h.ax-a.x, dy=h.ay-a.y, d=Math.hypot(dx,dy)||1;
+        const tx=-dy/d, ty=dx/d, s=Math.sign(p.vx*tx+p.vy*ty)||(p.fc?1:-1);
+        p.vx+=tx*s*2.2; p.vy+=ty*s*2.2; }
+      sfx('jump'); OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     const wasTight=h._tight, wasSlack=h._slack;
     if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);

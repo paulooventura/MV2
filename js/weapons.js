@@ -692,7 +692,9 @@ function _resolvePoolBodies(){
     for(const e of ENEMS){
       if(typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e)) continue;
       const hb=typeof _enemyItemHB==='function'?_enemyItemHB(e):{x:e.x,y:e.y,w:e.w,h:e.h};
-      add('enemy',e,hb.x,hb.y,hb.w,hb.h,0.95);
+      // story-stage enemies weigh what their size says (omni block = 3 units ≈ mass 1.15)
+      const em=(e._ai&&window.MV_BETA&&MV_BETA.weightOf)?MV_BETA.weightOf('enemy',e)*0.38:0.95;
+      add('enemy',e,hb.x,hb.y,hb.w,hb.h,em);
     }
   }
   if(p&&typeof playerCoreHB==='function'){
@@ -724,14 +726,18 @@ function _resolvePoolBodies(){
         const aHold=!!A.a._magStuck||aKey, bHold=!!B.a._magStuck||bKey;
         const aPlayer=A.kind==='player', bPlayer=B.kind==='player';
         if((aHold&&bPlayer)||(bHold&&aPlayer)) continue;
+        // a live story enemy and MIND: MIND is pushed out of it elsewhere (by weight), not the other way round
+        if((aPlayer&&B.kind==='enemy'&&B.a._ai&&B.a.alive)||(bPlayer&&A.kind==='enemy'&&A.a._ai&&A.a.alive)) continue;
+        const PM=3.6;                                   // MIND's mass in these units (9.5 weight)
+        const kPush=(o)=>o.kind==='enemy'&&o.a._ai?PM/(PM+o.mass):1;
         const mA=(aHold||aPlayer)?1e9:A.mass, mB=(bHold||bPlayer)?1e9:B.mass;
         const invA=1/mA, invB=1/mB, inv=invA+invB;
         const sA=invA/inv, sB=invB/inv;
         const push=pen+1.35;
         if(!aHold&&!aPlayer){ A.a.x+=nx*push*sA; A.a.y+=ny*push*sA; }
         if(!bHold&&!bPlayer){ B.a.x-=nx*push*sB; B.a.y-=ny*push*sB; }
-        if(aPlayer&&!bHold){ B.a.x-=nx*push; B.a.y-=ny*push; }
-        if(bPlayer&&!aHold){ A.a.x+=nx*push; A.a.y+=ny*push; }
+        if(aPlayer&&!bHold){ B.a.x-=nx*push*kPush(B); B.a.y-=ny*push*kPush(B); }
+        if(bPlayer&&!aHold){ A.a.x+=nx*push*kPush(A); A.a.y+=ny*push*kPush(A); }
         const avx=A.a.vx||0, avy=A.a.vy||0, bvx=B.a.vx||0, bvy=B.a.vy||0;
         const rvn=(avx-bvx)*nx+(avy-bvy)*ny;
         if(rvn>=0) continue;

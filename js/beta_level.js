@@ -530,7 +530,7 @@
   //   grip, how fast things fly when thrown, what a thrown thing does when it
   //   hits, and how MIND bounces (js/beta_feel.js).
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
-    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:5, b_square:7, b_tri:6};
+    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:2, b_square:19, b_tri:7};   // by size (omni block = 3): A tiny, C heavier than MIND (9.5)
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
   function weightOf(kind,ref){

@@ -74,6 +74,11 @@
   }
   const floorUnder=(x,w,feet)=>solidAt(x+4,feet+4)||solidAt(x+w-4,feet+4)||solidAt(x+w/2,feet+4)||!!platUnder(x,w,feet);
   const wetAt=(x,y)=>!!(B.inWater&&B.inWater(x,y));
+  // another story enemy (alive or a shut-down body) in the way: they're solid to each other
+  function enemyIn(e,x,y,w,h){
+    for(const o of ENEMS){ if(o===e||!o._ai||o._betaHeld) continue; if(x+w>o.x-1&&x<o.x+o.w+1&&y+h-2>o.y&&y+2<o.y+o.h) return o; }
+    return null;
+  }
   // floor right under one point (grid or a moving platform), within `slack` px
   function floorAtPoint(x,feet,slack){
     for(let d=0;d<=slack;d+=4){ if(solidAt(x,feet+4+d)) return true; }
@@ -265,6 +270,7 @@
     const step=e.w;                                          // one side length
     const nx=e.x+dir*step, feet=e.y+e.h;
     if(e._plat){ const pl=e._plat; if(nx<pl.x-4||nx+e.w>pl.x+pl.w+4) return false; }
+    if(enemyIn(e,Math.min(e.x,nx),e.y,e.w+Math.abs(nx-e.x),e.h)) return false;   // another enemy is in the way
     if(!boxFree(nx,e.y,e.w,e.h)){
       // the triangle ropes itself up onto a step it can't roll over
       if(e._ai==='tri'&&!ropeOf(e)){
@@ -343,7 +349,7 @@
     const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
     const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
     const lead=dir>0?nx+e.w-12:nx+12;
-    if(!boxFree(nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
+    if(!boxFree(nx,e.y,e.w,e.h)||enemyIn(e,nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
     e.x=nx; e.vx=dir*spd; e.roll=(e.roll||0)+dir*spd/(e.w/2);
     if(!floorUnder(e.x,e.w,feet)){ e.og=false; e._falling=true; }   // the slope drops away a little: settle onto it
   }
@@ -413,6 +419,7 @@
     if(!e.og){ fallTick(e); return; }
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
     if(cooling) return;
+    slopeRest(e);
     if(e._ai==='circle'){ rollTick(e,near,face); return; }
     if(--e.stepCd<=0){
       const dir=near?face:e.dir, below=m.y>e.y+e.h+T, above=m.y<e.y-T;
@@ -508,14 +515,34 @@
     }
     return false;
   }
+  // the slope under it (radians, + = falling to the right) and how far below
+  // its box the ground really is at its centre
+  function groundUnder(e){
+    if(typeof gridStandY!=='function') return {ang:0,dy:0};
+    const feet=e.y+e.h, cx=e.x+e.w/2, hw=Math.min(14,e.w/2-2);
+    const yl=gridStandY(cx-hw,feet,{maxUp:20,maxDrop:T}), yr=gridStandY(cx+hw,feet,{maxUp:20,maxDrop:T}), yc=gridStandY(cx,feet,{maxUp:20,maxDrop:T});
+    if(yl==null||yr==null) return {ang:0,dy:0};
+    return {ang:Math.atan2(yr-yl,2*hw), dy:yc!=null?Math.max(0,Math.min(T,yc-feet)):0};
+  }
+  function slopeRest(e){
+    const g=(e.og&&!e.tumble&&!e._betaHeld)?groundUnder(e):{ang:0,dy:0};
+    e.gAng=(e.gAng||0)+(g.ang-(e.gAng||0))*0.25; e.gDy=(e.gDy||0)+(g.dy-(e.gDy||0))*0.35;
+    return g;
+  }
+  B.enemySlopeRest=slopeRest;
   function deadTick(e){
     if(e.shutF>0) e.shutF--;
     if(bodyTick(e)) return;
     if(e._betaHeld||(e._thrownF||0)>0) return;
-    // pushed around (XLR, magnet throw…): slides, stopped by walls, friction on the floor
+    // on a slope: a round body rolls down it; the others rest tilted on it
+    const g=slopeRest(e);
+    if(e._ai==='circle'&&e.og&&Math.abs(g.ang)>0.06) e.vx=(e.vx||0)+Math.sin(g.ang)*0.22;
+    // pushed around (XLR, magnet throw…): slides, stopped by walls and other bodies, friction on the floor
     if(Math.abs(e.vx||0)>0.05){
-      const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)) e.x=nx; else e.vx=0;
-      e.vx*=e.og?0.86:0.98;
+      const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx; else e.vx=0;
+      e.vx*=e.og?(e._ai==='circle'?0.985:0.86):0.98;
+      if(e._ai==='circle') e.roll=(e.roll||0)+e.vx/(e.w/2);
+      if(e.og&&!floorUnder(e.x,e.w,e.y+e.h)) e.og=false;
     }else e.vx=0;
     if(B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
     else e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
@@ -577,6 +604,12 @@
     // rotation for tipping / tumbling: round the bottom corner it goes over
     const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
     if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
+    else if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
+      const bx=sx(e.x+e.w/2), by=sy(e.y+e.h);
+      ctx.translate(0,sw(e.gDy||0));
+      if(e._ai!=='circle'){ ctx.translate(bx,by); ctx.rotate(e.gAng||0); ctx.translate(-bx,-by); }
+      else ctx.translate(0,-sw(e.w/2)*(1-Math.cos(e.gAng||0)));      // a ball touches the slope a bit higher
+    }
     ctx.translate(cx,cy);
     if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
     else if(!piv&&e.ang) ctx.rotate(e.ang);                   // swinging on its rope
