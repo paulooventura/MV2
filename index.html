@@ -147,19 +147,20 @@ html.phone-play.land #padLeft button:active{color:#fff;filter:brightness(1.35);}
 html.phone-play.land #padRight{
   position:absolute;right:max(8px,env(safe-area-inset-right,0px));
   bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
-  display:block;width:118px;height:118px;
+  display:block;width:176px;height:176px;
 }
 html.phone-play.land #padRight button{
-  position:absolute;width:56px;height:56px!important;min-width:56px;min-height:56px;
+  position:absolute;width:64px;height:64px!important;min-width:64px;min-height:64px;opacity:.88;
   padding:0;border-radius:50%;font-size:20px;font-weight:900;letter-spacing:0;
   border:2px solid #0a0a10;box-shadow:0 2px 0 #000,0 4px 8px #0008;
   -webkit-tap-highlight-color:transparent;
 }
-html.phone-play.land #bF{top:0;left:50%;margin-left:-28px;background:radial-gradient(circle at 32% 28%,#ffe27a,#c89010);color:#221!important;}
-html.phone-play.land #bQ{top:50%;left:0;margin-top:-28px;background:radial-gradient(circle at 32% 28%,#9ad4ff,#1e5fd0);color:#fff!important;}
-html.phone-play.land #bE{top:50%;right:0;margin-top:-28px;background:radial-gradient(circle at 32% 28%,#ff8a8a,#c81c1c);color:#fff!important;}
-html.phone-play.land #bSp{bottom:0;left:50%;margin-left:-28px;background:radial-gradient(circle at 32% 28%,#7ae08a,#1a8a2a);color:#fff!important;}
-html.phone-play.land #padRight button:active{transform:scale(.92);filter:brightness(.85);}
+html.phone-play.land #bF{top:0;left:50%;margin-left:-32px;background:radial-gradient(circle at 32% 28%,#ffe27a,#c89010);color:#221!important;}
+html.phone-play.land #bQ{top:50%;left:0;margin-top:-32px;background:radial-gradient(circle at 32% 28%,#9ad4ff,#1e5fd0);color:#fff!important;}
+html.phone-play.land #bE{top:50%;right:0;margin-top:-32px;background:radial-gradient(circle at 32% 28%,#ff8a8a,#c81c1c);color:#fff!important;}
+html.phone-play.land #bSp{bottom:0;left:50%;margin-left:-32px;background:radial-gradient(circle at 32% 28%,#7ae08a,#1a8a2a);color:#fff!important;}
+html.phone-play.land #padRight button.held{transform:scale(.9);filter:brightness(.8);opacity:1;}
+html.phone-play.land #padLeft{opacity:.88;}
 html.phone-play.land .devrow{
   position:absolute;top:max(8px,env(safe-area-inset-top,0px));
   right:max(8px,env(safe-area-inset-right,0px));pointer-events:auto;
@@ -201,10 +202,10 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
 }
 @media (max-height:380px){
   html.phone-play.land #padLeft{width:148px;height:148px;}
-  html.phone-play.land #padRight{width:110px;height:110px;}
-  html.phone-play.land #padRight button{width:52px;height:52px!important;min-width:52px;min-height:52px;font-size:18px;}
-  html.phone-play.land #bE,html.phone-play.land #bSp{margin-left:-26px;}
-  html.phone-play.land #bF,html.phone-play.land #bQ{margin-top:-26px;}
+  html.phone-play.land #padRight{width:158px;height:158px;}
+  html.phone-play.land #padRight button{width:58px;height:58px!important;min-width:58px;min-height:58px;font-size:19px;}
+  html.phone-play.land #bF,html.phone-play.land #bSp{margin-left:-29px;}
+  html.phone-play.land #bQ,html.phone-play.land #bE{margin-top:-29px;}
 }
 </style>
 </head>
@@ -285,6 +286,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/collision_grid.js?v=181"></script>
   <script src="js/physics.js?v=181"></script>
   <script src="js/player.js?v=189"></script>
+<script src="js/beta_touch.js?v=181"></script>
   <script src="js/weapons.js?v=190"></script>
 <script src="js/ui.js?v=190"></script>
   <script src="js/render.js?v=190"></script>
