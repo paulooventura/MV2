@@ -39,7 +39,7 @@
   function hurtTick(){
     if(!current||!els[current]||current==='item'||current==='results') return;
     const a=els[current], f=Math.max(0.3,typeof _healFrac!=='undefined'?_healFrac:1);
-    const r=Math.max(0.5,f);
+    const r=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);   // HP phase → slower music
     if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
     a.volume=Math.max(0.05,vol()*(a._baseVol||1)*f);
   }

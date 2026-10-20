@@ -419,12 +419,12 @@ function updateGameBgm(){
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
   if(_gameAudioEl){
     _gameAudioEl.volume=Math.max(0.05,mv*f);
-    _gameAudioEl.playbackRate=Math.max(0.5,f);
+    _gameAudioEl.playbackRate=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
     return;
   }
   if(!_gameGain)return;
   _gameGain.gain.value=Math.max(0.05,mv*f);
-  if(_gameSrc)_gameSrc.playbackRate.value=Math.max(0.5,f);
+  if(_gameSrc)_gameSrc.playbackRate.value=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
 }
 function _applyBgmVolumes(){
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));

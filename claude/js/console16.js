@@ -124,12 +124,67 @@
     const orig=window[name]; if(typeof orig!=='function') continue;
     window[name]=function(){ if(MODES[mode]) bake(); return orig.apply(this,arguments); };
   }
+  // ── damage bit-crush (Paulo, Oct 20): HP 0–100 in 5 phases of 20. Full
+  //   health is clean; every phase lost crushes the whole picture harder —
+  //   bigger pixels, fewer colours, and at the end it starts to tear.
+  // HP phase 5 = posh and clean · 4..1 = more crushed, darker, slower music · 0 HP = shut down (phase 1)
+  const CRUSH=[null,{f:7,lv:4,tear:1,dark:0.42,rate:0.52},{f:5,lv:5,tear:0.75,dark:0.34,rate:0.64},{f:4,lv:7,tear:0.45,dark:0.26,rate:0.76},{f:3,lv:10,tear:0.2,dark:0.16,rate:0.88},{dark:0,rate:1}];
+  const DITH=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(v=>v/16-0.47);   // ordered dither so dark shades survive the crush
+  const JOLT_FR=28; let jolt=0, lastHp=null;          // a hit: a short burst of full crush, tear and a red flash
+  let crushC=null;
+  function hpPhase(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return 5;
+    if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0) return 1;
+    const f=Math.max(0,Math.min(1,(p.hp||0)/(p.maxHp||100)));
+    return Math.max(1,Math.min(5,Math.ceil(f*5-1e-6)));
+  }
+  api.hpPhase=hpPhase;
+  function hitWatch(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p){ lastHp=null; jolt=0; return; }
+    if(lastHp!=null&&p.hp<lastHp) jolt=JOLT_FR;
+    lastHp=p.hp; if(jolt>0) jolt--;
+  }
+  // music speed for audio.js / beta_audio.js: the phase rate, dipped hard right after a hit
+  api.hurtRate=function(){ const ph=hpPhase(); return CRUSH[ph].rate*(1-0.22*(jolt/JOLT_FR)); };
+  api.hurtDark=function(){ return CRUSH[hpPhase()].dark; };
+  api.jolt=()=>jolt/JOLT_FR;
+  // darker screen per phase (replaces ui.js drawDamageOverlay's soft ramp)
+  window.drawDamageOverlay=function(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||!p) return;
+    const j=jolt/JOLT_FR, dark=Math.min(0.8,CRUSH[hpPhase()].dark+j*0.25);
+    if(dark<0.02&&j<=0) return;
+    ctx.save(); ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='rgba(2,0,8,'+dark.toFixed(3)+')'; ctx.fillRect(0,0,W,H);
+    const vg=ctx.createRadialGradient(W/2,H/2,H*0.25,W/2,H/2,H*0.8);   // closing-in edges
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,'+Math.min(0.9,dark*1.3).toFixed(3)+')');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+    if(j>0){ ctx.fillStyle='rgba(200,10,40,'+(0.35*j).toFixed(3)+')'; ctx.fillRect(0,0,W,H); }
+    ctx.restore();
+  };
+  function crush(){
+    let ph=hpPhase(); if(jolt>0) ph=Math.max(1,ph-2);   // a hit crushes two phases deeper for a moment
+    if(ph>=5) return;
+    const c=CRUSH[ph], w=Math.max(16,Math.round(W/c.f)), h=Math.max(12,Math.round(H/c.f));
+    if(!crushC||crushC.width!==w||crushC.height!==h){ crushC=mk(w,h); crushC.g=crushC.getContext('2d',{willReadFrequently:true}); }
+    const g=crushC.g; g.imageSmoothingEnabled=true; g.clearRect(0,0,w,h); g.drawImage(cv,0,0,w,h);
+    const img=g.getImageData(0,0,w,h), d=img.data, q=255/(c.lv-1);
+    for(let y=0,i=0;y<h;y++) for(let x=0;x<w;x++,i+=4){ const t=DITH[(y&3)*4+(x&3)];
+      d[i]=Math.min(255,Math.round(d[i]/q+t)*q); d[i+1]=Math.min(255,Math.round(d[i+1]/q+t)*q); d[i+2]=Math.min(255,Math.round(d[i+2]/q+t)*q); }
+    g.putImageData(img,0,0);
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(crushC,0,0,W,H);
+    if(c.tear&&(jolt>0||Math.random()<c.tear*0.5)){                  // a torn signal: a few rows slip sideways
+      ctx.globalCompositeOperation='source-over';
+      for(let k=0;k<1+(c.tear*3|0);k++){ const y=Math.random()*H|0, hh=4+Math.random()*24|0, dx=(Math.random()-0.5)*40*c.tear|0; ctx.drawImage(cv,0,y,W,hh,dx,y,W,hh); }
+    }
+    ctx.restore();
+  }
   const _draw=window.draw;
   window.draw=function(){
     baked=false; inFrame=(typeof _gameState!=='undefined'&&_gameState==='game');
     introTick();
     try{ return _draw.apply(this,arguments); }
-    finally{ inFrame=false; if(MODES[mode]) try{ finish(); }catch(e){ console.warn('MV console pass',e); } }
+    finally{ inFrame=false; if(MODES[mode]) try{ finish(); }catch(e){ console.warn('MV console pass',e); } try{ hitWatch(); crush(); }catch(e){} }
   };
 
   // ── power-on / stage-start transition ──────────────────────────

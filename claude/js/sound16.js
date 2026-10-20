@@ -50,7 +50,9 @@
     const G=v=>{ const g=mk(ac.createGain()); g.gain.value=v; return g; };
     const F=(type,f,qv,gain)=>{ const n=mk(ac.createBiquadFilter()); n.type=type; n.frequency.value=f; if(qv!=null) n.Q.value=qv; if(gain!=null) n.gain.value=gain; return n; };
     const out=mk(ac.createDynamicsCompressor()); out.threshold.value=-8; out.knee.value=8; out.ratio.value=3; out.attack.value=0.004; out.release.value=0.2;
-    C(out,ac.destination);
+    // damage bit-crush on everything you hear (follows the HP phase, see console16)
+    const crusher=mk(ac.createWaveShaper()); crusher.oversample='none';
+    C(out,crusher); C(crusher,ac.destination);
 
     // SNES after the chip: a little warmth and the S-DSP echo (delay + 8-tap FIR feedback)
     function snesPost(echoSend){
@@ -83,7 +85,7 @@
         C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
       }
     }
-    b={sfx:inS, music:inM, sel, ac, chips:[]};
+    b={sfx:inS, music:inM, sel, ac, chips:[], crusher, phase:5};
     BUS.set(ac,b);
     try{
       if(ac.audioWorklet&&!disabled){
@@ -142,6 +144,13 @@
     return origPlay.apply(this,arguments);
   };
 
+  // HP phase → bit depth: 5 clean · 4 → 6 bits · 3 → 5 · 2 → 4 · 1 (or shut down) → 3; a fresh hit drops two phases for a moment
+  const BITS={4:6,3:5,2:4,1:3};
+  setInterval(()=>{
+    let ph=5; try{ if(window.MV_CONSOLE&&MV_CONSOLE.hpPhase){ ph=MV_CONSOLE.hpPhase(); if(MV_CONSOLE.jolt&&MV_CONSOLE.jolt()>0) ph=Math.max(1,ph-2); } }catch(e){}
+    for(const ac of known){ const b=BUS.get(ac); if(!b||b.phase===ph) continue; b.phase=ph;
+      try{ b.crusher.curve=ph>=5?null:stepCurve(BITS[ph],1.0); }catch(e){} }
+  },60);
   const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
   hook();
   window.MV_SOUND16={ get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
