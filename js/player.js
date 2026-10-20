@@ -205,8 +205,8 @@ function isSprintHeld(){
   if(typeof _bindDown==='function'&&_bindDown('sprint')) return true;
   if(K.Sprint_gp||K.Sprint_t) return true;              // X on a pad / the touch X button
   if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
-  if(fr!==_punchHoldFr){ _punchHoldFr=fr; _punchHoldF=isPunch()?_punchHoldF+1:0; }
-  return _punchHoldF>10&&((isRt()&&!isLf())||(isLf()&&!isRt()));
+  // Paulo (Oct 20): holding PUNCH charges the punch only — it doesn't make him run
+  return false;
 }
 function _moveInputX(){
   if(_bindDown('right')&&!_bindDown('left')) return 1;

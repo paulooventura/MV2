@@ -738,7 +738,7 @@
   const _origUpdateMAG=window.updateMAG;
   window.updateMAG=function(){ if(B.on) return; return _origUpdateMAG.apply(this, arguments); };
   const _origHit=window.applyPlayerHitFromEnemy;
-  if(_origHit) window.applyPlayerHitFromEnemy=function(e){ if(B.on&&e&&(e._betaHeld||e._thrownF>0)) return; return _origHit.apply(this, arguments); };
+  if(_origHit) window.applyPlayerHitFromEnemy=function(e){ if(B.on&&e&&(e._betaHeld||e._thrownF>0||B.rideEnemy===e)) return; return _origHit.apply(this, arguments); };
   // The game's XLR field shoves enemies too — not through walls in the beta.
   const _origItemForce=window._applyItemForceToEnemy;
   if(_origItemForce) window._applyItemForceToEnemy=function(e,fx,fy){
@@ -751,7 +751,8 @@
   //   enemy (carried or thrown) charges it: full energy, up again if it was
   //   down, and its 3 shutdowns start over. The Knowl tree does the same to
   //   anything near it, MIND included.
-  const REVIVE_FR=300, SHUT_LIMIT_BETA=3, TREE_R=300;
+  const REVIVE_FR=120,          // Paulo: rebooting takes 2 s
+    SHUT_LIMIT_BETA=3, TREE_R=300;
   function energize(e,why){
     e._downs=0; e._permOff=false;
     if(!e.alive) revive(e); else e.hp=e.mhp;

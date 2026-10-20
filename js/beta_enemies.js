@@ -434,9 +434,69 @@
   const _origSep=window._applyBodySeparation;
   window._applyBodySeparation=function(pl,e,sep){
     if(!e||!e._ai||!sep) return _origSep.apply(this, arguments);
+    if(pl===p&&(B.rideEnemy===e||isOnTop(e))) return;            // standing on it: no shove
     const s2={ax:(sep.ax||0)-(sep.bx||0), ay:(sep.ay||0)-(sep.by||0), bx:0, by:0};
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
+  // ── standing on enemies (Paulo, Oct 20) ─────────────────────────
+  // Their shape is the floor: C (square) is a flat platform; B (triangle) is
+  // two slopes — unless MIND is on the very peak he slides off one side; A
+  // (circle) is round — dead centre holds, anywhere else he rolls off. An
+  // enemy shut down for good is a plain platform (and can be pushed around).
+  function surf(e,x){
+    if(x<e.x||x>e.x+e.w) return null;
+    if(e._permOff||e._ai==='square') return e.y;
+    const cx=e.x+e.w/2, dx=x-cx;
+    if(e._ai==='circle'){ const r=e.w/2; return e.y+r-Math.sqrt(Math.max(0,r*r-dx*dx)); }
+    return e.y+Math.abs(dx)/(e.w/2)*e.h;                        // triangle
+  }
+  function slopeAt(e,x){
+    if(e._permOff||e._ai==='square') return 0;
+    const dx=x-(e.x+e.w/2); if(Math.abs(dx)<1) return 0;          // the exact centre holds
+    if(e._ai==='circle'){ const r=e.w/2; return Math.max(-4,Math.min(4,dx/Math.sqrt(Math.max(1,r*r-dx*dx)))); }
+    return Math.sign(dx)*e.h/(e.w/2);
+  }
+  // where MIND's wheel touches it: a flat top (square / shut-down body) carries
+  // him as long as the wheel overlaps it; a round or pointed top only under
+  // the wheel's centre
+  const WHEEL=14;
+  function support(e,cx){
+    if(e._permOff||e._ai==='square'){ const x=Math.max(e.x,Math.min(e.x+e.w,cx)); return Math.abs(x-cx)<=WHEEL?x:null; }
+    return cx>=e.x&&cx<=e.x+e.w?cx:null;
+  }
+  function isOnTop(e){ const x=support(e,p.x+SW/2); if(x==null) return false; const s=surf(e,x); return s!=null&&p.y+FEET_OFF<=s+8; }
+  const _origMoveE=window._movePlayerWithColl;
+  window._movePlayerWithColl=function(pl,vx,vy){
+    if(!B.on||pl!==p) return _origMoveE.apply(this, arguments);
+    const y0=pl.y;
+    _origMoveE.apply(this, arguments);
+    if(typeof _mvDropThru!=='undefined'&&_mvDropThru>0){ B.rideEnemy=null; return; }
+    if(pl.hook&&pl.hook.st==='on'){ B.rideEnemy=null; return; }
+    const feet0=y0+FEET_OFF, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
+    let best=null, bs=1e9;
+    for(const e of ENEMS){
+      if(!e._ai||e._betaHeld) continue;
+      const sx0=support(e,cx); if(sx0==null) continue;
+      const s=surf(e,sx0); if(s==null) continue;
+      const landing=(pl.vy||0)>=0&&feet0<=s+4&&feet>=s-1;
+      const staying=B.rideEnemy===e&&(pl.vy||0)>=-0.01&&Math.abs(feet-s)<=10;
+      if((landing||staying)&&s<bs){ bs=s; best=e; }
+    }
+    if(!best){ B.rideEnemy=null; return; }
+    const e=best;
+    if(B.rideEnemy===e&&e._pdx) pl.x+=e._pdx;                    // it carries him as it moves
+    const sx1=support(e,pl.x+SW/2), s1=sx1!=null?surf(e,sx1):null;
+    pl.y=(s1!=null?s1:bs)-FEET_OFF;
+    if(pl.vy>0) pl.vy=0; pl.og=true; B.rideEnemy=e; B.rideEnemyFr=fr;
+    const k=sx1!=null?slopeAt(e,sx1):0;
+    if(k){ pl.vx+=k*0.32+Math.sign(k)*0.12; }                     // slides off the round / sloped top
+  };
+  const _origGroundedE=window._playerGrounded;
+  window._playerGrounded=function(pl){
+    if(B.on&&pl===p&&B.rideEnemy&&fr-(B.rideEnemyFr||-9)<=1) return true;
+    return _origGroundedE.apply(this, arguments);
+  };
+
   // shut-down bodies: our own gravity (they stay on their platform or ledge)
   const _origShut=window._updateMinionShut;
   window._updateMinionShut=function(e){ if(e&&e._ai) return; return _origShut.apply(this, arguments); };
@@ -452,7 +512,12 @@
     if(e.shutF>0) e.shutF--;
     if(bodyTick(e)) return;
     if(e._betaHeld||(e._thrownF||0)>0) return;
-    if(e._ai==='circle'&&B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
+    // pushed around (XLR, magnet throw…): slides, stopped by walls, friction on the floor
+    if(Math.abs(e.vx||0)>0.05){
+      const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)) e.x=nx; else e.vx=0;
+      e.vx*=e.og?0.86:0.98;
+    }else e.vx=0;
+    if(B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
     else e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
     const feet=e.y+e.h+e.vy, pl=platUnder(e.x,e.w,feet);
     if(pl&&e.vy>=0){ e.y=pl.y-e.h; e.vy=0; e.og=true; e._plat=pl; e._platOff=e.x-pl.x; e._shutSettled=true; return; }
@@ -464,6 +529,7 @@
     if(!p) return;
     for(const e of ENEMS){
       if(!e._ai) continue;
+      e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
       e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
       if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
