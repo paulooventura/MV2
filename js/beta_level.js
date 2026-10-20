@@ -450,7 +450,15 @@
     magnetTick();
     // XLR / MAG act when the button is let go
     const xlrNow=!!(p&&p.xlrOn&&ITEM===2), magNow=!!(p&&p.magOn&&ITEM===3);
-    if(xlrNow){ B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY}; } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
+    // Paulo: aimed down while standing, a TAP launches him at once — as hard as
+    // the power he has (100% = a full launch); the power is spent
+    if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease){
+      const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+      B.xlrAim={x:0,y:1}; B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; B._xlrTapped=true;
+    }
+    B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
+    if(B._xlrTapped){ B.chX=0; }
+    else if(xlrNow){ B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY}; } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
     if(magNow) B.chM++; else if(B.chM>0){ if(!B.mag.lockedThisHold) fireCube('pull',B.chM); B.chM=0; B.mag.lockedThisHold=false; }
   }
   // Dominant aim axis → one of the four cell directions.

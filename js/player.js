@@ -565,8 +565,19 @@ function computeConnectorArmPose(pl=p){
   const _rf=pl.fireRecoil>0?pl.fireRecoil/recoilMax:0;
   const recoilSnap=recoilMax>=18?1.25:1;
   const recoilTilt=-_rf*0.14*recoilSnap;
-  const ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
-  const aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
+  let ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
+  let aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
+  // used straight down while standing: the arm reaches down past the wheel and
+  // the jack's tip rests on the floor beside it (Paulo, Oct 20)
+  if(!hookOn&&typeof _itemDownAim==='function'&&_itemDownAim(pl)){
+    const feet=pl.y+FEET_OFF, side=fc?1:-1, JACK=47, ARM_MIN=10;
+    const dy=Math.max(4,feet-1-shoulderY);
+    // straight down from the shoulder (just outside the body) when there's room;
+    // otherwise angled out just enough for the jack's tip to land on the floor
+    const dx=-side*Math.max(6,Math.sqrt(Math.max(0,(JACK+ARM_MIN)*(JACK+ARM_MIN)-dy*dy)));
+    ca=Math.atan2(dy,dx)+recoilTilt;
+    aimLen=Math.max(ARM_MIN,Math.hypot(dx,dy)-JACK);
+  }
   const _nudge=_rf*3*recoilSnap;
   const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
   const connShY=shoulderY-Math.sin(ca)*_nudge;

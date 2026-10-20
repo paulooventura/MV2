@@ -978,7 +978,7 @@ function update(){
   if(p.hook.st!=='on'&&p.wallGrip<=0){
     if(!isJump()) p._jumpArmed=true;
     const _grounded=_playerOnGround(p);
-    p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
+    p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?((p.crouchInput&&typeof _itemDownAim==='function'&&_itemDownAim(p))?0.35:1):0,tunnelNeed);   // using an item downward: a half duck so the arm reaches the floorp.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
     if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}

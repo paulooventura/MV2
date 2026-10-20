@@ -137,7 +137,7 @@
     return _origReact.apply(this, arguments);
   };
   function xlrHover(){
-    if(!(p.xlrOn&&ITEM===2)) return;
+    if(!(p.xlrOn&&ITEM===2)||B._xlrTapped) return;          // a tap launch isn't held back by the hover
     const a=aimUnit(); if(a.y<0.55) return;
     if(p.og||(p.hook&&p.hook.st==='on')) return;
     const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
