@@ -448,6 +448,9 @@
           if(f<0&&-f>w.amt[i+1]) f=w.flux[i]=-w.amt[i+1];
           w.amt[i]-=f*0.5; w.amt[i+1]+=f*0.5;
         }
+        // a touch of viscosity: neighbouring flows even out, so the surface rolls
+        // in smooth swells instead of a zig-zag (moves no water by itself)
+        if(it===2){ const F=w.flux.slice(); for(let i=1;i<w.n-2;i++) w.flux[i]=F[i]*0.8+(F[i-1]+F[i+1])*0.1; }
       }
       let lv=0, nw=0;
       for(let i=0;i<w.n;i++){ const wet=w.amt[i]>0.5; w.s[i]=w.bottom[i]-w.amt[i]-w.occ[i]+(wet?Math.sin(fr*0.04+i*0.45)*0.35:0); w.pull[i]=0; if(wet){ lv+=w.s[i]; nw++; } }   // + a living, slight lap
@@ -601,6 +604,22 @@
     if(on()) drawWater();
     return r;
   };
+  function smoothSurf(w){
+    let a=w.s.slice();
+    for(let pass=0;pass<2;pass++){
+      const b=a.slice();
+      for(let i=1;i<w.n-1;i++) if(w.amt[i]>0.5&&w.amt[i-1]>0.5&&w.amt[i+1]>0.5) b[i]=(a[i-1]+2*a[i]+a[i+1])/4;
+      a=b;
+    }
+    return a;
+  }
+  // quadratic curve through the column centres i..j (midpoint method)
+  function curveThrough(g,w,S,i,j){
+    const X=k=>sx(w.x0+(k+0.5)*w.step), Y=k=>sy(S[k]);
+    g.lineTo(X(i),Y(i));
+    for(let k=i;k<j;k++) g.quadraticCurveTo(X(k),Y(k),(X(k)+X(k+1))/2,(Y(k)+Y(k+1))/2);
+    g.lineTo(X(j),Y(j));
+  }
   function drawWater(){
     for(const w of B.waters){
       if(sx(w.x1)<0||sx(w.x0)>W) continue;
@@ -610,9 +629,12 @@
       g.addColorStop(0,elec?'rgba(150,220,255,0.55)':'rgba(70,150,230,0.44)'); g.addColorStop(1,elec?'rgba(60,110,220,0.72)':'rgba(18,46,124,0.7)');
       // the body of water as one shape: the moving surface on top, the floor under it
       const body=new Path2D();
-      body.moveTo(sx(w.x0),sy(w.s[0]));
-      for(let i=0;i<w.n;i++) body.lineTo(sx(w.x0+(i+0.5)*w.step),sy(w.s[i]));
-      body.lineTo(sx(w.x1),sy(w.s[w.n-1]));
+      // the surface, smoothed for drawing (two [1 2 1] passes over wet columns) and
+      // drawn as a curve through the column points — waves read as sine, not saw
+      const S=smoothSurf(w);
+      body.moveTo(sx(w.x0),sy(S[0]));
+      curveThrough(body,w,S,0,w.n-1);
+      body.lineTo(sx(w.x1),sy(S[w.n-1]));
       for(let i=w.n-1;i>=0;i--){ body.lineTo(sx(w.x0+(i+1)*w.step),sy(w.bottom[i])); body.lineTo(sx(w.x0+i*w.step),sy(w.bottom[i])); }
       body.closePath();
       const ab=B.xBub&&B.xBub.w===w?B.xBub:null;
@@ -645,15 +667,16 @@
       // surface: a bright line, thicker and whiter where the water is moving
       ctx.lineJoin='round';
       ctx.strokeStyle='rgba(225,247,255,0.8)'; ctx.lineWidth=Math.max(3,sw(4)); ctx.beginPath();
-      let run=false;                                        // only where there's water (dry shore: nothing)
-      for(let i=0;i<w.n;i++){
-        const wet=w.amt[i]>0.5, x=sx(w.x0+(i+0.5)*w.step), y=sy(w.s[i]);
-        if(wet&&!run){ ctx.moveTo(i===0?sx(w.x0):sx(w.x0+i*w.step),y); run=true; }
-        if(wet) ctx.lineTo(i===w.n-1?sx(w.x1):x,y);
-        else if(run){ ctx.lineTo(sx(w.x0+i*w.step),sy(w.s[i-1])); run=false; }
+      for(let i=0;i<w.n;){                                  // only where there's water (dry shore: nothing)
+        if(w.amt[i]<=0.5){ i++; continue; }
+        let j=i; while(j+1<w.n&&w.amt[j+1]>0.5) j++;
+        ctx.moveTo(i===0?sx(w.x0):sx(w.x0+i*w.step),sy(S[i]));
+        curveThrough(ctx,w,S,i,j);
+        ctx.lineTo(j===w.n-1?sx(w.x1):sx(w.x0+(j+1)*w.step),sy(S[j]));
+        i=j+1;
       }
       ctx.stroke();
-      for(let i=1;i<w.n-1;i++){ if(w.amt[i]<=0.5) continue; const sl=Math.abs(w.s[i+1]-w.s[i-1]); if(sl>3){ ctx.fillStyle='rgba(255,255,255,'+Math.min(0.9,sl*0.06)+')'; ctx.fillRect(sx(w.x0+i*w.step),sy(w.s[i])-sw(3),sw(w.step),sw(5)); } }
+      for(let i=1;i<w.n-1;i++){ if(w.amt[i]<=0.5) continue; const sl=Math.abs(S[i+1]-S[i-1]); if(sl>3){ ctx.fillStyle='rgba(255,255,255,'+Math.min(0.7,sl*0.05)+')'; ctx.beginPath(); ctx.ellipse(sx(w.x0+(i+0.5)*w.step),sy(S[i]),sw(w.step*0.9),sw(2.5),0,0,Math.PI*2); ctx.fill(); } }   // soft foam on the steep bits
       // caustics: soft light ripples drifting through the pool
       ctx.save(); ctx.globalCompositeOperation='lighter';
       for(let k=0;k<10;k++){

@@ -331,7 +331,7 @@
     let plen=0; for(let i=1;i<path.length;i++) plen+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
     const L=Math.max(plen,rl||plen);
     if(L-plen<3){ h._cord=null; return path; }                 // taut: straight along its path (round corners)
-    const n=Math.max(8,Math.min(48,Math.round(L/12)));
+    const n=Math.max(10,Math.min(64,Math.round(L/8)));
     const A=path[0], E=path[path.length-1];
     let c=h._cord;
     if(!c||c.n!==n||c.ax!==A.x||c.ay!==A.y){                  // new rope (or re-latched): lay it along the path

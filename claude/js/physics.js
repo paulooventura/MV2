@@ -1149,7 +1149,14 @@ function _playerRidingBoxTop(pl,box){
   const feet=pl.y+FEET_OFF;
   const fL=pl.x+FEET_L, fR=fL+FEET_W;
   if(!_feetSpanOver(box,fL,fR,16)) return false;
-  return feet>=box.y-10&&feet<=box.y+16;
+  if(!(feet>=box.y-10&&feet<=box.y+16)) return false;
+  // only a real top: the wheel must actually be over it (not just brushing its side)…
+  const cx=pl.x+SW*0.5;
+  if(cx<box.x-(WHEEL_R-6)||cx>box.x+box.w+(WHEEL_R-6)) return false;
+  // …and nothing may sit on it (a block in the middle of a stack is a wall, not a floor)
+  if(typeof BWALLS!=='undefined') for(const o of BWALLS){ if(o===box||o.hp<=0) continue; if(o.x<box.x+box.w-4&&o.x+o.w>box.x+4&&o.y+o.h>box.y-6&&o.y+o.h<=box.y+4) return false; }
+  if(typeof gridWorldSolid==='function'&&gridWorldSolid(box.x+box.w*0.5,box.y-6)&&!(typeof BWALLS!=='undefined'&&BWALLS.some(o=>o!==box&&o.hp>0&&o.x<=box.x+box.w*0.5&&o.x+o.w>=box.x+box.w*0.5&&o.y<=box.y-6&&o.y+o.h>=box.y-6))) return false;
+  return true;
 }
 function _playerOnSolidTop(pl,box){
   return _playerRidingBoxTop(pl,box);

@@ -678,6 +678,18 @@
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
     }else { h.ref._betaHeld=false; h.ref.vx=v.vx; h.ref.vy=v.vy; }
   }
+  // rock right at the magnet's poles, along the (8-way) aim: {x,y,ux,uy} or null
+  function rockAtTip(){
+    const t=magTip(); let ax=p.aimDX||0, ay=p.aimDY||0; const l=Math.hypot(ax,ay); if(l<0.2) return null;
+    const a=Math.round(Math.atan2(ay,ax)/(Math.PI/4))*(Math.PI/4), ux=Math.cos(a), uy=Math.sin(a);
+    for(let k=-2;k<=12;k+=2){
+      const x=t.x+ux*k, y=t.y+uy*k;
+      for(const bw of cubes()) if(x>=bw.x-1&&x<=bw.x+T+1&&y>=bw.y-1&&y<=bw.y+T+1) return null;   // a cube first: grab it
+      for(const m of (B.platforms||[])) if(x>=m.x&&x<=m.x+m.w&&y>=m.y&&y<=m.y+m.h) return null;
+      if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)) return {x,y,ux,uy};
+    }
+    return null;
+  }
   // solid ground right under the wheel: grid rock — not a cube, a platform or a body
   function solidUnderWheel(){
     const cx=p.x+SW/2, feet=p.y+FEET_OFF;
@@ -688,15 +700,17 @@
   // the lock, drawn: magnetic field lines arcing out of the floor around the tip
   B.drawMagLock=function(){
     const L=B.magLock; if(!L) return;
-    const t=magTip(), cx=sx(t.x), cy=sy(p.y+FEET_OFF), k=Math.min(1,L.t/10);
-    ctx.save(); ctx.lineWidth=Math.max(1.5,sw(2));
+    // field lines bloom out of the surface around the contact point, turned to face away from it
+    const cx=sx(L.cx!=null?L.cx:magTip().x), cy=sy(L.cy!=null?L.cy:p.y+FEET_OFF), k=Math.min(1,L.t/10);
+    const rot=Math.atan2(L.uy!=null?L.uy:1,L.ux!=null?L.ux:0)-Math.PI/2;
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot); ctx.lineWidth=Math.max(1.5,sw(2));
     for(let i=0;i<4;i++){
       const ph=((fr*0.06+i/4)%1), r=sw(10+ph*46), a=(1-ph)*0.8*k;
-      ctx.strokeStyle='rgba(255,80,80,'+a+')'; ctx.beginPath(); ctx.ellipse(cx-sw(4),cy,r,r*0.45,0,Math.PI,Math.PI*1.5); ctx.stroke();
-      ctx.strokeStyle='rgba(90,140,255,'+a+')'; ctx.beginPath(); ctx.ellipse(cx+sw(4),cy,r,r*0.45,0,Math.PI*1.5,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,80,80,'+a+')'; ctx.beginPath(); ctx.ellipse(-sw(4),0,r,r*0.45,0,Math.PI,Math.PI*1.5); ctx.stroke();
+      ctx.strokeStyle='rgba(90,140,255,'+a+')'; ctx.beginPath(); ctx.ellipse(sw(4),0,r,r*0.45,0,Math.PI*1.5,Math.PI*2); ctx.stroke();
     }
-    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,sw(30)); g.addColorStop(0,'rgba(255,240,255,'+(0.5*k)+')'); g.addColorStop(1,'rgba(160,120,255,0)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,sw(30),Math.PI,0); ctx.fill();
+    const g=ctx.createRadialGradient(0,0,0,0,0,sw(30)); g.addColorStop(0,'rgba(255,240,255,'+(0.5*k)+')'); g.addColorStop(1,'rgba(160,120,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,sw(30),Math.PI,0); ctx.fill();
     ctx.restore();
   };
   function magnetTick(){
@@ -715,15 +729,19 @@
     // MIND to SOLID ground — nothing moves him (pushes, currents, slopes) until he
     // lets go of the button. On an omni / pull block it grabs the block instead
     // (the usual carry); on a moving platform or a body it doesn't lock.
-    if(B.magLock||(typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())){
+    // …and the same in any of the 8 directions: whenever the magnet's poles meet
+    // rock (a wall, a ceiling, the floor — on the ground or in the air) it locks
+    // there until the button is let go. Cubes still get grabbed instead.
+    const hit=!B.magLock&&!M.held.length?(rockAtTip()||((typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())?{x:p.x+SW/2,y:p.y+FEET_OFF,ux:0,uy:1}:null)):null;
+    if(B.magLock||hit){
       if(!B.magLock){
-        B.magLock={x:p.x,y:p.y,t:0}; while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
+        B.magLock={x:p.x,y:p.y,t:0,cx:hit.x,cy:hit.y,ux:hit.ux,uy:hit.uy}; while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
         try{ MV_BETA_AUDIO.magClank(); MV_BETA_AUDIO.magHum(true); }catch(e){}
-        for(let k=0;k<14;k++){ const a=Math.PI+Math.random()*Math.PI; PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*2.5),life:14+Math.random()*8|0,maxLife:22,r:1.5+Math.random()*1.5,col:k%2?'#ff5050':'#5080ff'}); }
+        for(let k=0;k<14;k++){ const a=Math.atan2(-hit.uy,-hit.ux)+(Math.random()-0.5)*Math.PI; PFXS.push({x:hit.x-hit.ux*2,y:hit.y-hit.uy*2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*2.5),life:14+Math.random()*8|0,maxLife:22,r:1.5+Math.random()*1.5,col:k%2?'#ff5050':'#5080ff'}); }
       }
       B.magLock.t++;
       p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true;
-      if(fr%3===0){ PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*40,y:p.y+FEET_OFF-2,vx:(Math.random()-0.5)*1.2,vy:-0.4-Math.random()*1.2,life:12,maxLife:12,r:1.8,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
+      if(fr%3===0){ PFXS.push({x:B.magLock.cx-B.magLock.ux*2+(Math.random()-0.5)*30*Math.abs(B.magLock.uy),y:B.magLock.cy-B.magLock.uy*2+(Math.random()-0.5)*30*Math.abs(B.magLock.ux),vx:(Math.random()-0.5)*1.2,vy:-0.4-Math.random()*1.2,life:12,maxLife:12,r:1.8,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
       return;
     }
     const tip=magTip();

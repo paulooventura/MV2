@@ -654,7 +654,7 @@
   function cordFor(r,c){
     const E={x:r.x,y:r.y}, d=Math.hypot(E.x-c.x,E.y-c.y), L=r.st==='hold'?Math.max(d,r.len):d;
     if(L-d<3){ r._cord=null; return [c,E]; }
-    const n=Math.max(6,Math.min(30,Math.round(L/12)));
+    const n=Math.max(8,Math.min(48,Math.round(L/8)));
     let cd=r._cord;
     if(!cd||cd.n!==n){ const P=[]; for(let k=0;k<n;k++){ const t=k/(n-1); P.push({x:c.x+(E.x-c.x)*t,y:c.y+(E.y-c.y)*t,px:c.x+(E.x-c.x)*t,py:c.y+(E.y-c.y)*t}); } cd=r._cord={n,P}; }
     const P=cd.P, seg=L/(n-1);
@@ -675,7 +675,8 @@
     for(const r of B.ropes){
       const c=ropeOrigin(r.e), pts=cordFor(r,c);
       ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(sx(pts[0].x),sy(pts[0].y));
-      for(let k=1;k<pts.length;k++) ctx.lineTo(sx(pts[k].x),sy(pts[k].y)); ctx.stroke();
+      for(let k=1;k<pts.length-1;k++) ctx.quadraticCurveTo(sx(pts[k].x),sy(pts[k].y),(sx(pts[k].x)+sx(pts[k+1].x))/2,(sy(pts[k].y)+sy(pts[k+1].y))/2);
+      ctx.lineTo(sx(pts[pts.length-1].x),sy(pts[pts.length-1].y)); ctx.stroke();
       const x1=sx(r.x), y1=sy(r.y);
       ctx.strokeStyle='#7a5a30'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle='#ffe0a0'; ctx.beginPath(); ctx.arc(x1,y1,sw(4),0,Math.PI*2); ctx.fill();

@@ -2311,7 +2311,11 @@ function drawFX(){
       for(const L of layers){
         ctx.strokeStyle=L.c;ctx.lineWidth=L.w;
         ctx.beginPath();ctx.moveTo(wpts[0].x,wpts[0].y);
-        for(let i=1;i<wpts.length;i++) ctx.lineTo(wpts[i].x,wpts[i].y);
+        if(wpts.length<3){ for(let i=1;i<wpts.length;i++) ctx.lineTo(wpts[i].x,wpts[i].y); }
+        else{                                   // a smooth curve through the rope points (no zig-zag)
+          for(let i=1;i<wpts.length-1;i++) ctx.quadraticCurveTo(wpts[i].x,wpts[i].y,(wpts[i].x+wpts[i+1].x)/2,(wpts[i].y+wpts[i+1].y)/2);
+          ctx.lineTo(wpts[wpts.length-1].x,wpts[wpts.length-1].y);
+        }
         ctx.stroke();
       }
       for(let i=0;i<wpts.length-1;i+=2){
