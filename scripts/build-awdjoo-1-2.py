@@ -15,15 +15,26 @@ Sketch reading (1 square = 1 tile = 32 px):
     the bottom of the pool.
   - Up top: a floating block to hook / stand on, a long moving platform above
     it, and a crystal under a slanted overhang at the platform's left end.
-  - The right half of the page is still blank: a placeholder exit arch waits
-    on the floor past the tall wall (2 crystals + 4 seeds).
+  Second page (full design + enemies, Oct 20):
+  - Water room: two moving platforms meet mid-room (a triangle rides one, a
+    square the other); an Enemy A on a stub ledge at the right wall; another
+    Enemy A swims at the bottom by the crystal; under the right half the pool
+    has no floor — the PIT.
+  - An Enemy A floats on top of the tall pillar.
+  - Past the pillar, stairs (the pink hatching = wooden steps) go down to a
+    floor with a square enemy, then on down to the exit.
+  - Over the floor hangs a roof-tile arch (the pink scales): a triangle and
+    two seeds on its roof, a sliding block and a moving platform inside, a
+    crystal tucked under its roof by the right leg, a seed outside to the right.
+  - The exit isn't drawn yet: it waits at the bottom of the stairs (3 crystals
+    + 7 seeds).
 Re-run after edits:  python3 scripts/build-awdjoo-1-2.py
 """
 import json, os, sys
 
-COLS, ROWS = 48, 62
+COLS, ROWS = 58, 62
 AIR, SOLID, ONEWAY, DESTRUCT, SLOPE_L, SLOPE_R = 0, 1, 2, 3, 4, 5
-SK_DIRT, SK_ROOF, SK_BRICK, SK_WOOD, SK_STONE_BG, SK_CAVE_BG = 0, 1, 2, 3, 4, 5
+SK_DIRT, SK_ROOF, SK_BRICK, SK_WOOD, SK_STONE_BG, SK_CAVE_BG, SK_SCALES = 0, 1, 2, 3, 4, 5, 6
 LDTK_TILE = 16
 
 g = [[AIR] * COLS for _ in range(ROWS)]
@@ -45,6 +56,7 @@ def ent(etype, c, r, w=1, h=1, **fields):
 rect(0, COLS - 1, 40, ROWS - 1, SOLID)
 rect(0, 0, 0, ROWS - 1, SOLID); rect(COLS - 1, COLS - 1, 0, ROWS - 1, SOLID)
 rect(1, 2, 0, 40, SOLID)                                # left cliff
+# the drop at the far right is part of the stairs below; keep the border wall
 
 # slanted overhang over the upper crystal (sketch top-left)
 for c, low in {3: 10, 4: 9, 5: 8, 6: 7, 7: 7, 8: 6, 9: 5}.items():
@@ -61,31 +73,66 @@ rect(18, 26, 29, 40, AIR)
 rect(27, 28, 29, 40, SOLID)
 put(16, 18, SOLID)                                      # the floating block to hook / stand on
 
+# ── past the pillar: wooden steps down, the floor, more steps, the exit floor
+surface = {29: 31, 30: 33, 31: 35, 32: 36, 33: 37}
+surface.update({c: 38 for c in range(34, 42)}); surface.update({42: 39, 43: 40, 44: 41})
+surface.update({c: 42 for c in range(45, COLS - 1)})
+for c, top in surface.items():
+    rect(c, c, top, ROWS - 1, SOLID)
+    rect(c, c, 0, top - 1, AIR)
+paint(29, 31, 31, 35, SK_WOOD)                           # the pink-hatched steps: wooden
+# the 1-tile steps are ramps so the wheel rolls over them (no wedges)
+for c, row in [(32, 35), (33, 36), (34, 37), (42, 38), (43, 39), (44, 40), (45, 41)]:
+    rect(c, c, 0, row - 1, AIR); put(c, row, SLOPE_L); rect(c, c, row + 1, ROWS - 1, SOLID)
+# the roof-tile arch (pink scales), hanging over the floor
+rect(31, 43, 26, 27, SOLID)                              # roof
+rect(39, 43, 24, 25, SOLID)                              # the hump on the right
+rect(31, 32, 28, 31, SOLID)                              # left leg
+rect(42, 43, 28, 33, SOLID)                              # right leg
+rect(44, 44, 32, 34, SOLID); put(45, 34, SOLID)          # its foot
+paint(31, 45, 24, 34, SK_SCALES)
+
 # water room (air above the water) + pool
 rect(4, 31, 41, 49, AIR)
 rect(7, 20, 50, 54, AIR)                                # shallow end, floor row 55
 rect(21, 31, 50, 57, AIR)                               # deep end, floor row 58
+rect(22, 31, 50, ROWS - 1, AIR)                         # ... except it has no floor: the PIT
+rect(29, 31, 44, 44, SOLID)                             # stub ledge on the right wall
 rect(18, 26, 40, 40, AIR)                               # the gap opens into the room
 paint(4, 31, 41, 57, SK_STONE_BG); paint(18, 26, 40, 40, SK_STONE_BG)
 
 # ── Entities ──────────────────────────────────────────────────────
 ent('MindSpawn', 5, 26, 1, 3)
 ent('Decor', 2, 25, 2, 4, kind='arrival')               # the arch MIND comes through
-ent('Gate', 42, 35, 3, 5, crystals=2, seeds=4)          # placeholder exit until the right half is drawn
-for c, r, slot in [(42, 32, 'crystal'), (44, 32, 'crystal'),
-                   (40, 33, 'seed'), (41, 32, 'seed'), (45, 32, 'seed'), (46, 33, 'seed')]:
+ent('Gate', 50, 37, 3, 5, crystals=3, seeds=7)          # exit (not drawn yet): bottom of the stairs
+for c, r, slot in [(49, 33, 'crystal'), (51, 32, 'crystal'), (53, 33, 'crystal'),
+                   (47, 35, 'seed'), (48, 34, 'seed'), (49, 35, 'seed'), (51, 35, 'seed'),
+                   (53, 35, 'seed'), (54, 34, 'seed'), (55, 35, 'seed')]:
     ent('GateShell', c, r, slot=slot)
 ent('Isolator', 5, 49)
 ent('Crystal', 8, 10)                                   # under the overhang, left end of the long platform
 ent('Crystal', 8, 54)                                   # bottom of the pool
-for c, r in [(7, 28), (21, 25), (12, 31), (15, 34)]:
+ent('Crystal', 40, 28)                                  # under the arch's roof, by the right leg
+for c, r in [(7, 28), (21, 25), (12, 31), (15, 34), (34, 25), (41, 23), (46, 31)]:
     ent('Knowl', c, r)
 # moving platforms: same width (4 tiles); a..b = range of the LEFT edge (the sketch's arrows)
 ent('MovingPlatform', 10, 27, 4, 1, a=10, b=21, speed=11)   # speed in tenths of px/frame
 ent('MovingPlatform', 18, 39, 4, 1, a=18, b=23, speed=13)
 ent('MovingPlatform', 7, 12, 4, 1, a=7, b=23, speed=12)
+ent('MovingPlatform', 8, 45, 4, 1, a=8, b=14, speed=10)     # water room: the two meet mid-room
+ent('MovingPlatform', 24, 45, 4, 1, a=18, b=24, speed=10)
+ent('MovingPlatform', 39, 34, 4, 1, a=33, b=39, speed=10)   # inside the arch
+ent('MovingPlatform', 33, 31, 2, 1, a=33, b=40, speed=12)   # the sliding block inside the arch
 ent('Water', 7, 50, 25, 8)                              # basin: cols 7-31, surface at row 50
-for c, r, kind in [(34, 40, 'lamp'), (38, 40, 'sign')]:
+# enemies: ai = circle (Enemy A, sine wave) | square | tri; range in tiles each way
+ent('Enemy', 27, 28, ai='circle', range=1)              # on the tall pillar
+ent('Enemy', 30, 43, ai='circle', range=1)              # stub ledge in the water room
+ent('Enemy', 12, 53, ai='circle', range=3)              # swimming by the pool crystal
+ent('Enemy', 9, 44, ai='tri', range=2)                  # riding the left water platform
+ent('Enemy', 25, 44, ai='square', range=2)              # riding the right one
+ent('Enemy', 36, 25, ai='tri', range=3)                 # on the arch roof
+ent('Enemy', 38, 37, ai='square', range=3)              # on the floor under the arch
+for c, r, kind in [(47, 42, 'lamp'), (56, 42, 'sign')]:
     ent('Decor', c, r, kind=kind)
 
 # seeds sit on whatever is under them
@@ -110,7 +157,7 @@ def intgrid(name, uid, vals, data):
 coll_def, coll_inst = intgrid('Collision', 1, [(1, 'SOLID', '#1c1428'), (2, 'ONEWAY', '#3a3060'), (3, 'DESTRUCT', '#c81818'),
                                                (4, 'SLOPE_L', '#e2c090'), (5, 'SLOPE_R', '#e2c090')], g)
 skin_def, skin_inst = intgrid('Skin', 3, [(1, 'ROOF', '#3a2420'), (2, 'BRICK', '#4a2c26'), (3, 'WOOD', '#7a4a26'),
-                                          (4, 'STONE_BG', '#2e2624'), (5, 'CAVE_BG', '#231a2a')], skin)
+                                          (4, 'STONE_BG', '#2e2624'), (5, 'CAVE_BG', '#231a2a'), (6, 'SCALES', '#c06090')], skin)
 project = {
     '__header__': {'fileType': 'LDtk Project JSON', 'app': 'MV2 sketch translator', 'doc': 'Awdjoo Town 1.2 trial from pen sketch'},
     'jsonVersion': '1.5.3', 'defaultGridSize': LDTK_TILE, 'externalLevels': False, 'bgColor': '#100818',
@@ -120,7 +167,7 @@ project = {
         'identifier': 'Awdjoo_1_2', 'iid': 'awdjoo-1-2', 'uid': 11, 'worldX': 0, 'worldY': 0,
         'pxWid': COLS * LDTK_TILE, 'pxHei': ROWS * LDTK_TILE, '__bgColor': '#100818',
         'fieldInstances': [fval('skyRows', 0), fval('horizonRow', 30), fval('stageName', 'AWDJOO TOWN 1.2'),
-                           fval('stageSub', 'Deep Waters (trial run)'), fval('music', 'stage2'), fval('stageId', '1.2')],
+                           fval('stageSub', 'Deep Waters'), fval('music', 'stage2'), fval('stageId', '1.2')],
         'layerInstances': [coll_inst, skin_inst,
             {'__identifier': 'Entities', '__type': 'Entities', '__cWid': COLS, '__cHei': ROWS,
              '__gridSize': LDTK_TILE, 'entityInstances': inst}]}],
@@ -145,6 +192,8 @@ for r in range(ROWS):
         if v == AIR and sk == SK_STONE_BG: d.rectangle([x, y, x + S - 1, y + S - 1], fill='#3a302c')
         if v == SOLID: d.rectangle([x, y, x + S - 1, y + S - 1], fill='#6b4a32')
         elif v == SLOPE_L: d.polygon([(x, y), (x + S, y + S), (x, y + S)], fill='#6b4a32')
+        if v == SOLID and sk == SK_SCALES: d.rectangle([x, y, x + S - 1, y + S - 1], fill='#c06090')
+        if v == SOLID and sk == SK_WOOD: d.rectangle([x, y, x + S - 1, y + S - 1], fill='#9a6a3a')
 for e in ents:
     x, y, k, f = e['c'] * S, e['r'] * S, e['kind'], e['fields']
     if k == 'Water': d.rectangle([x, y, (e['c'] + e['w']) * S - 1, (e['r'] + e['h']) * S - 1], outline='#60b0ff', width=2)
@@ -155,7 +204,12 @@ for e in ents:
     elif k == 'Crystal': d.polygon([(x + 6, y - 2), (x + 12, y + 6), (x + 6, y + 14), (x, y + 6)], fill='#40c8e8', outline='#000')
     elif k == 'Isolator': d.ellipse([x, y, x + S, y + S], fill='#ff9030', outline='#000'); d.text((x - 10, y - 12), 'ISOLATOR', fill='#fff')
     elif k == 'MindSpawn': d.rectangle([x, y, x + S, y + 3 * S], outline='#c080ff', width=2); d.text((x - 8, y - 12), 'SPAWN', fill='#fff')
-    elif k == 'Gate': d.arc([x, y, x + 3 * S, y + 5 * S], 180, 360, fill='#ffe680', width=3); d.text((x - 8, y - 12), 'EXIT 2+4', fill='#fff')
+    elif k == 'Gate': d.arc([x, y, x + 3 * S, y + 5 * S], 180, 360, fill='#ffe680', width=3); d.text((x - 8, y - 12), 'EXIT 3+7', fill='#fff')
+    elif k == 'Enemy':
+        a = f.get('ai'); col = '#ff4040'
+        if a == 'circle': d.ellipse([x, y, x + S, y + S], fill=col, outline='#000')
+        elif a == 'square': d.rectangle([x, y, x + S, y + S], fill=col, outline='#000')
+        else: d.polygon([(x + S // 2, y), (x + S, y + S), (x, y + S)], fill=col, outline='#000')
 im.save(os.path.join(out, 'awdjoo-1-2-preview.png'))
 # water on the preview
 im = Image.open(os.path.join(out, 'awdjoo-1-2-preview.png')).convert('RGBA'); ov = Image.new('RGBA', im.size); od = ImageDraw.Draw(ov)

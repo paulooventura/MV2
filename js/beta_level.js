@@ -197,7 +197,7 @@
     B.on=true; B.level=level; B.open=false; B.cleared=false; B.talked=0;
     B.rooms=[]; B.labels=[]; B.rings=[]; B.shells=[]; B.decor=[]; B.crateCells=new Set(); B.flying=[];
     B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[];
-    B.echoNeed=0; B.revisitNote=0;
+    B.echoNeed=0; B.revisitNote=0; B.safe=null;
     B.stats={shutdowns:0, permOff:0, booms:0, hits:0, frames:0, items:0}; B.popup=null; B.results=null; B.lastMask=0; B.shake=0;
     B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]};
     const lv=raw.levels[0];
@@ -206,6 +206,7 @@
     B.stageName=F(lv,'stageName')||'AWDJOO TOWN 1.1'; B.stageSub=F(lv,'stageSub')||'The Journey Begins';
     B.music=F(lv,'music')||'stage'; B.surfRow=null; B.laitu=null;
     if(B.onLevelStart) B.onLevelStart(lv);
+    if(B.onLevelStartEnemies) B.onLevelStartEnemies();
     const layer=id=>(lv.layerInstances||[]).find(l=>l.__identifier===id);
     const sk=layer('Skin');
     B.skin=null;
@@ -275,6 +276,8 @@
           break;
         }
         case 'Enemy': {
+          const ai=F(e,'ai');
+          if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined})); break; }
           const type=F(e,'kind')==='B'?'square':'circle';
           if(typeof _mkMinion==='function'){
             const m=_mkMinion(cx, feet, type, {mn:Math.floor(cx-110), mx:Math.floor(cx+110)});
@@ -511,7 +514,7 @@
   //   grip, how fast things fly when thrown, what a thrown thing does when it
   //   hits, and how MIND bounces (js/beta_feel.js).
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
-    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3};
+    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:5, b_square:7, b_tri:6};
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
   function weightOf(kind,ref){
@@ -873,6 +876,7 @@
     cubeTick();
     boomTick();
     enemyTick();
+    if(B.enemyAITick) B.enemyAITick();
     if(B.waterTick) B.waterTick();
     if(B.feelTick) B.feelTick();
     for(const e of ENEMS) if(e._thrownF>0) e._thrownF--;
@@ -884,6 +888,20 @@
       if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN');
     }
     if(B.revisitNote>0) B.revisitNote--;
+    // The pit: falling off the bottom of the map costs a chunk of energy and
+    // puts MIND back on the last solid ground he stood on.
+    if(p&&B.level){
+      const bottom=(B.level.rows||B.level.h||62)*T;
+      if((typeof _playerOnGround==='function'?_playerOnGround(p):p.og)&&!(B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-8))&&!B.ridePlat&&fr%15===0) B.safe={x:p.x, y:p.y};
+      if(p.y>bottom+40&&_shutdownTimer<=0){
+        const sf=B.safe||{x:_spawnX, y:_spawnY};
+        p.x=sf.x; p.y=sf.y; p.vx=0; p.vy=0; p.og=true;
+        if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
+        B.shake=Math.max(B.shake||0,6); B.stats.hits++;
+        applyPlayerHit(0,-2,30);
+        if(typeof uiShowToast==='function') uiShowToast('THE PIT! -30');
+      }
+    }
     if(!B.open&&B.gate&&p){
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x+8,g.y,g.w-16,g.h)){
@@ -1069,6 +1087,7 @@
   window.drawLdtkLabHud=function(){
     if(!B.on) return _origDrawHud.apply(this, arguments);
     if(_gameState!=='game') return;
+    if(B.drawEnemyFx) B.drawEnemyFx();
     if(B.laitu&&typeof drawLaituFigure==='function'){
       const cx=sx(B.laitu.x), feet=sy(B.laitu.feet);
       if(cx>-60&&cx<W+60){

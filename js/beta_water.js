@@ -225,6 +225,7 @@
       for(const b of list){
         if(!b.enemy) continue;
         const e=b.ref, inside=waterAt(e.x+e.w/2,e.y+e.h*0.6)===w;
+        if(e._ai==='circle'&&w.elec<=0) continue;              // Enemy A swims; only live current shorts it
         if(inside){
           if(e.alive){ if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y); e._shorted=true; if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24); }
           e._revT=0;                                           // no rebooting while soaked

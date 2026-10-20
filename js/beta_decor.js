@@ -85,6 +85,23 @@
       if(top){ g.fillStyle=P.shingleEdge; g.fillRect(0,0,T,4); g.fillStyle='#7a4a38'; g.fillRect(0,0,T,1); }
     });
   }
+  // fish-scale roof tiles (the pink scales in the 1.2 sketch): rows of
+  // overlapping rounded tiles, each with a light rim and a shadow under it
+  function texScales(top){
+    return mk(T,T,(g)=>{
+      g.fillStyle='#6a2a3c'; g.fillRect(0,0,T,T);
+      for(let row=0;row<3;row++){
+        const yy=row*11-3, off=(row&1)?8:0;
+        for(let xx=-16+off; xx<T+16; xx+=16){
+          g.fillStyle='#3a1424'; g.beginPath(); g.arc(xx+8,yy+9,8.5,0,Math.PI); g.fill();
+          const gr=g.createLinearGradient(0,yy,0,yy+10); gr.addColorStop(0,'#e88aa8'); gr.addColorStop(1,'#a8486a');
+          g.fillStyle=gr; g.beginPath(); g.arc(xx+8,yy+8,7.5,0,Math.PI); g.fill();
+          g.strokeStyle='rgba(255,220,235,0.55)'; g.lineWidth=1; g.beginPath(); g.arc(xx+8,yy+8,6,Math.PI*0.15,Math.PI*0.85); g.stroke();
+        }
+      }
+      if(top){ g.fillStyle='#4a1a2c'; g.fillRect(0,0,T,4); g.fillStyle='#f0a8c0'; g.fillRect(0,0,T,1); }
+    });
+  }
   function texWood(){
     return mk(T,T,(g)=>{
       g.fillStyle=P.woodD; g.fillRect(0,0,T,T); g.fillStyle=P.woodH; g.fillRect(0,0,T,5); g.fillStyle=P.wood; g.fillRect(0,5,T,3);
@@ -94,7 +111,7 @@
   function textures(){
     if(tex.ok) return;
     tex.dirt=[0,1,2,3,4,5,6,7].map(texDirt); tex.stone=[0,1].map(texStone); tex.cave=[0,1,2,3].map(texCave);
-    tex.brick=[0,1].map(texBrick); tex.roof=texRoof(false); tex.roofTop=texRoof(true); tex.wood=texWood(); tex.ok=true;
+    tex.brick=[0,1].map(texBrick); tex.roof=texRoof(false); tex.roofTop=texRoof(true); tex.wood=texWood(); tex.scales=texScales(false); tex.scalesTop=texScales(true); tex.ok=true;
   }
   function blit(img,c,r){ ctx.drawImage(img, X(c*T), Y(r*T), S(T)+1, S(T)+1); }
 
@@ -594,6 +611,7 @@
       if(s===1){ blit(top?tex.roofTop:tex.roof,c,r); continue; }
       if(s===2){ blit(tex.brick[r&1],c,r); continue; }
       if(s===3){ blit(tex.wood,c,r); continue; }
+      if(s===6){ blit(top?tex.scalesTop:tex.scales,c,r); continue; }
       blit(tex.dirt[(c*5+r*3)&7],c,r);
       const depth=r-(B.surfRow[c]||r);
       if(depth>1){ ctx.fillStyle='rgba(20,8,16,'+Math.min(0.45,depth*0.035)+')'; ctx.fillRect(X(c*T),Y(r*T),S(T)+1,S(T)+1); }
