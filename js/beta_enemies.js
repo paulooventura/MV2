@@ -467,7 +467,15 @@
   window._applyBodySeparation=function(pl,e,sep){
     if(!e||!e._ai||!sep) return _origSep.apply(this, arguments);
     if(pl===p&&(B.rideEnemy===e||isOnTop(e))) return;            // standing on it: no shove
-    const s2={ax:(sep.ax||0)-(sep.bx||0), ay:(sep.ay||0)-(sep.by||0), bx:0, by:0};
+    // shared by weight (Paulo): MIND (9.5) shoves a lighter enemy out of his way — A
+    // (2) gets pushed right along — and is the one who gives way to a heavier one (C)
+    const tx=(sep.ax||0)-(sep.bx||0), ty=(sep.ay||0)-(sep.by||0);
+    const mP=(B.WEIGHT&&B.WEIGHT.mindTotal)||9.5, mE=B.weightOf?B.weightOf('enemy',e):6;
+    let kE=pl===p?mP/(mP+mE):0;                                   // the enemy's share of the horizontal push
+    let ex=-tx*kE;
+    if(ex&&(!boxFree(e.x+ex,e.y,e.w,e.h)||enemyIn(e,e.x+ex,e.y,e.w,e.h))){ ex=0; kE=0; }   // pinned against a wall: MIND gives way
+    if(ex){ e.x+=ex; e.vx=(e.vx||0)*0.5+ex*0.5; if(e._ai==='circle') e.roll=(e.roll||0)+ex/(e.w/2); if(e._plat) e._platOff=e.x-e._plat.x; }
+    const s2={ax:tx*(1-kE), ay:ty, bx:0, by:0};
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
   // ── standing on enemies (Paulo, Oct 20) ─────────────────────────
