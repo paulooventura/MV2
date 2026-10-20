@@ -211,6 +211,7 @@
   }
   function throwRope(e,tx,ty,kind){
     const c=ropeOrigin(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
+    try{ if(onScreen(e)) sfx('rope_throw'); }catch(_e){}
     B.ropes.push({e, kind, x:c.x, y:c.y, vx:(tx-c.x)/d*11, vy:(ty-c.y)/d*11, st:'fly', t:0, len:0, mode:'hold', mash:0, decide:0, tx, ty});
   }
   function ropeTick(){
@@ -361,7 +362,7 @@
     if(k>=1){
       e.x=tb.nx; e.ang=0; e.tumble=null;
       if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
-      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); }catch(_e){}
+      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfx('tumble'); }catch(_e){}
       if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
       else land(e,1.5);
     }

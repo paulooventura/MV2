@@ -1,0 +1,157 @@
+// ============================================================
+//  sfx_posh.js — the game's sound effects, re-voiced (Paulo, Oct 20:
+//  "more sound FX for everything, less 8-bit, more posh")
+//
+//  Every sfx('name') the game plays is synthesized here with layered,
+//  enveloped voices instead of stepped square waves: soft sine/triangle
+//  bodies, filtered noise for air and impacts, FM bells for glass and
+//  metal, gentle detune for width, and a short room reverb on a send.
+//  The console switch still applies on top (sound16.js voices this output
+//  through the SNES / Mega Drive chip when A or B is picked).
+//  New sounds: debris, swap, tumble, rope_throw, menu, confirm, gate.
+//  Unknown names fall back to the game's original sfx().
+// ============================================================
+(function(){
+  'use strict';
+  const orig=window.sfx;
+  if(typeof orig!=='function') return;
+  const BUS=new WeakMap();
+  function ctx(){ try{ return typeof ga==='function'?ga():null; }catch(e){ return null; } }
+  const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1)); }catch(e){ return 1; } };
+  let noiseBuf=null;
+  function noise(a){
+    if(noiseBuf&&noiseBuf.sampleRate===a.sampleRate) return noiseBuf;
+    noiseBuf=a.createBuffer(1,a.sampleRate*1.5,a.sampleRate);
+    const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    return noiseBuf;
+  }
+  // output bus: a little glue compression + a short, warm room on a send
+  function bus(a){
+    let b=BUS.get(a); if(b) return b;
+    const out=a.createGain(); out.gain.value=0.9;
+    const comp=a.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=3; comp.attack.value=0.003; comp.release.value=0.15;
+    out.connect(comp); comp.connect(a.destination);
+    const rev=a.createConvolver(), len=Math.round(a.sampleRate*1.3), ir=a.createBuffer(2,len,a.sampleRate);
+    for(let c=0;c<2;c++){ const d=ir.getChannelData(c); for(let i=0;i<len;i++){ const t=i/len; d[i]=(Math.random()*2-1)*Math.pow(1-t,3.2)*(i<a.sampleRate*0.012?0.3:1); } }
+    rev.buffer=ir;
+    const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=5200;
+    const wet=a.createGain(); wet.gain.value=0.22;
+    rev.connect(lp); lp.connect(wet); wet.connect(comp);
+    b={out, send:rev}; BUS.set(a,b); return b;
+  }
+  // one voice: oscillator → (filter) → envelope → bus (+ reverb send)
+  function tone(a,o){
+    const B=bus(a), t=a.currentTime+(o.dt||0), d=o.d||0.2, v=(o.v||0.2)*vol();
+    const osc=a.createOscillator(); osc.type=o.type||'sine';
+    osc.frequency.setValueAtTime(Math.max(20,o.f),t);
+    if(o.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(20,o.f1),t+(o.glide||d));
+    if(o.det) osc.detune.value=o.det;
+    let node=osc;
+    if(o.lp||o.bp||o.hp){
+      const f=a.createBiquadFilter(); f.type=o.lp?'lowpass':o.bp?'bandpass':'highpass';
+      f.frequency.setValueAtTime(o.lp||o.bp||o.hp,t); if(o.q) f.Q.value=o.q;
+      if(o.sweep) f.frequency.exponentialRampToValueAtTime(o.sweep,t+d);
+      node.connect(f); node=f;
+    }
+    const g=a.createGain(); const at=o.at||0.006;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,v),t+at);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    node.connect(g); g.connect(B.out);
+    if(o.rev){ const s=a.createGain(); s.gain.value=o.rev; g.connect(s); s.connect(B.send); }
+    if(o.vib){ const l=a.createOscillator(), lg=a.createGain(); l.frequency.value=o.vib; lg.gain.value=o.vibd||12; l.connect(lg); lg.connect(osc.detune); l.start(t); l.stop(t+d+0.05); }
+    osc.start(t); osc.stop(t+d+0.05);
+  }
+  // filtered noise: air, impacts, crumbles
+  function hiss(a,o){
+    const B=bus(a), t=a.currentTime+(o.dt||0), d=o.d||0.15, v=(o.v||0.15)*vol();
+    const src=a.createBufferSource(); src.buffer=noise(a); src.playbackRate.value=o.rate||1;
+    const f=a.createBiquadFilter(); f.type=o.type||'bandpass'; f.frequency.setValueAtTime(o.f||1200,t); f.Q.value=o.q||1;
+    if(o.f1) f.frequency.exponentialRampToValueAtTime(o.f1,t+d);
+    const g=a.createGain(); const at=o.at||0.004;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,v),t+at); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    src.connect(f); f.connect(g); g.connect(B.out);
+    if(o.rev){ const s=a.createGain(); s.gain.value=o.rev; g.connect(s); s.connect(B.send); }
+    src.start(t,Math.random()*0.8); src.stop(t+d+0.05);
+  }
+  // FM bell: glass, metal, chimes
+  function bell(a,o){
+    const B=bus(a), t=a.currentTime+(o.dt||0), d=o.d||0.6, v=(o.v||0.12)*vol();
+    const car=a.createOscillator(), mod=a.createOscillator(), mg=a.createGain(), g=a.createGain();
+    car.frequency.value=o.f; mod.frequency.value=o.f*(o.ratio||3.5);
+    mg.gain.setValueAtTime(o.f*(o.index||2.2),t); mg.gain.exponentialRampToValueAtTime(Math.max(1,o.f*0.05),t+d*0.7);
+    mod.connect(mg); mg.connect(car.frequency); car.connect(g);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,v),t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    g.connect(B.out);
+    const s=a.createGain(); s.gain.value=o.rev!=null?o.rev:0.5; g.connect(s); s.connect(B.send);
+    car.start(t); mod.start(t); car.stop(t+d+0.05); mod.stop(t+d+0.05);
+  }
+  const N=n=>440*Math.pow(2,(n-69)/12);
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+
+  const R={
+    jump(a){ tone(a,{f:300,f1:620,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600,f1:1240,d:0.12,v:0.05}); hiss(a,{f:2200,q:0.8,d:0.08,v:0.05}); },
+    jump_spring(a){ tone(a,{f:220,f1:880,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84),d:0.4,v:0.05}); hiss(a,{f:3000,d:0.1,v:0.05}); },
+    land(a){ tone(a,{f:130,f1:55,d:0.14,v:0.2}); hiss(a,{type:'lowpass',f:900,d:0.09,v:0.1}); },
+    punch(a){ hiss(a,{f:700,f1:2400,q:1.4,d:0.11,v:0.12}); tone(a,{f:170,f1:70,d:0.12,v:0.14}); },
+    hit(a,p){ tone(a,{f:190*p,f1:60,d:0.16,v:0.22}); hiss(a,{type:'lowpass',f:1800*p,d:0.1,v:0.16}); tone(a,{f:2200,d:0.02,v:0.05,type:'triangle',hp:1500}); },
+    hit_enemy(a,p){ R.hit(a,p*1.15); bell(a,{f:420*p,ratio:1.41,index:3,d:0.18,v:0.05,rev:0.2}); },
+    player_hit(a,p){ tone(a,{f:150*p,f1:48,d:0.3,v:0.26}); tone(a,{f:340*p,f1:180,d:0.28,v:0.07,type:'triangle'}); tone(a,{f:358*p,f1:190,d:0.28,v:0.06,type:'triangle'}); hiss(a,{type:'lowpass',f:1200,d:0.16,v:0.14}); },
+    stomp(a){ tone(a,{f:95,f1:38,d:0.3,v:0.3}); hiss(a,{type:'lowpass',f:500,d:0.22,v:0.2}); },
+    hook(a){ hiss(a,{f:900,f1:3200,q:2,d:0.16,v:0.1}); tone(a,{f:900,f1:1700,d:0.12,v:0.04,type:'sawtooth',lp:2400}); },
+    hook_charged(a){ R.hook(a); tone(a,{f:300,f1:900,d:0.18,v:0.07,type:'triangle'}); },
+    hook_latch(a){ bell(a,{f:1150,ratio:3.7,index:3,d:0.22,v:0.09,rev:0.25}); hiss(a,{type:'highpass',f:3000,d:0.04,v:0.08}); tone(a,{f:160,f1:90,d:0.08,v:0.1}); },
+    hook_miss(a){ hiss(a,{f:2400,f1:500,q:1.5,d:0.22,v:0.07}); },
+    laser(a,p){ tone(a,{f:1900*p,f1:420*p,d:0.16,v:0.1,type:'sawtooth',lp:7000,sweep:900}); tone(a,{f:950*p,f1:210*p,d:0.16,v:0.07,type:'triangle'}); hiss(a,{type:'highpass',f:4000,d:0.05,v:0.04}); },
+    laser_bounce(a){ bell(a,{f:2300+rnd(-200,200),ratio:2.0,index:1.6,d:0.18,v:0.06,rev:0.3}); },
+    laser_charge(a,p){ tone(a,{f:380+700*Math.min(1,p||0),d:0.07,v:0.035,lp:3000,rev:0.2}); },
+    laser_charged_fire(a,p){ for(const det of [-9,0,9]) tone(a,{f:240*p,f1:120*p,d:0.5,v:0.08,type:'sawtooth',det,lp:5200,sweep:700,rev:0.35}); hiss(a,{f:1500,f1:400,d:0.35,v:0.12}); tone(a,{f:80,f1:40,d:0.35,v:0.2}); },
+    xlr(a){ hiss(a,{f:380,f1:1500,q:0.9,d:0.38,v:0.16,at:0.03,rev:0.15}); tone(a,{f:72,f1:52,d:0.32,v:0.12}); },
+    xlr_push(a){ hiss(a,{f:500,f1:2200,q:0.8,d:0.32,v:0.2,rev:0.2}); tone(a,{f:110,f1:45,d:0.28,v:0.2}); },
+    mag(a){ tone(a,{f:220,f1:330,d:0.3,v:0.08,type:'triangle',vib:9,vibd:20}); tone(a,{f:330,f1:495,d:0.3,v:0.05,vib:7,vibd:16}); bell(a,{f:900,ratio:2.76,index:2,d:0.2,v:0.04}); },
+    ping(a){ bell(a,{f:N(88),ratio:3.5,index:1.8,d:0.7,v:0.1}); },
+    knowl_pickup(a){ [N(84),N(88),N(91),N(96)].forEach((f,i)=>bell(a,{f,dt:i*0.055,ratio:3.0,index:1.4,d:0.8,v:0.08,rev:0.6})); tone(a,{f:N(72),d:0.6,v:0.05,rev:0.4}); },
+    knowl(a){ R.knowl_pickup(a); },
+    chargeReady(a){ [N(91),N(95),N(98)].forEach((f,i)=>bell(a,{f,dt:i*0.04,ratio:2.0,index:1.2,d:0.35,v:0.06,rev:0.4})); },
+    unlock(a){ [N(72),N(76),N(79),N(84)].forEach((f,i)=>tone(a,{f,dt:i*0.03,d:1.0,v:0.06,type:'triangle',at:0.04,rev:0.5})); bell(a,{f:N(96),dt:0.12,d:1.0,v:0.06}); },
+    item_enhanced(a){ [N(67),N(71),N(74),N(79),N(83),N(86)].forEach((f,i)=>bell(a,{f,dt:i*0.05,ratio:3,index:1.5,d:0.7,v:0.06,rev:0.6})); tone(a,{f:N(55),d:1.0,v:0.08,type:'triangle',at:0.05,rev:0.4}); },
+    omniblock_chip(a){ const f=rnd(1500,2300); hiss(a,{f,q:4,d:0.07,v:0.16}); tone(a,{f:rnd(380,460),f1:240,d:0.07,v:0.08,type:'triangle'}); },
+    omniblock_shatter(a){
+      tone(a,{f:120,f1:45,d:0.3,v:0.22}); hiss(a,{type:'lowpass',f:2400,f1:300,d:0.4,v:0.2,rev:0.25});
+      for(let k=0;k<7;k++) hiss(a,{f:rnd(1800,5200),q:5,dt:0.03+k*rnd(0.03,0.06),d:0.05,v:rnd(0.04,0.09)});
+      bell(a,{f:rnd(600,800),ratio:1.53,index:3,d:0.3,v:0.04,rev:0.3});
+    },
+    debris(a,p){ const k=p||0.5; hiss(a,{f:rnd(2800,5600),q:6,d:0.035,v:0.03+0.05*k}); if(Math.random()<0.4) tone(a,{f:rnd(900,1500),d:0.04,v:0.015,type:'triangle'}); },
+    shutdown(a){ tone(a,{f:520,f1:55,d:0.75,v:0.12,type:'sawtooth',lp:3000,sweep:200,rev:0.3}); tone(a,{f:260,f1:30,d:0.8,v:0.1,type:'triangle'}); hiss(a,{type:'lowpass',f:1500,f1:100,d:0.6,v:0.06}); },
+    enemy_shut(a){ tone(a,{f:420,f1:70,d:0.4,v:0.1,type:'sawtooth',lp:2600,sweep:300,rev:0.2}); bell(a,{f:300,ratio:1.41,index:2,d:0.3,v:0.04}); },
+    ropeSnap(a){ tone(a,{f:640,f1:110,d:0.32,v:0.13,type:'triangle'}); hiss(a,{type:'highpass',f:2500,d:0.06,v:0.12}); },
+    ropeBreak(a){ R.ropeSnap(a); tone(a,{f:180,f1:70,d:0.2,v:0.1}); },
+    ropeSlack(a){ hiss(a,{f:600,f1:300,q:1,d:0.18,v:0.05}); },
+    crank(a){ for(let k=0;k<4;k++) hiss(a,{f:2600,q:5,dt:k*0.035,d:0.025,v:0.08}); },
+    click(a){ tone(a,{f:1200,d:0.035,v:0.05,type:'triangle'}); },
+    grap_attach(a){ R.hook_latch(a); },
+    swap(a){ tone(a,{f:N(76),d:0.08,v:0.06,type:'triangle'}); tone(a,{f:N(83),dt:0.06,d:0.12,v:0.06,type:'triangle',rev:0.3}); },
+    tumble(a){ tone(a,{f:150,f1:70,d:0.16,v:0.14}); hiss(a,{type:'lowpass',f:700,d:0.1,v:0.08}); },
+    rope_throw(a){ hiss(a,{f:700,f1:2600,q:1.6,d:0.2,v:0.08}); },
+    menu(a){ tone(a,{f:N(81),d:0.06,v:0.05,type:'triangle'}); },
+    confirm(a){ bell(a,{f:N(88),ratio:2,index:1.2,d:0.35,v:0.07}); tone(a,{f:N(76),d:0.25,v:0.05,type:'triangle'}); },
+    gate(a){ [N(60),N(67),N(72),N(76)].forEach((f,i)=>tone(a,{f,dt:i*0.08,d:1.6,v:0.06,type:'triangle',at:0.08,rev:0.7})); },
+    jump_reg(a){ R.jump(a); }, jump_good(a){ R.jump_spring(a); }, hurt(a,p){ R.player_hit(a,p); }
+  };
+  let lastAt={};
+  window.sfx=function(t){
+    if(typeof _audioUnlocked!=='undefined'&&!_audioUnlocked) return;
+    const r=R[t]; if(!r) return orig.apply(this,arguments);
+    const a=ctx(); if(!a) return;
+    if(a.state!=='running') try{ a.resume(); }catch(e){}
+    const now=a.currentTime; if(lastAt[t]&&now-lastAt[t]<0.025) return; lastAt[t]=now;   // no machine-gunning
+    const p=typeof arguments[1]==='number'?arguments[1]:1;
+    try{ r(a,p); }catch(e){ return orig.apply(this,arguments); }
+  };
+  window.MV_SFX_POSH={names:Object.keys(R)};
+
+  // a few more moments that deserve a sound
+  window.addEventListener('load',()=>{
+    const wrap=(name,fn)=>{ const o=window[name]; if(typeof o!=='function'||o._poshSfx) return; const w=function(){ const r=o.apply(this,arguments); try{ fn.apply(this,arguments); }catch(e){} return r; }; w._poshSfx=true; window[name]=w; };
+    wrap('_cycleItem',()=>sfx('swap'));
+  });
+})();

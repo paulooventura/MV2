@@ -190,11 +190,12 @@ function _titleMenuActivate(){
 // Opened with START (the ☰ Menu button next to X) or ESC. Up/down (d-pad,
 // stick, W/S, arrows) moves, A / Space / Enter picks, B or START resumes.
 function _pauseInput(){
-  if(Kj['ArrowUp']||Kj['KeyW']) _pauseIdx=(_pauseIdx+PAUSE_ITEMS.length-1)%PAUSE_ITEMS.length;
-  if(Kj['ArrowDown']||Kj['KeyS']) _pauseIdx=(_pauseIdx+1)%PAUSE_ITEMS.length;
+  if(Kj['ArrowUp']||Kj['KeyW']){ _pauseIdx=(_pauseIdx+PAUSE_ITEMS.length-1)%PAUSE_ITEMS.length; try{ sfx('menu'); }catch(e){} }
+  if(Kj['ArrowDown']||Kj['KeyS']){ _pauseIdx=(_pauseIdx+1)%PAUSE_ITEMS.length; try{ sfx('menu'); }catch(e){} }
   if(Kj['KeyE']&&!K['KeyE_kb']){ _togglePause(); return; }          // pad B: back to the game
   if(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']){
     const it=PAUSE_ITEMS[_pauseIdx];
+    try{ sfx('confirm'); }catch(e){}
     if(it==='RESUME') _togglePause();
     else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
     else if(it==='EXIT'){

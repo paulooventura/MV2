@@ -1119,7 +1119,7 @@ function draw(){
   if(typeof drawSketchLabHud==='function') drawSketchLabHud();
   if(typeof drawLdtkLabHud==='function') drawLdtkLabHud();
   const _bwPad=64;
-  for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
+  for(const bw of BWALLS){if(bw.hp<=0&&!(bw.debris&&bw.debris.length))continue;   /* a broken block still draws its crumbs */const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);
   for(const e of ENEMS) if(!e.mind) drawEnemy(e);
   drawLaitu();

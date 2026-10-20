@@ -947,7 +947,7 @@
     if(!B.open&&gateReady()){
       B.open=true;
       try{ sfx('unlock'); }catch(e){}
-      if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN');
+      if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN'); try{ sfx('gate'); }catch(e){}
     }
     if(B.revisitNote>0) B.revisitNote--;
     // The pit: falling off the bottom of the map costs a chunk of energy and

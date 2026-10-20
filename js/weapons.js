@@ -125,13 +125,15 @@ const _OMNI_SHARD_COLS=['#1a0428','#2a0840','#3d0a5c','#4a148c','#6a1b9a','#7b1f
 function spawnDebris(bw,count){
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
-    const angle=Math.random()*Math.PI*2, spd=1.6+Math.random()*4.2;
+    // chunky crumbs: they fly, bounce, roll, pile up and fade (Paulo: a cooler, more physical break)
+    const angle=Math.random()*Math.PI*2, spd=1.8+Math.random()*4.8;
+    const big=Math.random()<0.3, life=150+Math.random()*80;
     bw.debris.push({
       x:bw.x+Math.random()*bw.w, y:bw.y+Math.random()*bw.h,
-      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2.4,
-      rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.3,
-      w:3+Math.random()*8, h:3+Math.random()*7,
-      life:55+Math.random()*40, maxLife:95,
+      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2.8,
+      rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.35,
+      w:big?7+Math.random()*6:3+Math.random()*5, h:big?6+Math.random()*5:3+Math.random()*4,
+      life, maxLife:life, sides:3+((Math.random()*3)|0),
       col:_OMNI_SHARD_COLS[(Math.random()*_OMNI_SHARD_COLS.length)|0]
     });
   }
@@ -143,12 +145,20 @@ function _debrisCollide(d){
   if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,py+1)){
     const r=Math.floor((py+1)/t);
     d.y=r*t-d.h;
-    d.vy=Math.abs(d.vy)>1.2?-d.vy*0.28:0;
-    d.vx*=0.72;
-  }
+    if(Math.abs(d.vy)>2.2&&typeof sfx==='function'&&(window._debrisSfxFr||0)<fr-3){ window._debrisSfxFr=fr; sfx('debris',Math.min(1,Math.abs(d.vy)/8)); }
+    d.vy=Math.abs(d.vy)>1.2?-d.vy*0.42:0;              // bounces, then settles
+    d.vx*=0.82; d.og=true;
+    d.rotSpd=d.vx/Math.max(2,d.w*0.6);                  // rolls along the floor
+  }else d.og=false;
+  if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,d.y-1)&&d.vy<0) d.vy=Math.abs(d.vy)*0.3;   // ceilings
   if(typeof gridWorldSolid==='function'&&(gridWorldSolid(d.x-1,d.y+d.h*0.4)||gridWorldSolid(d.x+d.w+1,d.y+d.h*0.4))){
     d.vx*=-0.45;
     d.x+=d.vx;
+  }
+  // MIND's wheel kicks crumbs it rolls through
+  if(typeof p!=='undefined'&&p&&typeof FEET_OFF!=='undefined'){
+    const wx=p.x+SW/2, wy=p.y+FEET_OFF-WHEEL_R, dx=d.x+d.w/2-wx, dy=d.y+d.h/2-wy;
+    if(dx*dx+dy*dy<(WHEEL_R+4)*(WHEEL_R+4)){ d.vx+=Math.sign(dx||1)*(0.8+Math.abs(p.vx)*0.5); d.vy-=1.2+Math.abs(p.vx)*0.25; }
   }
 }
 function _damageBwall(bw,kind,fx){
@@ -468,7 +478,7 @@ function updateBWalls(){
     if(bw.shakeX){bw.shakeX*=0.6;bw.shakeY*=0.6;if(Math.abs(bw.shakeX)<0.3){bw.shakeX=0;bw.shakeY=0;}}
     for(let i=bw.debris.length-1;i>=0;i--){
       const d=bw.debris[i];
-      d.x+=d.vx;d.y+=d.vy;d.vy+=0.26;d.vx*=0.985;d.rot+=d.rotSpd;d.life--;
+      d.x+=d.vx;d.y+=d.vy;d.vy=Math.min(d.vy+0.3,12);d.vx*=0.988;d.rot+=d.rotSpd;d.life--;
       _debrisCollide(d);
       if(d.y>WH||d.life<=0) bw.debris.splice(i,1);
     }

@@ -1273,14 +1273,18 @@ function drawMovPlat(m){
 
 function drawBreakWall(bw){
   if(!bw||!isFinite(bw.x)||!isFinite(bw.y)||!isFinite(bw.w)||!isFinite(bw.h)) return;
-  // Debris â€” 1â€“2px chunks, flicker out instead of fading
-  if(bw.debris && !(bw.hp<=0 && bw._destroyFr!=null && fr-bw._destroyFr>22)){
+  // Debris: chunky shards that tumble, bounce, roll and pile up, then fade
+  if(bw.debris&&bw.debris.length){
     for(const d of bw.debris){
-      const t=d.life/d.maxLife;
-      if(t<0.4&&(fr&1))continue; // end-of-life flicker
-      ctx.fillStyle=d.col;
-      const dw=Math.max(1,sw(d.w));
-      ctx.fillRect(sx(d.x),sy(d.y),dw,dw);
+      const t=d.life/d.maxLife, a=t<0.25?t/0.25:1;
+      const cx=sx(d.x+d.w/2), cy=sy(d.y+d.h/2), r=Math.max(1.5,sw(Math.max(d.w,d.h)*0.55)), n=d.sides||4;
+      ctx.save(); ctx.globalAlpha=a; ctx.translate(cx,cy); ctx.rotate(d.rot||0);
+      ctx.beginPath();
+      for(let k=0;k<n;k++){ const an=k/n*Math.PI*2, rr=r*(0.75+0.25*((k*7+n)%3)/2); k?ctx.lineTo(Math.cos(an)*rr,Math.sin(an)*rr):ctx.moveTo(Math.cos(an)*rr,Math.sin(an)*rr); }
+      ctx.closePath(); ctx.fillStyle=d.col; ctx.fill();
+      ctx.strokeStyle='rgba(210,150,255,0.55)'; ctx.lineWidth=Math.max(1,r*0.25); ctx.stroke();      // a bright chipped edge
+      ctx.fillStyle='rgba(255,230,255,0.35)'; ctx.fillRect(-r*0.5,-r*0.5,r*0.45,r*0.35);
+      ctx.restore();
     }
   }
   if(bw.hp<=0) return;
