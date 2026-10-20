@@ -1231,7 +1231,12 @@
     {name:'MAG MAGNET', lines:['HOLD X (Q) TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. B (E) SWITCHES ITEMS.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
+  // Paulo: the item card only comes up the first time you get that item
+  // (kept for the play session; a new game from the title starts fresh)
+  B.popupSeen=B.popupSeen||{};
   function openPopup(i){
+    if(B.popupSeen[i]) return;
+    B.popupSeen[i]=true;
     B.popup={item:i, t:0};
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('item',{restart:true,volume:0.8});
   }

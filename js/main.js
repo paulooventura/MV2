@@ -924,8 +924,8 @@ function update(){
   for(const e of ENEMS){
     if(e.mind){
       if(e._magStuck){if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e,3);continue;}
-      if(e.alive){if(e.hitF>0)e.hitF--;_updateMindEnemy(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0){e._stompDuck=36;e.crouchAmt=1;_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;e.vy=0;e.og=true;if(typeof _pinActorToFloor==='function')_pinActorToFloor(e,{force:true,maxDrop:96});}}
-      else{_updateMindEnemyOff(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0&&e._mindOff==='rebooting'){_tryInterruptMindReboot(e);p.vy=-9;}}
+      if(e.alive){if(e.hitF>0)e.hitF--;_updateMindEnemy(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=!(e._betaEnemy||e._ai)&&p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0){e._stompDuck=36;e.crouchAmt=1;_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;e.vy=0;e.og=true;if(typeof _pinActorToFloor==='function')_pinActorToFloor(e,{force:true,maxDrop:96});}}
+      else{_updateMindEnemyOff(e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=!(e._betaEnemy||e._ai)&&p.vy>1.2&&playerFeet<=e.y+14&&fR>e.x+8&&fL<e.x+e.w-8;if(stompFromAbove&&_shutdownTimer<=0&&e._mindOff==='rebooting'){_tryInterruptMindReboot(e);p.vy=-9;}}
       if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e,3);
       continue;
     }
@@ -955,8 +955,8 @@ function update(){
       e.x+=e.vx;e.y+=e.vy;e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
       if(e.shotCd===0&&pdist<300){ESHOTS.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:(tx/td)*6,vy:(ty/td)*6,life:999,type:'laser',col:'#ff4400',bounces:0,power:0.7,born:fr,owner:'enemy',src:e});e.shotCd=120+Math.random()*80|0;sfx('laser');}
     }
-    if(e.type==='signol'){const sc2=_signolCenter(e);const stompFromAbove=p.vy>1.2&&p.y+FEET_OFF<=sc2.cy+6&&p.x+FEET_L+FEET_W>sc2.cx-e.r+6&&p.x+FEET_L<sc2.cx+e.r-6;if(stompFromAbove&&_shutdownTimer<=0){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}_resolvePlayerSignolSeparation(p,e);}
-    else{if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=p.vy>1.2&&playerFeet<=e.y+10&&fR>e.x+4&&fL<e.x+e.w-4;if(stompFromAbove&&_shutdownTimer<=0&&e.alive){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}}
+    if(e.type==='signol'){const sc2=_signolCenter(e);const stompFromAbove=!(e._betaEnemy||e._ai)&&p.vy>1.2&&p.y+FEET_OFF<=sc2.cy+6&&p.x+FEET_L+FEET_W>sc2.cx-e.r+6&&p.x+FEET_L<sc2.cx+e.r-6;if(stompFromAbove&&_shutdownTimer<=0){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}_resolvePlayerSignolSeparation(p,e);}
+    else{if(_enemyBodyPresent(e)) _resolvePlayerEnemySeparation(p,e);const playerFeet=p.y+FEET_OFF,fL=p.x+FEET_L,fR=fL+FEET_W;const stompFromAbove=!(e._betaEnemy||e._ai)&&p.vy>1.2&&playerFeet<=e.y+10&&fR>e.x+4&&fL<e.x+e.w-4;if(stompFromAbove&&_shutdownTimer<=0&&e.alive){_damageEnemy(e,ENM_DMG.stomp,p.x+SW/2,p.y+FEET_OFF,0.5);p.vy=-9;}}
     _tickRivalMinionSpawn(e);
   }
   if(typeof _rideAwdjooIslandMinions==='function') _rideAwdjooIslandMinions();

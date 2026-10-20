@@ -300,7 +300,7 @@ function startGame(){
     if(window.MV_STORY_STAGES&&typeof startBetaLab==='function'&&!/[?&]selftest=1/.test(location.search)){
       if(_playerCount===2){ uiShowToast('2 PLAYERS - COMING SOON TO THE NEW AWDJOO'); _selectStep=0; return; }
       _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
-      if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
+      if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
       startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
       return;
     }

@@ -575,10 +575,7 @@
   B.drawWorldExtras=function(){
     const D=window.MV_BETA_DECOR;
     for(const m of B.platforms){
-      // the rail it runs on
-      ctx.strokeStyle='rgba(60,40,30,0.55)'; ctx.lineWidth=sw(2); ctx.setLineDash([sw(6),sw(5)]);
-      ctx.beginPath(); ctx.moveTo(sx(m.a),sy(m.y+7)); ctx.lineTo(sx(m.b+m.w),sy(m.y+7)); ctx.stroke(); ctx.setLineDash([]);
-      for(const ex of [m.a,m.b+m.w]){ ctx.fillStyle='#3a2a20'; ctx.fillRect(sx(ex)-sw(3),sy(m.y)-sw(2),sw(6),sw(18)); }
+      // (no rail: the arrows in the sketch only mark how far it travels)
       // the platform: wooden planks on an iron frame, glowing ends
       const x=sx(m.x), y=sy(m.y), w=sw(m.w), h=sw(m.h);
       ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(x+3,y+h,w-6,sw(4));
