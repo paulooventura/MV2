@@ -13,19 +13,19 @@
 
 // ── Movement constants ────────────────────────────────────────
 const GRAV=0.52, FRIC=0.88, GROUND_FRIC=0.52, RUN_COAST_FRIC=0.86, AIR_DRIFT=0.96;
-const MOVE_BUILD=59;
+const MOVE_BUILD=60;
 const MOVE_WALK=10.5;
 const MOVE_PEAK=1.0;
 const MOVE_RUN=12.4;
 const MOVE_ACCEL=0.40;
 const MOVE_RUN_ACCEL=0.46;
 const MOVE_AIR=0.42;
-const MOVE_POWER=0.020;
+const MOVE_POWER=0.017;   // ~1 s from idle to full walk, eased (player.js)
 const MOVE_TORQUE=0.38;
 const MOVE_STOP=0.91;
 const MOVE_RUN_COAST=0.958;
 const MOVE_TURN=1.45;
-const MOVE_RUN_RAMP=0.05;
+const MOVE_RUN_RAMP=0.03;   // walk → run eases over ~0.55 s
 const WHEEL_GRIP_BASE=0.91;
 const WHEEL_ROLL_RESIST=0.011;
 const WHEEL_DRIVE_TORQUE=0.92;

@@ -474,10 +474,13 @@ function _updatePlayerMoveX(pl){
   }
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
   const spin=Math.min(1,pl.movePower||0);
-  const spinEase=0.34+0.66*spin;
+  // Paulo (Oct 20): idle → full speed eases in and out (an S-curve over ~1 s)
+  // instead of jumping straight to a third of top speed.
+  const spinS=spin*spin*(3-2*spin);
+  const spinEase=0.14+0.86*spinS;
   let cap;
   if(sprint){
-    const run=Math.min(1,pl.runRamp||0);
+    const r0=Math.min(1,pl.runRamp||0), run=r0*r0*(3-2*r0);
     cap=MOVE_WALK*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK)*run;
   }else{
     cap=MOVE_WALK*MOVE_PEAK*spinEase;
@@ -494,6 +497,7 @@ function _updatePlayerMoveX(pl){
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
   pl._moveCap=cap;
   let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
+  accel*=0.45+0.55*Math.min(1,spin*1.6);              // the wheel takes a moment to bite
   if(cap>0.05){
     const ratio=Math.min(1,Math.abs(pl.vx)/cap);
     accel*=Math.max(0.30,1-0.50*ratio*ratio);
