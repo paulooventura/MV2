@@ -259,6 +259,15 @@ function startGame(){
       if(_playModeIdx===2){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
       _playerCount=_playModeIdx===0?1:2; _selectStep=1; return;
     }
+    // Story mode plays the new stages: Awdjoo Town 1.1 → 1.2 (beta_level.js).
+    // The self-test keeps driving the classic Awdjoo map.
+    if(window.MV_STORY_STAGES&&typeof startBetaLab==='function'&&!/[?&]selftest=1/.test(location.search)){
+      if(_playerCount===2){ uiShowToast('2 PLAYERS - COMING SOON TO THE NEW AWDJOO'); _selectStep=0; return; }
+      _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
+      if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
+      startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
+      return;
+    }
     _gameState='game'; _stopBGM('story'); initWorld();
     if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
     _playBGM('game',OPT.musicVol);
@@ -485,7 +494,7 @@ function drawOptions(){
   });
   const footY=panelY+panelH-30;
   if(_optRebinding){if(fr%32<24) drawTextC('PRESS A KEY FOR '+BIND_LABELS[_optRebinding].toUpperCase(),W/2,footY,'#ffe39a',2);}
-  else drawTextC('UP/DOWN  SELECT    LEFT/RIGHT  ADJUST    ENTER  OK    ESC  BACK',W/2,footY,'#9c8cc8',1);
+  else drawTextC('UP/DOWN  SELECT    LEFT/RIGHT  ADJUST    A / ENTER  OK    B / ESC  BACK',W/2,footY,'#9c8cc8',1);
 }
 
 let _vigCanvas=null;

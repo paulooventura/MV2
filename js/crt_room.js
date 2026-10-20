@@ -130,7 +130,6 @@
   function consoleMode(){ const C=window.MV_CONSOLE; return C&&C.MODES&&C.MODES[C.mode]?C.mode:'off'; }
   function build(){
     const game=document.getElementById('c'); if(!game) return null;
-    if(!document.querySelector('style[data-mv-tv]')){ const st=document.createElement('style'); st.setAttribute('data-mv-tv',''); st.textContent=CSS; document.head.appendChild(st); }
     const wrap=document.getElementById('gameWrap')||game;
     const room=document.createElement('div'); room.className='mv-room';
     room.innerHTML='<div class="mv-screen"><div class="mv-scan"></div><div class="mv-glass"></div></div>';
@@ -193,6 +192,7 @@
     document.querySelectorAll('.mv-tvbtn').forEach(b=>{ b.setAttribute('aria-pressed',crtOn); b.textContent=crtOn?'CRT TV: ON':'CRT TV: OFF'; });
   }
   function boot(){
+    if(!document.querySelector('style[data-mv-tv]')){ const st=document.createElement('style'); st.setAttribute('data-mv-tv',''); st.textContent=CSS; document.head.appendChild(st); }
     if(forced!=='0'&&!isPhone()){ S=build(); if(S) S.raf=requestAnimationFrame(frame); }
     setCrt(crtOn);
     try{ new MutationObserver(()=>{ if(isPhone()&&S&&S.G) dropGL('phone play mode'); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']}); }catch(e){}

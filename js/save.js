@@ -17,7 +17,7 @@ const DEFAULT_OPTS={
     use:   ['KeyE'],
     swap:  ['KeyQ'],
     punch: ['KeyF'],
-    sprint:['ShiftLeft','ShiftRight'],
+    sprint:['KeyQ','ShiftLeft','ShiftRight'],   // X = run / item (hold to run, like SNES)
   }
 };
 let OPT=JSON.parse(JSON.stringify(DEFAULT_OPTS));
@@ -38,6 +38,11 @@ _loadOpts();
 
 // One-time migration flags — force OST mode on first run
 try{
+  // SNES layout (Paulo, Oct 2026): A jump · B item select · X run/item · Y punch
+  if(!localStorage.getItem('mv_binds_snes1')){
+    const sp=OPT.binds.sprint||[]; if(!sp.includes('KeyQ')) OPT.binds.sprint=['KeyQ',...sp];
+    localStorage.setItem('mv_binds_snes1','1'); _saveOpts();
+  }
   if(!localStorage.getItem('mv_newmusic')){
     OPT.musicMode='ost';
     localStorage.setItem('mv_newmusic','1');
@@ -53,7 +58,7 @@ try{
 // ── Keybind helpers ──────────────────────────────────────────
 const BIND_LABELS={
   up:'Move Up', down:'Move Down', left:'Move Left', right:'Move Right',
-  jump:'Jump (A)',  use:'Item Select (Y)',   swap:'Item Action (X)', punch:'Punch (B)', sprint:'Sprint'
+  jump:'Jump (A)',  use:'Item Select (B)',   swap:'Use Item (X)', punch:'Punch (Y)', sprint:'Run (X)'
 };
 const BIND_ORDER=['up','down','left','right','jump','use','swap','punch','sprint'];
 function _codeLabel(c){

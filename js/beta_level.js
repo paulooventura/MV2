@@ -150,6 +150,24 @@
   }
   B.travel=travel; B.saveStage=saveStage;
 
+  // ── Back to the title / restart the stage (story mode) ──────────
+  function quitToTitle(){
+    B.on=false; B.results=null; B.popup=null; B.trans=null; B.ending=null;
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.stopAll();
+    _paused=false; _gameState='title'; if(typeof _titleT!=='undefined') _titleT=0;
+    if(typeof _playBGM==='function') try{ _playBGM('title',OPT.musicVol); }catch(e){}
+  }
+  B.quitToTitle=quitToTitle;
+  const _origEnterZone=window._enterZone;
+  window._enterZone=function(i){
+    if(B.on&&_gameState==='game'&&B.stageId){                // Tab / RESET: restart this stage
+      B.results=null; B.popup=null; B.trans=null;
+      startBetaLab(B.stageId, B.carryMask).catch(err=>console.error('stage load failed',err));
+      return;
+    }
+    return _origEnterZone.apply(this, arguments);
+  };
+
   // ── Revisits: a beaten stage changes as the game goes on ───────
   // Entities can carry a "tier" field: tier 0 = always, tier N = only once
   // the player has gone N stages past this one and comes back. RevisitWall
@@ -1206,11 +1224,12 @@
   B.fmtTime=fmtTime;
 
   // ── Item window: what you found and what it does (game pauses, slow music)
+  // Controls named the SNES way (keyboard key in brackets): A jump · B item select · X run/use item · Y punch
   const ITEM_INFO=[
-    {name:'TRS LASER CANNON', lines:['HOLD Q TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
-    {name:'RCA GRAPPLING HOOK', lines:['PRESS Q TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. W/S REEL IN AND OUT,','SPACE JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
-    {name:'XLR PUSH JACK', lines:['HOLD Q TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (S+Q):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
-    {name:'MAG MAGNET', lines:['HOLD Q TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. A QUICK TAP PULLS A BLOCK.']}
+    {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
+    {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. UP / DOWN REEL IN AND OUT,','A JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
+    {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
+    {name:'MAG MAGNET', lines:['HOLD X (Q) TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. B (E) SWITCHES ITEMS.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
   function openPopup(i){
@@ -1243,7 +1262,7 @@
       ctx.restore();
     }
     info.lines.forEach((l,i)=>drawTextC(l, W/2, by+214+i*26, '#f4ecff', 2));
-    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS ENTER OR Q TO CONTINUE', W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
+    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS A OR ENTER TO CONTINUE', W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
     ctx.globalAlpha=1;
   }
 
@@ -1309,31 +1328,58 @@
       y+=20;
       sc.ach.forEach(t=>{ const tw=textW(t,1); uiSparkle(W/2-tw/2-12,y+5,5,'#ffd040',0.9); drawTextC(t, W/2, y, '#ffd040', 1); y+=18; });
       const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      if(R.t>sc.rows.length*14+60){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(nx?'PRESS ENTER FOR AWDJOO TOWN '+nx:'PRESS ENTER TO PLAY AGAIN', W/2, by+bh-30, '#ffe39a', 1); ctx.restore(); }
+      if(R.t>sc.rows.length*14+60){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(nx?'PRESS A OR ENTER FOR AWDJOO TOWN '+nx:'PRESS A OR ENTER', W/2, by+bh-30, '#ffe39a', 1); ctx.restore(); }
     }
     ctx.globalAlpha=1;
+  }
+
+  // The end of what's built so far: a "to be continued" card, then the title.
+  function drawEnding(){
+    const t=B.ending.t, a=Math.min(1,t/40);
+    ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='#05020e'; ctx.fillRect(0,0,W,H);
+    if(typeof _drawSnesStarfield==='function'){ ctx.globalAlpha=a*0.8; _drawSnesStarfield(); ctx.globalAlpha=a; }
+    uiLogo('TO BE CONTINUED...', W/2, H*0.3, 56, {sweep:200});
+    drawTextC('AWDJOO TOWN 1.3 IS ON THE WAY', W/2, H*0.3+96, '#c8b8ff', 2);
+    const n=counts(), st=B.stats;
+    drawTextC('THANKS FOR PLAYING MIND & VENTURE II', W/2, H*0.3+140, '#ffe39a', 2);
+    if(t>90){ ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS A, START OR ENTER', W/2, H-80, '#ffe39a', 1); }
+    ctx.restore();
   }
 
   // Pause the world under the item window and the results; keys close them.
   window.addEventListener('keydown',ev=>{
     if(!B.on) return;
     const go=['Enter','Space','KeyQ','KeyE','Escape','NumpadEnter'].includes(ev.code);
+    if(B.ending&&go&&B.ending.t>90){ ev.preventDefault(); B._endReq=true; return; }
     if(B.popup&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
     else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){
       ev.preventDefault();
-      const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      B.results=null;
-      if(nx) travel(nx,'forward');
-      else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
+      resultsNext();
     }
   },true);
   const _origUpdate=window.update;
+  // pads (and the touch buttons) close windows too: A / X / B / START
+  function padOk(){
+    if(typeof readGamepad==='function') try{ readGamepad(); }catch(e){}
+    const ok=!!(Kj['Space']||Kj['KeyQ']||Kj['KeyE']||Kj['Enter']||Kj['Escape']);
+    if(typeof clkj==='function') clkj();
+    return ok;
+  }
+  function resultsNext(){
+    const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+    B.results=null;
+    if(nx) travel(nx,'forward');
+    else if(window.MV_STORY_STAGES){ saveStage(); B.ending={t:0}; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.7}); }
+    else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
+  }
   window.update=function(){
     if(B.trans){ transTick(); return; }
-    if(B.on&&B.popup){ B.popup.t++; if(B._closeReq){ B._closeReq=false; closePopup(); } return; }
+    if(B.ending){ B.ending.t++; if((padOk()&&B.ending.t>90)||B._endReq){ B._endReq=false; quitToTitle(); } return; }
+    if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
       B.results.t++;
       if(!B.results.music&&B.results.t>=B.results.musicAt){ B.results.music=true; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.6}); }
+      if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();
       return;
     }
     return _origUpdate.apply(this, arguments);
@@ -1354,6 +1400,7 @@
     if(B.popup) drawPopup();
     if(B.results) drawResults();
     if(B.trans) drawTrans();
+    if(B.ending) drawEnding();
   };
   const _origPlayBGM=window._playBGM;
   window._playBGM=function(type){
