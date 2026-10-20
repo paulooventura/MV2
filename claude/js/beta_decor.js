@@ -238,9 +238,10 @@
     if(two){ ctx.beginPath(); ctx.ellipse(X(x+9),Y(y-2),S(3.4),S(2.6),-0.4,0,Math.PI*2); ctx.fill(); ctx.fillRect(X(x+11.4),Y(y-14),S(1.4),S(12)); ctx.fillRect(X(x+2.4),Y(y-14),S(10),S(2)); }
     else{ ctx.fillRect(X(x+2.4),Y(y-12),S(5),S(2)); }
   }
-  function bed(x,floor,w,blanket){
+  function bed(x,floor,w,blanket,sq){              // sq: how far the mattress is squashed (bouncy, beta_impact.js)
+    sq=sq||0;
     rect(x,floor-20,w,14,P.wood); rect(x,floor-34,8,34,P.woodD); rect(x+w-8,floor-26,8,26,P.woodD);
-    rect(x+8,floor-28,w-16,10,blanket); rect(x+10,floor-34,22,8,'#efe2c8');
+    rect(x+8,floor-28+sq,w-16,10-sq*0.4,blanket); rect(x+10,floor-34+sq,22,8,'#efe2c8');
   }
   // the stove: flames lick, the glow breathes, sparks climb the flue
   function stove(x,floor,flueTop){
@@ -297,7 +298,7 @@
     wainscot(x,below,w,F-below);
     const C=c=>c*T;
     // upstairs: Bedroom 1 + Bedroom 2
-    bed(C(7),loft,150,'#5a6aa8'); bed(C(17),loft,140,'#a85a6a');
+    bed(C(7),loft,150,'#5a6aa8',(MV_BETA.bedSq||[])[0]); bed(C(17),loft,140,'#a85a6a',(MV_BETA.bedSq||[])[1]);
     window_(C(13)+8,y+28,56,58,true);
     rect(C(22)+4,loft-30,22,30,P.woodD); candle(C(22)+15,loft-30);
     frame(C(9),y+24,40,30,'#3a5a3a'); frame(C(19),y+20,34,40,'#5a3a5a');

@@ -92,14 +92,24 @@
     jump(a){ tone(a,{f:300,f1:620,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600,f1:1240,d:0.12,v:0.05}); hiss(a,{f:2200,q:0.8,d:0.08,v:0.05}); },
     jump_spring(a){ tone(a,{f:220,f1:880,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84),d:0.4,v:0.05}); hiss(a,{f:3000,d:0.1,v:0.05}); },
     land(a){ tone(a,{f:130,f1:55,d:0.14,v:0.2}); hiss(a,{type:'lowpass',f:900,d:0.09,v:0.1}); },
-    punch(a){ hiss(a,{f:700,f1:2400,q:1.4,d:0.11,v:0.12}); tone(a,{f:170,f1:70,d:0.12,v:0.14}); },
+    // punches (Paulo, Oct 20): the swing is a WHOOSH; landing it is a separate thump (beta_impact.js)
+    punch(a){ hiss(a,{f:420,f1:1900,q:1.3,d:0.17,v:0.2,at:0.02}); hiss(a,{type:'lowpass',f:700,f1:300,d:0.14,v:0.08,at:0.015}); },
+    punch_heavy(a){ hiss(a,{f:260,f1:1500,q:1.1,d:0.3,v:0.26,at:0.035,rev:0.12}); hiss(a,{type:'lowpass',f:500,f1:160,d:0.28,v:0.14,at:0.03}); tone(a,{f:90,f1:150,d:0.25,v:0.06,type:'triangle',at:0.05}); },
+    punch_hit(a){ tone(a,{f:150,f1:52,d:0.15,v:0.32}); hiss(a,{type:'lowpass',f:2600,f1:380,d:0.09,v:0.26,at:0.001}); tone(a,{f:2600,d:0.015,v:0.08,type:'triangle',hp:1500}); },
+    punch_hit_heavy(a){ tone(a,{f:120,f1:36,d:0.34,v:0.38}); tone(a,{f:62,f1:30,d:0.38,v:0.22}); hiss(a,{type:'lowpass',f:3200,f1:260,d:0.18,v:0.32,at:0.001,rev:0.3}); tone(a,{f:2200,d:0.02,v:0.1,type:'triangle',hp:1400}); },
+    punch_wall(a){ tone(a,{f:105,f1:44,d:0.12,v:0.2}); for(let k=0;k<3;k++) hiss(a,{f:rnd(1500,3500),q:5,dt:0.01+k*0.02,d:0.03,v:0.07}); },
+    bed_boing(a){ tone(a,{f:150,f1:330,d:0.28,v:0.14,type:'triangle',vib:11,vibd:40}); tone(a,{f:75,f1:120,d:0.22,v:0.12}); hiss(a,{type:'lowpass',f:500,d:0.08,v:0.06}); },
     hit(a,p){ tone(a,{f:190*p,f1:60,d:0.16,v:0.22}); hiss(a,{type:'lowpass',f:1800*p,d:0.1,v:0.16}); tone(a,{f:2200,d:0.02,v:0.05,type:'triangle',hp:1500}); },
     hit_enemy(a,p){ R.hit(a,p*1.15); bell(a,{f:420*p,ratio:1.41,index:3,d:0.18,v:0.05,rev:0.2}); },
     player_hit(a,p){ tone(a,{f:150*p,f1:48,d:0.3,v:0.26}); tone(a,{f:340*p,f1:180,d:0.28,v:0.07,type:'triangle'}); tone(a,{f:358*p,f1:190,d:0.28,v:0.06,type:'triangle'}); hiss(a,{type:'lowpass',f:1200,d:0.16,v:0.14}); },
     stomp(a){ tone(a,{f:95,f1:38,d:0.3,v:0.3}); hiss(a,{type:'lowpass',f:500,d:0.22,v:0.2}); },
     hook(a){ hiss(a,{f:900,f1:3200,q:2,d:0.16,v:0.1}); tone(a,{f:900,f1:1700,d:0.12,v:0.04,type:'sawtooth',lp:2400}); },
     hook_charged(a){ R.hook(a); tone(a,{f:300,f1:900,d:0.18,v:0.07,type:'triangle'}); },
-    hook_latch(a){ bell(a,{f:1150,ratio:3.7,index:3,d:0.22,v:0.09,rev:0.25}); hiss(a,{type:'highpass',f:3000,d:0.04,v:0.08}); tone(a,{f:160,f1:90,d:0.08,v:0.1}); },
+    // RCA cord (Paulo, Oct 20): reeling in is a tight ratchet, paying out a looser whirr
+    reel_in(a){ tone(a,{f:rnd(1700,1900),d:0.018,v:0.07,type:'triangle',hp:900}); hiss(a,{f:3200,q:5,d:0.02,v:0.06}); tone(a,{f:180,f1:150,d:0.05,v:0.05,type:'sawtooth',lp:900}); },
+    reel_out(a){ tone(a,{f:rnd(900,1050),d:0.02,v:0.045,type:'triangle',hp:500}); hiss(a,{f:1400,q:2,d:0.06,v:0.05}); },
+    hook_latch_mag(a){ tone(a,{f:95,f1:60,d:0.12,v:0.24}); bell(a,{f:620,ratio:1.41,index:2.5,d:0.25,v:0.08,rev:0.25}); tone(a,{f:110,d:0.4,v:0.05,vib:30,vibd:8,at:0.03}); },
+    hook_latch(a){ R.hook_latch_mag(a);  bell(a,{f:1150,ratio:3.7,index:3,d:0.22,v:0.09,rev:0.25}); hiss(a,{type:'highpass',f:3000,d:0.04,v:0.08}); tone(a,{f:160,f1:90,d:0.08,v:0.1}); },
     hook_miss(a){ hiss(a,{f:2400,f1:500,q:1.5,d:0.22,v:0.07}); },
     laser(a,p){ tone(a,{f:1900*p,f1:420*p,d:0.16,v:0.1,type:'sawtooth',lp:7000,sweep:900}); tone(a,{f:950*p,f1:210*p,d:0.16,v:0.07,type:'triangle'}); hiss(a,{type:'highpass',f:4000,d:0.05,v:0.04}); },
     laser_bounce(a){ bell(a,{f:2300+rnd(-200,200),ratio:2.0,index:1.6,d:0.18,v:0.06,rev:0.3}); },
@@ -114,11 +124,22 @@
     chargeReady(a){ [N(91),N(95),N(98)].forEach((f,i)=>bell(a,{f,dt:i*0.04,ratio:2.0,index:1.2,d:0.35,v:0.06,rev:0.4})); },
     unlock(a){ [N(72),N(76),N(79),N(84)].forEach((f,i)=>tone(a,{f,dt:i*0.03,d:1.0,v:0.06,type:'triangle',at:0.04,rev:0.5})); bell(a,{f:N(96),dt:0.12,d:1.0,v:0.06}); },
     item_enhanced(a){ [N(67),N(71),N(74),N(79),N(83),N(86)].forEach((f,i)=>bell(a,{f,dt:i*0.05,ratio:3,index:1.5,d:0.7,v:0.06,rev:0.6})); tone(a,{f:N(55),d:1.0,v:0.08,type:'triangle',at:0.05,rev:0.4}); },
-    omniblock_chip(a){ const f=rnd(1500,2300); hiss(a,{f,q:4,d:0.07,v:0.16}); tone(a,{f:rnd(380,460),f1:240,d:0.07,v:0.08,type:'triangle'}); },
+    // Paulo (Oct 20): hitting an omni block is a CRUNCH — stone cracking, grit spraying
+    omniblock_chip(a){
+      tone(a,{f:rnd(150,190),f1:52,d:0.14,v:0.26});                                  // the knock
+      hiss(a,{type:'lowpass',f:3400,f1:420,d:0.16,v:0.24,rate:0.6});                  // the crack
+      hiss(a,{f:900,q:0.8,d:0.22,v:0.08,dt:0.02,rate:0.45,rev:0.15});                 // grit sliding off
+      for(let k=0;k<6;k++) hiss(a,{f:rnd(1300,4800),q:6,dt:0.01+k*rnd(0.012,0.03),d:0.03,v:rnd(0.07,0.13)});
+      tone(a,{f:rnd(650,900),d:0.03,v:0.06,type:'triangle',hp:500});
+    },
+    // ... and breaking one CRUSHES: a heavy thud, a roar of rubble, shards raining down
     omniblock_shatter(a){
-      tone(a,{f:120,f1:45,d:0.3,v:0.22}); hiss(a,{type:'lowpass',f:2400,f1:300,d:0.4,v:0.2,rev:0.25});
-      for(let k=0;k<7;k++) hiss(a,{f:rnd(1800,5200),q:5,dt:0.03+k*rnd(0.03,0.06),d:0.05,v:rnd(0.04,0.09)});
-      bell(a,{f:rnd(600,800),ratio:1.53,index:3,d:0.3,v:0.04,rev:0.3});
+      tone(a,{f:115,f1:34,d:0.5,v:0.34}); tone(a,{f:58,f1:28,d:0.6,v:0.24});
+      hiss(a,{type:'lowpass',f:4200,f1:180,d:0.8,v:0.3,rate:0.7,rev:0.35});
+      hiss(a,{f:700,q:0.7,dt:0.05,d:0.6,v:0.14,rate:0.4,rev:0.2});
+      for(let k=0;k<16;k++) hiss(a,{f:rnd(1400,6200),q:6,dt:0.02+k*rnd(0.02,0.05),d:0.04,v:rnd(0.05,0.12)});
+      for(let k=0;k<4;k++) tone(a,{f:rnd(200,420),f1:rnd(80,140),dt:0.1+k*rnd(0.06,0.12),d:0.08,v:rnd(0.06,0.1)});   // chunks landing
+      bell(a,{f:rnd(600,800),ratio:1.53,index:3,d:0.35,v:0.05,rev:0.3});
     },
     debris(a,p){ const k=p||0.5; hiss(a,{f:rnd(2800,5600),q:6,d:0.035,v:0.03+0.05*k}); if(Math.random()<0.4) tone(a,{f:rnd(900,1500),d:0.04,v:0.015,type:'triangle'}); },
     shutdown(a){ tone(a,{f:520,f1:55,d:0.75,v:0.12,type:'sawtooth',lp:3000,sweep:200,rev:0.3}); tone(a,{f:260,f1:30,d:0.8,v:0.1,type:'triangle'}); hiss(a,{type:'lowpass',f:1500,f1:100,d:0.6,v:0.06}); },

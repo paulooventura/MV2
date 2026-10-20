@@ -41,7 +41,8 @@
       JHH:       typeof JHH!=='undefined'?JHH:0.40,
       JMH:       typeof JMH!=='undefined'?JMH:22,
       JMX:       typeof JMX!=='undefined'?JMX:-11.0,
-      WALK:      typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5,
+      WALK:      typeof MOVE_WALK_TOP!=='undefined'?MOVE_WALK_TOP:(typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5),
+      AIRWALK:   typeof MOVE_WALK!=='undefined'?MOVE_WALK:10.5,
       RUN:       typeof MOVE_RUN!=='undefined'?MOVE_RUN:12.4,
       PEAK:      typeof MOVE_PEAK!=='undefined'?MOVE_PEAK:1.0,
       ACCEL:     typeof MOVE_ACCEL!=='undefined'?MOVE_ACCEL:0.40,
@@ -111,7 +112,7 @@
     if(s.md!==dir){ s.md=dir; s.mp*=0.70; s.vx*=0.86; }
     s.mp=Math.min(1,s.mp+k.POWER);
     const spinEase=0.34+0.66*Math.min(1,s.mp);
-    let cap=k.WALK*k.PEAK*spinEase;
+    let cap=(grounded?k.WALK:(k.AIRWALK||k.WALK))*k.PEAK*spinEase;   // ground walk top vs air steering cap
     if(s.sprint&&grounded){ s.rr=Math.min(1,s.rr+k.RUN_RAMP); cap+= (k.RUN-k.WALK)*s.rr; }
     if(!grounded) cap=Math.max(cap,Math.abs(s.vx));
     let accel=(s.sprint&&grounded)?k.RUN_ACCEL:k.ACCEL;

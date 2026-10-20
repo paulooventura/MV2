@@ -204,3 +204,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 
 ### Build 195 — damage feedback by HP phase
 HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everything: phase 5 = clean/posh; 4→1 = lower resolution (`f`), fewer colour levels with ordered dither (`lv`), row tearing, darker screen (`dark`, replaces ui.js `drawDamageOverlay`), slower music (`rate`, used by audio.js `updateGameBgm` and beta_audio `hurtTick` via `MV_CONSOLE.hurtRate()`). A fresh hit = ~0.5 s jolt: two phases deeper, red flash, music dip. Audio bit depth follows in `js/sound16.js` (`BITS` 6/5/4/3, WaveShaper after the master).
+
+### Build 196 — walk speed, enemies vs slopes, home, impacts, rope
+- `MOVE_WALK_TOP` (physics.js, 7.8) caps walking on the ground; running still reaches `MOVE_RUN`; air steering keeps `MOVE_WALK` (reach_check `AIRWALK`).
+- Story enemies treat the dirt under a slope line as solid (`solidAt`/`floorSnap` in beta_enemies.js); A rolls up slopes a few px at a time.
+- 1.1 family home: roof/ceiling 2 rows higher, no room labels. Beds are bouncy one-way platforms (`js/beta_impact.js`, squash drawn in beta_decor `bed()`).
+- `js/beta_impact.js`: punch swing crescent + impact stars/shake (render.js calls `_punchConnect(x,y,ang,charged,kind)`), omni-block dust. Sounds in sfx_posh: `omniblock_chip` crunch, `omniblock_shatter` crush, `punch`/`punch_heavy` whoosh, `punch_hit(_heavy)`, `punch_wall`, `bed_boing`, `reel_in`/`reel_out`.
+- RCA rope (player.js): swing drag 0.993 (0.96 below 1.6 px/f, 0.998 while pumping) so it runs down to hanging still; `h._reel`, `h._reelPhase` drive moving braid marks + a spinning spool at the jack; tip drawn as a magnet puck (`_drawRopeMagnetTip`).

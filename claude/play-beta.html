@@ -1,0 +1,73 @@
+<title>Awdjoo L1 Beta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Single dark look, matching the MV2 lab pages: arcade cabinet black, studio purple, Knowl gold. */
+:root{
+  --bg:#04020a; --panel:#0a0618; --fg:#c8c0d8; --dim:#7868a0; --gold:#f0d070; --line:#1a1a30;
+  --mono:ui-monospace,Consolas,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--mono);text-align:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px}
+h1{font-size:15px;color:var(--gold);letter-spacing:.08em;margin:4px 0 2px;text-wrap:balance}
+#mvVer,#inf{padding:4px;font-size:12px}
+#helpLine{color:var(--dim);font-size:12px;padding:2px 0 8px;max-width:72ch;margin:0 auto}
+#helpLine button{font:inherit;font-size:12px;color:var(--gold);background:var(--panel);border:1px solid var(--dim);border-radius:4px;padding:3px 10px;margin:6px 4px 0;cursor:pointer}
+#helpLine button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:12px;color:var(--dim);padding-bottom:8px}
+.keys b{color:var(--fg);font-weight:600}
+#gameWrap{max-width:100%}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;max-width:100%;height:auto;border:1px solid var(--line);
+  cursor:crosshair;touch-action:none;background:var(--bg)}
+canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+</style>
+<script>window.MV_BUILD='160'; window.MV_BETA_LAB=1;</script>
+<h1>AWDJOO TOWN 1.1 → 1.2 (BETA)</h1>
+<div id="helpLine">1.1: 3 Knowl crystals + 6 seeds open the arch, which leads on to 1.2; walk left into 1. A beaten stage changes when you come back: new paths open and its arch wants their echo crystals first.2’s arch to come back to 1.1 (each stage remembers what you collected). Pick the console under the screen (A · SNES / B · Mega Drive). Click the game once to start the sound.
+  <button id="go12" type="button">Jump to the 1.2 trial</button> <button id="go11" type="button">Restart 1.1</button></div>
+<div class="keys">
+  <span><b>A/D ←/→</b> move</span><span><b>Space</b> jump (hold S first for a super jump)</span>
+  <span><b>Q</b> use item</span><span><b>E</b> switch item</span><span><b>F</b> punch</span><span><b>W/S</b> reel the RCA</span>
+  <span><b>S + hold Q</b> with the XLR: hover · let go at full power to launch</span><span><b>hold Q</b> with the MAG: grab and carry, let go to throw</span>
+</div>
+<div id="mvVer"></div>
+<div id="gameWrap"><canvas id="c" width="1024" height="768" tabindex="0"></canvas></div>
+<div id="inf"></div>
+<script src="js/save.js"></script>
+<script src="js/core.js"></script>
+<script src="js/audio.js?v=195"></script>
+<script src="js/sound16.js?v=195"></script>
+<script src="js/sfx_posh.js?v=195"></script>
+<script src="js/enemies.js"></script>
+<script src="js/collision_grid.js?v=181"></script>
+<script src="js/physics.js?v=195"></script>
+<script src="js/player.js?v=195"></script>
+<script src="js/weapons.js?v=190"></script>
+<script src="js/ui.js?v=195"></script>
+<script src="js/render.js?v=195"></script>
+<script src="js/editor.js"></script>
+<script src="js/map_edit.js"></script>
+<script src="js/spawn_fix.js"></script>
+<script src="js/awdjoo_level.js"></script>
+<script src="js/healthwatch.js"></script>
+<script src="js/awdjoo_map.js"></script>
+<script src="js/main.js?v=195"></script>
+<script src="js/crt_room.js?v=1"></script>
+<script src="js/item_lab.js"></script>
+<script src="js/physics_lab.js"></script>
+<script src="js/ldtk_loader.js"></script>
+<script src="js/beta_audio.js?v=195"></script>
+<script src="js/beta_decor.js?v=195"></script>
+<script src="js/beta_level.js?v=195"></script>
+<script src="js/beta_feel.js?v=191"></script>
+<script src="js/beta_water.js?v=192"></script>
+<script src="js/beta_enemies.js?v=195"></script>
+<script src="js/beta_impact.js?v=195"></script>
+<script src="js/console16.js?v=195"></script>
+<script>
+  // stage buttons: load in place (keeps the page and its music unlocked); give focus back to the game
+  const go=(id,mask)=>{ if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; } startBetaLab(id,mask,{fresh:true}).then(()=>document.getElementById('c').focus()); };
+  document.getElementById('go12').addEventListener('click',()=>go('1.2',15));
+  document.getElementById('go11').addEventListener('click',()=>go('1.1',0));
+</script>
