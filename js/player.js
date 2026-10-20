@@ -161,7 +161,8 @@ function readGamepad(){
   K['KeyE']=(K['KeyE_kb']||pressed(1));
   K['KeyF']=(K['KeyF_kb']||pressed(3));
   if(pressed(4)) K['KeyS']=true;
-  if(rose(9)) Kj['Tab']=true;
+  if(rose(9)) Kj['Escape']=true;   // Start = pause / back (same as Esc)
+  if(rose(12)) Kj['PadUp']=true; if(rose(13)) Kj['PadDown']=true; if(rose(1)) Kj['PadB']=true;
   if(_gameState==='title'){
     if(!_titleMusicPlaying&&rose(0)) _onInteract();
     else if(_titleMusicPlaying){

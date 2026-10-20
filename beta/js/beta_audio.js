@@ -34,6 +34,8 @@
     const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{ wantPlay=name; });
   }
   function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
+  function pause(){ for(const k in els) try{ els[k].pause(); }catch(e){} wantPlay=null; }   // keeps `current` for resume()
+  function resume(){ if(current) play(current); }
   // browsers only allow sound after a click / key: retry then
   const kick=()=>{ if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay); };
   window.addEventListener('keydown',kick); window.addEventListener('pointerdown',kick);
@@ -128,5 +130,5 @@
     og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
     o.connect(og); og.connect(a.destination); o.start(t+0.03); o.stop(t+0.18);
   }
-  window.MV_BETA_AUDIO={play, stopAll, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, stopAll, pause, resume, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
 })();

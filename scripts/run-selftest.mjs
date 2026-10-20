@@ -113,7 +113,7 @@ async function main() {
       }
     });
 
-    const url = `http://127.0.0.1:${port}/index.html?selftest=1&ci=1${QUICK ? '&quick=1' : ''}&_=${Date.now()}`;
+    const url = `http://127.0.0.1:${port}/awdjoo-classic.html?selftest=1&ci=1${QUICK ? '&quick=1' : ''}&_=${Date.now()}`;
     console.log('MV selftest:', url);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     page.setDefaultTimeout(TIMEOUT_MS);

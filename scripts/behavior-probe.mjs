@@ -48,7 +48,7 @@ async function main() {
       window.__MV_FORCE_SELFTEST = true;
       try { sessionStorage.setItem('mv_selftest', '1'); } catch (e) {}
     });
-    await page.goto(`http://127.0.0.1:${port}/index.html?selftest=1&quick=1&_=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`http://127.0.0.1:${port}/awdjoo-classic.html?selftest=1&quick=1&_=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     page.setDefaultTimeout(90000);
     await page.waitForFunction(() => typeof p !== 'undefined' && p && typeof _gameState !== 'undefined' && _gameState === 'game' && typeof MV_GRID !== 'undefined' && MV_GRID && MV_GRID.ready);
 

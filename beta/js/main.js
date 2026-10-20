@@ -1128,8 +1128,8 @@ function draw(){
   if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
   if(_paused){
     ctx.fillStyle='rgba(4,2,10,0.55)'; ctx.fillRect(0,0,W,H);
-    drawTextC('PAUSED',W/2,H/2-16,'#fff',3);
-    drawTextC('MENU TO RESUME',W/2,H/2+20,'#ccc',2);
+    if(typeof drawPauseMenu==='function') drawPauseMenu();
+    else { drawTextC('PAUSED',W/2,H/2-16,'#fff',3); drawTextC('MENU TO RESUME',W/2,H/2+20,'#ccc',2); }
   }
   updateVersionBar();
 }

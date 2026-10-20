@@ -1,9 +1,9 @@
 /* MV2 A/B switcher — never overwrite A with an experiment.
-   A = live Awdjoo. B = clean-collision. C = item lab. D = physics lab.
-   E = Piskel cave. F = LDtk loader lab. G = Awdjoo L1 beta (beta/js overrides).
+   A = live game (Awdjoo 1.1 → 1.2, beta/js modules). B = clean-collision. C = item lab. D = physics lab.
+   E = Piskel cave. F = LDtk loader lab. G = Classic Awdjoo (old main game).
    Bookmark: index.html?ab=a | clean-collision-core.html?ab=b | item-lab.html?ab=c
              physics-lab.html?ab=d | sketch-lab.html?ab=e | ldtk-lab.html?ab=f
-             awdjoo-beta.html?ab=g
+             awdjoo-classic.html?ab=g
 */
 (function () {
   var page = (document.documentElement.getAttribute('data-ab') || 'a').toLowerCase();
@@ -15,7 +15,7 @@
   if (want === 'd' && page !== 'd') { location.replace('physics-lab.html?ab=d'); return; }
   if (want === 'e' && page !== 'e') { location.replace('sketch-lab.html?ab=e'); return; }
   if (want === 'f' && page !== 'f') { location.replace('ldtk-lab.html?ab=f'); return; }
-  if (want === 'g' && page !== 'g') { location.replace('awdjoo-beta.html?ab=g'); return; }
+  if (want === 'g' && page !== 'g') { location.replace('awdjoo-classic.html?ab=g'); return; }
   try { localStorage.setItem('mv_ab', 'abcdefg'.indexOf(want) >= 0 ? want : page); } catch (e) {}
 
   var css = document.createElement('style');
@@ -36,13 +36,13 @@
   bar.id = 'mvAbBar';
   bar.innerHTML =
     '<span class="lab">A/B</span>' +
-    '<a class="' + (page === 'a' ? 'on' : '') + '" href="index.html?ab=a">A · Awdjoo (live)</a>' +
+    '<a class="' + (page === 'a' ? 'on' : '') + '" href="index.html">A · Awdjoo (live)</a>' +
     '<a class="' + (page === 'b' ? 'on' : '') + '" href="clean-collision-core.html?ab=b">B · Clean collision</a>' +
     '<a class="' + (page === 'c' ? 'on' : '') + '" href="item-lab.html?ab=c">C · Item lab</a>' +
     '<a class="' + (page === 'd' ? 'on' : '') + '" href="physics-lab.html?ab=d">D · Physics lab</a>' +
     '<a class="' + (page === 'e' ? 'on' : '') + '" href="sketch-lab.html?ab=e">E · Piskel cave</a>' +
     '<a class="' + (page === 'f' ? 'on' : '') + '" href="ldtk-lab.html?ab=f">F · LDtk</a>' +
-    '<a class="' + (page === 'g' ? 'on' : '') + '" href="awdjoo-beta.html?ab=g">G · L1 Beta</a>';
+    '<a class="' + (page === 'g' ? 'on' : '') + '" href="awdjoo-classic.html?ab=g">G · Classic Awdjoo</a>';
 
   function mount() {
     if (!document.body || document.getElementById('mvAbBar')) return;

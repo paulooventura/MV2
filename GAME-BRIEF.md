@@ -59,9 +59,22 @@ Knowls are the breadcrumb and the unlock: collect them → exit opens.
 
 ## 3. How far we’ve got (honest)
 
-### Live game (slot A) — do not break this
+### Live game (slot A, build 162) — do not break this
+
+Wall promoted the **L1 beta** to the main game (Oct 2026): `index.html` runs
+Awdjoo Town **1.1 → 1.2** from LDtk (`assets/levels/awdjoo-beta.ldtk`,
+`awdjoo-1-2.ldtk`) with water, moving platforms, the Isolator, omni cubes and
+MAG carry (`beta/js/beta_*.js`). Boot: MMR splash → Paulo Ventura splash
+(mosaic pixelate-in) → title (Story Mode / Options) → story → 1.1.
+Esc / Start pauses (Resume game · Options · Exit to main menu); Esc / Start on
+the title asks “Shut down?” → CRT power-off screen. Logo art still to come:
+`assets/splash/mmr-logo.png`, `assets/splash/paulo-ventura-logo.png`.
+Menu QA: `npm run selftest:flow`.
+
+### Classic Awdjoo (lab G, `awdjoo-classic.html`) — the old main game
 
 Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map.js`).
+The engine selftest runs here.
 
 - Spawn **House 2** (col 31, row 72). Tiled tiles are **8px**, world scale **4**
   → 32px world tiles.

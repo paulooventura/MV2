@@ -89,15 +89,15 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 
 | Slot | What | URL |
 |------|------|-----|
-| **A** | Live Awdjoo (`index.html`) | `index.html?ab=a` |
+| **A** | Live game (`index.html`): Awdjoo 1.1 → 1.2 with water (promoted L1 beta, build 162). No A/B bar. | `index.html` |
 | **B** | Clean collision lab | `clean-collision-core.html?ab=b` |
 | **C** | Item sprite lab | `item-lab.html?ab=c` |
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
-| **G** | Awdjoo L1 beta (towns 1.1 → 1.2, built on build 160) | `awdjoo-beta.html?ab=g` |
+| **G** | Classic Awdjoo (old main game, Tiled map; selftest runs here) | `awdjoo-classic.html?ab=g` |
 
-G loads its changed modules from `beta/js/` (core, main, physics, render, ui, weapons + `beta_*`, `console16`, `crt_room`, `sound16`) and the rest — including the build 161 controls in `player.js` / `save.js` — from live `js/`. Levels: `assets/levels/awdjoo-beta.ldtk`, `awdjoo-1-2.ldtk`. Boot (`beta/js/beta_intro.js`): MMR splash → Paulo Ventura splash (mosaic-in) → title (Story Mode / Options) → story → 1.1. Drop real logos at `assets/splash/mmr-logo.png` and `assets/splash/paulo-ventura-logo.png`; `?lvl=1.1` skips the intro. No A/B bar on G.
+The live game (A) loads its changed modules from `beta/js/` (core, main, physics, render, ui, weapons + `beta_*`, `console16`, `crt_room`, `sound16`) and the rest — including the controls in `player.js` / `save.js` — from shared `js/`. Levels: `assets/levels/awdjoo-beta.ldtk` (1.1), `awdjoo-1-2.ldtk` (1.2). Boot (`beta/js/beta_intro.js`): MMR splash → Paulo Ventura splash (mosaic-in) → title (Story Mode / Options) → story → 1.1. Esc / Start in a stage = pause (Resume game · Options · Exit); Esc / Start on the title = "Shut down?" → power-off screen. Tab restarts the current stage. Drop real logos at `assets/splash/mmr-logo.png` and `assets/splash/paulo-ventura-logo.png`; `?lvl=1.1` / `?lvl=1.2` skips the intro. `awdjoo-beta.html` redirects to `index.html`. Menu QA: `npm run selftest:flow`.
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 

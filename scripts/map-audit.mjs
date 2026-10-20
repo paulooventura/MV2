@@ -62,7 +62,7 @@ async function main() {
       window.__MV_FORCE_SELFTEST = true;
       try { sessionStorage.setItem('mv_selftest', '1'); } catch (e) {}
     });
-    await page.goto(`http://127.0.0.1:${port}/index.html?selftest=1&quick=1&audit=1&_=${Date.now()}`,
+    await page.goto(`http://127.0.0.1:${port}/awdjoo-classic.html?selftest=1&quick=1&audit=1&_=${Date.now()}`,
       { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => typeof MV_GRID !== 'undefined' && MV_GRID && MV_GRID.ready,
       { timeout: 60000 });
