@@ -61,6 +61,7 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script src="js/beta_level.js"></script>
 <script src="js/beta_feel.js"></script>
 <script src="js/beta_water.js"></script>
+<script src="js/console16.js?v=1"></script>
 <script>
   // stage buttons: load in place (keeps the page and its music unlocked); give focus back to the game
   const go=(id,mask)=>{ if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; } startBetaLab(id,mask,{fresh:true}).then(()=>document.getElementById('c').focus()); };

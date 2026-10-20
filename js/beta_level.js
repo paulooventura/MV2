@@ -115,13 +115,20 @@
       R.loading=true;
       startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; }).catch(err=>{ console.error('stage load failed',err); B.trans=null; });
     }
-    if(R.done){ R.after++; if(R.after>30) B.trans=null; }
+    if(R.done){ R.after++; if(R.after>30){ B.trans=null; if(window.MV_CONSOLE){ MV_CONSOLE.mosaic=1; MV_CONSOLE.fade=0; } } }
   }
   function drawTrans(){
     const R=B.trans; if(!R) return;
     // iris wipe: closes on MIND, opens on the new stage
     const k=R.done?Math.min(1,R.after/30):Math.min(1,R.t/26);
     const open=R.done?k:1-k;
+    const CON=window.MV_CONSOLE, cm=CON?CON.mode:'off';
+    if(CON){ CON.mosaic=cm==='snes'?1+Math.round((1-open)*14):1; CON.fade=cm==='md'?1-open:0; }
+    if(R.done&&R.after>=30&&CON){ CON.mosaic=1; CON.fade=0; }
+    if(cm==='md'){                                   // Mega Drive: a stepped palette fade, no iris
+      if(!R.done&&R.t>=26){ ctx.save(); ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawTextC('AWDJOO TOWN '+R.to, W/2, H/2-10, '#ffe39a', 2); ctx.restore(); CON.fade=0; }
+      return;
+    }
     const cx=p?sx(p.x+SW/2):W/2, cy=p?sy(p.y+FEET_OFF*0.5):H/2;
     const rad=Math.hypot(W,H)*open*open;
     ctx.save(); ctx.fillStyle='#05020e';
@@ -1009,18 +1016,33 @@
         const L=B.laitu;
         drawLaituFigure(cx, feet, sw(LAITU_SCALE), {faceR:(L.face||1)>0, walkPhase:L.moving?L.stepT:0});
         const top=Math.max(4,feet-sw(84*LAITU_SCALE));
-        if(L.talkT>0){
-          const txt=LAITU_TALK[L.line], tw=textW(txt,1)+28;
-          ctx.save(); ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
-          const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fffaf0'); bg.addColorStop(1,'#f3e2c0');
-          ctx.fillStyle=bg; uiRound(cx-tw/2, top-32, tw, 24, 12); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
-          ctx.restore();
-          ctx.lineWidth=1.5; ctx.strokeStyle='#c09a5a'; uiRound(cx-tw/2+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
-          ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='700 12px "MV Sans", system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
-        }else if(!L.met&&fr%48<36) drawTextC('LAITU', cx, top-14, '#a8d4ff');
+        B._laituTag={cx, top, body:L.talkT>0?LAITU_TALK[L.line]:null, name:!L.met&&fr%48<36};
       }
     }
+  };
+  // The stage HUD goes on with the main HUD (the console's text layer, see console16.js)
+  const _origDrawHUD=window.drawHUD;
+  window.drawHUD=function(){
+    const r=_origDrawHUD.apply(this, arguments);
+    if(B.on&&_gameState==='game') drawBetaHud();
+    return r;
+  };
+  function drawLaituTag(){
+    const tg=B._laituTag; B._laituTag=null; if(!tg) return;
+    const {cx, top}=tg;
+    if(tg.body){
+      const txt=tg.body, tw=textW(txt,1)+28;
+      ctx.save(); ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+      const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fffaf0'); bg.addColorStop(1,'#f3e2c0');
+      ctx.fillStyle=bg; uiRound(cx-tw/2, top-32, tw, 24, 12); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth=1.5; ctx.strokeStyle='#c09a5a'; uiRound(cx-tw/2+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
+      ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='700 12px "MV Sans", system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
+    }else if(tg.name) drawTextC('LAITU', cx, top-14, '#a8d4ff');
+  }
+  function drawBetaHud(){
+    drawLaituTag();
     const n=counts();
     uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
     drawText(B.stageName, 22, H-52, '#c8b8ff', 1);
