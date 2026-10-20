@@ -682,6 +682,7 @@
         bd=d; best={kind,ref};
       };
       for(const bw of cubes()) if(!bw.only||bw.only==='pull') consider('cube',bw,bw.x+T/2,bw.y+T/2,bw.homeCol,bw.homeRow);
+      for(const bw of B.flying) if(bw.hp>0&&(!bw.only||bw.only==='pull')) consider('cube',bw,bw.x+T/2,bw.y+T/2);   // re-catch a thrown cube mid-air
       if(!M.held.length){
         for(const e of ENEMS){ if(e.mind||(e.alive&&typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e))) continue; consider('enemy',e,e.x+e.w/2,e.y+e.h/2); }
         for(const k of KDROP){ if(k.got&&!k._fly) continue; consider('knowl',k,k.x,k.y); }
@@ -689,7 +690,9 @@
       }
       if(best){
         if(best.kind==='cube'){
-          const r=best.ref; gridSmashCell(r.homeCol,r.homeRow);
+          const r=best.ref;
+          if(r._fly){ const i=B.flying.indexOf(r); if(i>=0) B.flying.splice(i,1); r._fly=false; r._rest=0; r.spin=0; r.rot=0; }
+          else gridSmashCell(r.homeCol,r.homeRow);
           r.homeCol=r.homeRow=r.homeX=r.homeY=null;          // no home while carried (the game would keep re-opening it)
           r._carried=true; r._ox=r._oy=0; r.wedge=false;
         }else if(best.kind==='knowl'){
