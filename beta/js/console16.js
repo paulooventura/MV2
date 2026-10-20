@@ -151,6 +151,7 @@
   }
   function buildUi(){
     if(document.documentElement.classList.contains('phone-play')) return;
+    if(window.MV_BETA_LAB) return;                      // live game: the page is the picture only (Options has console + CRT)
     const anchor=document.querySelector('.mv-room')||document.getElementById('gameWrap')||document.getElementById('c');
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';

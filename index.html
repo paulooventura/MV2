@@ -23,16 +23,16 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='165'; window.MV_BETA_LAB=1;</script>
+<script>window.MV_BUILD='166'; window.MV_BETA_LAB=1;</script>
 <script src="js/phone.js?v=135"></script>
 <script>
-(function(){ /* phones: a picture as wide as the screen (same 768 height) — no side bars */
-  var r=document.documentElement; if(!r.classList.contains('phone-play')) return;
+(function(){ /* the picture takes the window's shape (same 768 height, wider on wide screens) */
+  var r=document.documentElement, phone=r.classList.contains('phone-play');
   var iw=innerWidth, ih=innerHeight, sw=screen.width||iw, sh=screen.height||ih;
-  var a=iw>ih?iw/ih:Math.max(sw,sh)/Math.min(sw,sh);
-  if(!(a>1.36)) return;
-  window.MV_VIEW_W=Math.min(1856,Math.round(768*a/8)*8);
-  r.classList.add('mv-wide');
+  var a=iw>ih?iw/ih:(phone?Math.max(sw,sh)/Math.min(sw,sh):iw/ih);
+  var w=a>1.36?Math.min(1856,Math.round(768*a/8)*8):1024;
+  if(w>1024){ window.MV_VIEW_W=w; if(phone) r.classList.add('mv-wide'); }
+  r.style.setProperty('--ar',String(w/768));
 })();
 </script>
 <script>
@@ -49,11 +49,11 @@ if(location.protocol==='file:'){
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;}
 body{background:#000;font-family:ui-monospace,Consolas,monospace;}
-/* The game fills the window: biggest 4:3 picture that fits, nothing around it */
+/* The game fills the window: biggest picture of its shape (--ar, set at load) that fits */
 #gameWrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor;
-  width:min(100vw,calc(100vh * 4 / 3));height:min(100vh,calc(100vw * 3 / 4));
-  width:min(100vw,calc(100dvh * 4 / 3));height:min(100dvh,calc(100vw * 3 / 4));
+  width:min(100vw,calc(100vh * var(--ar,1.3333)));height:min(100vh,calc(100vw / var(--ar,1.3333)));
+  width:min(100vw,calc(100dvh * var(--ar,1.3333)));height:min(100dvh,calc(100vw / var(--ar,1.3333)));
   border:none;outline:none;touch-action:none;display:block;}
 #inf{position:fixed;left:8px;bottom:6px;z-index:50;font-size:12px;color:#8f8;pointer-events:none;word-break:break-all;max-width:90vw;}
 #touchHud{display:none;}
@@ -298,7 +298,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/healthwatch.js?v=160"></script>
 <script src="js/awdjoo_map.js?v=160"></script>
 <script src="beta/js/main.js?v=164"></script>
-<script src="beta/js/crt_room.js?v=165"></script>
+<script src="beta/js/crt_room.js?v=166"></script>
 <script src="js/item_lab.js?v=160"></script>
 <script src="js/physics_lab.js?v=160"></script>
 <script src="js/ldtk_loader.js?v=160"></script>
@@ -308,7 +308,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="beta/js/beta_feel.js?v=165"></script>
 <script src="beta/js/beta_water.js?v=165"></script>
 <script src="beta/js/beta_waterplay.js?v=165"></script>
-<script src="beta/js/console16.js?v=165"></script>
+<script src="beta/js/console16.js?v=166"></script>
 <script src="beta/js/beta_slots.js?v=164"></script>
 <script src="beta/js/beta_intro.js?v=165"></script>
 <script>

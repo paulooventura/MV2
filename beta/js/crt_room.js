@@ -27,11 +27,13 @@
 
   const CSS=`
   html.mv-tv-on body{background:radial-gradient(ellipse 60% 50% at 50% 45%, rgb(var(--tvglow,90 70 160) / .14), transparent 72%), #04020a;}
-  .mv-room{position:relative;width:min(100%,1100px,calc((100vh - 24px) * 1.3));margin:4px auto 0;display:flex;flex-direction:column;align-items:center;}
-  .mv-screen{position:relative;width:100%;overflow:hidden;background:#000;line-height:0;}
-  html.mv-tv-on .mv-screen{border-radius:4%/5.3%;box-shadow:0 0 0 2px #000, 0 0 70px 4px rgb(var(--tvglow,90 70 160) / .22);}
-  .mv-screen #gameWrap{display:block!important;max-width:none!important;width:100%;}
-  .mv-screen canvas#c{display:block;width:100%!important;max-width:none!important;height:auto;border:none!important;}
+  .mv-room{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  .mv-screen{position:relative;overflow:hidden;background:#000;line-height:0;
+      width:min(100vw,calc(100vh * var(--ar,1.3333)));height:min(100vh,calc(100vw / var(--ar,1.3333)));
+      width:min(100vw,calc(100dvh * var(--ar,1.3333)));height:min(100dvh,calc(100vw / var(--ar,1.3333)));}
+  html.mv-tv-on .mv-screen{border-radius:3%/4%;box-shadow:0 0 0 2px #000, 0 0 70px 4px rgb(var(--tvglow,90 70 160) / .22);}
+  .mv-screen #gameWrap{position:absolute!important;inset:0;display:block!important;max-width:none!important;width:100%;height:100%;}
+  .mv-screen canvas#c{display:block;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:none!important;}
   .mv-crt{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
   .mv-scan{position:absolute;inset:0;pointer-events:none;z-index:2;display:none;
       background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 1.7px,rgba(0,0,0,.3) 1.7px 3.4px),

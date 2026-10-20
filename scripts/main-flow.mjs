@@ -1,5 +1,5 @@
-﻿// Headless walk-through of the live game's menus (index.html):
-// splashes â†’ title â†’ Esc shut-down prompt â†’ options â†’ story â†’ 1.1 â†’ pause menu
+// Headless walk-through of the live game's menus (index.html):
+// splashes → title → Esc shut-down prompt → options → story → 1.1 → pause menu
 // (resume / options / exit). No visible browser, no audio. Exit 0 = PASS.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -81,15 +81,15 @@ await expect('EXIT back to main menu', s => s.gs === 'title');
 await key('Enter', 200); await expect('STORY MODE opens JOURNEYS', s => s.gs === 'slots'); await shot('5-journeys');
 const slotsNow = () => ev(() => MV_SLOTS.slots().map(s => s && s.stage));
 for (let i = 0; i < 5; i++) await key('ArrowDown');
-await key('ArrowRight'); await key('Enter'); await key('Enter');        // COPY â†’ journey 1
-await key('ArrowUp'); await key('Enter'); await key('ArrowDown'); await key('Enter');   // PASTE â†’ slot 2
+await key('ArrowRight'); await key('Enter'); await key('Enter');        // COPY → journey 1
+await key('ArrowUp'); await key('Enter'); await key('ArrowDown'); await key('Enter');   // PASTE → slot 2
 let sl = await slotsNow(); check('COPY + PASTE journey 1 into slot 2', sl[0] === '1.2' && sl[1] === '1.2', sl);
 await shot('6-journeys-pasted');
 for (let i = 0; i < 4; i++) await key('ArrowDown');
 await key('ArrowLeft'); await key('ArrowLeft'); await key('Enter');      // DELETE
-await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('Enter');   // slot 2 â†’ YES
+await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('Enter');   // slot 2 → YES
 sl = await slotsNow(); check('DELETE slot 2', sl[0] === '1.2' && !sl[1], sl);
-await key('ArrowUp'); await key('Enter', 200);                            // journey 1 â†’ load
+await key('ArrowUp'); await key('Enter', 200);                            // journey 1 → load
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && MV_BETA.stageId === '1.2' && _gameState === 'game', null, { timeout: 12000 }).catch(() => {});
 await pg.waitForTimeout(800);
 await expect('journey 1 continues in 1.2', s => s.gs === 'game' && s.stage === '1.2');
@@ -109,7 +109,7 @@ await expect('YES powers off', s => s.gs === 'off'); await shot('4-off');
 await pg.waitForTimeout(1200); await key('Enter', 300);
 await expect('Start powers back on', s => s.gs === 'splash');
 
-// â”€â”€ water play: MAG holds water, XLR blows air, the Isolator bubble, rope sweep â”€â”€
+// ── water play: MAG holds water, XLR blows air, the Isolator bubble, rope sweep ──
 await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.2`, { waitUntil: 'load' });
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && MV_BETA.waters && MV_BETA.waters.length, null, { timeout: 15000 }).catch(() => {});
 const frames = n => pg.evaluate(n => new Promise(r => { const f0 = fr; const t = () => (fr - f0 >= n ? r() : requestAnimationFrame(t)); t(); }), n);
@@ -180,7 +180,21 @@ const rope = await ev(() => {
 });
 check('rope: moving throw latches on a surface it sweeps through', rope && !rope.still && rope.moving && rope.near, rope);
 
-// â”€â”€ phone: wide picture fills the screen, CRT overlay, one thumb on X + A â”€â”€
+// ── PC widescreen: the picture takes the monitor's shape, all of it visible ──
+for (const [vw, vh] of [[1600, 900], [1920, 940], [1280, 1000]]) {
+  const pc = await b.newPage({ viewport: { width: vw, height: vh } });
+  await pc.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1`, { waitUntil: 'load' });
+  await pc.waitForFunction(() => window.MV_BETA && MV_BETA.on, null, { timeout: 15000 }).catch(() => {});
+  const r = await pc.evaluate(() => { const c = document.getElementById('c').getBoundingClientRect(); return { W, x: Math.round(c.left), y: Math.round(c.top), w: Math.round(c.width), h: Math.round(c.height), vw: innerWidth, vh: innerHeight }; });
+  if (vw === 1600) await pc.waitForTimeout(3000), await pc.screenshot({ path: `${out}/12-pc-wide.png` });
+  const fits = r.x >= 0 && r.y >= 0 && r.x + r.w <= r.vw + 1 && r.y + r.h <= r.vh + 1;
+  const fills = Math.abs(r.w - r.vw) <= 2 || Math.abs(r.h - r.vh) <= 2;
+  const shape = Math.abs(r.w / r.h - r.W / 768) < 0.02;
+  check(`PC ${vw}x${vh}: whole picture visible, fills the window`, fits && fills && shape && (vw / vh > 1.4 ? r.W > 1024 : true), r);
+  await pc.close();
+}
+
+// ── phone: wide picture fills the screen, CRT overlay, one thumb on X + A ──
 const ph = await b.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
 ph.on('pageerror', e => errs.push('phone: ' + String(e)));
 await ph.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1&phone=1`, { waitUntil: 'load' });
