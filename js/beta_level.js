@@ -20,7 +20,7 @@
   'use strict';
   // Stages: 1.1 → 1.2 → … (1.3 ends with a boss, then 2.1). Finishing one carries the jacks into the next.
   const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2'}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:null}};
-  function wantedLevel(){ try{ const m=/[?&]lvl=([0-9.]+)/.exec(location.search); if(m&&LEVELS[m[1]]) return m[1]; }catch(e){} return '1.1'; }
+  function wantedLevel(){ try{ const m=/[?&]lvl=([0-9.]+)/.exec(location.search); if(m&&LEVELS[m[1]]) return m[1]; }catch(e){} if(window.MV_BETA_START&&LEVELS[window.MV_BETA_START]) return window.MV_BETA_START; return '1.1'; }
   const T=32;                                   // world tile
   const ITEM_IDX={TRS:0, RCA:1, XLR:2, MAG:3};
   const B={on:false, level:null, gate:null, need:{crystals:3, seeds:6},
