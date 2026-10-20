@@ -1353,6 +1353,7 @@
   (function boot(){
     function go(){
       if(!want()) return;
+      if(window.MV_BETA_INTRO&&!/[?&]lvl=/.test(location.search)) return;   // splash → title → story starts 1.1
       if(typeof applyLdtkLevel!=='function'||typeof mkP!=='function'){ requestAnimationFrame(go); return; }
       startBetaLab().catch(err=>console.error('Awdjoo beta failed', err));
     }

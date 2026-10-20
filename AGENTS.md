@@ -97,7 +97,7 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
 | **G** | Awdjoo L1 beta (towns 1.1 → 1.2, built on build 160) | `awdjoo-beta.html?ab=g` |
 
-G loads its changed modules from `beta/js/` (core, main, physics, player, render, save, ui, weapons + `beta_*`, `console16`, `crt_room`, `sound16`) and the rest from live `js/`. Levels: `assets/levels/awdjoo-beta.ldtk`, `awdjoo-1-2.ldtk`. Its `beta/js/player.js` predates the build 161 controller remap.
+G loads its changed modules from `beta/js/` (core, main, physics, render, ui, weapons + `beta_*`, `console16`, `crt_room`, `sound16`) and the rest — including the build 161 controls in `player.js` / `save.js` — from live `js/`. Levels: `assets/levels/awdjoo-beta.ldtk`, `awdjoo-1-2.ldtk`. Boot (`beta/js/beta_intro.js`): MMR splash → Paulo Ventura splash (mosaic-in) → title (Story Mode / Options) → story → 1.1. Drop real logos at `assets/splash/mmr-logo.png` and `assets/splash/paulo-ventura-logo.png`; `?lvl=1.1` skips the intro. No A/B bar on G.
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 
