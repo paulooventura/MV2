@@ -16,10 +16,13 @@
 
   const IN=48, HOLD=110, OUT=30, LEN=IN+HOLD+OUT;
   const SPLASHES=[
-    {src:'assets/splash/mmr-logo.jpg', bg:'#fff', fit:'contain', word:'MMR', sub:'PRESENTS', pal:['#fff6d8','#ffd76a','#ffffff','#c8501e','#ff8a3c','#ffe39a'], rim:'#f6c94a', glow:'rgba(255,150,60,0.7)'},
-    {src:'assets/splash/paulo-ventura-logo.png', fit:'cover', word:'PAULO VENTURA', sub:'A GAME BY', subTop:true, pal:['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'], rim:'#f6c94a', glow:'rgba(160,120,255,0.75)'}
+    {src:'assets/splash/mmr-logo.jpg', bg:'#fff', pad:0.86, word:'MMR', sub:'PRESENTS', pal:['#fff6d8','#ffd76a','#ffffff','#c8501e','#ff8a3c','#ffe39a'], rim:'#f6c94a', glow:'rgba(255,150,60,0.7)'},
+    {src:'assets/splash/paulo-ventura-logo.png', bg:'#18003e', pad:1, extend:true, word:'PAULO VENTURA', sub:'A GAME BY', subTop:true, pal:['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'], rim:'#f6c94a', glow:'rgba(160,120,255,0.75)'}
   ];
-  SPLASHES.forEach(s=>{ const im=new Image(); im.onload=()=>{ s.ready=true; }; im.onerror=()=>{ s.ready=false; }; im.src=s.src; s.img=im; });
+  // a splash only starts once its logo has loaded (or failed / timed out), so the drawn stand-in never flashes first
+  SPLASHES.forEach(s=>{ const im=new Image(); im.onload=()=>{ s.ready=true; s.settled=true; }; im.onerror=()=>{ s.ready=false; s.settled=true; }; im.src=s.src; s.img=im; });
+  let waitF=0;
+  window.MV_SPLASH={idx:()=>idx, t:()=>t, IN, HOLD};
 
   let idx=0, t=0;
   const cvEl=()=>document.getElementById('c');
@@ -37,13 +40,19 @@
   function drawSplash(){
     const s=SPLASHES[idx];
     const art=s.ready&&s.img.naturalWidth;
-    ctx.fillStyle=art&&s.bg?s.bg:'#000'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=s.settled&&s.bg?s.bg:'#000'; ctx.fillRect(0,0,W,H);
+    if(!s.settled) return;
     if(art){
-      // cover: the art has its own background, fill the screen; contain: the logo sits on `bg`
-      const k=s.fit==='cover'?Math.max(W/s.img.naturalWidth, H/s.img.naturalHeight):Math.min(W*0.8/s.img.naturalWidth, H*0.86/s.img.naturalHeight);
-      const w=Math.round(s.img.naturalWidth*k), h=Math.round(s.img.naturalHeight*k);
+      // the whole logo always fits, centred (`pad` = share of the screen it may use)
+      const iw=s.img.naturalWidth, ih=s.img.naturalHeight;
+      const k=Math.min(W*s.pad/iw, H*s.pad/ih);
+      const w=Math.round(iw*k), h=Math.round(ih*k), x=(W-w)>>1, y=(H-h)>>1;
       ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
-      ctx.drawImage(s.img,(W-w)>>1,(H-h)>>1,w,h);
+      if(s.extend){                                  // stretch the art's edge columns/rows into the bars so its gradient runs edge to edge
+        if(x>0){ ctx.drawImage(s.img,0,0,1,ih,0,y,x+1,h); ctx.drawImage(s.img,iw-1,0,1,ih,x+w-1,y,W-x-w+1,h); }
+        if(y>0){ ctx.drawImage(s.img,0,0,iw,1,0,0,W,y+1); ctx.drawImage(s.img,0,ih-1,iw,1,0,y+h-1,W,H-y-h+1); }
+      }
+      ctx.drawImage(s.img,x,y,w,h);
     }else{
       const px=s.word.length>6?72:132;
       if(s.subTop) drawTextC(s.sub,W/2,H/2-px*0.95,'#9c8cc8',2);
@@ -66,6 +75,9 @@
   const _update=window.update;
   window.update=function(){
     if(_gameState==='splash'){
+      const s=SPLASHES[idx];
+      if(!s.settled&&++waitF<240){ clkj(); fr++; return; }   // hold on the plain background while the logo loads (max 4 s)
+      s.settled=true; waitF=0;
       // any button skips the current splash once it has resolved
       if(skipKey()&&t>IN*0.5){ if(typeof _unlockAudio==='function') _unlockAudio(); nextSplash(); }
       fr++; t++;

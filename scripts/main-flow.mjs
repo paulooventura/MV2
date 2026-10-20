@@ -28,6 +28,10 @@ const expect = async (name, fn) => { const s = await gs(); const ok = fn(s); ste
 await pg.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load' });
 await pg.waitForTimeout(300);
 await expect('boots on splash', s => s.gs === 'splash');
+for (const [i, n] of [[0, 'splash-mmr'], [1, 'splash-pv']]) {
+  await pg.waitForFunction(i => MV_SPLASH.idx() === i && MV_SPLASH.t() >= MV_SPLASH.IN + 10, i, { timeout: 10000 }).catch(() => {});
+  await shot(n);
+}
 await pg.waitForFunction(() => _gameState === 'title', null, { timeout: 12000 });
 await pg.focus('#c');
 await expect('title after splashes', s => s.gs === 'title'); await shot('1-title');
