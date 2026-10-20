@@ -148,8 +148,10 @@ ent('Label', 97, 17, text='ECHO WELL', tier=1)
 for c, r in [(33, 18), (37, 18), (43, 15), (80, 12), (84, 16), (95, 18)]:
     ent('Knowl', c, r)                   # seeds (dropped to the floor below)
 ent('Laitu', 50, 11, 1, 3)
-ent('Enemy', 36, 19, kind='A')
-ent('Enemy', 78, 13, kind='B')
+# Paulo (Oct 20): the first enemy you meet, by the spawn side of the plateau, is
+# Enemy A (sine wave); the one out past the left of Laitu's house is B (triangle).
+ent('Enemy', 78, 13, ai='circle', range=4)
+ent('Enemy', 36, 19, ai='tri', range=4)
 for c, r, txt in [(5, 11, 'BEDROOM 1'), (16, 11, 'BEDROOM 2'), (6, 16, 'KITCHEN'), (16, 16, 'LIVING ROOM'),
                   (61, 9, "LAITU'S HOUSE")]:
     ent('Label', c, r, text=txt)
@@ -273,7 +275,7 @@ for e in ents:
         d.arc([x, y, x + 3 * S, y + 5 * S], 180, 360, fill='#ffe680', width=3); d.line([x, y + 15, x, y + 5 * S], fill='#ffe680', width=3)
         d.line([x + 3 * S, y + 15, x + 3 * S, y + 5 * S], fill='#ffe680', width=3); d.text((x - 8, y - 12), 'GATE 3+6', fill='#fff')
     elif k == 'Laitu': d.ellipse([x, y, x + S, y + S], fill='#ffe060', outline='#000'); d.text((x - 6, y - 12), 'LAITU', fill='#fff')
-    elif k == 'Enemy': d.ellipse([x - 2, y - 2, x + S + 2, y + S + 2], fill='#ffb0b0', outline='#000'); d.text((x + 1, y), e['fields']['kind'], fill='#000')
+    elif k == 'Enemy': d.ellipse([x - 2, y - 2, x + S + 2, y + S + 2], fill='#ffb0b0', outline='#000'); d.text((x + 1, y), {'circle':'A','tri':'B','square':'S'}.get(e['fields'].get('ai'), e['fields'].get('kind','?')), fill='#000')
     elif k == 'Label': d.text((x, y), e['fields']['text'], fill='#f0d8a8')
 lg = ROWS * S + 10
 d.rectangle([0, ROWS * S, COLS * S, ROWS * S + 60], fill='#f3ead8')

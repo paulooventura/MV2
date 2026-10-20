@@ -19872,27 +19872,6 @@
        "width": 16,
        "height": 16,
        "px": [
-        576,
-        496
-       ],
-       "__grid": [
-        36,
-        31
-       ],
-       "fieldInstances": [
-        {
-         "__identifier": "kind",
-         "__type": "String",
-         "__value": "A"
-        }
-       ]
-      },
-      {
-       "__identifier": "Enemy",
-       "iid": "beta-158",
-       "width": 16,
-       "height": 16,
-       "px": [
         1248,
         400
        ],
@@ -19902,9 +19881,40 @@
        ],
        "fieldInstances": [
         {
-         "__identifier": "kind",
+         "__identifier": "ai",
          "__type": "String",
-         "__value": "B"
+         "__value": "circle"
+        },
+        {
+         "__identifier": "range",
+         "__type": "Int",
+         "__value": 4
+        }
+       ]
+      },
+      {
+       "__identifier": "Enemy",
+       "iid": "beta-158",
+       "width": 16,
+       "height": 16,
+       "px": [
+        576,
+        496
+       ],
+       "__grid": [
+        36,
+        31
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "ai",
+         "__type": "String",
+         "__value": "tri"
+        },
+        {
+         "__identifier": "range",
+         "__type": "Int",
+         "__value": 4
         }
        ]
       },
