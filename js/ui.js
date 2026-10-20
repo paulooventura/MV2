@@ -148,11 +148,8 @@ function _drawUiToast(){
 function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
-    {label:'TUTORIAL CHAMBER', activate:()=>{_gameState='tutorial';}},
-    {label:'ITEM SPRITE LAB', activate:()=>typeof startItemLab==='function'&&startItemLab()},
-    {label:'PHYSICS LAB', activate:()=>typeof startPhysicsLab==='function'&&startPhysicsLab()},
-    {label:'BATTLE PRACTICE', activate:()=>startBattleTest()},
-    {label:'CREATIVE MODE', activate:()=>{_gameState='stagedesign';_stageDesignSelIdx=0;}},
+    // Hidden for now (Paulo, Oct 2026): Tutorial Chamber, Item Sprite Lab, Physics Lab,
+    // Battle Practice, Creative Mode. Their code stays; add the entries back to show them.
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
   ];
 }
