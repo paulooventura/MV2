@@ -293,7 +293,7 @@
         }
         case 'Enemy': {
           const ai=F(e,'ai');
-          if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined})); break; }
+          if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined, iso:!!F(e,'iso')})); break; }
           const type=F(e,'kind')==='B'?'square':'circle';
           if(typeof _mkMinion==='function'){
             const m=_mkMinion(cx, feet, type, {mn:Math.floor(cx-110), mx:Math.floor(cx+110)});

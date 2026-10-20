@@ -126,7 +126,7 @@ ent('Water', 7, 50, 25, 8)                              # basin: cols 7-31, surf
 # enemies: ai = circle (Enemy A, sine wave) | square | tri; range in tiles each way
 ent('Enemy', 27, 28, ai='circle', range=1)              # on the tall pillar
 ent('Enemy', 30, 43, ai='circle', range=1)              # stub ledge in the water room
-ent('Enemy', 12, 53, ai='circle', range=3)              # swimming by the pool crystal
+ent('Enemy', 12, 53, ai='circle', range=3, iso=1)       # rolls on the pool floor by the crystal — wears an Isolator
 ent('Enemy', 9, 44, ai='tri', range=2)                  # riding the left water platform
 ent('Enemy', 25, 44, ai='square', range=2)              # riding the right one
 ent('Enemy', 40, 33, ai='tri', range=2)                 # rides the platform in front of the house

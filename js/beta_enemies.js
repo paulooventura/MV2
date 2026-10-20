@@ -34,7 +34,9 @@
   if(!B.difficulty) B.difficulty=2;
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
 
-  const SIZE={circle:{w:56,h:56}, square:{w:64,h:64}, tri:{w:64,h:56}};
+  // sizes (Paulo, Oct 20): A stays as it was; B (triangle) is 3 blocks tall,
+  // C (square) 4 blocks tall
+  const SIZE={circle:{w:56,h:56}, tri:{w:110,h:96}, square:{w:128,h:128}};
   // Paulo (Oct 20): nothing happens to them from far away — they only start to
   // glow red within 3 blocks (full red and boom at 1), push from 2 blocks, and
   // the jacks only move an enemy that's within reach (MAX_ITEM_R from MIND).
@@ -50,7 +52,11 @@
       shotCd:0, grenades:[], shutF:0, _shutSettled:false,
       heat:0, fuse:0, pushCd:90+Math.random()*90|0, ropeCd:120, stepCd:30+Math.random()*40|0,
       tumble:null, ang:0, baseY:feet-s.h, phase:Math.random()*Math.PI*2, homeX:cx};
-    e.og=false; e._falling=true; e.roll=0; e.travCd=120+Math.random()*120|0;
+    e.og=false; e._falling=true; e.roll=0; e.travCd=60+Math.random()*90|0;
+    e._iso=!!opts.iso;
+    // no patrol box: the floor is its range. (The engine clamps x into mn..mx
+    // on a hit — with a box, an enemy that had travelled snapped back home.)
+    e.mn=-1e7; e.mx=1e7;                                       // wears an Isolator: water can't short it
     return e;
   };
 
@@ -81,6 +87,11 @@
     const mx0=h.x, mx1=h.x+h.w, my0=h.y, my1=feet;
     const gx=Math.max(0,Math.max(e.x-mx1, mx0-(e.x+e.w))), gy=Math.max(0,Math.max(e.y-my1, my0-(e.y+e.h)));
     return Math.max(gx,gy);
+  }
+  function onScreen(e){
+    const Z=(typeof sw==='function'?sw(1000)/1000:1)||1, vx0=_rcamX!=null?_rcamX:camX, vy0=_rcamY!=null?_rcamY:camY;
+    const vw=W/Z, vh=H/Z;
+    return e.x+e.w>vx0-T&&e.x<vx0+vw+T&&e.y+e.h>vy0-T&&e.y<vy0+vh+T;
   }
   function sees(e){
     const a=center(e), m=mindCenter();
@@ -249,7 +260,7 @@
   }
 
   // ── movement ────────────────────────────────────────────────────
-  function startTumble(e,dir){
+  function startTumble(e,dir,dropOn){
     const step=e.w;                                          // one side length
     const nx=e.x+dir*step, feet=e.y+e.h;
     if(e._plat){ const pl=e._plat; if(nx<pl.x-4||nx+e.w>pl.x+pl.w+4) return false; }
@@ -262,28 +273,35 @@
       }
       return false;
     }
-    // only onto floor: never off a ledge (a rope gets it anywhere else)
-    if(!(floorAtPoint(nx+8,feet,8)&&floorAtPoint(nx+e.w-8,feet,8))&&!platUnder(nx,e.w,feet)) return false;
-    if(wetAt(nx+e.w/2,feet-6)) return false;                  // ... nor into the water (it would short out)
-    const drop=0;
+    // only onto floor: never off a ledge (a rope gets it anywhere else) — except C
+    // dropping on MIND on purpose
+    let drop=0;
+    if(!(floorAtPoint(nx+8,feet,8)&&floorAtPoint(nx+e.w-8,feet,8))&&!platUnder(nx,e.w,feet)){
+      if(!dropOn) return false;
+      drop=dropDepth(nx,e.w,feet,9*T); if(drop===Infinity) return false;
+      if(!e._iso&&wetAt(nx+e.w/2,feet+drop-6)) return false;
+    }
+    if(!e._iso&&wetAt(nx+e.w/2,feet-6)) return false;         // ... nor into the water (it would short out)
     e.tumble={dir, t:0, dur:e._ai==='tri'?26:20, x0:e.x, nx, drop};
     return true;
   }
   // ── rope travel (B + C): from a ledge to another floor ──────────
-  // Looks up to 7 blocks ahead for a floor it fits on (4 up … 4 down). If
+  // Looks up to 9 blocks ahead for a floor it fits on (4 up … 4 down). If
   // there's a ceiling over the gap it swings there on the rope like a
   // pendulum; otherwise it hooks the far ledge and hauls itself over.
-  function findLanding(e,dir){
+  function findLanding(e,dir,target){
     const feet=e.y+e.h; let best=null, bd=1e9;
-    for(let k=2;k<=7;k++){
-      const nx=e.x+dir*k*T;
+    for(let k=2;k<=18;k++){                                   // up to 9 blocks, every half block
+      const nx=e.x+dir*k*T/2;
       for(let up=-4;up<=4;up++){
         const f=Math.round((feet-up*T)/T)*T;
         if(!boxFree(nx,f-e.h,e.w,e.h)) continue;
         if(!(solidAt(nx+8,f+4)&&solidAt(nx+e.w-8,f+4))) continue;      // solid ground only (a moving platform would leave)
-        if(wetAt(nx+e.w/2,f-6)) continue;
+        if(!e._iso&&wetAt(nx+e.w/2,f-6)) continue;
         if(ENEMS.some(o=>o!==e&&o._ai&&Math.abs(o.x-nx)<e.w&&Math.abs(o.y+o.h-f)<T)) continue;
-        const d=k*T+Math.abs(up)*T*0.7; if(d<bd){ bd=d; best={x:nx,y:f-e.h}; }
+        // with a target: the floor that gets it closest to him (not right on top: it wants room to work)
+        const d=target?Math.max(T*2,Math.hypot(nx+e.w/2-target.x,f-e.h/2-target.y)):k*T/2+Math.abs(up)*T*0.7;
+        if(d<bd){ bd=d; best={x:nx,y:f-e.h}; }
       }
     }
     return best;
@@ -293,13 +311,16 @@
     for(let y=top-T;y>top-8*T;y-=T/2){ if(solidAt(mx,y)) return {x:mx,y:y+T/2-2}; }
     return null;
   }
-  function ropeTravel(e,dir){
+  function ropeTravel(e,dir,target){
     if(e._ai==='circle'||ropeOf(e)||(e.travCd||0)>0) return false;
-    const dest=findLanding(e,dir); if(!dest) return false;
+    let dest=findLanding(e,dir,target);
+    if(target&&!dest) dest=findLanding(e,-dir,target);
+    if(!dest) return false;
+    if(target){ const now=Math.hypot(e.x+e.w/2-target.x,e.y+e.h/2-target.y), then=Math.hypot(dest.x+e.w/2-target.x,dest.y+e.h/2-target.y); if(then>now-T){ e.travCd=40; return false; } }
     const an=findAnchor(e,dest);
     const tx=an?an.x:dest.x+e.w/2, ty=an?an.y:dest.y+e.h;
     throwRope(e,tx,ty,'travel');
-    const r=ropeOf(e); r.dest=dest; r.anchor=an; e.travCd=(DIFF()===3?140:220)+Math.random()*120|0;
+    const r=ropeOf(e); r.dest=dest; r.anchor=an; e.travCd=(DIFF()===3?90:DIFF()===2?150:220)+Math.random()*80|0;
     return true;
   }
   function tumbleTick(e){
@@ -318,10 +339,10 @@
   // back at a ledge or a wall, and spins as it goes (its face turns with it)
   function rollTick(e,near,face){
     const wet=wetAt(e.x+e.w/2,e.y+e.h/2);
-    const spd=(near?1.5:0.9)*(wet?0.55:1);
+    const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
     const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
     const lead=dir>0?nx+e.w-12:nx+12;
-    if(!boxFree(nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)){ if(!near) e.dir*=-1; e.vx=0; return; }
+    if(!boxFree(nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
     e.x=nx; e.vx=dir*spd; e.roll=(e.roll||0)+dir*spd/(e.w/2);
     if(!floorUnder(e.x,e.w,feet)){ e.og=false; e._falling=true; }   // the slope drops away a little: settle onto it
   }
@@ -351,7 +372,9 @@
 
   function think(e){
     const c=center(e), m=mindCenter(), dx=m.x-c.x, dist=Math.hypot(dx,m.y-c.y);
-    const near=dist<10*T&&sees(e);
+    // they notice MIND as soon as they're on screen together, and go for him
+    const near=onScreen(e);
+    const los=near&&sees(e);
     // heat: red as MIND gets close; one block away → fuse → boom
     const gap=gapTo(e);
     // cooling off after a blast: no heat, no fuse, no pushing or roping
@@ -369,9 +392,10 @@
     if(e.ropeCd>0) e.ropeCd--;
     const face=dx>=0?1:-1;
     // push when MIND is in front and close
-    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<2*T){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
+    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<Math.max(2*T,e.h*0.6)){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
     // rope (square + triangle)
-    if(!cooling&&e._ai!=='circle'&&near&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&e.heat>0.3&&dist<ROPE_R){
+    // rope him from range (it can't be dodged by just standing back), then reel
+    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<ROPE_R+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)){
       throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
     }
     if(e.travCd>0) e.travCd--;
@@ -390,13 +414,16 @@
     if(cooling) return;
     if(e._ai==='circle'){ rollTick(e,near,face); return; }
     if(--e.stepCd<=0){
-      const dir=near?face:e.dir;
-      if(!startTumble(e,dir)){
-        // the edge of its floor (or a wall): sometimes it ropes over, else it turns back
-        const wantGo=near?Math.abs(dx)>2*T:Math.random()<0.35;
-        if(!(wantGo&&ropeTravel(e,dir))&&!near) e.dir*=-1;
+      const dir=near?face:e.dir, below=m.y>e.y+e.h+T, above=m.y<e.y-T;
+      // C drops off its ledge on purpose when MIND is right below — to land on him
+      if(near&&e._ai==='square'&&below&&Math.abs(dx)<e.w*1.6&&sees(e)&&startTumble(e,dir,true)){}
+      else if(near&&Math.abs(dx)<e.w*0.5+T&&(above||below)&&ropeTravel(e,dir,m)){}   // he's over / under it: rope to his floor
+      else if(!startTumble(e,dir)){
+        // the edge of its floor (or a wall): it ropes across toward him; idle, sometimes it explores
+        const wantGo=near?Math.abs(dx)>e.w*0.5+T||above||below:Math.random()<0.35;
+        if(!(wantGo&&ropeTravel(e,dir,near?m:null))&&!near) e.dir*=-1;
       }
-      e.stepCd=(near?(DIFF()===3?16:26):46)+Math.random()*20|0;
+      e.stepCd=(near?(DIFF()===3?14:DIFF()===2?22:32):46)+Math.random()*16|0;
     }
   }
 
@@ -436,6 +463,7 @@
     if(!p) return;
     for(const e of ENEMS){
       if(!e._ai) continue;
+      e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
       if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       think(e);
@@ -494,6 +522,7 @@
     ctx.strokeStyle=off?'#4a4450':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=lw*0.6; shape(); ctx.stroke();   // the red ink line
     ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
     inkFace(ctx,s,e._ai,ink,off);
+    if(e._iso){ ctx.strokeStyle='rgba(255,160,70,'+(0.55+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(3,s*0.07); ctx.save(); ctx.scale(1.12,1.12); shape(); ctx.stroke(); ctx.restore(); }
     ctx.restore();
   }
   function drawRopes(){
