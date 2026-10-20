@@ -89,7 +89,8 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 
 | Slot | What | URL |
 |------|------|-----|
-| **A** | Live game (`index.html`): Awdjoo 1.1 → 1.2 with water (promoted L1 beta, build 162). No A/B bar. | `index.html` |
+| **A** | Live game (`index.html`): Claude's build 180 from `claude/` (via `<base href="claude/">`), promoted Oct 20 2026. Edit `claude/`. | `index.html` |
+| **168** | Build 168 (was A): co-op/VS, water play, phone/PC fit (`beta/js/`). Kept until merged into `claude/`. `selftest:flow` runs here. | `awdjoo-168.html` |
 | **B** | Clean collision lab | `clean-collision-core.html?ab=b` |
 | **C** | Item sprite lab | `item-lab.html?ab=c` |
 | **D** | Physics lab | `physics-lab.html?ab=d` |

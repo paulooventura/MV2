@@ -25,7 +25,7 @@ const shot = n => pg.screenshot({ path: `${out}/${n}.png`, timeout: 20000 }).cat
 const key = async (k, wait = 120) => { await pg.keyboard.press(k); await pg.waitForTimeout(wait); };
 const expect = async (name, fn) => { const s = await gs(); const ok = fn(s); steps.push([name, ok ? 'ok' : 'FAIL', s]); return ok; };
 
-await pg.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load' });
+await pg.goto(`http://127.0.0.1:${PORT}/awdjoo-168.html`, { waitUntil: 'load' });
 await pg.waitForTimeout(300);
 await expect('boots on splash', s => s.gs === 'splash');
 for (const [i, n] of [[0, 'splash-mmr'], [1, 'splash-pv']]) {
@@ -121,7 +121,7 @@ await pg.waitForTimeout(1200); await key('Enter', 300);
 await expect('Start powers back on', s => s.gs === 'splash');
 
 // ── water play: MAG holds water, XLR blows air, the Isolator bubble, rope sweep ──
-await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.2&party=none`, { waitUntil: 'load' });
+await pg.goto(`http://127.0.0.1:${PORT}/awdjoo-168.html?lvl=1.2&party=none`, { waitUntil: 'load' });
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && MV_BETA.waters && MV_BETA.waters.length, null, { timeout: 15000 }).catch(() => {});
 const frames = n => pg.evaluate(n => new Promise(r => { const f0 = fr; const t = () => (fr - f0 >= n ? r() : requestAnimationFrame(t)); t(); }), n);
 const wsetup = await ev(() => {
@@ -211,7 +211,7 @@ check('rope: moving throw latches on a surface it sweeps through', rope && !rope
 
 // ── two siblings: 1P ally flies back in, co-op no friendly fire, VS hits + shutdown ──
 const party = async q => {
-  await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1&party=${q}`, { waitUntil: 'load' });
+  await pg.goto(`http://127.0.0.1:${PORT}/awdjoo-168.html?lvl=1.1&party=${q}`, { waitUntil: 'load' });
   await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && p2, null, { timeout: 15000 }).catch(() => {});
   await ev(() => { MV_BETA.popup = null; ENEMS.length = 0; ESHOTS.length = 0; });
   await pg.focus('#c');
@@ -259,7 +259,7 @@ check('VS: the shut-down sibling reboots with full HP', await ev(() => !p2._offT
 // ── PC widescreen: the picture takes the monitor's shape, all of it visible ──
 for (const [vw, vh] of [[1600, 900], [1920, 940], [1280, 1000]]) {
   const pc = await b.newPage({ viewport: { width: vw, height: vh } });
-  await pc.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1`, { waitUntil: 'load' });
+  await pc.goto(`http://127.0.0.1:${PORT}/awdjoo-168.html?lvl=1.1`, { waitUntil: 'load' });
   await pc.waitForFunction(() => window.MV_BETA && MV_BETA.on, null, { timeout: 15000 }).catch(() => {});
   const r = await pc.evaluate(() => { const c = document.getElementById('c').getBoundingClientRect(); return { W, x: Math.round(c.left), y: Math.round(c.top), w: Math.round(c.width), h: Math.round(c.height), vw: innerWidth, vh: innerHeight }; });
   if (vw === 1600) await pc.waitForTimeout(3000), await pc.screenshot({ path: `${out}/12-pc-wide.png` });
@@ -273,7 +273,7 @@ for (const [vw, vh] of [[1600, 900], [1920, 940], [1280, 1000]]) {
 // ── phone: wide picture fills the screen, CRT overlay, one thumb on X + A ──
 const ph = await b.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
 ph.on('pageerror', e => errs.push('phone: ' + String(e)));
-await ph.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1&phone=1`, { waitUntil: 'load' });
+await ph.goto(`http://127.0.0.1:${PORT}/awdjoo-168.html?lvl=1.1&phone=1`, { waitUntil: 'load' });
 await ph.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game', null, { timeout: 15000 }).catch(() => {});
 await ph.evaluate(() => { MV_BETA.popup = null; if (window.MV_TV) MV_TV.on = true; });
 await ph.waitForTimeout(3000);

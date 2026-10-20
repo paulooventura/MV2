@@ -7,7 +7,8 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 
 ## Hard rules
 
-- **Awdjoo (`index.html`) is the live game.** Since build 162 (Wall promoted the L1 beta, Oct 2026) it runs the `beta/js/` modules (water, cubes, towns 1.1 → 1.2) on top of shared `js/`. The old Awdjoo lives on as lab G (`awdjoo-classic.html`). Labs B–G are experiments. Do not promote a lab over A unless Wall says so.
+- **Since Oct 20 2026 the live game is Claude's build 180**: `index.html` is `claude/index.html` plus `<base href="claude/">`, so it runs `claude/js/` + `claude/assets/` (Wall's call). Edit the game in `claude/`, and keep `index.html` in sync with `claude/index.html` (same file + the base tag). Build 168 (co-op/VS, water play, phone/PC screen fit, `beta/js/`) lives at `awdjoo-168.html` until it is merged into `claude/`; `npm run selftest:flow` tests that page.
+- **Awdjoo (`awdjoo-168.html`, was `index.html`).** Since build 162 (Wall promoted the L1 beta, Oct 2026) it runs the `beta/js/` modules (water, cubes, towns 1.1 → 1.2) on top of shared `js/`. The old Awdjoo lives on as lab G (`awdjoo-classic.html`). Labs B–G are experiments. Do not promote a lab over A unless Wall says so.
 - Collision = typed grid (`js/collision_grid.js`). If the player wedges, fix the grid — do not retune `vx`.
 - Feel knobs = top of `js/physics.js` + `_updatePlayerMoveX` in `js/player.js`.
 - QA = `npm run selftest` (or `selftest:quick`) for the shared engine (runs on `awdjoo-classic.html`), plus `npm run selftest:flow` for the live menus (splashes, title, pause, shut-down, journeys, game over, hints, full-window layout). Do not ask for F12 pastes.
