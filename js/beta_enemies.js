@@ -11,9 +11,10 @@
 //   · heat up as MIND gets close — the body turns red gradually — and one
 //     block away they go full red and explode into frags: circle 8 ways,
 //     triangle from its 3 corners, square from its 4 corners (on the ground
-//     the downward ones bounce up). The explosion is a shutdown: the enemy
-//     goes through the usual 3-life cycle (reboots, knowls / the Knowl tree
-//     wake it). Frags hurt MIND and other enemies.
+//     the downward ones bounce up). Blowing up does NOT shut it down: it
+//     cools off for a second (grey, steaming) and then carries on. Frags hurt
+//     MIND and other enemies. (Punches, frags, water etc. can still shut it
+//     down the usual way: 3-life cycle, knowls / the Knowl tree wake it.)
 //   · square + triangle shoot a rope at MIND: it grabs him, then the AI
 //     holds or reels him in — random, smarter on higher difficulty (hard
 //     reels MIND into its own explosion). Mash jump or hit it to break free.
@@ -30,7 +31,7 @@
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
 
   const SIZE={circle:{w:56,h:56}, square:{w:64,h:64}, tri:{w:64,h:56}};
-  const HEAT_FAR=6*T, FUSE=34, PUSH_R=4*T, ROPE_R=8*T;
+  const HEAT_FAR=6*T, FUSE=34, PUSH_R=4*T, ROPE_R=8*T, COOL=60;
 
   // ── creation (called by beta_level's Enemy entity) ──────────────
   B.mkAiEnemy=function(ai, cx, feet, opts){
@@ -107,9 +108,9 @@
     const m=mindCenter(), d=Math.hypot(m.x-c.x,m.y-c.y)||1;
     if(d<3*T&&_shutdownTimer<=0){ const k=1-d/(3*T); applyPlayerHit((m.x-c.x)/d*8*k,-4*k-1,Math.round(6+8*k)); }
     releaseRope(e);
-    e.fuse=0; e.heat=0;
-    if(typeof _damageEnemy==='function') _damageEnemy(e,9999,c.x,c.y,0);
-    e.vx=0; e.vy=0;
+    // Paulo (Oct 20): blowing up doesn't shut it down — it cools off for a
+    // second (grey, steaming) and then carries on as before.
+    e.fuse=0; e.heat=0; e.cool=COOL; e.vx=0; e.vy=0;
   }
   function fragTick(){
     for(let i=B.frags.length-1;i>=0;i--){
@@ -266,20 +267,28 @@
     const near=dist<10*T&&sees(e);
     // heat: red as MIND gets close; one block away → fuse → boom
     const gap=gapTo(e);
-    const want=near?Math.max(0,Math.min(1,(HEAT_FAR-gap)/(HEAT_FAR-T))):0;
-    e.heat+=(want-e.heat)*0.06;
-    if(gap<=T*1.05&&near&&!e.fuse) { e.fuse=1; try{ sfx('chargeReady'); }catch(_e){} }
-    if(e.fuse){ e.heat=1; if(++e.fuse>=FUSE){ explode(e); return; } }
+    // cooling off after a blast: no heat, no fuse, no pushing or roping
+    const cooling=(e.cool||0)>0;
+    if(cooling){
+      e.cool--; e.heat=0;
+      if(e.cool%5===0) PFXS.push({x:c.x+(Math.random()-0.5)*e.w*0.6,y:e.y+4,vx:(Math.random()-0.5)*0.6,vy:-0.8-Math.random()*0.6,life:24,maxLife:24,r:3+Math.random()*3,col:'rgba(220,220,230,0.6)'});
+    }else{
+      const want=near?Math.max(0,Math.min(1,(HEAT_FAR-gap)/(HEAT_FAR-T))):0;
+      e.heat+=(want-e.heat)*0.06;
+      if(gap<=T*1.05&&near&&!e.fuse) { e.fuse=1; try{ sfx('chargeReady'); }catch(_e){} }
+      if(e.fuse){ e.heat=1; if(++e.fuse>=FUSE){ explode(e); return; } }
+    }
     if(e.pushCd>0) e.pushCd--;
     if(e.ropeCd>0) e.ropeCd--;
     const face=dx>=0?1:-1;
     // push when MIND is in front and close
-    if(near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<2*T){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
+    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<2*T){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
     // rope (square + triangle)
-    if(e._ai!=='circle'&&near&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&e.heat>0.3&&dist<ROPE_R){
+    if(!cooling&&e._ai!=='circle'&&near&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&e.heat>0.3&&dist<ROPE_R){
       throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
     }
     if(e._ai==='circle'){
+      if(cooling) return;                                       // hangs still while it cools
       // a sine wave along its patrol line; drifts toward MIND when it sees him
       e.phase+=0.045;
       const spd=near?0.9:0.6;
@@ -302,6 +311,7 @@
     if(!e.og){ fallTick(e); return; }
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
     if(ropeOf(e)&&ropeOf(e).kind==='ledge') return;
+    if(cooling) return;
     if(--e.stepCd<=0){
       const dir=near?face:e.dir;
       if(!startTumble(e,dir)){ if(!near) e.dir*=-1; }
@@ -380,7 +390,8 @@
   }
   function drawAi(e){
     const off=!e.alive, heat=off?0:e.heat||0, flash=e.fuse&&(e.fuse>>2)%2===0;
-    const fill=off?'#6a6470':flash?'#ffffff':lerpCol('f6efe2','e8392a',heat);
+    const cool=Math.min(1,(e.cool||0)/20);
+    const fill=off?'#6a6470':flash?'#ffffff':cool>0?lerpCol(lerpCol('f6efe2','e8392a',heat).match(/\d+/g).map(v=>(+v).toString(16).padStart(2,'0')).join(''),'8a8696',cool):lerpCol('f6efe2','e8392a',heat);
     const ink=off?'#2a2830':heat>0.55?'#fff4e0':INK;
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), s=sw(e.w);
     ctx.save();
