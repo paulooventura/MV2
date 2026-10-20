@@ -51,9 +51,9 @@ window.addEventListener('keyup',e=>{
 function _initTouchButtons(){
   const cv=document.getElementById('c');
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
-  // Face buttons: A jump, X item action, Y item select, B punch.
+  // Phone diamond: top Y punch, right B item select, left X item action/run, bottom A jump.
   const _padPairs=window._phonePlay
-    ?[['bSp','Space'],['bE','KeyE'],['bQ','KeyF'],['bF','KeyQ']]
+    ?[['bSp','Space'],['bE','KeyF'],['bQ','KeyE'],['bF','KeyQ']]
     :[['bSp','Space'],['bE','KeyE'],['bQ','KeyQ'],['bF','KeyF']];
   _padPairs.forEach(([id,code])=>{
     const b=document.getElementById(id);
@@ -153,11 +153,13 @@ function readGamepad(){
   const bJump=pressed(0);
   if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
+  // Face: A(0) jump · B(1) item select · X(2) item action + hold to run · Y(3) punch
   if(rose(2)) Kj['KeyQ']=true;
-  if(rose(3)) Kj['KeyE']=true;
+  if(rose(1)) Kj['KeyE']=true;
+  if(rose(3)) Kj['KeyF']=true;
   K['KeyQ']=(K['KeyQ_kb']||pressed(2));
-  K['KeyE']=(K['KeyE_kb']||pressed(3));
-  K['KeyF']=(K['KeyF_kb']||pressed(1));
+  K['KeyE']=(K['KeyE_kb']||pressed(1));
+  K['KeyF']=(K['KeyF_kb']||pressed(3));
   if(pressed(4)) K['KeyS']=true;
   if(rose(9)) Kj['Tab']=true;
   if(_gameState==='title'){
@@ -188,12 +190,36 @@ function isJump(){ return _bindDown('jump'); }
 function isJumpJ(){ return _bindJ('jump'); }
 function isPunch(){ return _bindDown('punch'); }
 
-let _punchHoldF=0, _punchHoldFr=-1;
+// Item Action (X / Q) doubles as run: hold it with a direction.
+// Run-only gesture: tap forward, release, then press X and forward together.
+// Until X is released, X only runs — no TRS charge, hook fire, or XLR/MAG drain.
+const RUN_TAP_WIN=18, RUN_PAIR_WIN=6;
+let _rgFr=-1, _rgDir=0, _rgTapDir=0, _rgTapFr=-999, _rgDirFr=-999;
+let _rgSwap=false, _rgSwapFr=-999, _runOnly=false;
+function _tickRunGesture(){
+  if(fr===_rgFr) return;
+  _rgFr=fr;
+  const dir=_moveInputX();
+  const swap=_bindDown('swap');
+  if(dir!==_rgDir){
+    if(_rgDir!==0&&dir===0){ _rgTapDir=_rgDir; _rgTapFr=fr; }
+    if(dir!==0) _rgDirFr=fr;
+    _rgDir=dir;
+  }
+  if(swap&&!_rgSwap) _rgSwapFr=fr;
+  _rgSwap=swap;
+  if(!swap){ _runOnly=false; return; }
+  if(_runOnly||!dir||dir!==_rgTapDir) return;
+  const start=Math.min(_rgSwapFr,_rgDirFr);
+  if(Math.abs(_rgSwapFr-_rgDirFr)<=RUN_PAIR_WIN&&start>_rgTapFr&&start-_rgTapFr<=RUN_TAP_WIN) _runOnly=true;
+}
+function isRunOnly(){ _tickRunGesture(); return _runOnly; }
+function _itemFireDown(){ return _bindDown('swap')&&!isRunOnly(); }
+function _itemFireJ(){ return _bindJ('swap')&&!isRunOnly(); }
 function isSprintHeld(){
   if(typeof _bindDown==='function'&&_bindDown('sprint')) return true;
   if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
-  if(fr!==_punchHoldFr){ _punchHoldFr=fr; _punchHoldF=isPunch()?_punchHoldF+1:0; }
-  return _punchHoldF>10&&((isRt()&&!isLf())||(isLf()&&!isRt()));
+  return _bindDown('swap')&&_moveInputX()!==0;
 }
 function _moveInputX(){
   if(_bindDown('right')&&!_bindDown('left')) return 1;

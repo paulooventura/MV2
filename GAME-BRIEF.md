@@ -71,9 +71,11 @@ Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map
 - Basement **Knowl tree**. Moving island + mind shapes (circle / square).
 - **1P story:** the other sibling is `_aiCompanion` — stays near, shoots TRS,
   helps when the lead is hurt. Select copy: “ALLY JOINS YOU”.
-- Gamepad: **A jump · X item action · Y item select · B punch** (`js/save.js`
-  `BIND_LABELS`). Keyboard still Space / Q / E / F.
-- Selftest **PASS** on build 160 (`npm run selftest` / `selftest:quick`).
+- Gamepad (build 161): **A jump · X item action + hold to run · B item select ·
+  Y punch** (`js/player.js` `readGamepad`, `js/save.js` `BIND_LABELS`).
+  Run-only gesture: tap forward, release, then press X + forward together —
+  X only runs (no item fire / drain) until released. Keyboard: Space / Q / E / F.
+- Selftest **PASS** on build 161 (`npm run selftest` / `selftest:quick`).
 - Story ally: `flashF` now decays on `p2` so the sprite no longer vanishes after the first TRS shot.
 
 ### Labs — experiments, not the campaign
@@ -290,10 +292,11 @@ Do not replace `applyTmjMap` until Wall promotes it.
 |----------|-----|--------|
 | WASD / arrows | Stick | Move / aim |
 | Space | **A** | Jump |
-| Q | **X** | Item action (charge / fire / hook) |
-| E | **Y** | Cycle item |
-| F | **B** | Punch |
-| Shift (grounded) | Sprint bind | Run ramp toward `MOVE_RUN` |
+| Q | **X** (left) | Item action (charge / fire / hook). Hold + direction = run |
+| E | **B** (right) | Cycle item |
+| F | **Y** (top) | Punch |
+| Shift (grounded) | Hold **X** + direction | Run ramp toward `MOVE_RUN` |
+| tap fwd, release, then Q/X + fwd together | same | Run only — item does not fire or drain until X is released |
 | S / down | Down | Duck |
 
 ---

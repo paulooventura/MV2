@@ -860,15 +860,16 @@ function update(){
     const _enhTrs=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
     const _cMax=_enhTrs?22:40;
     const _cReady=_enhTrs?10:18;
-    if(_bindDown('swap')&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
+    if(p.laserCharging&&isRunOnly()){p.laserCharging=false;p.laserCharge=0;}
+    if(_itemFireDown()&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
     if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=charged?14:8;}
     if(p.laserCd>0)p.laserCd--;
-  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap'))fireItem();p.laserCharging=false;p.laserCharge=0;}
+  }else if(ITEM===1&&_itemUnlocked(1)){if(_itemFireJ())fireItem();p.laserCharging=false;p.laserCharge=0;}
   else{p.laserCharging=false;p.laserCharge=0;}
 
   // ── XLR / MAG hold ────────────────────────────────────────────
-  const _fireHeld=_bindDown('swap');
+  const _fireHeld=_itemFireDown();
   const _treeBoost=_knowlTreeBoostMul(p);
   const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
@@ -878,9 +879,7 @@ function update(){
   else{p.xlrOn=false;p.magOn=false;p.xlrHeld=0;p.magHeld=0;}
 
   // ── Punch charge ──────────────────────────────────────────────
-  const _fMoving=isSprintHeld()&&_playerGrounded(p);
-  if(isPunch()&&!p.pCharging&&p.pCd===0&&!_fMoving){p.pCharging=true;p.pCharge=0;}
-  if(_fMoving&&p.pCharging){p.pCharging=false;p.pCharge=0;}
+  if(isPunch()&&!p.pCharging&&p.pCd===0){p.pCharging=true;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
   if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;p.pt=p.pCharge>20?8:5;p.pCd=7;p._hitDone=false;const charged=p.pCharge>20;sfx(charged?'hook_charged':'punch');}
   if(p.pt>0)p.pt--;else p._hitDone=false;
