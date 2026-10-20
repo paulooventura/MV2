@@ -1265,7 +1265,7 @@
       }
       ctx.globalAlpha=1;
     }
-    drawEnemyBars();
+    // (no bars over the enemies: Paulo — their look already says it: red = hot, grey = off)
   };
 
   // ── Energy bars over the enemies: fill, plus pips for the shutdowns left
