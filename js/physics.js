@@ -1263,6 +1263,7 @@ function resolvePlatY(pl,prevFeet){
   for(const plat of allP()){
     if(plat.tp==='oneway'){
       if(pl.hook&&pl.hook.st==='on') continue;
+      if(_mvDropThru>0) continue;
       if(!_platNearX(plat,pl.x+SW*0.5,SW+32)) continue;
       if(pl.vy>=0&&_feetSpanOver(plat,fL,fR)&&prevFeet<=plat.y+landSlop&&feet>=plat.y-2){
         pl.y=plat.y-FEET_OFF; pl.vy=0; pl.og=true;
@@ -1488,6 +1489,20 @@ function _unstickWallCorner(pl){
   return;
 }
 
+// ── Drop through platforms (DOWN + JUMP) ──────────────────────
+var _mvDropThru=0;
+function _onDropPlatform(pl){
+  if(window.MV_BETA&&MV_BETA.on&&MV_BETA.ridePlat) return true;          // a moving platform
+  const feet=pl.y+FEET_OFF, fL=pl.x+FEET_L, fR=fL+FEET_W;
+  if(typeof allP==='function') for(const plat of allP()) if(plat.tp==='oneway'&&_feetSpanOver(plat,fL,fR)&&Math.abs(feet-plat.y)<=4) return true;
+  if(typeof gridCell==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile){
+    const t=MV_GRID.tile, r=Math.floor((feet+2)/t); let one=false;
+    for(const x of [fL+2,(fL+fR)/2,fR-2]){ const ty=gridCell(Math.floor(x/t),r); if(ty===MV_GRID_ONEWAY) one=true; else if(ty===MV_GRID_SOLID||ty===MV_GRID_DESTRUCT) return false; }
+    return one;
+  }
+  return false;
+}
+
 // ── Multi-step player move ────────────────────────────────────
 function _rideMovingPlats(pl, prevFeet){
   if(!pl||(pl.hook&&pl.hook.st==='on')) return;
@@ -1495,6 +1510,7 @@ function _rideMovingPlats(pl, prevFeet){
   const feet=pl.y+FEET_OFF;
   const fL=pl.x+FEET_L, fR=fL+FEET_W;
   const was=prevFeet!=null?prevFeet:feet;
+  if(_mvDropThru>0) return;
   for(const plat of allP()){
     if(plat.tp!=='oneway') continue;
     if(!_feetSpanOver(plat,fL,fR)) continue;

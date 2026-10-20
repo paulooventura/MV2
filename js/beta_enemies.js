@@ -1,11 +1,15 @@
 // ============================================================
 //  beta_enemies.js — the three enemies from Paulo's sketch (Oct 20)
 //
-//  ENEMY A · CIRCLE (sine wave): floats along a sine path (it swims too).
-//  SQUARE: moves by tipping over onto its next side (90° a step); falls off
-//          ledges on purpose and hurts whatever it lands on.
-//  TRIANGLE: tumbles over its corners (120° a step); throws a rope to climb
-//          onto ledges.
+//  None of them ever floats (Paulo, Oct 20): they live on the floor.
+//  ENEMY A · CIRCLE (a sine wave on its face): ROLLS along the floor and turns
+//          back at a ledge; in water it sinks and rolls along the bottom.
+//  ENEMY B · TRIANGLE and C · SQUARE: move by falling onto their next side
+//          (120° / 90° a step). Their range is only where there's floor under
+//          them — they never step off a ledge. To get anywhere else they shoot
+//          a rope: swing on it from a ceiling across a gap, or haul themselves
+//          up / over to another floor. If they do fall (knocked off), they hurt
+//          whatever they land on.
 //  All three:
 //   · can push like the XLR (a blast that shoves MIND away);
 //   · heat up as MIND gets close — the body turns red gradually — and one
@@ -46,7 +50,7 @@
       shotCd:0, grenades:[], shutF:0, _shutSettled:false,
       heat:0, fuse:0, pushCd:90+Math.random()*90|0, ropeCd:120, stepCd:30+Math.random()*40|0,
       tumble:null, ang:0, baseY:feet-s.h, phase:Math.random()*Math.PI*2, homeX:cx};
-    if(ai==='circle'){ e.og=false; e.amp=opts.amp!=null?opts.amp:T*0.6; }
+    e.og=false; e._falling=true; e.roll=0; e.travCd=120+Math.random()*120|0;
     return e;
   };
 
@@ -63,6 +67,12 @@
   }
   const floorUnder=(x,w,feet)=>solidAt(x+4,feet+4)||solidAt(x+w-4,feet+4)||solidAt(x+w/2,feet+4)||!!platUnder(x,w,feet);
   const wetAt=(x,y)=>!!(B.inWater&&B.inWater(x,y));
+  // floor right under one point (grid or a moving platform), within `slack` px
+  function floorAtPoint(x,feet,slack){
+    for(let d=0;d<=slack;d+=4){ if(solidAt(x,feet+4+d)) return true; }
+    for(const pl of (B.platforms||[])) if(x>pl.x+2&&x<pl.x+pl.w-2&&feet>=pl.y-6&&feet<=pl.y+10) return true;
+    return false;
+  }
   function dropDepth(x,w,feet,max){ for(let d=0;d<max;d+=T/2){ if(floorUnder(x,w,feet+d)) return d; } return Infinity; }
   function center(e){ return {x:e.x+e.w/2, y:e.y+e.h/2}; }
   function mindCenter(){ const h=playerCoreHB(p); return {x:h.x+h.w/2, y:h.y+h.h/2, hb:h}; }
@@ -183,9 +193,29 @@
           const h=playerCoreHB(p);
           if(ov(r.x-6,r.y-6,12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ r.st='hold'; r.len=Math.hypot(p.x+SW/2-c.x,p.y+FEET_OFF*0.6-c.y); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} continue; }
           if(solidAt(r.x,r.y)||r.t>40){ B.ropes.splice(i,1); continue; }
-        }else{                                                  // climbing: rope to a ledge
-          if(Math.hypot(r.x-r.tx,r.y-r.ty)<12||r.t>30){ r.st='climb'; r.t=0; }
+        }else{                                                  // climbing / travelling: rope to a ledge or a ceiling
+          if(Math.hypot(r.x-r.tx,r.y-r.ty)<12||r.t>30){ r.x=r.tx; r.y=r.ty; r.st=r.kind==='travel'?'swing':'climb'; r.t=0; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} }
         }
+        continue;
+      }
+      if(r.st==='swing'){                                        // on the rope: a pendulum (or a haul) to the far floor
+        const d=r.dest, s0=r.s0||(r.s0={x:e.x,y:e.y});
+        const dist=Math.hypot(d.x-s0.x,d.y-s0.y), dur=r.dur||(r.dur=Math.round(26+dist/7));
+        const u=Math.min(1,r.t/dur), k=u<0.5?2*u*u:1-2*(1-u)*(1-u);
+        e.og=false; e._plat=null;
+        if(r.anchor){
+          const A=r.anchor, h=e.h/2, w2=e.w/2;
+          const a0=Math.atan2(s0.y+h-A.y,s0.x+w2-A.x), a1=Math.atan2(d.y+h-A.y,d.x+w2-A.x);
+          const r0=Math.hypot(s0.x+w2-A.x,s0.y+h-A.y), r1=Math.hypot(d.x+w2-A.x,d.y+h-A.y);
+          const ang=a0+(a1-a0)*k, rad=r0+(r1-r0)*k;
+          e.x=A.x+Math.cos(ang)*rad-w2; e.y=A.y+Math.sin(ang)*rad-h;
+          e.ang=(a1-a0)*Math.sin(k*Math.PI)*0.6;
+        }else{                                                    // no ceiling: hooked to the far ledge, it hauls itself over
+          e.x=s0.x+(d.x-s0.x)*k; e.y=s0.y+(d.y-s0.y)*k-Math.sin(k*Math.PI)*Math.min(2*T,dist*0.3);
+          r.x=d.x+e.w/2; r.y=d.y+e.h;
+        }
+        if(u>=1){ e.x=d.x; e.y=d.y; e.ang=0; e.og=true; e.vy=0; e._falling=false; e.baseY=e.y; B.ropes.splice(i,1); land(e,2);
+          try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} }
         continue;
       }
       if(r.st==='climb'){                                        // haul up onto the ledge
@@ -223,7 +253,6 @@
     const step=e.w;                                          // one side length
     const nx=e.x+dir*step, feet=e.y+e.h;
     if(e._plat){ const pl=e._plat; if(nx<pl.x-4||nx+e.w>pl.x+pl.w+4) return false; }
-    else if(nx<e.mn||nx+e.w>e.mx) return false;
     if(!boxFree(nx,e.y,e.w,e.h)){
       // the triangle ropes itself up onto a step it can't roll over
       if(e._ai==='tri'&&!ropeOf(e)){
@@ -233,10 +262,44 @@
       }
       return false;
     }
-    const drop=dropDepth(nx,e.w,feet,9*T);
-    if(drop===Infinity) return false;                         // never into a pit
-    if(wetAt(nx+e.w/2,feet+drop-6)) return false;             // ... or into the water (it would short out)
+    // only onto floor: never off a ledge (a rope gets it anywhere else)
+    if(!(floorAtPoint(nx+8,feet,8)&&floorAtPoint(nx+e.w-8,feet,8))&&!platUnder(nx,e.w,feet)) return false;
+    if(wetAt(nx+e.w/2,feet-6)) return false;                  // ... nor into the water (it would short out)
+    const drop=0;
     e.tumble={dir, t:0, dur:e._ai==='tri'?26:20, x0:e.x, nx, drop};
+    return true;
+  }
+  // ── rope travel (B + C): from a ledge to another floor ──────────
+  // Looks up to 7 blocks ahead for a floor it fits on (4 up … 4 down). If
+  // there's a ceiling over the gap it swings there on the rope like a
+  // pendulum; otherwise it hooks the far ledge and hauls itself over.
+  function findLanding(e,dir){
+    const feet=e.y+e.h; let best=null, bd=1e9;
+    for(let k=2;k<=7;k++){
+      const nx=e.x+dir*k*T;
+      for(let up=-4;up<=4;up++){
+        const f=Math.round((feet-up*T)/T)*T;
+        if(!boxFree(nx,f-e.h,e.w,e.h)) continue;
+        if(!(solidAt(nx+8,f+4)&&solidAt(nx+e.w-8,f+4))) continue;      // solid ground only (a moving platform would leave)
+        if(wetAt(nx+e.w/2,f-6)) continue;
+        if(ENEMS.some(o=>o!==e&&o._ai&&Math.abs(o.x-nx)<e.w&&Math.abs(o.y+o.h-f)<T)) continue;
+        const d=k*T+Math.abs(up)*T*0.7; if(d<bd){ bd=d; best={x:nx,y:f-e.h}; }
+      }
+    }
+    return best;
+  }
+  function findAnchor(e,dest){
+    const c=center(e), mx=(c.x+dest.x+e.w/2)/2, top=Math.min(e.y,dest.y);
+    for(let y=top-T;y>top-8*T;y-=T/2){ if(solidAt(mx,y)) return {x:mx,y:y+T/2-2}; }
+    return null;
+  }
+  function ropeTravel(e,dir){
+    if(e._ai==='circle'||ropeOf(e)||(e.travCd||0)>0) return false;
+    const dest=findLanding(e,dir); if(!dest) return false;
+    const an=findAnchor(e,dest);
+    const tx=an?an.x:dest.x+e.w/2, ty=an?an.y:dest.y+e.h;
+    throwRope(e,tx,ty,'travel');
+    const r=ropeOf(e); r.dest=dest; r.anchor=an; e.travCd=(DIFF()===3?140:220)+Math.random()*120|0;
     return true;
   }
   function tumbleTick(e){
@@ -251,13 +314,25 @@
       else land(e,1.5);
     }
   }
+  // Enemy A rolls: a steady roll along its floor, faster toward MIND; it turns
+  // back at a ledge or a wall, and spins as it goes (its face turns with it)
+  function rollTick(e,near,face){
+    const wet=wetAt(e.x+e.w/2,e.y+e.h/2);
+    const spd=(near?1.5:0.9)*(wet?0.55:1);
+    const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
+    const lead=dir>0?nx+e.w-12:nx+12;
+    if(!boxFree(nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)){ if(!near) e.dir*=-1; e.vx=0; return; }
+    e.x=nx; e.vx=dir*spd; e.roll=(e.roll||0)+dir*spd/(e.w/2);
+    if(!floorUnder(e.x,e.w,feet)){ e.og=false; e._falling=true; }   // the slope drops away a little: settle onto it
+  }
   function land(e,v){
     B.shake=Math.max(B.shake||0,Math.min(5,v*0.7));
     try{ sfx(v>5?'stomp':'land'); }catch(_e){}
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
   function fallTick(e){
-    e.vy=Math.min(e.vy+GRAV*0.8,13);
+    if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
+    else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
     // landing on MIND or another enemy hurts them (the square's thing)
     if(e.vy>3){
@@ -299,18 +374,8 @@
     if(!cooling&&e._ai!=='circle'&&near&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&e.heat>0.3&&dist<ROPE_R){
       throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
     }
-    if(e._ai==='circle'){
-      if(cooling) return;                                       // hangs still while it cools
-      // a sine wave along its patrol line; drifts toward MIND when it sees him
-      e.phase+=0.045;
-      const spd=near?0.9:0.6;
-      e.vx=(near?face:e.dir)*spd;
-      let nx=e.x+e.vx;
-      if(nx<e.mn||nx+e.w>e.mx||!boxFree(nx,e.y,e.w,e.h)){ e.dir*=-1; nx=e.x; }
-      const ny=e.baseY+Math.sin(e.phase)*e.amp;
-      e.x=nx; if(boxFree(e.x,ny,e.w,e.h)) e.y=ny;
-      return;
-    }
+    if(e.travCd>0) e.travCd--;
+    const rp=ropeOf(e); if(rp&&(rp.kind==='travel'||rp.kind==='ledge')) return;   // on its rope
     const pl=e._plat||platUnder(e.x,e.w,e.y+e.h);
     if(pl&&e.og&&!e._falling){
       if(!e._plat){ e._plat=pl; e._platOff=e.x-pl.x; }
@@ -322,11 +387,15 @@
     if(e.tumble){ tumbleTick(e); return; }
     if(!e.og){ fallTick(e); return; }
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
-    if(ropeOf(e)&&ropeOf(e).kind==='ledge') return;
     if(cooling) return;
+    if(e._ai==='circle'){ rollTick(e,near,face); return; }
     if(--e.stepCd<=0){
       const dir=near?face:e.dir;
-      if(!startTumble(e,dir)){ if(!near) e.dir*=-1; }
+      if(!startTumble(e,dir)){
+        // the edge of its floor (or a wall): sometimes it ropes over, else it turns back
+        const wantGo=near?Math.abs(dx)>2*T:Math.random()<0.35;
+        if(!(wantGo&&ropeTravel(e,dir))&&!near) e.dir*=-1;
+      }
       e.stepCd=(near?(DIFF()===3?16:26):46)+Math.random()*20|0;
     }
   }
@@ -368,7 +437,7 @@
     for(const e of ENEMS){
       if(!e._ai) continue;
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
-      if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; continue; }
+      if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       think(e);
     }
     ropeTick(); fragTick();
@@ -414,6 +483,8 @@
     const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
     if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
     ctx.translate(cx,cy);
+    if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
+    else if(!piv&&e.ang) ctx.rotate(e.ang);                   // swinging on its rope
     ctx.fillStyle=fill; ctx.strokeStyle=off?'#2a2830':INK_D; ctx.lineWidth=lw+2; ctx.lineJoin='round';
     const shape=()=>{ ctx.beginPath();
       if(e._ai==='circle') ctx.arc(0,0,s/2,0,Math.PI*2);

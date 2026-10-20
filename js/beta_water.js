@@ -100,6 +100,7 @@
   function ridingPlat(pl){
     if(!pl||pl!==p) return null;
     const feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
+    if(typeof _mvDropThru!=='undefined'&&_mvDropThru>0) return null;      // dropping through (DOWN + JUMP)
     for(const m of B.platforms) if(cx>=m.x-8&&cx<=m.x+m.w+8&&Math.abs(feet-m.y)<=3&&(pl.vy||0)>=-0.01) return m;
     return null;
   }
@@ -159,6 +160,7 @@
     _origMove.call(this, pl, vx, vy);
     const feet0=y0+FEET_OFF, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
     for(const m of B.platforms){
+      if(typeof _mvDropThru!=='undefined'&&_mvDropThru>0) break;
       if(cx<m.x-8||cx>m.x+m.w+8) continue;
       const landing=(vy>=0)&&feet0<=m.y+3&&feet>=m.y-1;
       const staying=riding===m&&vy>=0&&Math.abs(feet-m.y)<=8;
