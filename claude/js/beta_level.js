@@ -1464,12 +1464,16 @@
     }
   }
   function contInput(){
+    if(typeof readGamepad==='function') try{ readGamepad(); }catch(e){}   // the pad drives this screen too
     const C=B.contScreen; C.t++;
     const up=Kj['ArrowUp']||Kj['KeyW']||Kj['ArrowLeft']||Kj['KeyA'], dn=Kj['ArrowDown']||Kj['KeyS']||Kj['ArrowRight']||Kj['KeyD'];
     if(up||dn){ C.sel=1-C.sel; try{ sfx('menu'); }catch(e){} }
-    if(C.t>30&&(Kj['Space']||Kj['Enter']||Kj['Escape'])){
+    // A / Space / Enter / START (Esc) pick the highlighted answer; pad B (or E) answers NO
+    const back=Kj['KeyE']&&!K['KeyE_kb'];
+    if(C.t>30&&(Kj['Space']||Kj['Enter']||Kj['Escape']||back)){
       try{ sfx('confirm'); }catch(e){}
-      if(C.sel===0&&!Kj['Escape']){
+      if(back) C.sel=1;
+      if(C.sel===0){
         B.continues--; B.lives=3; B.contScreen=null;
         if(typeof _respawnPlayer==='function') _respawnPlayer();
         if(window.MV_BETA_AUDIO&&B.music) MV_BETA_AUDIO.play(B.music,{restart:true});
