@@ -293,7 +293,7 @@
         }
         case 'Enemy': {
           const ai=F(e,'ai');
-          if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined})); break; }
+          if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined, iso:!!F(e,'iso')})); break; }
           const type=F(e,'kind')==='B'?'square':'circle';
           if(typeof _mkMinion==='function'){
             const m=_mkMinion(cx, feet, type, {mn:Math.floor(cx-110), mx:Math.floor(cx+110)});
@@ -450,7 +450,15 @@
     magnetTick();
     // XLR / MAG act when the button is let go
     const xlrNow=!!(p&&p.xlrOn&&ITEM===2), magNow=!!(p&&p.magOn&&ITEM===3);
-    if(xlrNow) B.chX++; else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
+    // Paulo: aimed down while standing, a TAP launches him at once — as hard as
+    // the power he has (100% = a full launch); the power is spent
+    if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease){
+      const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+      B.xlrAim={x:0,y:1}; B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; B._xlrTapped=true;
+    }
+    B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
+    if(B._xlrTapped){ B.chX=0; }
+    else if(xlrNow){ B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY}; } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
     if(magNow) B.chM++; else if(B.chM>0){ if(!B.mag.lockedThisHold) fireCube('pull',B.chM); B.chM=0; B.mag.lockedThisHold=false; }
   }
   // Dominant aim axis → one of the four cell directions.
@@ -530,7 +538,7 @@
   //   grip, how fast things fly when thrown, what a thrown thing does when it
   //   hits, and how MIND bounces (js/beta_feel.js).
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
-    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:5, b_square:7, b_tri:6};
+    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:2, b_square:19, b_tri:7};   // by size (omni block = 3): A tiny, C heavier than MIND (9.5)
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
   function weightOf(kind,ref){
@@ -670,6 +678,27 @@
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
     }else { h.ref._betaHeld=false; h.ref.vx=v.vx; h.ref.vy=v.vy; }
   }
+  // solid ground right under the wheel: grid rock — not a cube, a platform or a body
+  function solidUnderWheel(){
+    const cx=p.x+SW/2, feet=p.y+FEET_OFF;
+    if(B.ridePlat||B.rideEnemy) return false;
+    for(const bw of cubes()) if(cx>=bw.x-2&&cx<=bw.x+T+2&&feet>=bw.y-4&&feet<=bw.y+8) return false;
+    return gridSolid(Math.floor(cx/T),Math.floor((feet+3)/T))||(typeof gridIsSlope==='function'&&gridIsSlope(Math.floor(cx/T),Math.floor((feet-2)/T)));
+  }
+  // the lock, drawn: magnetic field lines arcing out of the floor around the tip
+  B.drawMagLock=function(){
+    const L=B.magLock; if(!L) return;
+    const t=magTip(), cx=sx(t.x), cy=sy(p.y+FEET_OFF), k=Math.min(1,L.t/10);
+    ctx.save(); ctx.lineWidth=Math.max(1.5,sw(2));
+    for(let i=0;i<4;i++){
+      const ph=((fr*0.06+i/4)%1), r=sw(10+ph*46), a=(1-ph)*0.8*k;
+      ctx.strokeStyle='rgba(255,80,80,'+a+')'; ctx.beginPath(); ctx.ellipse(cx-sw(4),cy,r,r*0.45,0,Math.PI,Math.PI*1.5); ctx.stroke();
+      ctx.strokeStyle='rgba(90,140,255,'+a+')'; ctx.beginPath(); ctx.ellipse(cx+sw(4),cy,r,r*0.45,0,Math.PI*1.5,Math.PI*2); ctx.stroke();
+    }
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,sw(30)); g.addColorStop(0,'rgba(255,240,255,'+(0.5*k)+')'); g.addColorStop(1,'rgba(160,120,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,sw(30),Math.PI,0); ctx.fill();
+    ctx.restore();
+  };
   function magnetTick(){
     const M=B.mag;
     const on=!!(p&&p.magOn&&ITEM===3);
@@ -681,7 +710,22 @@
       p.itemStamina=M.power;
     }
     M.wasOn=on;
-    if(!on||p.itemStamina<=0){ while(M.held.length) dropHeld(M.held.pop()); return; }
+    if(!on||p.itemStamina<=0){ if(B.magLock){ B.magLock=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} } while(M.held.length) dropHeld(M.held.pop()); return; }
+    // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
+    // MIND to SOLID ground — nothing moves him (pushes, currents, slopes) until he
+    // lets go of the button. On an omni / pull block it grabs the block instead
+    // (the usual carry); on a moving platform or a body it doesn't lock.
+    if(B.magLock||(typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())){
+      if(!B.magLock){
+        B.magLock={x:p.x,y:p.y,t:0}; while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
+        try{ MV_BETA_AUDIO.magClank(); MV_BETA_AUDIO.magHum(true); }catch(e){}
+        for(let k=0;k<14;k++){ const a=Math.PI+Math.random()*Math.PI; PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*2.5),life:14+Math.random()*8|0,maxLife:22,r:1.5+Math.random()*1.5,col:k%2?'#ff5050':'#5080ff'}); }
+      }
+      B.magLock.t++;
+      p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true;
+      if(fr%3===0){ PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*40,y:p.y+FEET_OFF-2,vx:(Math.random()-0.5)*1.2,vy:-0.4-Math.random()*1.2,life:12,maxLife:12,r:1.8,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
+      return;
+    }
     const tip=magTip();
     M.tips.push({x:tip.x,y:tip.y}); if(M.tips.length>6) M.tips.shift();
     // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
@@ -738,7 +782,7 @@
   const _origUpdateMAG=window.updateMAG;
   window.updateMAG=function(){ if(B.on) return; return _origUpdateMAG.apply(this, arguments); };
   const _origHit=window.applyPlayerHitFromEnemy;
-  if(_origHit) window.applyPlayerHitFromEnemy=function(e){ if(B.on&&e&&(e._betaHeld||e._thrownF>0)) return; return _origHit.apply(this, arguments); };
+  if(_origHit) window.applyPlayerHitFromEnemy=function(e){ if(B.on&&e&&(e._betaHeld||e._thrownF>0||B.rideEnemy===e)) return; return _origHit.apply(this, arguments); };
   // The game's XLR field shoves enemies too — not through walls in the beta.
   const _origItemForce=window._applyItemForceToEnemy;
   if(_origItemForce) window._applyItemForceToEnemy=function(e,fx,fy){
@@ -751,7 +795,8 @@
   //   enemy (carried or thrown) charges it: full energy, up again if it was
   //   down, and its 3 shutdowns start over. The Knowl tree does the same to
   //   anything near it, MIND included.
-  const REVIVE_FR=300, SHUT_LIMIT_BETA=3, TREE_R=300;
+  const REVIVE_FR=120,          // Paulo: rebooting takes 2 s
+    SHUT_LIMIT_BETA=3, TREE_R=300;
   function energize(e,why){
     e._downs=0; e._permOff=false;
     if(!e.alive) revive(e); else e.hp=e.mhp;
@@ -902,7 +947,7 @@
     if(!B.open&&gateReady()){
       B.open=true;
       try{ sfx('unlock'); }catch(e){}
-      if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN');
+      if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN'); try{ sfx('gate'); }catch(e){}
     }
     if(B.revisitNote>0) B.revisitNote--;
     // The pit: falling off the bottom of the map costs a chunk of energy and
@@ -1105,6 +1150,7 @@
     if(!B.on) return _origDrawHud.apply(this, arguments);
     if(_gameState!=='game') return;
     if(B.drawEnemyFx) B.drawEnemyFx();
+    if(B.drawMagLock) B.drawMagLock();
     if(B.laitu&&typeof drawLaituFigure==='function'){
       const cx=sx(B.laitu.x), feet=sy(B.laitu.feet);
       if(cx>-60&&cx<W+60){

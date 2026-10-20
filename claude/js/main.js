@@ -990,6 +990,13 @@ function update(){
     p._prevVx=p.vx;
     if(!p.smoke)p.smoke=[];
     for(let i=p.smoke.length-1;i>=0;i--){const sm=p.smoke[i];sm.x+=sm.vx;sm.y+=sm.vy;sm.vx*=0.88;sm.vy+=0.05;sm.life--;if(sm.life<=0)p.smoke.splice(i,1);}
+    // Paulo: on a platform (not a solid block), DOWN + JUMP drops through it
+    if(_mvDropThru>0) _mvDropThru--;
+    if(isJumpJ()&&isDn()&&_playerOnGround(p)&&_onDropPlatform(p)){
+      _mvDropThru=16; p.og=false; p._groundHold=0; p._groundSeg=null; p.vy=2.5; p.y+=6; p.duckBoostReady=false; p.duckCharge=0;
+      if(window.MV_BETA) MV_BETA.ridePlat=null;
+      OPT.binds.jump.forEach(c=>delete Kj[c]);
+    }
     if(isJumpJ()&&p._jumpArmed&&_playerOnGround(p)){
       p._jumpArmed=false;
       if(measureHeadroom(p)<6) p._autoHeadTuck=1;
@@ -1112,7 +1119,7 @@ function draw(){
   if(typeof drawSketchLabHud==='function') drawSketchLabHud();
   if(typeof drawLdtkLabHud==='function') drawLdtkLabHud();
   const _bwPad=64;
-  for(const bw of BWALLS){if(bw.hp<=0)continue;const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
+  for(const bw of BWALLS){if(bw.hp<=0&&!(bw.debris&&bw.debris.length))continue;   /* a broken block still draws its crumbs */const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
   for(const c of CRATES) drawCrate(c);
   for(const e of ENEMS) if(!e.mind) drawEnemy(e);
   drawLaitu();

@@ -895,6 +895,7 @@ function gridBestFloor(body, prevFeet){
     for(let row=row0-2;row<=row0+3;row++){
       const type=gridCell(c,row);
       if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_ONEWAY){
+        if(type===MV_GRID_ONEWAY&&typeof _mvDropThru!=='undefined'&&_mvDropThru>0) continue;
         if(_gridIsRampFill(c,row,sx,feet)) continue;
         const top=row*t;
         if(prevFeet<=top+0.001 && feet>=top-0.5){
@@ -1315,6 +1316,7 @@ function gridStandHit(cx, feetY, opts){
         consider(sy, s?s.angle:0, 'slope');
       }else if(dc===0&&(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_ONEWAY)){
         if(type===MV_GRID_ONEWAY && feetY>r*t+4) continue;
+        if(type===MV_GRID_ONEWAY && typeof _mvDropThru!=='undefined' && _mvDropThru>0) continue;
         if(_gridIsRampFill(c,r,cx,feetY)) continue;
         consider(r*t, 0, type===MV_GRID_ONEWAY?'oneway':'solid');
       }

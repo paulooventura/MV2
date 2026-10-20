@@ -125,13 +125,15 @@ const _OMNI_SHARD_COLS=['#1a0428','#2a0840','#3d0a5c','#4a148c','#6a1b9a','#7b1f
 function spawnDebris(bw,count){
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
-    const angle=Math.random()*Math.PI*2, spd=1.6+Math.random()*4.2;
+    // chunky crumbs: they fly, bounce, roll, pile up and fade (Paulo: a cooler, more physical break)
+    const angle=Math.random()*Math.PI*2, spd=1.8+Math.random()*4.8;
+    const big=Math.random()<0.3, life=150+Math.random()*80;
     bw.debris.push({
       x:bw.x+Math.random()*bw.w, y:bw.y+Math.random()*bw.h,
-      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2.4,
-      rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.3,
-      w:3+Math.random()*8, h:3+Math.random()*7,
-      life:55+Math.random()*40, maxLife:95,
+      vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd-2.8,
+      rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.35,
+      w:big?7+Math.random()*6:3+Math.random()*5, h:big?6+Math.random()*5:3+Math.random()*4,
+      life, maxLife:life, sides:3+((Math.random()*3)|0),
       col:_OMNI_SHARD_COLS[(Math.random()*_OMNI_SHARD_COLS.length)|0]
     });
   }
@@ -143,12 +145,20 @@ function _debrisCollide(d){
   if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,py+1)){
     const r=Math.floor((py+1)/t);
     d.y=r*t-d.h;
-    d.vy=Math.abs(d.vy)>1.2?-d.vy*0.28:0;
-    d.vx*=0.72;
-  }
+    if(Math.abs(d.vy)>2.2&&typeof sfx==='function'&&(window._debrisSfxFr||0)<fr-3){ window._debrisSfxFr=fr; sfx('debris',Math.min(1,Math.abs(d.vy)/8)); }
+    d.vy=Math.abs(d.vy)>1.2?-d.vy*0.42:0;              // bounces, then settles
+    d.vx*=0.82; d.og=true;
+    d.rotSpd=d.vx/Math.max(2,d.w*0.6);                  // rolls along the floor
+  }else d.og=false;
+  if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,d.y-1)&&d.vy<0) d.vy=Math.abs(d.vy)*0.3;   // ceilings
   if(typeof gridWorldSolid==='function'&&(gridWorldSolid(d.x-1,d.y+d.h*0.4)||gridWorldSolid(d.x+d.w+1,d.y+d.h*0.4))){
     d.vx*=-0.45;
     d.x+=d.vx;
+  }
+  // MIND's wheel kicks crumbs it rolls through
+  if(typeof p!=='undefined'&&p&&typeof FEET_OFF!=='undefined'){
+    const wx=p.x+SW/2, wy=p.y+FEET_OFF-WHEEL_R, dx=d.x+d.w/2-wx, dy=d.y+d.h/2-wy;
+    if(dx*dx+dy*dy<(WHEEL_R+4)*(WHEEL_R+4)){ d.vx+=Math.sign(dx||1)*(0.8+Math.abs(p.vx)*0.5); d.vy-=1.2+Math.abs(p.vx)*0.25; }
   }
 }
 function _damageBwall(bw,kind,fx){
@@ -468,7 +478,7 @@ function updateBWalls(){
     if(bw.shakeX){bw.shakeX*=0.6;bw.shakeY*=0.6;if(Math.abs(bw.shakeX)<0.3){bw.shakeX=0;bw.shakeY=0;}}
     for(let i=bw.debris.length-1;i>=0;i--){
       const d=bw.debris[i];
-      d.x+=d.vx;d.y+=d.vy;d.vy+=0.26;d.vx*=0.985;d.rot+=d.rotSpd;d.life--;
+      d.x+=d.vx;d.y+=d.vy;d.vy=Math.min(d.vy+0.3,12);d.vx*=0.988;d.rot+=d.rotSpd;d.life--;
       _debrisCollide(d);
       if(d.y>WH||d.life<=0) bw.debris.splice(i,1);
     }
@@ -602,7 +612,7 @@ function _pinBoxToTip(box, tip, aimA){
 function _clearMagHoldFlags(){
   if(!p) return;
   p._magHold=null;
-  p._magWorldStick=false;
+  p._magWorldStick=false; p._magFloorLock=false;
   p._magWorldX=null; p._magWorldY=null; p._magWorldNx=0; p._magWorldNy=0;
 }
 function _releaseMagHolds(home){
@@ -692,7 +702,9 @@ function _resolvePoolBodies(){
     for(const e of ENEMS){
       if(typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e)) continue;
       const hb=typeof _enemyItemHB==='function'?_enemyItemHB(e):{x:e.x,y:e.y,w:e.w,h:e.h};
-      add('enemy',e,hb.x,hb.y,hb.w,hb.h,0.95);
+      // story-stage enemies weigh what their size says (omni block = 3 units ≈ mass 1.15)
+      const em=(e._ai&&window.MV_BETA&&MV_BETA.weightOf)?MV_BETA.weightOf('enemy',e)*0.38:0.95;
+      add('enemy',e,hb.x,hb.y,hb.w,hb.h,em);
     }
   }
   if(p&&typeof playerCoreHB==='function'){
@@ -724,14 +736,18 @@ function _resolvePoolBodies(){
         const aHold=!!A.a._magStuck||aKey, bHold=!!B.a._magStuck||bKey;
         const aPlayer=A.kind==='player', bPlayer=B.kind==='player';
         if((aHold&&bPlayer)||(bHold&&aPlayer)) continue;
+        // a live story enemy and MIND: MIND is pushed out of it elsewhere (by weight), not the other way round
+        if((aPlayer&&B.kind==='enemy'&&B.a._ai&&B.a.alive)||(bPlayer&&A.kind==='enemy'&&A.a._ai&&A.a.alive)) continue;
+        const PM=3.6;                                   // MIND's mass in these units (9.5 weight)
+        const kPush=(o)=>o.kind==='enemy'&&o.a._ai?PM/(PM+o.mass):1;
         const mA=(aHold||aPlayer)?1e9:A.mass, mB=(bHold||bPlayer)?1e9:B.mass;
         const invA=1/mA, invB=1/mB, inv=invA+invB;
         const sA=invA/inv, sB=invB/inv;
         const push=pen+1.35;
         if(!aHold&&!aPlayer){ A.a.x+=nx*push*sA; A.a.y+=ny*push*sA; }
         if(!bHold&&!bPlayer){ B.a.x-=nx*push*sB; B.a.y-=ny*push*sB; }
-        if(aPlayer&&!bHold){ B.a.x-=nx*push; B.a.y-=ny*push; }
-        if(bPlayer&&!aHold){ A.a.x+=nx*push; A.a.y+=ny*push; }
+        if(aPlayer&&!bHold){ B.a.x-=nx*push*kPush(B); B.a.y-=ny*push*kPush(B); }
+        if(bPlayer&&!aHold){ A.a.x+=nx*push*kPush(A); A.a.y+=ny*push*kPush(A); }
         const avx=A.a.vx||0, avy=A.a.vy||0, bvx=B.a.vx||0, bvy=B.a.vy||0;
         const rvn=(avx-bvx)*nx+(avy-bvy)*ny;
         if(rvn>=0) continue;
@@ -805,12 +821,18 @@ function updateMAG(){
   p.flashF=4;
   if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_tip.x,y:_tip.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
   const hold=Math.min(1,(p.magHeld||0)/160)*1.15+1;
-  const locked=!!(p._magHold&&p._magHold.ref);
-
+  // standing and aiming it straight down (DOWN held): it locks him to the floor
+  if(!locked&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&(p.og||_playerOnGround(p))){
+    p._magHold={kind:'world', ref:p}; p._magWorldStick=true; p._magFloorLock=true;
+    p._magWorldX=p.x+SW/2; p._magWorldY=p.y+FEET_OFF; p._magWorldNx=0; p._magWorldNy=-1;
+    try{ sfx('grap_attach'); }catch(e){}
+    return;
+  }
   if(locked){
     const obj=p._magHold.ref;
     if(p._magHold.kind==='world'){
       p._magWorldStick=true;
+      if(p._magFloorLock){ p.vx=0; p.vy=0; }                 // nothing moves him (pushes, slopes, currents)
       return;
     }
     if(obj.hp===0){ _releaseMagHolds(false); return; }
@@ -876,7 +898,8 @@ function updateMAG(){
   const world=!pulled?_magWorldHit(_tip,_a):null;
   if(world&&world.dist<=22&&(p.magHeld||0)>8){
     const floorish=world.ny<-0.55||(Math.sin(_a)>0.45&&(p.og||_playerOnGround(p)));
-    if(!(floorish&&(p.og||_playerOnGround(p)))){
+    // aimed straight down while standing: it locks him to the floor (Paulo)
+    if(!(floorish&&(p.og||_playerOnGround(p)))||Math.sin(_a)>0.8){
       p._magHold={kind:'world', ref:p};
       p._magWorldStick=true;
       p._magWorldX=world.x; p._magWorldY=world.y;

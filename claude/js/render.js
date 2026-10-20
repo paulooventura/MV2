@@ -756,6 +756,16 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         if(bw.hp<=0)continue;
         if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
           p._hitDone=true;_hit=true;
+          // Paulo: a loaded punch smashes the whole omni block and cracks the ones around it
+          if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(bw)&&!bw.only){
+            const cx0=bw.x+bw.w/2, cy0=bw.y+bw.h/2;
+            for(const o of BWALLS){
+              if(o===bw||o.hp<=0||o.only) continue;
+              if(Math.abs(o.x+o.w/2-cx0)<=bw.w*1.5&&Math.abs(o.y+o.h/2-cy0)<=bw.h*1.5)
+                _damageBwall(o,'punch',{shakeX:Math.sign(o.x-bw.x)*3,shakeY:Math.sign(o.y-bw.y)*3});
+            }
+            _damageBwall(bw,(bw.hp||1)+1,{shakeX:Math.cos(punchAngle)*6,shakeY:Math.sin(punchAngle)*6});
+          }else
           _damageBwall(bw,_charged?'punchCharged':'punch',{
             shakeX:Math.cos(punchAngle)*4,shakeY:Math.sin(punchAngle)*4,
             vx:bw.movable?Math.cos(punchAngle)*(_charged?8:5):0,
@@ -1263,14 +1273,18 @@ function drawMovPlat(m){
 
 function drawBreakWall(bw){
   if(!bw||!isFinite(bw.x)||!isFinite(bw.y)||!isFinite(bw.w)||!isFinite(bw.h)) return;
-  // Debris â€” 1â€“2px chunks, flicker out instead of fading
-  if(bw.debris && !(bw.hp<=0 && bw._destroyFr!=null && fr-bw._destroyFr>22)){
+  // Debris: chunky shards that tumble, bounce, roll and pile up, then fade
+  if(bw.debris&&bw.debris.length){
     for(const d of bw.debris){
-      const t=d.life/d.maxLife;
-      if(t<0.4&&(fr&1))continue; // end-of-life flicker
-      ctx.fillStyle=d.col;
-      const dw=Math.max(1,sw(d.w));
-      ctx.fillRect(sx(d.x),sy(d.y),dw,dw);
+      const t=d.life/d.maxLife, a=t<0.25?t/0.25:1;
+      const cx=sx(d.x+d.w/2), cy=sy(d.y+d.h/2), r=Math.max(1.5,sw(Math.max(d.w,d.h)*0.55)), n=d.sides||4;
+      ctx.save(); ctx.globalAlpha=a; ctx.translate(cx,cy); ctx.rotate(d.rot||0);
+      ctx.beginPath();
+      for(let k=0;k<n;k++){ const an=k/n*Math.PI*2, rr=r*(0.75+0.25*((k*7+n)%3)/2); k?ctx.lineTo(Math.cos(an)*rr,Math.sin(an)*rr):ctx.moveTo(Math.cos(an)*rr,Math.sin(an)*rr); }
+      ctx.closePath(); ctx.fillStyle=d.col; ctx.fill();
+      ctx.strokeStyle='rgba(210,150,255,0.55)'; ctx.lineWidth=Math.max(1,r*0.25); ctx.stroke();      // a bright chipped edge
+      ctx.fillStyle='rgba(255,230,255,0.35)'; ctx.fillRect(-r*0.5,-r*0.5,r*0.45,r*0.35);
+      ctx.restore();
     }
   }
   if(bw.hp<=0) return;
@@ -2059,75 +2073,7 @@ function _clampSegFrom(shX,shY,tx,ty){
 }
 
 // Single source of truth for connector arm + RCA nose (world coords).
-function computeConnectorArmPose(pl=p){
-  const ca2=pl.crouchAmt, fc=pl.fc;
-  const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R;
-  const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
-  const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
-  const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
-  const bodyCX=px+SW/2;
-  const bodyTop=bodyCY;
-  const shoulderY=bodyTop+BODY_H*0.22;
-  const connShoulderX=fc?bodyCX-BODY_W/2:bodyCX+BODY_W/2;
-  const hookOn=pl.hook&&pl.hook.st!=='idle';
-  const cptY=pl.y+FEET_OFF-STAND_H*0.5;
-  const rawAngle=hookOn
-    ? Math.atan2((pl.hook.st==='on'?pl.hook.ay:pl.hook.ey)-cptY,(pl.hook.st==='on'?pl.hook.ax:pl.hook.ex)-(pl.x+SW/2))
-    : Math.atan2(pl.aimDY,pl.aimDX);
-  const duckAngle=fc?0:Math.PI;
-  const aimDuckBlend=pl.og?ca2:0; // air duck tucks body but must not lock aim horizontal
-  const recoilMax=pl._lastRecoilMax||14;
-  const _rf=pl.fireRecoil>0?pl.fireRecoil/recoilMax:0;
-  const recoilSnap=recoilMax>=18?1.25:1;
-  const recoilTilt=-_rf*0.14*recoilSnap;
-  const ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
-  const aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
-  const _nudge=_rf*3*recoilSnap;
-  const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
-  const connShY=shoulderY-Math.sin(ca)*_nudge;
-  let noseX,noseY,tipX,tipY,useElbow=false,elbowX=0,elbowY=0,armA0=ca,armA1=ca,armL0=aimLen,armL1=0;
-
-  if(hookOn){
-    const hx=pl.hook.st==='on'?pl.hook.ax:pl.hook.ex;
-    const hy=pl.hook.st==='on'?pl.hook.ay:pl.hook.ey;
-    let dx=hx-connShX, dy=hy-connShY, dd=Math.hypot(dx,dy)||1;
-    let ux=dx/dd, uy=dy/dd;
-    const pxn=-uy, pyn=ux;
-    const speed=Math.hypot(pl.vx||0,pl.vy||0);
-    const bend=7+Math.min(12,speed*0.7)+(pl.hook.st==='ext'?2:0);
-    const bendSign=(fc?1:-1)*((dy>=0)?1:-1);
-    elbowX=connShX+ux*aimLen*0.52+pxn*bend*bendSign;
-    elbowY=connShY+uy*aimLen*0.52+pyn*bend*bendSign;
-    armA0=Math.atan2(elbowY-connShY,elbowX-connShX);
-    armL0=Math.max(5,Math.hypot(elbowX-connShX,elbowY-connShY));
-    const fdx=hx-elbowX, fdy=hy-elbowY, fdd=Math.hypot(fdx,fdy)||1;
-    const foreReach=Math.min(fdd,Math.max(8,aimLen*0.58));
-    tipX=elbowX+fdx/fdd*foreReach;
-    tipY=elbowY+fdy/fdd*foreReach;
-    armA1=Math.atan2(tipY-elbowY,tipX-elbowX);
-    armL1=Math.max(5,Math.hypot(tipX-elbowX,tipY-elbowY));
-    noseX=tipX+Math.cos(armA1)*RCA_NOSE_LEN;
-    noseY=tipY+Math.sin(armA1)*RCA_NOSE_LEN;
-    const noseClamped=_clampSegFrom(tipX,tipY,noseX,noseY);
-    noseX=noseClamped.x; noseY=noseClamped.y;
-    useElbow=true;
-  }else{
-    tipX=connShX+Math.cos(ca)*aimLen;
-    tipY=connShY+Math.sin(ca)*aimLen;
-    noseX=tipX+Math.cos(ca)*RCA_NOSE_LEN;
-    noseY=tipY+Math.sin(ca)*RCA_NOSE_LEN;
-    const noseClamped=_clampSegFrom(tipX,tipY,noseX,noseY);
-    noseX=noseClamped.x; noseY=noseClamped.y;
-    if(Math.hypot(noseX-tipX,noseY-tipY)>0.5){
-      const nd=Math.hypot(noseX-tipX,noseY-tipY)||1;
-      tipX=noseX-Math.cos(ca)*Math.min(RCA_NOSE_LEN,nd);
-      tipY=noseY-Math.sin(ca)*Math.min(RCA_NOSE_LEN,nd);
-    }
-    armA1=ca;
-  }
-  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca};
-}
+// computeConnectorArmPose lives in player.js (one copy: the down-use pose and the duck blend are there)
 
 function connectorTipWorld(itemOverride=ITEM){
   const pose=computeConnectorArmPose();

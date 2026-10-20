@@ -8135,6 +8135,11 @@
          "__identifier": "range",
          "__type": "Int",
          "__value": 3
+        },
+        {
+         "__identifier": "iso",
+         "__type": "Int",
+         "__value": 1
         }
        ]
       },

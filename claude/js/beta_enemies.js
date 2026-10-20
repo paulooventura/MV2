@@ -1,11 +1,15 @@
 // ============================================================
 //  beta_enemies.js — the three enemies from Paulo's sketch (Oct 20)
 //
-//  ENEMY A · CIRCLE (sine wave): floats along a sine path (it swims too).
-//  SQUARE: moves by tipping over onto its next side (90° a step); falls off
-//          ledges on purpose and hurts whatever it lands on.
-//  TRIANGLE: tumbles over its corners (120° a step); throws a rope to climb
-//          onto ledges.
+//  None of them ever floats (Paulo, Oct 20): they live on the floor.
+//  ENEMY A · CIRCLE (a sine wave on its face): ROLLS along the floor and turns
+//          back at a ledge; in water it sinks and rolls along the bottom.
+//  ENEMY B · TRIANGLE and C · SQUARE: move by falling onto their next side
+//          (120° / 90° a step). Their range is only where there's floor under
+//          them — they never step off a ledge. To get anywhere else they shoot
+//          a rope: swing on it from a ceiling across a gap, or haul themselves
+//          up / over to another floor. If they do fall (knocked off), they hurt
+//          whatever they land on.
 //  All three:
 //   · can push like the XLR (a blast that shoves MIND away);
 //   · heat up as MIND gets close — the body turns red gradually — and one
@@ -30,7 +34,10 @@
   if(!B.difficulty) B.difficulty=2;
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
 
-  const SIZE={circle:{w:56,h:56}, square:{w:64,h:64}, tri:{w:64,h:56}};
+  // sizes from Paulo's size chart (Oct 20), measured against an omni block
+  // (1 block = 32 px) drawn next to them: A ≈ 0.9 block across, B ≈ 2 blocks
+  // tall × 1.6 wide, C ≈ 2.5 blocks square
+  const SIZE={circle:{w:30,h:30}, tri:{w:74,h:64}, square:{w:80,h:80}};   // the triangle is equilateral (h = w·√3/2)
   // Paulo (Oct 20): nothing happens to them from far away — they only start to
   // glow red within 3 blocks (full red and boom at 1), push from 2 blocks, and
   // the jacks only move an enemy that's within reach (MAX_ITEM_R from MIND).
@@ -46,7 +53,11 @@
       shotCd:0, grenades:[], shutF:0, _shutSettled:false,
       heat:0, fuse:0, pushCd:90+Math.random()*90|0, ropeCd:120, stepCd:30+Math.random()*40|0,
       tumble:null, ang:0, baseY:feet-s.h, phase:Math.random()*Math.PI*2, homeX:cx};
-    if(ai==='circle'){ e.og=false; e.amp=opts.amp!=null?opts.amp:T*0.6; }
+    e.og=false; e._falling=true; e.roll=0; e.travCd=60+Math.random()*90|0;
+    e._iso=!!opts.iso;
+    // no patrol box: the floor is its range. (The engine clamps x into mn..mx
+    // on a hit — with a box, an enemy that had travelled snapped back home.)
+    e.mn=-1e7; e.mx=1e7;                                       // wears an Isolator: water can't short it
     return e;
   };
 
@@ -63,6 +74,17 @@
   }
   const floorUnder=(x,w,feet)=>solidAt(x+4,feet+4)||solidAt(x+w-4,feet+4)||solidAt(x+w/2,feet+4)||!!platUnder(x,w,feet);
   const wetAt=(x,y)=>!!(B.inWater&&B.inWater(x,y));
+  // another story enemy (alive or a shut-down body) in the way: they're solid to each other
+  function enemyIn(e,x,y,w,h){
+    for(const o of ENEMS){ if(o===e||!o._ai||o._betaHeld) continue; if(x+w>o.x-1&&x<o.x+o.w+1&&y+h-2>o.y&&y+2<o.y+o.h) return o; }
+    return null;
+  }
+  // floor right under one point (grid or a moving platform), within `slack` px
+  function floorAtPoint(x,feet,slack){
+    for(let d=0;d<=slack;d+=4){ if(solidAt(x,feet+4+d)) return true; }
+    for(const pl of (B.platforms||[])) if(x>pl.x+2&&x<pl.x+pl.w-2&&feet>=pl.y-6&&feet<=pl.y+10) return true;
+    return false;
+  }
   function dropDepth(x,w,feet,max){ for(let d=0;d<max;d+=T/2){ if(floorUnder(x,w,feet+d)) return d; } return Infinity; }
   function center(e){ return {x:e.x+e.w/2, y:e.y+e.h/2}; }
   function mindCenter(){ const h=playerCoreHB(p); return {x:h.x+h.w/2, y:h.y+h.h/2, hb:h}; }
@@ -71,6 +93,11 @@
     const mx0=h.x, mx1=h.x+h.w, my0=h.y, my1=feet;
     const gx=Math.max(0,Math.max(e.x-mx1, mx0-(e.x+e.w))), gy=Math.max(0,Math.max(e.y-my1, my0-(e.y+e.h)));
     return Math.max(gx,gy);
+  }
+  function onScreen(e){
+    const Z=(typeof sw==='function'?sw(1000)/1000:1)||1, vx0=_rcamX!=null?_rcamX:camX, vy0=_rcamY!=null?_rcamY:camY;
+    const vw=W/Z, vh=H/Z;
+    return e.x+e.w>vx0-T&&e.x<vx0+vw+T&&e.y+e.h>vy0-T&&e.y<vy0+vh+T;
   }
   function sees(e){
     const a=center(e), m=mindCenter();
@@ -169,13 +196,27 @@
   B.ropes=B.ropes||[];
   function ropeOf(e){ return B.ropes.find(r=>r.e===e); }
   function releaseRope(e){ const i=B.ropes.findIndex(r=>r.e===e); if(i>=0){ B.ropes.splice(i,1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} } }
+  function ropeOrigin(e){
+    const c=center(e), a=e.tumble?(e.ang||0):(e.gAng||0)+(e.ang||0);
+    let ox=0, oy=0;
+    if(e._ai==='tri'){ oy=-e.h/2; }
+    else if(e._ai==='square'){ const f=(B.ropes.find(r=>r.e===e&&r.tx!=null)||{}).tx>c.x?1:-1; ox=f*e.w/2; oy=-e.h/2; }
+    return {x:c.x+ox*Math.cos(a)-oy*Math.sin(a), y:c.y+ox*Math.sin(a)+oy*Math.cos(a)};
+  }
+  B.enemyRopeOrigin=ropeOrigin;
+  function lineBlocked(x0,y0,x1,y1){
+    const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/8);
+    for(let i=1;i<n;i++){ const x=x0+(x1-x0)*i/n, y=y0+(y1-y0)*i/n; if(solidAt(x,y)) return true; }
+    return false;
+  }
   function throwRope(e,tx,ty,kind){
-    const c=center(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
+    const c=ropeOrigin(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
+    try{ if(onScreen(e)) sfx('rope_throw'); }catch(_e){}
     B.ropes.push({e, kind, x:c.x, y:c.y, vx:(tx-c.x)/d*11, vy:(ty-c.y)/d*11, st:'fly', t:0, len:0, mode:'hold', mash:0, decide:0, tx, ty});
   }
   function ropeTick(){
     for(let i=B.ropes.length-1;i>=0;i--){
-      const r=B.ropes[i], e=r.e, c=center(e); r.t++;
+      const r=B.ropes[i], e=r.e, c=ropeOrigin(e); r.t++;
       if(!e.alive){ B.ropes.splice(i,1); continue; }
       if(r.st==='fly'){
         r.x+=r.vx; r.y+=r.vy;
@@ -183,9 +224,38 @@
           const h=playerCoreHB(p);
           if(ov(r.x-6,r.y-6,12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ r.st='hold'; r.len=Math.hypot(p.x+SW/2-c.x,p.y+FEET_OFF*0.6-c.y); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} continue; }
           if(solidAt(r.x,r.y)||r.t>40){ B.ropes.splice(i,1); continue; }
-        }else{                                                  // climbing: rope to a ledge
-          if(Math.hypot(r.x-r.tx,r.y-r.ty)<12||r.t>30){ r.st='climb'; r.t=0; }
+        }else{                                                  // climbing / travelling: rope to a ledge or a ceiling
+          if(r.kind==='travel'&&solidAt(r.x,r.y)&&Math.hypot(r.x-r.tx,r.y-r.ty)>=12){
+            // it bit the rock on the way: that's the anchor now (if it can still swing to its floor)
+            r.x-=r.vx; r.y-=r.vy; r.tx=r.x; r.ty=r.y;
+            if(r.anchor&&r.y<Math.min(e.y,r.dest.y)) r.anchor={x:r.x,y:r.y};
+            else{ B.ropes.splice(i,1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} continue; }
+          }
+          if(Math.hypot(r.x-r.tx,r.y-r.ty)<12||r.t>30){ r.x=r.tx; r.y=r.ty; r.st=r.kind==='travel'?'swing':'climb'; r.t=0; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} }
         }
+        continue;
+      }
+      if(r.st==='swing'){                                        // on the rope: a pendulum (or a haul) to the far floor
+        const d=r.dest, s0=r.s0||(r.s0={x:e.x,y:e.y});
+        const dist=Math.hypot(d.x-s0.x,d.y-s0.y), dur=r.dur||(r.dur=Math.round(26+dist/7));
+        const u=Math.min(1,r.t/dur), k=u<0.5?2*u*u:1-2*(1-u)*(1-u);
+        e.og=false; e._plat=null;
+        if(r.anchor){
+          const A=r.anchor, h=e.h/2, w2=e.w/2;
+          const a0=Math.atan2(s0.y+h-A.y,s0.x+w2-A.x), a1=Math.atan2(d.y+h-A.y,d.x+w2-A.x);
+          const r0=Math.hypot(s0.x+w2-A.x,s0.y+h-A.y), r1=Math.hypot(d.x+w2-A.x,d.y+h-A.y);
+          const ang=a0+(a1-a0)*k, rad=r0+(r1-r0)*k;
+          const nx=A.x+Math.cos(ang)*rad-w2, ny=A.y+Math.sin(ang)*rad-h;
+          if(u>0.05&&!boxFree(nx,ny,e.w,e.h)){                  // swung into rock: the rope can't pull it through — it drops
+            B.ropes.splice(i,1); e.ang=0; e.og=false; e._falling=true; e.vy=0; continue; }
+          e.x=nx; e.y=ny;
+          e.ang=(a1-a0)*Math.sin(k*Math.PI)*0.6;
+        }else{                                                    // no ceiling: hooked to the far ledge, it hauls itself over
+          e.x=s0.x+(d.x-s0.x)*k; e.y=s0.y+(d.y-s0.y)*k-Math.sin(k*Math.PI)*Math.min(2*T,dist*0.3);
+          r.x=d.x+e.w/2; r.y=d.y+e.h;
+        }
+        if(u>=1){ e.x=d.x; e.y=d.y; e.ang=0; e.og=true; e.vy=0; e._falling=false; e.baseY=e.y; B.ropes.splice(i,1); land(e,2);
+          try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} }
         continue;
       }
       if(r.st==='climb'){                                        // haul up onto the ledge
@@ -203,6 +273,8 @@
         if(df===3&&e.heat>0.35) r.mode='pull';                  // hard: reel him into the blast
         r.decide=40+Math.random()*30|0;
       }
+      if(lineBlocked(c.x,c.y,mx,my)){ r.blockT=(r.blockT||0)+1; if(r.blockT>8){ releaseRope(e); e.ropeCd=200; continue; } } else r.blockT=0;
+      if(Math.hypot(mx-c.x,my-c.y)-r.len>3*T){ releaseRope(e); e.ropeCd=240; continue; }     // too much strain: it snaps
       if(r.mode==='pull') r.len=Math.max(e.w*0.5+T*0.6, r.len-(DIFF()===3?2.6:1.8));
       const dx=mx-c.x, dy=my-c.y, d=Math.hypot(dx,dy)||1;
       if(d>r.len){
@@ -219,11 +291,11 @@
   }
 
   // ── movement ────────────────────────────────────────────────────
-  function startTumble(e,dir){
+  function startTumble(e,dir,dropOn){
     const step=e.w;                                          // one side length
     const nx=e.x+dir*step, feet=e.y+e.h;
     if(e._plat){ const pl=e._plat; if(nx<pl.x-4||nx+e.w>pl.x+pl.w+4) return false; }
-    else if(nx<e.mn||nx+e.w>e.mx) return false;
+    if(enemyIn(e,Math.min(e.x,nx),e.y,e.w+Math.abs(nx-e.x),e.h)) return false;   // another enemy is in the way
     if(!boxFree(nx,e.y,e.w,e.h)){
       // the triangle ropes itself up onto a step it can't roll over
       if(e._ai==='tri'&&!ropeOf(e)){
@@ -233,10 +305,54 @@
       }
       return false;
     }
-    const drop=dropDepth(nx,e.w,feet,9*T);
-    if(drop===Infinity) return false;                         // never into a pit
-    if(wetAt(nx+e.w/2,feet+drop-6)) return false;             // ... or into the water (it would short out)
+    // only onto floor: never off a ledge (a rope gets it anywhere else) — except C
+    // dropping on MIND on purpose
+    let drop=0;
+    if(!(floorAtPoint(nx+8,feet,8)&&floorAtPoint(nx+e.w-8,feet,8))&&!platUnder(nx,e.w,feet)){
+      if(!dropOn) return false;
+      drop=dropDepth(nx,e.w,feet,9*T); if(drop===Infinity) return false;
+      if(!e._iso&&wetAt(nx+e.w/2,feet+drop-6)) return false;
+    }
+    if(!e._iso&&wetAt(nx+e.w/2,feet-6)) return false;         // ... nor into the water (it would short out)
     e.tumble={dir, t:0, dur:e._ai==='tri'?26:20, x0:e.x, nx, drop};
+    return true;
+  }
+  // ── rope travel (B + C): from a ledge to another floor ──────────
+  // Looks up to 9 blocks ahead for a floor it fits on (4 up … 4 down). If
+  // there's a ceiling over the gap it swings there on the rope like a
+  // pendulum; otherwise it hooks the far ledge and hauls itself over.
+  function findLanding(e,dir,target){
+    const feet=e.y+e.h; let best=null, bd=1e9;
+    for(let k=2;k<=18;k++){                                   // up to 9 blocks, every half block
+      const nx=e.x+dir*k*T/2;
+      for(let up=-4;up<=4;up++){
+        const f=Math.round((feet-up*T)/T)*T;
+        if(!boxFree(nx,f-e.h,e.w,e.h)) continue;
+        if(!(solidAt(nx+8,f+4)&&solidAt(nx+e.w-8,f+4))) continue;      // solid ground only (a moving platform would leave)
+        if(!e._iso&&wetAt(nx+e.w/2,f-6)) continue;
+        if(ENEMS.some(o=>o!==e&&o._ai&&Math.abs(o.x-nx)<e.w&&Math.abs(o.y+o.h-f)<T)) continue;
+        // with a target: the floor that gets it closest to him (not right on top: it wants room to work)
+        const d=target?Math.max(T*2,Math.hypot(nx+e.w/2-target.x,f-e.h/2-target.y)):k*T/2+Math.abs(up)*T*0.7;
+        if(d<bd){ bd=d; best={x:nx,y:f-e.h}; }
+      }
+    }
+    return best;
+  }
+  function findAnchor(e,dest){
+    const c=center(e), mx=(c.x+dest.x+e.w/2)/2, top=Math.min(e.y,dest.y);
+    for(let y=top-T;y>top-8*T;y-=T/2){ if(solidAt(mx,y)) return {x:mx,y:y+T/2-2}; }
+    return null;
+  }
+  function ropeTravel(e,dir,target){
+    if(e._ai==='circle'||ropeOf(e)||(e.travCd||0)>0) return false;
+    let dest=findLanding(e,dir,target);
+    if(target&&!dest) dest=findLanding(e,-dir,target);
+    if(!dest) return false;
+    if(target){ const now=Math.hypot(e.x+e.w/2-target.x,e.y+e.h/2-target.y), then=Math.hypot(dest.x+e.w/2-target.x,dest.y+e.h/2-target.y); if(then>now-T){ e.travCd=40; return false; } }
+    const an=findAnchor(e,dest);
+    const tx=an?an.x:dest.x+e.w/2, ty=an?an.y:dest.y+e.h;
+    throwRope(e,tx,ty,'travel');
+    const r=ropeOf(e); r.dest=dest; r.anchor=an; e.travCd=(DIFF()===3?90:DIFF()===2?150:220)+Math.random()*80|0;
     return true;
   }
   function tumbleTick(e){
@@ -246,10 +362,21 @@
     if(k>=1){
       e.x=tb.nx; e.ang=0; e.tumble=null;
       if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
-      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); }catch(_e){}
+      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfx('tumble'); }catch(_e){}
       if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
       else land(e,1.5);
     }
+  }
+  // Enemy A rolls: a steady roll along its floor, faster toward MIND; it turns
+  // back at a ledge or a wall, and spins as it goes (its face turns with it)
+  function rollTick(e,near,face){
+    const wet=wetAt(e.x+e.w/2,e.y+e.h/2);
+    const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
+    const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
+    const lead=dir>0?nx+e.w-12:nx+12;
+    if(!boxFree(nx,e.y,e.w,e.h)||enemyIn(e,nx,e.y,e.w,e.h)||!floorAtPoint(lead,feet,10)||(!e._iso&&!wet&&wetAt(lead,feet-8))){ if(!near) e.dir*=-1; e.vx=0; return; }
+    e.x=nx; e.vx=dir*spd; e.roll=(e.roll||0)+dir*spd/(e.w/2);
+    if(!floorUnder(e.x,e.w,feet)){ e.og=false; e._falling=true; }   // the slope drops away a little: settle onto it
   }
   function land(e,v){
     B.shake=Math.max(B.shake||0,Math.min(5,v*0.7));
@@ -257,7 +384,8 @@
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
   function fallTick(e){
-    e.vy=Math.min(e.vy+GRAV*0.8,13);
+    if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
+    else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
     // landing on MIND or another enemy hurts them (the square's thing)
     if(e.vy>3){
@@ -276,7 +404,9 @@
 
   function think(e){
     const c=center(e), m=mindCenter(), dx=m.x-c.x, dist=Math.hypot(dx,m.y-c.y);
-    const near=dist<10*T&&sees(e);
+    // they notice MIND as soon as they're on screen together, and go for him
+    const near=onScreen(e);
+    const los=near&&sees(e);
     // heat: red as MIND gets close; one block away → fuse → boom
     const gap=gapTo(e);
     // cooling off after a blast: no heat, no fuse, no pushing or roping
@@ -294,23 +424,14 @@
     if(e.ropeCd>0) e.ropeCd--;
     const face=dx>=0?1:-1;
     // push when MIND is in front and close
-    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<2*T){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
+    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<Math.max(2*T,e.h*0.6)){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
     // rope (square + triangle)
-    if(!cooling&&e._ai!=='circle'&&near&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&e.heat>0.3&&dist<ROPE_R){
+    // rope him from range (it can't be dodged by just standing back), then reel
+    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<ROPE_R+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)){
       throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
     }
-    if(e._ai==='circle'){
-      if(cooling) return;                                       // hangs still while it cools
-      // a sine wave along its patrol line; drifts toward MIND when it sees him
-      e.phase+=0.045;
-      const spd=near?0.9:0.6;
-      e.vx=(near?face:e.dir)*spd;
-      let nx=e.x+e.vx;
-      if(nx<e.mn||nx+e.w>e.mx||!boxFree(nx,e.y,e.w,e.h)){ e.dir*=-1; nx=e.x; }
-      const ny=e.baseY+Math.sin(e.phase)*e.amp;
-      e.x=nx; if(boxFree(e.x,ny,e.w,e.h)) e.y=ny;
-      return;
-    }
+    if(e.travCd>0) e.travCd--;
+    const rp=ropeOf(e); if(rp&&(rp.kind==='travel'||rp.kind==='ledge')) return;   // on its rope
     const pl=e._plat||platUnder(e.x,e.w,e.y+e.h);
     if(pl&&e.og&&!e._falling){
       if(!e._plat){ e._plat=pl; e._platOff=e.x-pl.x; }
@@ -322,12 +443,20 @@
     if(e.tumble){ tumbleTick(e); return; }
     if(!e.og){ fallTick(e); return; }
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
-    if(ropeOf(e)&&ropeOf(e).kind==='ledge') return;
     if(cooling) return;
+    slopeRest(e);
+    if(e._ai==='circle'){ rollTick(e,near,face); return; }
     if(--e.stepCd<=0){
-      const dir=near?face:e.dir;
-      if(!startTumble(e,dir)){ if(!near) e.dir*=-1; }
-      e.stepCd=(near?(DIFF()===3?16:26):46)+Math.random()*20|0;
+      const dir=near?face:e.dir, below=m.y>e.y+e.h+T, above=m.y<e.y-T;
+      // C drops off its ledge on purpose when MIND is right below — to land on him
+      if(near&&e._ai==='square'&&below&&Math.abs(dx)<e.w*1.6&&sees(e)&&startTumble(e,dir,true)){}
+      else if(near&&Math.abs(dx)<e.w*0.5+T&&(above||below)&&ropeTravel(e,dir,m)){}   // he's over / under it: rope to his floor
+      else if(!startTumble(e,dir)){
+        // the edge of its floor (or a wall): it ropes across toward him; idle, sometimes it explores
+        const wantGo=near?Math.abs(dx)>e.w*0.5+T||above||below:Math.random()<0.35;
+        if(!(wantGo&&ropeTravel(e,dir,near?m:null))&&!near) e.dir*=-1;
+      }
+      e.stepCd=(near?(DIFF()===3?14:DIFF()===2?22:32):46)+Math.random()*16|0;
     }
   }
 
@@ -337,9 +466,69 @@
   const _origSep=window._applyBodySeparation;
   window._applyBodySeparation=function(pl,e,sep){
     if(!e||!e._ai||!sep) return _origSep.apply(this, arguments);
+    if(pl===p&&(B.rideEnemy===e||isOnTop(e))) return;            // standing on it: no shove
     const s2={ax:(sep.ax||0)-(sep.bx||0), ay:(sep.ay||0)-(sep.by||0), bx:0, by:0};
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
+  // ── standing on enemies (Paulo, Oct 20) ─────────────────────────
+  // Their shape is the floor: C (square) is a flat platform; B (triangle) is
+  // two slopes — unless MIND is on the very peak he slides off one side; A
+  // (circle) is round — dead centre holds, anywhere else he rolls off. An
+  // enemy shut down for good is a plain platform (and can be pushed around).
+  function surf(e,x){
+    if(x<e.x||x>e.x+e.w) return null;
+    if(e._ai==='square') return e.y;                            // flat — alive or shut down
+    const cx=e.x+e.w/2, dx=x-cx;
+    if(e._ai==='circle'){ const r=e.w/2; return e.y+r-Math.sqrt(Math.max(0,r*r-dx*dx)); }
+    return e.y+Math.abs(dx)/(e.w/2)*e.h;                        // triangle
+  }
+  function slopeAt(e,x){
+    if(e._ai==='square') return 0;
+    const dx=x-(e.x+e.w/2); if(Math.abs(dx)<1) return 0;          // the exact centre holds
+    if(e._ai==='circle'){ const r=e.w/2; return Math.max(-4,Math.min(4,dx/Math.sqrt(Math.max(1,r*r-dx*dx)))); }
+    return Math.sign(dx)*e.h/(e.w/2);
+  }
+  // where MIND's wheel touches it: a flat top (square / shut-down body) carries
+  // him as long as the wheel overlaps it; a round or pointed top only under
+  // the wheel's centre
+  const WHEEL=14;
+  function support(e,cx){
+    if(e._ai==='square'){ const x=Math.max(e.x,Math.min(e.x+e.w,cx)); return Math.abs(x-cx)<=WHEEL?x:null; }
+    return cx>=e.x&&cx<=e.x+e.w?cx:null;
+  }
+  function isOnTop(e){ const x=support(e,p.x+SW/2); if(x==null) return false; const s=surf(e,x); return s!=null&&p.y+FEET_OFF<=s+8; }
+  const _origMoveE=window._movePlayerWithColl;
+  window._movePlayerWithColl=function(pl,vx,vy){
+    if(!B.on||pl!==p) return _origMoveE.apply(this, arguments);
+    const y0=pl.y;
+    _origMoveE.apply(this, arguments);
+    if(typeof _mvDropThru!=='undefined'&&_mvDropThru>0){ B.rideEnemy=null; return; }
+    if(pl.hook&&pl.hook.st==='on'){ B.rideEnemy=null; return; }
+    const feet0=y0+FEET_OFF, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
+    let best=null, bs=1e9;
+    for(const e of ENEMS){
+      if(!e._ai||e._betaHeld) continue;
+      const sx0=support(e,cx); if(sx0==null) continue;
+      const s=surf(e,sx0); if(s==null) continue;
+      const landing=(pl.vy||0)>=0&&feet0<=s+4&&feet>=s-1;
+      const staying=B.rideEnemy===e&&(pl.vy||0)>=-0.01&&Math.abs(feet-s)<=10;
+      if((landing||staying)&&s<bs){ bs=s; best=e; }
+    }
+    if(!best){ B.rideEnemy=null; return; }
+    const e=best;
+    if(B.rideEnemy===e&&e._pdx) pl.x+=e._pdx;                    // it carries him as it moves
+    const sx1=support(e,pl.x+SW/2), s1=sx1!=null?surf(e,sx1):null;
+    pl.y=(s1!=null?s1:bs)-FEET_OFF;
+    if(pl.vy>0) pl.vy=0; pl.og=true; B.rideEnemy=e; B.rideEnemyFr=fr;
+    const k=sx1!=null?slopeAt(e,sx1):0;
+    if(k){ pl.vx+=k*0.32+Math.sign(k)*0.12; }                     // slides off the round / sloped top
+  };
+  const _origGroundedE=window._playerGrounded;
+  window._playerGrounded=function(pl){
+    if(B.on&&pl===p&&B.rideEnemy&&fr-(B.rideEnemyFr||-9)<=1) return true;
+    return _origGroundedE.apply(this, arguments);
+  };
+
   // shut-down bodies: our own gravity (they stay on their platform or ledge)
   const _origShut=window._updateMinionShut;
   window._updateMinionShut=function(e){ if(e&&e._ai) return; return _origShut.apply(this, arguments); };
@@ -351,11 +540,36 @@
     }
     return false;
   }
+  // the slope under it (radians, + = falling to the right) and how far below
+  // its box the ground really is at its centre
+  function groundUnder(e){
+    if(typeof gridStandY!=='function') return {ang:0,dy:0};
+    const feet=e.y+e.h, cx=e.x+e.w/2, hw=Math.min(14,e.w/2-2);
+    const yl=gridStandY(cx-hw,feet,{maxUp:20,maxDrop:T}), yr=gridStandY(cx+hw,feet,{maxUp:20,maxDrop:T}), yc=gridStandY(cx,feet,{maxUp:20,maxDrop:T});
+    if(yl==null||yr==null) return {ang:0,dy:0};
+    return {ang:Math.atan2(yr-yl,2*hw), dy:yc!=null?Math.max(0,Math.min(T,yc-feet)):0};
+  }
+  function slopeRest(e){
+    const g=(e.og&&!e.tumble&&!e._betaHeld)?groundUnder(e):{ang:0,dy:0};
+    e.gAng=(e.gAng||0)+(g.ang-(e.gAng||0))*0.25; e.gDy=(e.gDy||0)+(g.dy-(e.gDy||0))*0.35;
+    return g;
+  }
+  B.enemySlopeRest=slopeRest;
   function deadTick(e){
     if(e.shutF>0) e.shutF--;
     if(bodyTick(e)) return;
     if(e._betaHeld||(e._thrownF||0)>0) return;
-    if(e._ai==='circle'&&B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
+    // on a slope: a round body rolls down it; the others rest tilted on it
+    const g=slopeRest(e);
+    if(e._ai==='circle'&&e.og&&Math.abs(g.ang)>0.06) e.vx=(e.vx||0)+Math.sin(g.ang)*0.22;
+    // pushed around (XLR, magnet throw…): slides, stopped by walls and other bodies, friction on the floor
+    if(Math.abs(e.vx||0)>0.05){
+      const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx; else e.vx=0;
+      e.vx*=e.og?(e._ai==='circle'?0.985:0.86):0.98;
+      if(e._ai==='circle') e.roll=(e.roll||0)+e.vx/(e.w/2);
+      if(e.og&&!floorUnder(e.x,e.w,e.y+e.h)) e.og=false;
+    }else e.vx=0;
+    if(B.inWater&&B.inWater(e.x+e.w/2,e.y+e.h/2)){ e.vy=Math.min((e.vy||0)+0.05,0.8); }
     else e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
     const feet=e.y+e.h+e.vy, pl=platUnder(e.x,e.w,feet);
     if(pl&&e.vy>=0){ e.y=pl.y-e.h; e.vy=0; e.og=true; e._plat=pl; e._platOff=e.x-pl.x; e._shutSettled=true; return; }
@@ -367,8 +581,10 @@
     if(!p) return;
     for(const e of ENEMS){
       if(!e._ai) continue;
+      e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
+      e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
-      if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; continue; }
+      if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       think(e);
     }
     ropeTick(); fragTick();
@@ -413,7 +629,15 @@
     // rotation for tipping / tumbling: round the bottom corner it goes over
     const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
     if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
+    else if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
+      const bx=sx(e.x+e.w/2), by=sy(e.y+e.h);
+      ctx.translate(0,sw(e.gDy||0));
+      if(e._ai!=='circle'){ ctx.translate(bx,by); ctx.rotate(e.gAng||0); ctx.translate(-bx,-by); }
+      else ctx.translate(0,-sw(e.w/2)*(1-Math.cos(e.gAng||0)));      // a ball touches the slope a bit higher
+    }
     ctx.translate(cx,cy);
+    if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
+    else if(!piv&&e.ang) ctx.rotate(e.ang);                   // swinging on its rope
     ctx.fillStyle=fill; ctx.strokeStyle=off?'#2a2830':INK_D; ctx.lineWidth=lw+2; ctx.lineJoin='round';
     const shape=()=>{ ctx.beginPath();
       if(e._ai==='circle') ctx.arc(0,0,s/2,0,Math.PI*2);
@@ -423,14 +647,36 @@
     ctx.strokeStyle=off?'#4a4450':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=lw*0.6; shape(); ctx.stroke();   // the red ink line
     ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
     inkFace(ctx,s,e._ai,ink,off);
+    if(e._iso){ ctx.strokeStyle='rgba(255,160,70,'+(0.55+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(3,s*0.07); ctx.save(); ctx.scale(1.12,1.12); shape(); ctx.stroke(); ctx.restore(); }
     ctx.restore();
+  }
+  // a slack rope hangs and lies on the floor like a cord (same as MIND's); a taut one is straight
+  function cordFor(r,c){
+    const E={x:r.x,y:r.y}, d=Math.hypot(E.x-c.x,E.y-c.y), L=r.st==='hold'?Math.max(d,r.len):d;
+    if(L-d<3){ r._cord=null; return [c,E]; }
+    const n=Math.max(6,Math.min(30,Math.round(L/12)));
+    let cd=r._cord;
+    if(!cd||cd.n!==n){ const P=[]; for(let k=0;k<n;k++){ const t=k/(n-1); P.push({x:c.x+(E.x-c.x)*t,y:c.y+(E.y-c.y)*t,px:c.x+(E.x-c.x)*t,py:c.y+(E.y-c.y)*t}); } cd=r._cord={n,P}; }
+    const P=cd.P, seg=L/(n-1);
+    if(cd.fr!==fr){ cd.fr=fr;
+      for(let k=1;k<n-1;k++){ const q=P[k], vx=(q.x-q.px)*0.985, vy=(q.y-q.py)*0.985; q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+0.45; }
+      P[0].x=c.x; P[0].y=c.y; P[n-1].x=E.x; P[n-1].y=E.y;
+      for(let it=0;it<12;it++){
+        for(let k=0;k<n-1;k++){ const a=P[k], b=P[k+1], dx=b.x-a.x, dy=b.y-a.y, dd=Math.hypot(dx,dy)||0.001, df=(dd-seg)/dd*0.9;
+          const fa=k===0?0:1, fb=k+1===n-1?0:1, s2=fa+fb||1; a.x+=dx*df*fa/s2; a.y+=dy*df*fa/s2; b.x-=dx*df*fb/s2; b.y-=dy*df*fb/s2; }
+        for(let k=1;k<n-1;k++){ const q=P[k]; if(!solidAt(q.x,q.y)) continue;
+          if(!solidAt(q.px,q.y)) q.x=q.px; else if(!solidAt(q.x,q.py)) q.y=q.py; else { let g=0; while(solidAt(q.x,q.y)&&g<12){ q.y-=3; g++; } }
+          q.px+=(q.x-q.px)*0.6; }
+      }
+    }
+    return P.map(q=>({x:q.x,y:q.y}));
   }
   function drawRopes(){
     for(const r of B.ropes){
-      const c=center(r.e), x0=sx(c.x), y0=sy(c.y), x1=sx(r.x), y1=sy(r.y);
-      const sag=r.st==='hold'?Math.max(0,r.len-Math.hypot(r.x-c.x,r.y-c.y))*0.5:6;
-      ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.beginPath(); ctx.moveTo(x0,y0);
-      ctx.quadraticCurveTo((x0+x1)/2,(y0+y1)/2+sw(sag),x1,y1); ctx.stroke();
+      const c=ropeOrigin(r.e), pts=cordFor(r,c);
+      ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(sx(pts[0].x),sy(pts[0].y));
+      for(let k=1;k<pts.length;k++) ctx.lineTo(sx(pts[k].x),sy(pts[k].y)); ctx.stroke();
+      const x1=sx(r.x), y1=sy(r.y);
       ctx.strokeStyle='#7a5a30'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle='#ffe0a0'; ctx.beginPath(); ctx.arc(x1,y1,sw(4),0,Math.PI*2); ctx.fill();
       ctx.restore();

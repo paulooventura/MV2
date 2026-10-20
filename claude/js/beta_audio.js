@@ -138,5 +138,36 @@
     og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
     o.connect(og); og.connect(a.destination); o.start(t+0.03); o.stop(t+0.18);
   }
-  window.MV_BETA_AUDIO={play, stopAll, hurtTick, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
+  // the magnet locking onto the floor: a heavy metal CLANK, then a low hum
+  // (two detuned square waves through a low-pass, wobbling) while it holds
+  function magClank(){
+    const a=ac(); if(!a||a.state!=='running') return;
+    const t=a.currentTime;
+    for(const [f,d,v] of [[180,0.18,0.18],[620,0.09,0.08],[1450,0.05,0.05]]){
+      const o=a.createOscillator(), g=a.createGain(); o.type='square'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*0.6,t+d);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v*sv(),t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+d+0.02);
+    }
+    const n=a.createBufferSource(); n.buffer=noise(a); const hp=a.createBiquadFilter(); hp.type='bandpass'; hp.frequency.value=2400; hp.Q.value=3;
+    const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.1*sv(),t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
+    n.connect(hp); hp.connect(g); g.connect(a.destination); n.start(t); n.stop(t+0.1);
+  }
+  let hum=null;
+  function magHum(on){
+    const a=ac(); if(!a) return;
+    if(on&&!hum&&a.state==='running'){
+      const g=a.createGain(), f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=420; f.Q.value=4;
+      const o1=a.createOscillator(), o2=a.createOscillator(), lfo=a.createOscillator(), lg=a.createGain();
+      o1.type='square'; o2.type='square'; o1.frequency.value=55; o2.frequency.value=55.7; lfo.frequency.value=7; lg.gain.value=120;
+      lfo.connect(lg); lg.connect(f.frequency);
+      o1.connect(f); o2.connect(f); f.connect(g); g.connect(a.destination);
+      const t=a.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.05*sv(),t+0.08);
+      o1.start(); o2.start(); lfo.start(); hum={g,os:[o1,o2,lfo]};
+    }else if(!on&&hum){
+      const t=a.currentTime, h=hum; hum=null;
+      h.g.gain.cancelScheduledValues(t); h.g.gain.setValueAtTime(h.g.gain.value||0.03,t); h.g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+      h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
+    }
+  }
+  window.MV_BETA_AUDIO={play, stopAll, hurtTick, boom, creak, twang, sizzle, fanfare, splash, magClank, magHum, current:()=>current, els};
 })();

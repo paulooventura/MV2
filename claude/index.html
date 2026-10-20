@@ -23,7 +23,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='181';</script>
+<script>window.MV_BUILD='190';</script>
 <script src="js/phone.js?v=135"></script>
 <script>
 if(location.protocol==='file:'){
@@ -281,33 +281,55 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/core.js?v=170"></script>
 <script src="js/audio.js?v=160"></script>
 <script src="js/sound16.js?v=172"></script>
+<script src="js/sfx_posh.js?v=190"></script>
 <script src="js/enemies.js?v=139"></script>
-<script src="js/collision_grid.js?v=154"></script>
-  <script src="js/physics.js?v=174"></script>
-  <script src="js/player.js?v=178"></script>
+<script src="js/collision_grid.js?v=181"></script>
+  <script src="js/physics.js?v=181"></script>
+  <script src="js/player.js?v=189"></script>
 <script src="js/beta_touch.js?v=181"></script>
-  <script src="js/weapons.js?v=154"></script>
-<script src="js/ui.js?v=180"></script>
-  <script src="js/render.js?v=170"></script>
+  <script src="js/weapons.js?v=190"></script>
+<script src="js/ui.js?v=190"></script>
+  <script src="js/render.js?v=190"></script>
 <script src="js/editor.js?v=125"></script>
 <script src="js/map_edit.js?v=138"></script>
 <script src="js/spawn_fix.js?v=139"></script>
 <script src="js/awdjoo_level.js?v=139"></script>
 <script src="js/healthwatch.js?v=1"></script>
 <script src="js/awdjoo_map.js?v=106"></script>
-<script src="js/main.js?v=180"></script>
+<script src="js/main.js?v=190"></script>
 <script src="js/crt_room.js?v=177"></script>
 <script src="js/item_lab.js?v=157"></script>
 <script src="js/physics_lab.js?v=157"></script>
 <script src="js/selftest.js?v=146"></script>
 <script src="js/ldtk_loader.js?v=170"></script>
 <script>window.MV_STORY_STAGES=1;</script>
-<script src="js/beta_audio.js?v=173"></script>
+<script src="js/beta_audio.js?v=189"></script>
 <script src="js/beta_decor.js?v=179"></script>
-<script src="js/beta_level.js?v=180"></script>
-<script src="js/beta_feel.js?v=170"></script>
-<script src="js/beta_water.js?v=180"></script>
-<script src="js/beta_enemies.js?v=179"></script>
+<script src="js/beta_level.js?v=190"></script>
+<script src="js/beta_feel.js?v=189"></script>
+<script src="js/beta_water.js?v=182"></script>
+<script src="js/beta_enemies.js?v=190"></script>
 <script src="js/console16.js?v=177"></script>
+<script>
+if('serviceWorker' in navigator&&location.protocol!=='file:'){
+  window.addEventListener('load',function(){
+    var SW_BUILD=String(window.MV_BUILD||'108');
+    if(/[?&](selftest|ci)=/i.test(location.search)) return;
+    var stored=localStorage.getItem('mv_sw_build');
+    if(stored!==SW_BUILD){
+      localStorage.setItem('mv_sw_build',SW_BUILD);
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        return Promise.all(regs.map(function(r){return r.unregister();}));
+      }).finally(function(){
+        caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));});
+      }).finally(function(){
+        navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});
+      });
+      return;
+    }
+    navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});
+  });
+}
+</script>
 </body>
 </html>
