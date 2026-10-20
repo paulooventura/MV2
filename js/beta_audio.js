@@ -29,9 +29,19 @@
     for(const k in els) if(k!==name) try{ els[k].pause(); }catch(e){}
     const a=el(name);
     if(restart) try{ a.currentTime=0; }catch(e){}
+    a._baseVol=volume; a.playbackRate=1;
     a.volume=vol()*volume;
     current=name; wantPlay=name;
     const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{ wantPlay=name; });
+  }
+  // Getting hit slows the music down (and dips it), then it recovers as MIND
+  // heals — the same rule the original game used (_healFrac, audio.js).
+  function hurtTick(){
+    if(!current||!els[current]||current==='item'||current==='results') return;
+    const a=els[current], f=Math.max(0.3,typeof _healFrac!=='undefined'?_healFrac:1);
+    const r=Math.max(0.5,f);
+    if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
+    a.volume=Math.max(0.05,vol()*(a._baseVol||1)*f);
   }
   function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
   // browsers only allow sound after a click / key: retry then
@@ -128,5 +138,5 @@
     og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
     o.connect(og); og.connect(a.destination); o.start(t+0.03); o.stop(t+0.18);
   }
-  window.MV_BETA_AUDIO={play, stopAll, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, stopAll, hurtTick, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
 })();

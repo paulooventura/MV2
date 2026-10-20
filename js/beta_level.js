@@ -896,6 +896,7 @@
     enemyTick();
     if(B.enemyAITick) B.enemyAITick();
     if(B.waterTick) B.waterTick();
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.hurtTick) MV_BETA_AUDIO.hurtTick();
     if(B.feelTick) B.feelTick();
     for(const e of ENEMS) if(e._thrownF>0) e._thrownF--;
     goalOpen=false;                                   // main.js must not zone-hop
