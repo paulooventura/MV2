@@ -103,7 +103,7 @@
     const g=ctx.createLinearGradient(0,Y(0),0,Y(30*T));
     g.addColorStop(0,P.skyTop); g.addColorStop(0.45,P.skyMid); g.addColorStop(0.85,P.skyLow); g.addColorStop(1,P.skyGlow);
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    const horizon=Y((MV_BETA.sky+13)*T);
+    const horizon=Y((MV_BETA.horizonRow!=null?MV_BETA.horizonRow:MV_BETA.sky+13)*T);
     // stars high up, twinkling
     const starH=(MV_BETA.sky+8)*T;
     for(let i=0;i<70;i++){
@@ -510,7 +510,17 @@
     ctx.strokeStyle='#ffffff'; ctx.beginPath(); ctx.moveTo(x, y-s*0.6); ctx.lineTo(x+s*0.3, y); ctx.stroke();
   }
   // A wooden crate with a paper label showing the jack inside (all male plugs).
-  const ITEM_NAMES=['TRS','RCA','XLR','MAG'];
+  const ITEM_NAMES=['TRS','RCA','XLR','MAG','ISOLATOR'];
+  // the Isolator: an orange rubber ring with a sealed core (the sketch's orange circle with a dot)
+  function isolatorIcon(x,y,s){
+    ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+    ctx.fillStyle='#c85a18'; ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ff9a40'; ctx.beginPath(); ctx.arc(-2,-2,19,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#efe2c0'; ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#c85a18'; ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,240,200,0.8)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(-2,-2,15,Math.PI*1.1,Math.PI*1.6); ctx.stroke();
+    ctx.restore();
+  }
   function itemCrate(idx,cx,bottom,enh,noName){
     const w=46, h=40, x=cx-w/2, y=bottom-h;
     if(!inView(x-10,y-20,w+20,h+30)) return;
@@ -524,7 +534,8 @@
     rect(x+7,y+6,w-14,h-14,'#efe2c0'); rect(x+7,y+6,w-14,2,'#fff6dc');
     ctx.save(); ctx.beginPath(); ctx.rect(X(x+8),Y(y+7),S(w-16),S(h-16)); ctx.clip();
     ctx.translate(X(cx-1),Y(y+6+(h-14)/2)); ctx.scale(Z*0.5,Z*0.5);
-    if(typeof drawConnectorTip==='function') drawConnectorTip(idx===3?-14:-16,0,0,0,idx,enh);
+    if(idx===4) isolatorIcon(0,0,1);
+    else if(typeof drawConnectorTip==='function') drawConnectorTip(idx===3?-14:-16,0,0,0,idx,enh);
     ctx.restore();
     // name under the crate
     if(!noName) drawTextC(ITEM_NAMES[idx]||'?', X(cx), Y(bottom+3), enh?'#7dffcf':'#ffe8b0', 1);
@@ -533,6 +544,15 @@
     if(t<0.25){ ctx.save(); ctx.globalAlpha=0.35*(1-Math.abs(t*8-1)); ctx.fillStyle='#fff';
       ctx.beginPath(); const sxp=x+t*4*(w+20)-10; ctx.moveTo(X(sxp),Y(y)); ctx.lineTo(X(sxp+8),Y(y)); ctx.lineTo(X(sxp-4),Y(y+h)); ctx.lineTo(X(sxp-12),Y(y+h)); ctx.fill(); ctx.restore(); }
     if(enh) glow(cx,y+h/2,40,0.3,'rgba(80,255,150,');
+  }
+
+  // the arch MIND comes through from the last stage: open, softly glowing
+  function arrivalArch(d){
+    const x=d.x, y=d.y, w=2*T, h=4*T;
+    glow(x+w/2,y+h*0.55,90,0.22+0.06*Math.sin(fr*0.05),'rgba(255,230,140,');
+    ctx.lineWidth=S(8); ctx.strokeStyle='#e8c860';
+    ctx.beginPath(); ctx.moveTo(X(x+6),Y(y+h)); ctx.lineTo(X(x+6),Y(y+w/2)); ctx.arc(X(x+w/2),Y(y+w/2),S(w/2-6),Math.PI,0); ctx.lineTo(X(x+w-6),Y(y+h)); ctx.stroke();
+    ctx.fillStyle='rgba(255,230,140,'+(0.18+0.1*Math.sin(fr*0.08))+')'; ctx.fillRect(X(x+10),Y(y+w/2),S(w-20),S(h-w/2));
   }
 
   // ── World ─────────────────────────────────────────────────────────
@@ -575,12 +595,13 @@
       blit(tex.dirt[(c*5+r*3)&7],c,r);
       const depth=r-(B.surfRow[c]||r);
       if(depth>1){ ctx.fillStyle='rgba(20,8,16,'+Math.min(0.45,depth*0.035)+')'; ctx.fillRect(X(c*T),Y(r*T),S(T)+1,S(T)+1); }
-      if(top&&r<=(B.sky+21)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
+      if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
     }
     for(const d of B.decor){
       if(d.kind==='attic') atticWindow(d.x, d.y+12);
       else if(d.kind==='lamp') lampPost(d.x, d.y);
       else if(d.kind==='sign') sign(d.x, d.y);
+      else if(d.kind==='arrival') arrivalArch(d);
     }
     fireflies(B);
     for(const l of B.labels) drawText(l.text, X(l.x), Y(l.y), '#f0d8a8', 1);
@@ -592,5 +613,5 @@
     const ox=typeof _mapEdScreenOx==='function'?_mapEdScreenOx():0;
     itemCrate(idx, (cx-ox)/Z+_rcamX, bottom/Z+_rcamY, false, noName);
   }
-  window.MV_BETA_DECOR={P, world, itemCrateScreen, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
+  window.MV_BETA_DECOR={P, world, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
 })();

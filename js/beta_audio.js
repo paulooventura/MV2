@@ -13,6 +13,7 @@
   'use strict';
   const TRACKS={
     stage:'assets/bgm/canopy-quest-gold.mp3',
+    stage2:'assets/bgm/crystal-cavern-drift-gold.mp3',
     item:'assets/bgm/lost-save-shrine-diam.mp3',
     results:'assets/bgm/crystal-memory-gate.mp3'
   };
@@ -105,5 +106,18 @@
     return (6.5*q+0.9)*1000;
   }
 
-  window.MV_BETA_AUDIO={play, stopAll, boom, creak, twang, sizzle, fanfare, current:()=>current, els};
+  // a splash: filtered noise whoosh + a little bloop, bigger for heavier things
+  let lastSplash=0;
+  function splash(k){
+    const a=ac(); if(!a||a.state!=='running') return;
+    const t=a.currentTime; if(t-lastSplash<0.06) return; lastSplash=t;
+    const n=a.createBufferSource(); n.buffer=noise(a);
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.setValueAtTime(1400,t); bp.frequency.exponentialRampToValueAtTime(500,t+0.25); bp.Q.value=1.2;
+    const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.16*sv()*(0.3+k),t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+    n.connect(bp); bp.connect(g); g.connect(a.destination); n.start(t,Math.random()*0.5); n.stop(t+0.32);
+    const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(380+Math.random()*120,t+0.03); o.frequency.exponentialRampToValueAtTime(900,t+0.12);
+    og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+    o.connect(og); og.connect(a.destination); o.start(t+0.03); o.stop(t+0.18);
+  }
+  window.MV_BETA_AUDIO={play, stopAll, boom, creak, twang, sizzle, fanfare, splash, current:()=>current, els};
 })();

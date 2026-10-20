@@ -118,7 +118,7 @@ Keep the **live game (A)** and any **experiment (B)** both playable. Never repla
 | **D** | Physics lab | `physics-lab.html?ab=d` |
 | **E** | Piskel cave sketch (not Awdjoo) | `sketch-lab.html?ab=e` |
 | **F** | LDtk loader lab (not Awdjoo) | `ldtk-lab.html?ab=f` |
-| **G** | Awdjoo Level 1 beta from Paulo's pen sketch (`assets/levels/awdjoo-beta.ldtk`; rules + cubes `js/beta_level.js`, feel + XLR launch/hover + hook `js/beta_feel.js`, look + choir `js/beta_decor.js`, music + synth sounds `js/beta_audio.js`; rebuild with `python3 scripts/build-awdjoo-beta.py`; `npm run reachcheck:beta`; standalone page `play-beta.html`) | `beta-lab.html?ab=g` |
+| **G** | Awdjoo Level 1 beta from Paulo's pen sketch (`assets/levels/awdjoo-beta.ldtk`; rules + cubes `js/beta_level.js`, feel + XLR launch/hover + hook `js/beta_feel.js`, look + choir `js/beta_decor.js`, music + synth sounds `js/beta_audio.js`; rebuild with `python3 scripts/build-awdjoo-beta.py`; `npm run reachcheck:beta`; water + platforms + Isolator `js/beta_water.js`; 1.2 trial `assets/levels/awdjoo-1-2.ldtk` from `python3 scripts/build-awdjoo-1-2.py`, `node scripts/reach-check.mjs --lvl=1.2`; open with `?lvl=1.2`; standalone page `play-beta.html`) | `beta-lab.html?ab=g` |
 
 The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.js`). New labs get a new letter/page — do not overwrite A.
 

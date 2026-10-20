@@ -28,7 +28,9 @@ const PORT = Number(process.env.MV_TEST_PORT || 8775);
 const STRICT = !process.argv.includes('--allow-softlocks');
 // --beta : run on lab G (Awdjoo Level 1 beta from the pen sketch) instead of live Awdjoo.
 const BETA = process.argv.includes('--beta');
-const TAG = BETA ? 'reach-beta' : 'reach';
+// --lvl=1.2 : a later beta stage (implies --beta)
+const LVL = (process.argv.find((a) => a.startsWith('--lvl=')) || '').slice(6) || null;
+const TAG = LVL ? 'reach-beta-' + LVL : (BETA ? 'reach-beta' : 'reach');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -67,11 +69,11 @@ async function main() {
     const page = await (await browser.newContext()).newPage();
     page.on('pageerror', (e) => console.error('[page error]', e.message));
 
-    const pageName = BETA ? 'beta-lab.html' : 'index.html';
-    await page.goto(`http://127.0.0.1:${port}/${pageName}?_=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const pageName = (BETA || LVL) ? 'beta-lab.html' : 'index.html';
+    await page.goto(`http://127.0.0.1:${port}/${pageName}?${LVL ? 'lvl=' + LVL + '&' : ''}_=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => typeof initWorld === 'function' && typeof gridResolvePlayer === 'function', null, { timeout: 60000 });
 
-    if (BETA) {
+    if (BETA || LVL) {
       // beta-lab.html boots itself; wait for the level to be applied.
       await page.waitForFunction(() => window.MV_BETA && window.MV_BETA.on && _gridReady() && p, null, { timeout: 60000 });
     } else {
@@ -86,7 +88,7 @@ async function main() {
     await page.evaluate(() => { _gameState = 'paused-reachcheck'; });
 
     await page.addScriptTag({ path: join(ROOT, 'js', 'reach_check.js') });
-    console.log('MV reach check: running physics referee on ' + (BETA ? 'Awdjoo L1 beta (lab G)' : 'Awdjoo') + '…');
+    console.log('MV reach check: running physics referee on ' + (LVL ? 'Awdjoo ' + LVL + ' (lab G)' : BETA ? 'Awdjoo L1 beta (lab G)' : 'Awdjoo') + '…');
     const opts = process.env.MV_REACH_OPTS ? JSON.parse(process.env.MV_REACH_OPTS) : {};
     const res = await page.evaluate((opts) => {
       const r = MV_REACH.check(opts);
@@ -109,7 +111,7 @@ async function main() {
     const t = res.targets;
     const env = res.envelope;
     const summary = [
-      `MV REACH CHECK ${pass ? 'PASS' : 'FAIL'}  ${BETA ? 'L1 beta' : 'Awdjoo'}  build ${build ?? '?'}  (${(res.ms / 1000).toFixed(1)}s)`,
+      `MV REACH CHECK ${pass ? 'PASS' : 'FAIL'}  ${LVL ? 'Awdjoo ' + LVL : BETA ? 'L1 beta' : 'Awdjoo'}  build ${build ?? '?'}  (${(res.ms / 1000).toFixed(1)}s)`,
       `beatable: ${res.beatable ? 'YES' : 'NO'}`,
       `spawn col ${res.spawn.col} row ${res.spawn.row}`,
       ...t.map((x) => `  ${x.kind.padEnd(5)}${x.i != null ? String(x.i).padStart(2) : '  '}  col ${String(x.col).padStart(3)}${x.row != null ? ' row ' + String(x.row).padStart(3) : '        '}  → ${x.reach}`),

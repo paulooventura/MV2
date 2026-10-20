@@ -18,7 +18,9 @@
 // ============================================================
 (function(){
   'use strict';
-  const PATH='assets/levels/awdjoo-beta.ldtk';
+  // Stages: 1.1 → 1.2 → … (1.3 ends with a boss, then 2.1). Finishing one carries the jacks into the next.
+  const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2'}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:null}};
+  function wantedLevel(){ try{ const m=/[?&]lvl=([0-9.]+)/.exec(location.search); if(m&&LEVELS[m[1]]) return m[1]; }catch(e){} return '1.1'; }
   const T=32;                                   // world tile
   const ITEM_IDX={TRS:0, RCA:1, XLR:2, MAG:3};
   const B={on:false, level:null, gate:null, need:{crystals:3, seeds:6},
@@ -37,18 +39,23 @@
   const cell=e=>({c:e.__grid?e.__grid[0]:Math.round(e.px[0]/16), r:e.__grid?e.__grid[1]:Math.round(e.px[1]/16),
     w:Math.round((e.width||16)/16), h:Math.round((e.height||16)/16)});
 
-  async function startBetaLab(){
+  async function startBetaLab(id, carryMask){
+    id=id&&LEVELS[id]?id:wantedLevel();
+    const PATH=LEVELS[id].path;
     if(typeof _unlockAudio==='function') _unlockAudio();
     _gameState='game';
     if(typeof _stopAllBgm==='function') _stopAllBgm();
     else if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); _stopBGM('game'); }
+    const gen=B.loadGen=(B.loadGen||0)+1;             // a newer load wins (e.g. a stage button during boot)
     const res=await fetch(PATH);
     if(!res.ok) throw new Error('beta level fetch failed '+res.status);
     const raw=await res.json();
     const level=await parseLdtkProject(raw, PATH);   // Collision grid + seeds (Knowl) via lab F
+    if(gen!==B.loadGen) return;
+    B.stageId=id; B.carryMask=carryMask!=null?carryMask:(id==='1.1'?0:15);   // straight into 1.2 = all four jacks
     applyLdtkLevel(level);
     applyBeta(raw, level);
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('stage',{restart:true});
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(B.music,{restart:true});
     else if(typeof _playBGM==='function'&&typeof OPT!=='undefined') _playBGM('game', OPT.musicVol);
   }
 
@@ -60,6 +67,10 @@
     B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]};
     const lv=raw.levels[0];
     B.sky=(F(lv,'skyRows')|0)||0;
+    B.horizonRow=F(lv,'horizonRow')!=null?F(lv,'horizonRow'):B.sky+13;
+    B.stageName=F(lv,'stageName')||'AWDJOO TOWN 1.1'; B.stageSub=F(lv,'stageSub')||'The Journey Begins';
+    B.music=F(lv,'music')||'stage'; B.surfRow=null; B.laitu=null;
+    if(B.onLevelStart) B.onLevelStart(lv);
     const layer=id=>(lv.layerInstances||[]).find(l=>l.__identifier===id);
     const sk=layer('Skin');
     B.skin=null;
@@ -151,6 +162,8 @@
           B.decor.push({kind:F(e,'kind'), c:g.c, r:g.r, x, y, dx:F(e,'dx')|0, dy:F(e,'dy')|0, len:F(e,'len')|0}); break;
       }
     }
+    B.itemsTotal=ents.filter(e=>e.__identifier==='Item'||e.__identifier==='Rca'||e.__identifier==='Isolator').length;
+    if(B.onEntities) B.onEntities(ents, F, cell);
     kTotal=KDROP.length; kColl=0; goalOpen=false;
     if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
     cubeSettleNow();
@@ -159,11 +172,11 @@
     if(B.gate) GOALPL={x:B.gate.x, y:B.gate.y, w:B.gate.w, h:B.gate.h};
 
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
-    p2=null; _unlockedMask=0; ITEM=-1;
+    p2=null; _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
-      let zi=ZONES.findIndex(z=>z.name==='AWDJOO TOWN 1.1');
-      if(zi<0){ ZONES.push({name:'AWDJOO TOWN 1.1', sub:'The Journey Begins'}); zi=ZONES.length-1; }
+      let zi=ZONES.findIndex(z=>z.name===B.stageName);
+      if(zi<0){ ZONES.push({name:B.stageName, sub:B.stageSub}); zi=ZONES.length-1; }
       _zoneIdx=zi; _zoneCardT=180;
     }
     if(typeof uiShowToast==='function') uiShowToast('THE JOURNEY BEGINS — 3 CRYSTALS + 6 SEEDS OPEN THE ARCH');
@@ -390,6 +403,7 @@
       const bw=B.flying[i];
       if(bw.hp<=0){ B.flying.splice(i,1); continue; }
       bw.vy=Math.min(bw.vy+GRAV,15); bw.vx*=0.995;
+      if(B.inWater&&B.inWater(bw.x+T/2,bw.y+T/2)){ bw.vy=Math.min(bw.vy-GRAV*0.7,2.2); bw.vx*=0.93; bw.spin=(bw.spin||0)*0.9; }
       const steps=Math.max(1,Math.ceil(Math.max(Math.abs(bw.vx),Math.abs(bw.vy))/6));
       let ground=false;
       for(let s=0;s<steps;s++){
@@ -430,6 +444,7 @@
     for(const k of KDROP){
       if(!k._fly) continue;
       k.vy=Math.min(k.vy+GRAV*0.8,12); k.vx*=0.99;
+      if(B.inWater&&B.inWater(k.x,k.y)){ k.vx*=0.92; if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*1.6,-2.4); k._rest=0; } else k.vy=Math.min(k.vy-GRAV*0.6,1.6); }
       const nx=k.x+k.vx; if(solidPx(nx+Math.sign(k.vx)*KR,k.y)){ k.vx*=-0.4; } else k.x=nx;
       const ny=k.y+k.vy;
       if(solidPx(k.x,ny+KR)){ k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1; }
@@ -719,6 +734,7 @@
     cubeTick();
     boomTick();
     enemyTick();
+    if(B.waterTick) B.waterTick();
     if(B.feelTick) B.feelTick();
     for(const e of ENEMS) if(e._thrownF>0) e._thrownF--;
     goalOpen=false;                                   // main.js must not zone-hop
@@ -813,6 +829,7 @@
       if(B.open){ ctx.fillStyle='rgba(255,230,140,'+(0.25+0.15*Math.sin(fr*0.1))+')'; ctx.fillRect(x+sw(10),y+w/2,w-sw(20),h-w/2); }
       else{ ctx.strokeStyle='#2a2020'; ctx.lineWidth=sw(3); for(let i=1;i<4;i++){ const bx=x+w*i/4; ctx.beginPath(); ctx.moveTo(bx,y+w/2-sw(8)); ctx.lineTo(bx,y+h); ctx.stroke(); } }
     }
+    if(B.drawWorldExtras) B.drawWorldExtras();
     // shells on the arch fill in as crystals / seeds are gathered
     const n=counts(); let ci=0, si=0;
     for(const sh of B.shells){
@@ -917,7 +934,7 @@
     }
     const n=counts();
     ctx.fillStyle=C.BLACK; ctx.fillRect(6, H-44, 520, 38);
-    drawText('AWDJOO TOWN 1.1  '+fmtTime(B.stats.frames), 10, H-40, C.SILVER, 1);
+    drawText(B.stageName+'  '+fmtTime(B.stats.frames), 10, H-40, C.SILVER, 1);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
       ctx.fillStyle='#2a1020'; ctx.fillRect(200,H-41,150,8);
@@ -977,6 +994,7 @@
     {name:'XLR PUSH JACK', lines:['HOLD Q TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (S+Q):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
     {name:'MAG MAGNET', lines:['HOLD Q TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. A QUICK TAP PULLS A BLOCK.']}
   ];
+  B.ITEM_INFO=ITEM_INFO;
   function openPopup(i){
     B.popup={item:i, t:0};
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('item',{restart:true,volume:0.8});
@@ -985,7 +1003,7 @@
     B.popup=null;
     for(const k in K) delete K[k];
     if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('stage');
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(B.music);
   }
   function drawPopup(){
     const P=B.popup, a=Math.min(1,P.t/12);
@@ -1014,7 +1032,7 @@
     const rows=[
       ['KNOWL SEEDS', n.seeds+' / '+B.need.seeds, n.seeds*100],
       ['KNOWL CRYSTALS', n.crystals+' / '+B.need.crystals, n.crystals*300],
-      ['ITEMS FOUND', st.items+' / 4', st.items*200],
+      ['ITEMS FOUND', st.items+' / '+(B.itemsTotal||4), st.items*200],
       ['ENEMY SHUTDOWNS', String(st.shutdowns), st.shutdowns*50],
       ['ENEMIES OFF FOR GOOD', String(st.permOff), st.permOff*100],
       ['CAGE BLASTS', String(st.booms), st.booms*20],
@@ -1028,13 +1046,14 @@
     if(st.booms>=5) ach.push('DEMOLITION CREW - 5+ CAGE BLASTS');
     if(st.shutdowns===0) ach.push('GENTLE SOUL - NO ENEMY SHUT DOWN');
     if(st.permOff>=2) ach.push('LIGHTS OUT - 2 ENEMIES OFF FOR GOOD');
-    if(st.items>=4) ach.push('FULL KIT - ALL 4 JACKS');
+    if(st.items>=(B.itemsTotal||4)&&B.stageId==='1.1') ach.push('FULL KIT - ALL 4 JACKS');
+    if(B.extraAch) for(const a of B.extraAch()) ach.push(a);
     const rank=total>=5000?'S':total>=4000?'A':total>=3000?'B':'C';
     let best=null;
     try{
-      best=JSON.parse(localStorage.getItem('mv2.awdjoo11.best')||'null');
+      best=JSON.parse(localStorage.getItem('mv2.awdjoo'+B.stageId+'.best')||'null');
       const nb={time:best&&best.time<st.frames?best.time:st.frames, score:best&&best.score>total?best.score:total};
-      localStorage.setItem('mv2.awdjoo11.best',JSON.stringify(nb));
+      localStorage.setItem('mv2.awdjoo'+B.stageId+'.best',JSON.stringify(nb));
     }catch(e){}
     return {rows,total,ach,rank,best,frames:st.frames};
   }
@@ -1048,8 +1067,8 @@
     const bw=Math.min(W-40,640), bh=Math.min(H-40,560), bx=(W-bw)/2, by=(H-bh)/2;
     ctx.fillStyle='#120a24'; ctx.fillRect(bx,by,bw,bh);
     ctx.strokeStyle='#f0d070'; ctx.lineWidth=3; ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
-    drawTextC('AWDJOO TOWN 1.1 CLEAR!', W/2, by+18, C.YELLOW, 3);
-    drawTextC('THE JOURNEY BEGINS', W/2, by+48, C.SILVER, 1);
+    drawTextC(B.stageName+' CLEAR!', W/2, by+18, C.YELLOW, 3);
+    drawTextC(String(B.stageSub).toUpperCase(), W/2, by+48, C.SILVER, 1);
     let y=by+76; const shown=Math.min(sc.rows.length,Math.floor(R.t/14));
     let run=0;
     sc.rows.forEach((r,i)=>{
@@ -1064,7 +1083,8 @@
       if(sc.best) drawTextC('BEST TIME '+fmtTime(Math.min(sc.best.time,sc.frames))+'   BEST SCORE '+Math.max(sc.best.score,sc.total), W/2, y, C.SILVER, 1);
       y+=20;
       sc.ach.forEach(t=>{ drawTextC('* '+t, W/2, y, '#ffd040', 1); y+=16; });
-      if(R.t>sc.rows.length*14+60&&fr%40<28) drawTextC('PRESS ENTER TO PLAY AGAIN', W/2, by+bh-22, C.YELLOW, 1);
+      const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+      if(R.t>sc.rows.length*14+60&&fr%40<28) drawTextC(nx?'PRESS ENTER FOR AWDJOO TOWN '+nx:'PRESS ENTER TO PLAY AGAIN', W/2, by+bh-22, C.YELLOW, 1);
     }
     ctx.globalAlpha=1;
   }
@@ -1074,7 +1094,13 @@
     if(!B.on) return;
     const go=['Enter','Space','KeyQ','KeyE','Escape','NumpadEnter'].includes(ev.code);
     if(B.popup&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
-    else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){ ev.preventDefault(); try{ location.reload(); }catch(e){} }
+    else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){
+      ev.preventDefault();
+      const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+      const carry=_unlockedMask;
+      B.results=null; B.on=false;
+      startBetaLab(nx||B.stageId, nx?carry:B.carryMask).catch(err=>console.error('stage load failed',err));
+    }
   },true);
   const _origUpdate=window.update;
   window.update=function(){
@@ -1104,7 +1130,7 @@
   };
   const _origPlayBGM=window._playBGM;
   window._playBGM=function(type){
-    if(B.on&&type==='game'&&window.MV_BETA_AUDIO){ MV_BETA_AUDIO.play(B.popup?'item':'stage'); return; }
+    if(B.on&&type==='game'&&window.MV_BETA_AUDIO){ MV_BETA_AUDIO.play(B.popup?'item':B.music); return; }
     return _origPlayBGM.apply(this, arguments);
   };
   const _origPlayerHit=window.applyPlayerHit;
