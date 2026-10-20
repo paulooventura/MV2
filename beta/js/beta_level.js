@@ -124,7 +124,7 @@
     const R=B.trans; R.t++;
     if(R.t===26&&!R.loading){
       R.loading=true;
-      startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; }).catch(err=>{ console.error('stage load failed',err); B.trans=null; });
+      startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; if(B.onSavePoint) try{ B.onSavePoint('arrive'); }catch(e){ console.error('save failed',e); } }).catch(err=>{ console.error('stage load failed',err); B.trans=null; });
     }
     if(R.done){ R.after++; if(R.after>30){ B.trans=null; if(window.MV_CONSOLE){ MV_CONSOLE.mosaic=1; MV_CONSOLE.fade=0; } } }
   }
@@ -310,6 +310,7 @@
     if(B.gate) GOALPL={x:B.gate.x, y:B.gate.y, w:B.gate.w, h:B.gate.h};
 
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
+    _shutdownTimer=0; _gameOver=false; _playerShutCount=0; win=false;   // a stage always starts with full lives
     p2=null; _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
@@ -1191,11 +1192,12 @@
 
   // ── Item window: what you found and what it does (game pauses, slow music)
   const ITEM_INFO=[
-    {name:'TRS LASER CANNON', lines:['HOLD Q TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
-    {name:'RCA GRAPPLING HOOK', lines:['PRESS Q TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. W/S REEL IN AND OUT,','SPACE JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
-    {name:'XLR PUSH JACK', lines:['HOLD Q TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (S+Q):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
-    {name:'MAG MAGNET', lines:['HOLD Q TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. A QUICK TAP PULLS A BLOCK.']}
+    {name:'TRS LASER CANNON', lines:['HOLD {item} TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
+    {name:'RCA GRAPPLING HOOK', lines:['PRESS {item} TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. {updown} REEL IN AND OUT,','{jump} JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
+    {name:'XLR PUSH JACK', lines:['HOLD {item} TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR ({down}+{item}):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
+    {name:'MAG MAGNET', lines:['HOLD {item} TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. A QUICK TAP PULLS A BLOCK.']}
   ];
+  const fmtKeys=s=>window.MV_INPUT?MV_INPUT.fmt(s):String(s).replace(/\{(\w+)\}/g,'');
   B.ITEM_INFO=ITEM_INFO;
   function openPopup(i){
     B.popup={item:i, t:0};
@@ -1226,8 +1228,8 @@
       MV_BETA_DECOR.itemCrateScreen(P.item, cx, cy+20, true);
       ctx.restore();
     }
-    info.lines.forEach((l,i)=>drawTextC(l, W/2, by+214+i*26, '#f4ecff', 2));
-    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS ENTER OR Q TO CONTINUE', W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
+    info.lines.forEach((l,i)=>drawTextC(fmtKeys(l), W/2, by+214+i*26, '#f4ecff', 2));
+    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(fmtKeys('PRESS {any} TO CONTINUE'), W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
     ctx.globalAlpha=1;
   }
 
@@ -1264,6 +1266,7 @@
   }
   function openResults(){
     B.results={t:0, sc:score(), music:false};
+    if(B.onSavePoint) try{ B.onSavePoint('clear'); }catch(e){ console.error('save failed',e); }
     if(window.MV_BETA_AUDIO){ MV_BETA_AUDIO.stopAll(); const ms=MV_BETA_AUDIO.fanfare(); B.results.musicAt=Math.round((ms||3000)/1000*60); }
   }
   function drawResults(){
@@ -1293,29 +1296,40 @@
       y+=20;
       sc.ach.forEach(t=>{ const tw=textW(t,1); uiSparkle(W/2-tw/2-12,y+5,5,'#ffd040',0.9); drawTextC(t, W/2, y, '#ffd040', 1); y+=18; });
       const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      if(R.t>sc.rows.length*14+60){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(nx?'PRESS ENTER FOR AWDJOO TOWN '+nx:'PRESS ENTER TO PLAY AGAIN', W/2, by+bh-30, '#ffe39a', 1); ctx.restore(); }
+      if(R.t>sc.rows.length*14+60){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(fmtKeys(nx?'PRESS {ok} FOR AWDJOO TOWN '+nx:'PRESS {ok} TO PLAY AGAIN'), W/2, by+bh-30, '#ffe39a', 1); ctx.restore(); }
     }
     ctx.globalAlpha=1;
   }
 
   // Pause the world under the item window and the results; keys close them.
+  const resultsReady=()=>B.results&&B.results.t>B.results.sc.rows.length*14+60;
+  function continueResults(){
+    const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+    B.results=null;
+    if(nx) travel(nx,'forward');
+    else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
+  }
+  // Any key, click or pad button closes the item window
   window.addEventListener('keydown',ev=>{
-    if(!B.on) return;
-    const go=['Enter','Space','KeyQ','KeyE','Escape','NumpadEnter'].includes(ev.code);
-    if(B.popup&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
-    else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){
-      ev.preventDefault();
-      const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-      B.results=null;
-      if(nx) travel(nx,'forward');
-      else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
-    }
+    if(!B.on||ev.repeat) return;
+    if(B.popup&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
+    else if(resultsReady()&&(ev.code==='Enter'||ev.code==='NumpadEnter'||ev.code==='Space')){ ev.preventDefault(); continueResults(); }
   },true);
+  window.addEventListener('pointerdown',()=>{ if(B.on&&B.popup&&B.popup.t>40) B._closeReq=true; },true);
+  const anyKj=()=>{ for(const k in Kj) if(Kj[k]) return true; return false; };
   const _origUpdate=window.update;
   window.update=function(){
     if(B.trans){ transTick(); return; }
-    if(B.on&&B.popup){ B.popup.t++; if(B._closeReq){ B._closeReq=false; closePopup(); } return; }
+    if(B.on&&B.popup){
+      B.popup.t++;
+      if(B.popup.t>40&&anyKj()) B._closeReq=true;
+      for(const k in Kj) delete Kj[k];
+      if(B._closeReq){ B._closeReq=false; closePopup(); }
+      return;
+    }
     if(B.on&&B.results){
+      if(resultsReady()&&(Kj.Space||Kj.Enter||Kj.Escape)){ for(const k in Kj) delete Kj[k]; continueResults(); return; }
+      for(const k in Kj) delete Kj[k];
       B.results.t++;
       if(!B.results.music&&B.results.t>=B.results.musicAt){ B.results.music=true; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.6}); }
       return;
@@ -1350,6 +1364,7 @@
 
   B.onBoom=amp=>{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(amp); };
   B.drawBlock=drawBetaBlock; B.fireCube=fireCube; B.cubes=cubes; B.throwCube=throwCube; B.counts=counts;
+  B.LEVELS=LEVELS;
   window.startBetaLab=startBetaLab;
   window.applyBeta=applyBeta;
 

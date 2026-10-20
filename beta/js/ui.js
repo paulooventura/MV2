@@ -199,7 +199,7 @@ function _optionsInput(ev){
   if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
   if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(); return true; }
   if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow>=OPT_FIXED_ROWS&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
+  if(_optRow>=OPT_FIXED_ROWS&&ev.confirm&&!(window.MV_INPUT&&MV_INPUT.dev!=='kb')){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
   return true;
 }
 
@@ -470,7 +470,8 @@ function drawOptions(){
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'MODERN'):'-',hint:'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
-  BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
+  const IN=window.MV_INPUT, padMode=!!IN&&IN.dev!=='kb';
+  BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].replace(/\s*\([A-Z]\)/,'').toUpperCase(),val:padMode?IN.padBind[a]:_bindList(a)}));
   const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));
   uiPanel(padX,panelY,panelW,panelH,{r:16});
   uiLogo('OPTIONS',W/2,panelY+14,40,{sweep:300});
@@ -485,6 +486,7 @@ function drawOptions(){
   });
   const footY=panelY+panelH-30;
   if(_optRebinding){if(fr%32<24) drawTextC('PRESS A KEY FOR '+BIND_LABELS[_optRebinding].toUpperCase(),W/2,footY,'#ffe39a',2);}
+  else if(padMode) drawTextC(_optRow>=OPT_FIXED_ROWS?'BUTTONS ARE FIXED ON THE CONTROLLER - KEYS CAN BE CHANGED FROM THE KEYBOARD    B  BACK':'D-PAD  SELECT / ADJUST    A  OK    B  BACK',W/2,footY,'#9c8cc8',1);
   else drawTextC('UP/DOWN  SELECT    LEFT/RIGHT  ADJUST    ENTER  OK    ESC  BACK',W/2,footY,'#9c8cc8',1);
 }
 
@@ -674,7 +676,7 @@ function _drawLorePanel(page,frKey,opts={}){
   drawTextC(page.title,W/2,panelY+12,titleCol,fs);
   let lineY=panelY+titleH+14;
   wrapped.forEach((line,i)=>{ if(frKey<i*14) return; if(lineY>panelY+panelH-30) return; ctx.save(); ctx.globalAlpha=Math.min(1,(frKey-i*14)/14); drawTextC(line,W/2,lineY,'#ece4ff',bs); ctx.restore(); lineY+=lh; });
-  if(showPrompt){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS ANY KEY',W/2,panelY+panelH-26,'#ffe39a',1); ctx.restore(); }
+  if(showPrompt){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(window.MV_INPUT?MV_INPUT.fmt('PRESS {any}'):'PRESS ANY KEY',W/2,panelY+panelH-26,'#ffe39a',1); ctx.restore(); }
   if(pageTotal>1){ for(let i=0;i<pageTotal;i++){ ctx.fillStyle=i===pageNum-1?'#ffe39a':'rgba(200,184,255,0.35)'; ctx.beginPath(); ctx.arc(W/2+(i-(pageTotal-1)/2)*16,H-8,i===pageNum-1?4:3,0,Math.PI*2); ctx.fill(); } }
 }
 function drawStory(){ const page=STORY_PAGES[_storyPage]; ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H); _drawCoverArt(STORY_ART[_storyPage],STORY_ART_Q,_storyPage); _drawLorePanel(page,_storyFr,{pageNum:_storyPage+1,pageTotal:STORY_PAGES.length}); }
@@ -762,21 +764,12 @@ function drawSelect(){
 
 // ── Version bar update (called from draw()) ───────────────────
 function updateVersionBar(){
-  const inf=document.getElementById('inf');
   const mvVer=document.getElementById('mvVer');
   if(mvVer){
     if(_gameState==='game'&&_battleTestMode){ mvVer.style.fontSize='16px';mvVer.textContent='BATTLE PRACTICE — stats in panel above canvas';mvVer.style.color='#6f6'; }
     else if(_gameState==='game'){ mvVer.style.fontSize='16px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); const b=window.MV_BUILD||'?'; const ed=(typeof _mapEdActive!=='undefined'&&_mapEdActive)?'  |  EDIT AWDJOO':''; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+MOVE_WALK+ed; mvVer.style.color=ed?'#8cf':(spd>=6?'#6f6':(spd>=2?'#ff6':'#f66')); }
     else{ mvVer.style.fontSize='16px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/(?:new music|bgm)\//,''):''; const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+(track?'  |  '+track:'')+' — click to start'; mvVer.style.color='#6f6'; }
   }
-  if(inf){
-    if(!(_battleTestMode&&_gameState==='game')){
-      inf.style.fontSize='14px';
-      const zone=ZONES[_zoneIdx]?ZONES[_zoneIdx].name:'';
-      if(ITEM===2||ITEM===3) inf.textContent=zone+' · '+(ITEM===2?'XLR':'MAG')+' '+p.itemStamina+'%';
-      else inf.textContent=zone+' · '+(ITEM>=0?INAMES[ITEM]:'NO ITEM')+' · Knowl '+kColl+'/'+kTotal;
-      inf.style.color='';
-    }
-  }
+  // #inf stays empty unless something breaks (errors are written by main.js / index.html)
   if(typeof _syncPhoneHud==='function') _syncPhoneHud();
 }

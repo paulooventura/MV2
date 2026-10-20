@@ -71,6 +71,14 @@ the title asks “Shut down?” → CRT power-off screen. Logos:
 `assets/splash/mmr-logo.jpg` (on white), `assets/splash/paulo-ventura-logo.png` (full screen).
 Menu QA: `npm run selftest:flow`.
 
+Build 164: the page is just the game picture (biggest 4:3 that fits; no title
+line, help text or desktop button rows). Button hints follow the device in use
+(keyboard Q/SPACE/ESC vs pad X/A/START). Hits slow the stage music. Any button
+closes the item window. **Journeys:** clearing 1.1 saves; 5 slots
+(“AWDJOO 1.2 - 10/20/2026 - 5:18 AM”), Story Mode opens the Journeys screen once
+a save exists, with Delete / Copy / Paste to branch timelines. Game over offers
+Retry stage / Main menu.
+
 ### Classic Awdjoo (lab G, `awdjoo-classic.html`) — the old main game
 
 Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map.js`).

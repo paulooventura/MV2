@@ -91,7 +91,7 @@
   window.startGame=function(){
     if(_gameState==='story'&&_storyPage+1>=STORY_PAGES.length&&typeof startBetaLab==='function'){
       _unlockAudio(); _stopBGM('story');
-      if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; }
+      if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.progress=0; }
       startBetaLab('1.1',0,{fresh:true}).then(()=>{ const c=cvEl(); if(c&&c.focus) c.focus(); }).catch(err=>console.error('Awdjoo beta failed',err));
       return;
     }
@@ -187,7 +187,7 @@
       ctx.fillStyle='#e8f0ff'; ctx.globalAlpha=1-k*0.6;
       ctx.fillRect((W-lineW)/2,(H-Math.max(2,lineH))/2,lineW,Math.max(2,lineH)); ctx.globalAlpha=1;
     }
-    if(offT>60&&fr%60<40) drawTextC('PRESS START TO POWER ON',W/2,H-60,'#3a2f55',1);
+    if(offT>60&&fr%60<40) drawTextC(window.MV_INPUT&&MV_INPUT.dev==='kb'?'PRESS ENTER TO POWER ON':'PRESS START TO POWER ON',W/2,H-60,'#3a2f55',1);
   }
   window.addEventListener('keydown',e=>{
     if(_gameState==='title'&&e.code==='Escape'){ openQuit(); e.preventDefault(); e.stopImmediatePropagation(); }
@@ -201,18 +201,37 @@
     return true;
   }
 
+  // ── Game over (5 shutdowns): RETRY STAGE · MAIN MENU ─────────────
+  // The journey keeps its last save, so MAIN MENU → STORY MODE picks it up again.
+  const OVER_ITEMS=['RETRY STAGE','MAIN MENU'];
+  let overIdx=0;
+  const isOver=()=>typeof _gameOver!=='undefined'&&_gameOver&&_shutdownTimer<=0&&window.MV_BETA&&MV_BETA.on;
+  function overTick(){
+    const n=nav();
+    if(n.up||n.down) overIdx=1-overIdx;
+    if(Kj.Tab||(n.ok&&overIdx===0)){ overIdx=0; stageRestart(); }
+    else if(n.ok&&overIdx===1){ overIdx=0; exitToTitle(); }
+    endTick();
+  }
+  window.drawGameOverMenu=function(){ menuPanel('CONTINUE?',OVER_ITEMS,overIdx,Math.round(H/2+70)); };
+
   const _update2=window.update;
   window.update=function(){
     readGamepad();                                   // pad presses land in Kj before the checks below
     if(swallowBack){ swallowBack=false; delete Kj.Escape; delete Kj.Backspace; delete Kj.PadB; }
     if(_gameState==='game'){
       if(_paused){ pauseTick(); return; }
+      if(isOver()){ overTick(); return; }
       if(Kj.Escape){
-        if(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.trans)) delete Kj.Escape;   // those windows use Esc themselves
+        const B=window.MV_BETA;
+        if(B&&B.popup){ /* Start closes the item window like any other button */ }
+        else if(B&&(B.results||B.trans)) delete Kj.Escape;   // those windows use Esc themselves
         else { openPause(); endTick(); return; }
       }
       if(Kj.Tab&&stageRestart()){ endTick(); return; }
     }
+    // story pages: any pad face button turns the page (A already does)
+    if(_gameState==='story'&&(Kj.KeyQ||Kj.KeyE||Kj.KeyF||Kj.Escape)&&typeof startGame==='function'){ startGame(); endTick(); return; }
     if(_gameState==='title'&&Kj.Escape){ openQuit(); endTick(); return; }
     if(_gameState==='quit'){ quitTick(); return; }
     if(_gameState==='off'){ offTick(); return; }

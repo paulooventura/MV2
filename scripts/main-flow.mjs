@@ -40,6 +40,31 @@ for (let i = 0; i < 5; i++) await key('Space', 200);
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && MV_BETA.stageId === '1.1' && _gameState === 'game', null, { timeout: 12000 }).catch(() => {});
 await pg.waitForTimeout(1200);
 await expect('story lands in 1.1', s => s.gs === 'game' && s.stage === '1.1');
+const ev = f => pg.evaluate(f);
+const check = (name, ok, info) => steps.push([name, ok ? 'ok' : 'FAIL', info]);
+
+// full-window picture: canvas is the biggest 4:3 that fits; no title / help / desktop pads
+const lay = await ev(() => { const r = document.getElementById('c').getBoundingClientRect(); const vis = id => { const e = document.getElementById(id); return !!e && e.offsetParent !== null; };
+  return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, title: !!document.getElementById('mvVer'), help: !!document.getElementById('helpLine'), pads: vis('touchHud') }; });
+check('canvas fills the window (4:3 fit)', Math.abs(lay.w - Math.min(lay.vw, lay.vh * 4 / 3)) <= 2 && !lay.title && !lay.help && !lay.pads, lay);
+
+// hints follow the device
+const hints = await ev(() => { const a = MV_INPUT.dev, kb = MV_INPUT.fmt('{item} {jump} {pause}'); MV_INPUT.dev = 'pad'; const pad = MV_INPUT.fmt('{item} {jump} {pause}'); MV_INPUT.dev = 'kb'; return { a, kb, pad }; });
+check('hints: keyboard Q/SPACE/ESC, pad X/A/START', hints.a === 'kb' && hints.kb === 'Q SPACE ESC' && hints.pad === 'X A START', hints);
+
+// item window closes on any key
+await ev(() => MV_BETA.openPopup(2)); await pg.waitForTimeout(1000);
+await key('KeyD', 200);
+check('item window closes on any key', await ev(() => !MV_BETA.popup), null);
+
+// hurt music slows the stage theme
+const rate = await ev(() => { _healFrac = 0.6; updateGameBgm(); const r = MV_BETA_AUDIO.els[MV_BETA_AUDIO.current()]?.playbackRate; _healFrac = 1; updateGameBgm(); return { r, back: MV_BETA_AUDIO.els[MV_BETA_AUDIO.current()]?.playbackRate, cur: MV_BETA_AUDIO.current() }; });
+check('hit slows the music, healing restores it', Math.abs(rate.r - 0.6) < 0.01 && rate.back === 1, rate);
+
+// clearing 1.1 saves a journey pointing at 1.2
+const sv = await ev(() => { MV_BETA.cleared = true; MV_BETA.openResults(); const s = MV_SLOTS.slots()[0]; MV_BETA.results = null; return s && { stage: s.stage, ts: !!s.ts }; });
+check('clearing 1.1 saves journey 1 at AWDJOO 1.2', sv && sv.stage === '1.2' && sv.ts, sv);
+await pg.waitForTimeout(200);
 await key('Escape'); await expect('Esc pauses', s => s.gs === 'game' && s.paused); await shot('3-pause');
 await key('Escape'); await expect('Esc resumes', s => s.gs === 'game' && !s.paused);
 await key('Escape'); await key('ArrowDown'); await key('Enter'); await expect('pause > OPTIONS', s => s.gs === 'options');
@@ -47,6 +72,34 @@ await key('Escape'); await expect('options back to paused stage', s => s.gs === 
 await key('ArrowUp'); await key('Enter'); await expect('RESUME GAME', s => s.gs === 'game' && !s.paused);
 await key('Escape'); await key('ArrowDown'); await key('ArrowDown'); await key('Enter');
 await expect('EXIT back to main menu', s => s.gs === 'title');
+
+// with a save, STORY MODE opens the journeys screen
+await key('Enter', 200); await expect('STORY MODE opens JOURNEYS', s => s.gs === 'slots'); await shot('5-journeys');
+const slotsNow = () => ev(() => MV_SLOTS.slots().map(s => s && s.stage));
+for (let i = 0; i < 5; i++) await key('ArrowDown');
+await key('ArrowRight'); await key('Enter'); await key('Enter');        // COPY → journey 1
+await key('ArrowUp'); await key('Enter'); await key('ArrowDown'); await key('Enter');   // PASTE → slot 2
+let sl = await slotsNow(); check('COPY + PASTE journey 1 into slot 2', sl[0] === '1.2' && sl[1] === '1.2', sl);
+await shot('6-journeys-pasted');
+for (let i = 0; i < 4; i++) await key('ArrowDown');
+await key('ArrowLeft'); await key('ArrowLeft'); await key('Enter');      // DELETE
+await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('Enter');   // slot 2 → YES
+sl = await slotsNow(); check('DELETE slot 2', sl[0] === '1.2' && !sl[1], sl);
+await key('ArrowUp'); await key('Enter', 200);                            // journey 1 → load
+await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && MV_BETA.stageId === '1.2' && _gameState === 'game', null, { timeout: 12000 }).catch(() => {});
+await pg.waitForTimeout(800);
+await expect('journey 1 continues in 1.2', s => s.gs === 'game' && s.stage === '1.2');
+const kit = await ev(() => _unlockedMask); check('journey keeps the jacks', kit === (await ev(() => MV_SLOTS.slots()[0].mask)), kit);
+
+// game over: RETRY STAGE restarts with full lives, MAIN MENU goes to the title
+await ev(() => { _gameOver = true; _shutdownTimer = 0; }); await pg.waitForTimeout(200); await shot('7-game-over');
+await key('Enter', 200);
+await pg.waitForFunction(() => !_gameOver && MV_BETA.on, null, { timeout: 8000 }).catch(() => {});
+check('game over > RETRY STAGE', await ev(() => !_gameOver && _gameState === 'game' && MV_BETA.stageId === '1.2'), null);
+await pg.waitForTimeout(600);
+await ev(() => { _gameOver = true; _shutdownTimer = 0; }); await pg.waitForTimeout(200);
+await key('ArrowDown'); await key('Enter', 200);
+await expect('game over > MAIN MENU', s => s.gs === 'title');
 await key('Escape'); await key('ArrowDown'); await key('Enter', 600);
 await expect('YES powers off', s => s.gs === 'off'); await shot('4-off');
 await pg.waitForTimeout(1200); await key('Enter', 300);

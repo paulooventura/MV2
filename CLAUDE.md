@@ -10,7 +10,7 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 - **Awdjoo (`index.html`) is the live game.** Since build 162 (Wall promoted the L1 beta, Oct 2026) it runs the `beta/js/` modules (water, cubes, towns 1.1 → 1.2) on top of shared `js/`. The old Awdjoo lives on as lab G (`awdjoo-classic.html`). Labs B–G are experiments. Do not promote a lab over A unless Wall says so.
 - Collision = typed grid (`js/collision_grid.js`). If the player wedges, fix the grid — do not retune `vx`.
 - Feel knobs = top of `js/physics.js` + `_updatePlayerMoveX` in `js/player.js`.
-- QA = `npm run selftest` (or `selftest:quick`) for the shared engine (runs on `awdjoo-classic.html`), plus `npm run selftest:flow` for the live menus (splashes, title, pause, shut-down). Do not ask for F12 pastes.
+- QA = `npm run selftest` (or `selftest:quick`) for the shared engine (runs on `awdjoo-classic.html`), plus `npm run selftest:flow` for the live menus (splashes, title, pause, shut-down, journeys, game over, hints, full-window layout). Do not ask for F12 pastes.
 - Do **not** open Simple Browser / extra play tabs on `:8765` (BGM stacks).
 - Venture’s hat is **black like Mind’s**, back brim only (laid-down P) — not red.
 - After substantive game work: commit and push `main` (GitHub Pages).
@@ -29,6 +29,8 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 | LDtk loader lab | `js/ldtk_loader.js` |
 | Live stages 1.1/1.2, cubes, MAG carry | `beta/js/beta_level.js` |
 | Water, moving platforms, Isolator | `beta/js/beta_water.js` |
-| Splashes, title, pause menu, shut-down | `beta/js/beta_intro.js` |
+| Splashes, title, pause menu, shut-down, game over | `beta/js/beta_intro.js` |
+| Save slots (Journeys: delete / copy / paste) | `beta/js/beta_slots.js` |
+| Button hints per device (keyboard vs pad) | `beta/js/beta_input.js` |
 
 `index.html` only loads scripts. Do not rebuild a monolith.

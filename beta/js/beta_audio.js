@@ -30,9 +30,21 @@
     const a=el(name);
     if(restart) try{ a.currentTime=0; }catch(e){}
     a.volume=vol()*volume;
+    try{ a.playbackRate=/^stage/.test(name)?hurtRate:1; }catch(e){}
     current=name; wantPlay=name;
     const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{ wantPlay=name; });
   }
+  // Taking a hit slows the stage theme down; it speeds back up as MIND heals
+  // (_healFrac in js/audio.js, driven by js/main.js — same feel as classic Awdjoo).
+  let hurtRate=1;
+  const _updateGameBgm=window.updateGameBgm;
+  window.updateGameBgm=function(){
+    if(!(window.MV_BETA&&MV_BETA.on)) return _updateGameBgm&&_updateGameBgm.apply(this,arguments);
+    const f=typeof _healFrac==='number'?_healFrac:1;
+    hurtRate=Math.max(0.5,Math.min(1,f));
+    const a=current&&/^stage/.test(current)&&els[current];
+    if(a) try{ a.playbackRate=hurtRate; }catch(e){}
+  };
   function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
   function pause(){ for(const k in els) try{ els[k].pause(); }catch(e){} wantPlay=null; }   // keeps `current` for resume()
   function resume(){ if(current) play(current); }

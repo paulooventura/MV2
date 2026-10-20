@@ -294,7 +294,7 @@
       if(B.openPopup) B.openPopup(4);
     }
   }
-  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IN WATER: SPACE KICKS, HOLD XLR FOR A CURRENT.']};
+  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IN WATER: {jump} KICKS, HOLD XLR FOR A CURRENT.']};
   B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.hasIsolator) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
 
   // ── Drawing ───────────────────────────────────────────────────

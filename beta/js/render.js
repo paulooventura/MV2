@@ -2036,8 +2036,10 @@ function drawItemTutorial(){
   ctx.fillRect(bx,by,2,boxH);ctx.fillRect(bx+boxW-2,by,2,boxH);
   drawTextC(t.title,bx+(boxW>>1),by+6,C.GREEN_L,2);
   let ly=by+28;
+  const IN=window.MV_INPUT;
+  const hint=s=>!IN?s:s.replace(/X \/ Q/g,IN.label('item')).replace(/A \/ Space/g,IN.label('jump')).replace(/W\/S/g,IN.label('updown')).replace(/Y \/ E/g,IN.label('switch'));
   for(const line of t.lines){
-    drawTextC(line,bx+(boxW>>1),ly,C.MINT,2);
+    drawTextC(hint(line),bx+(boxW>>1),ly,C.MINT,2);
     ly+=20;
   }
 }
