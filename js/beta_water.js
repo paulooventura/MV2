@@ -233,6 +233,78 @@
     for(let i=M.drops.length-1;i>=0;i--){ const d=M.drops[i]; d.y+=d.vy; d.x+=(M.x-d.x)*0.18; d.vy-=0.05; if(Math.abs(d.y-M.y)<10||d.y<M.y-30) M.drops.splice(i,1); }
   }
 
+  // ── XLR + MAG move the water itself ───────────────────────────
+  // XLR held under water: a jet. The water it pushes piles up downstream and
+  // thins out behind the tip (you see the surface lean and ripples run off);
+  // aimed up it heaves a mound over the jet, aimed down it opens a dip. Held
+  // just above the surface and aimed at it, it blows a crater with spray.
+  // Letting go of a charged push under water sends one big surge.
+  // MAG held under water: it draws the water in toward its tip — the surface
+  // sinks into a dimple over it, ripples run inward, and a swirl of bubbles
+  // spirals into the poles.
+  function colFlux(w,i,v){ if(i>=0&&i<w.n-1) w.flux[i]+=v; }
+  function itemWater(w){
+    if(!p) return;
+    const xlr=!!(p.xlrOn&&ITEM===2&&typeof connectorTipWorld==='function');
+    const mag=!!(p.magOn&&ITEM===3&&B.magTip);
+    const ch=Math.min(1,(B.chX||0)/45);
+    // a charged XLR push released under / onto the water: one big surge
+    if(B._xlrFr!==fr){                                         // once a frame, for every pool
+      B._xlrRel=(B._xlrWas&&!xlr&&B._xlrCh>0.25&&B._xlrTipW)?{tip:B._xlrTip,w:B._xlrTipW,ch:B._xlrCh}:null;
+      B._xlrWas=xlr; B._xlrCh=xlr?ch:0; B._xlrFr=fr; B._xlrTipW=null;
+    }
+    if(B._xlrRel&&B._xlrRel.w===w){ surge(w,B._xlrRel.tip,B._xlrRel.ch); B._xlrRel=null; }
+    if(xlr){
+      const t=connectorTipWorld(2), a=Math.atan2(p.aimDY,p.aimDX), ux=Math.cos(a), uy=Math.sin(a);
+      if(!B._xlrTipW) B._xlrTip={x:t.x,y:t.y,ux,uy};
+      const pw=0.45+0.55*ch;
+      if(waterAt(t.x,t.y)===w){
+        B._xlrTipW=w;
+        const i0=colOf(w,t.x), pulse=0.75+0.25*Math.sin(fr*0.35);   // a throb, so ripples run off it
+        // horizontal: move water downstream along the jet
+        for(let k=0;k<12;k++){ const x=t.x+ux*k*16, i=colOf(w,x); if(x<w.x0||x>=w.x1) break; colFlux(w,ux>0?i:i-1,ux*2.8*pw*pulse*(1-k/14)); }
+        // vertical: heave a mound (aim up) or open a dip (aim down) over the jet
+        const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0,1-depth/220);
+        const hx=t.x+ux*Math.min(120,depth*Math.abs(ux)/(Math.abs(uy)+0.2));
+        for(let k=-4;k<=4;k++){ const j=colOf(w,hx)+k; if(j<0||j>=w.n) continue; w.pull[j]+=(-uy)*70*pw*pulse*reach*(1-Math.abs(k)/5); }
+        if(fr%3===0) for(let k=0;k<2;k++) B.bubbles.push({x:t.x+ux*(18+Math.random()*30),y:t.y+uy*(18+Math.random()*30),r:2+Math.random()*3,vy:-0.3+uy*2,vx:ux*3,w});
+      }else if(uy>0.25){
+        // above the water, blowing at it: where does the blast meet the surface?
+        let hx=null, hy=null;
+        for(let d=8;d<170;d+=8){ const x=t.x+ux*d, y=t.y+uy*d; if(x<w.x0||x>=w.x1) continue; if(y>=w.s[colOf(w,x)]){ hx=x; hy=y; break; } }
+        if(hx!=null){
+          B._xlrTipW=w; B._xlrTip={x:hx,y:hy,ux,uy};
+          const d=Math.hypot(hx-t.x,hy-t.y), k0=(1-d/170)*pw, i=colOf(w,hx);
+          for(let k=-3;k<=3;k++){ const j=i+k; if(j>=0&&j<w.n) w.pull[j]-=60*k0*(1-Math.abs(k)/4); }
+          colFlux(w,i,1.2*k0+ux*0.8*k0); colFlux(w,i-1,-1.2*k0+ux*0.8*k0);
+          if(fr%2===0){ const sp=w.s[i]; for(let k=0;k<3;k++){ const a2=-Math.PI*(0.2+Math.random()*0.6)+ux*0.4; PFXS.push({x:hx+(Math.random()-0.5)*20,y:sp-2,vx:Math.cos(a2)*(1.5+Math.random()*2.5*k0),vy:Math.sin(a2)*(2+Math.random()*3*k0),life:18+Math.random()*10|0,maxLife:28,r:1.5+Math.random()*2,col:k%2?'#bfe6ff':'#ffffff'}); } }
+        }
+      }
+    }
+    if(mag){
+      const t=B.magTip();
+      if(waterAt(t.x,t.y)===w){
+        const pw=Math.max(0.2,Math.min(1,(p.itemStamina||0)/100)), i0=colOf(w,t.x);
+        const depth=Math.max(0,t.y-w.s[i0]), reach=Math.max(0.15,1-depth/260);
+        for(let k=-6;k<=6;k++){ const j=i0+k; if(j<0||j>=w.n) continue; w.pull[j]-=52*pw*reach*(0.8+0.2*Math.sin(fr*0.3))*(1-Math.abs(k)/7); }   // dimple over the tip
+        for(let k=1;k<=10;k++){ colFlux(w,i0-k,0.8*pw*(1-k/11)); colFlux(w,i0+k-1,-0.8*pw*(1-k/11)); }      // water runs in from both sides
+        if(fr%2===0){                                           // molecules spiralling into the poles
+          const ang=fr*0.21, r=26+Math.random()*30;
+          B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*2,vy:0,vx:0,w,to:{x:t.x,y:t.y},ang,rad:r});
+        }
+      }
+    }
+  }
+  // one charged push released into the water: a surge of water + a ring
+  function surge(w,tip,ch){
+    const i=colOf(w,tip.x), P=3+7*ch;
+    for(let k=0;k<10;k++){ colFlux(w,(tip.ux>0?i+k:i-k-1),tip.ux*P*(1-k/11)); }
+    for(let k=-5;k<=5;k++){ const j=i+k; if(j>=0&&j<w.n) w.pull[j]+=(-(tip.uy||0))*60*ch*(1-Math.abs(k)/6); }
+    splash(w,tip.x+(tip.ux||0)*30,2+4*ch,tip.uy<0);
+    for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2; B.bubbles.push({x:tip.x+Math.cos(a)*10,y:tip.y+Math.sin(a)*10,r:2+Math.random()*4,vy:Math.sin(a)*2-1,vx:Math.cos(a)*3+(tip.ux||0)*4,w}); }
+    try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(Math.min(1,0.4+ch)); }catch(e){}
+  }
+
   // ── RCA hook (and enemy ropes) through water ──────────────────
   // Hitting the surface at a shallow, fast angle it skips off; going in it
   // splashes, bends toward the vertical and slows hard; under water it keeps
@@ -311,7 +383,9 @@
       }
       for(let i=0;i<w.n;i++){ w.s[i]=w.bottom[i]-w.amt[i]-w.occ[i]+Math.sin(fr*0.04+i*0.45)*0.35; w.pull[i]=0; }   // + a living, slight lap
       let lv=0; for(let i=0;i<w.n;i++) lv+=w.s[i]; w.level=lv/w.n;
-      // 5) XLR underwater pushes a current
+      // 5) the jacks move the water itself (mass + ripples), under and over it
+      itemWater(w);
+      // ... and the XLR's current carries things along
       if(p&&p.xlrOn&&ITEM===2&&typeof connectorTipWorld==='function'){
         const t=connectorTipWorld(2), a=Math.atan2(p.aimDY,p.aimDX), ux=Math.cos(a), uy=Math.sin(a);
         if(waterAt(t.x,t.y)===w){
@@ -367,7 +441,12 @@
     if(B.kickCd>0) B.kickCd--;
     // bubbles
     for(let i=B.bubbles.length-1;i>=0;i--){
-      const b=B.bubbles[i]; b.y+=b.vy; b.x+=(b.vx||0)+Math.sin(fr*0.1+i)*0.3; if(b.vx) b.vx*=0.95;
+      const b=B.bubbles[i];
+      if(b.to){                                               // drawn into the magnet's poles
+        b.ang+=0.18; b.rad*=0.9; b.x=b.to.x+Math.cos(b.ang)*b.rad; b.y=b.to.y+Math.sin(b.ang)*b.rad;
+        if(b.rad<4){ B.bubbles.splice(i,1); } continue;
+      }
+      b.y+=b.vy; b.x+=(b.vx||0)+Math.sin(fr*0.1+i)*0.3; if(b.vx) b.vx*=0.95;
       if(!b.w||b.y<surfaceAt(b.w,b.x)) B.bubbles.splice(i,1);
     }
     if(B.bubbles.length>160) B.bubbles.splice(0,B.bubbles.length-160);
