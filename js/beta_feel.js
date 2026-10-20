@@ -255,10 +255,16 @@
     // wall-grip: slow slide, charged wall jump) — for as long as the power lasts.
     if(st.clingCd>0) st.clingCd--;
     if(p.og) st.clingCd=0;
-    if(!p.og&&p.wallGrip<=0&&st.clingCd<=0&&!(p.hook&&p.hook.st!=='idle')&&p.vy>-1.5&&(p.itemStamina||0)>8){
-      const wt=_wallTouchInfo(p), dir=typeof _moveInputX==='function'?_moveInputX():0;
-      if(wt.touch&&dir&&dir===wt.dir){ p.wallGrip=90; p.wallDir=wt.dir; p._wallChargeReady=false; p.vx=0; try{ sfx('land'); }catch(e){} }
+    // Paulo (Oct 20): it only grips after he's kept pushing into the wall for
+    // half a second; jump at a wall and let go of the stick and he just falls.
+    // Letting go of the stick while gripping lets go of the wall.
+    const dirNow=typeof _moveInputX==='function'?_moveInputX():0;
+    const wtNow=!p.og?_wallTouchInfo(p):{touch:false};
+    if(!p.og&&wtNow.touch&&dirNow&&dirNow===wtNow.dir) st.pushWallT=(st.pushWallT||0)+1; else st.pushWallT=0;
+    if(!p.og&&p.wallGrip<=0&&st.clingCd<=0&&!(p.hook&&p.hook.st!=='idle')&&(p.itemStamina||0)>8&&st.pushWallT>=30){
+      p.wallGrip=90; p.wallDir=wtNow.dir; p._wallChargeReady=false; p.vx=0; try{ sfx('land'); }catch(e){}
     }
+    if(p.wallGrip>0&&dirNow!==p.wallDir){ st.letGoT=(st.letGoT||0)+1; if(st.letGoT>6){ p.wallGrip=0; p._wallChargeReady=false; st.letGoT=0; } } else st.letGoT=0;
     if(p.wallGrip>0){
       st.heat=Math.min(1,st.heat+HEAT.RISE);
       p.itemStamina=Math.max(0,(p.itemStamina||0)-HEAT.DRAIN);
