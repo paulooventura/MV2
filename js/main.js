@@ -799,7 +799,7 @@ function update(){
   fr++;
   if(_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
   if(_paused){
-    if(Kj['KeyE']&&window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle){ _paused=false; MV_BETA.quitToTitle(); clkj(); return; }
+    if(typeof _pauseInput==='function'){ _pauseInput(); if(!_paused||_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; } }
     if(Kj['Tab']){
       _paused=false;
       if(_stageDesignerMode){_editorActive=false;_gameState='stagedesign';_stopBGM('game');clkj();return;}
@@ -1129,11 +1129,7 @@ function draw(){
   if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-28,C.GREEN_L,4);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2+8,C.TEAL_L,2);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+36,C.GREEN,2);}
   if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
   if(_paused){
-    ctx.fillStyle='rgba(4,2,10,0.55)'; ctx.fillRect(0,0,W,H);
-    uiPanel(W/2-230,H/2-70,460,150,{r:20,sel:true});
-    uiLogo('PAUSED',W/2,H/2-58,48,{sweep:150});
-    drawTextC('START / ESC  RESUME',W/2,H/2+8,'#ece4ff',2);
-    drawTextC((window.MV_BETA&&MV_BETA.on?'B / E  QUIT TO TITLE    ':'')+'TAB  RESTART STAGE',W/2,H/2+40,'#c8b8ff',1);
+    if(typeof drawPauseMenu==='function') drawPauseMenu();
   }
   updateVersionBar();
 }

@@ -161,7 +161,6 @@ function readGamepad(){
   K['KeyE']=(K['KeyE_kb']||pressed(1));
   K['KeyF']=(K['KeyF_kb']||pressed(3));
   if(pressed(4)) K['KeyS']=true;
-  if(rose(9)) Kj['Tab']=true;
   if(_gameState==='title'){
     const ok=rose(0)||rose(9);                          // A or START confirms
     if(!_titleMusicPlaying&&ok) _onInteract();
@@ -178,9 +177,17 @@ function readGamepad(){
     if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
     if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
   }
-  [0,1,2,3,4,9,12,13,14,15].forEach(i=>GP.prev[i]=pressed(i));
-  if(rose(9)&&_gameState==='game') Kj['Escape']=true;
+  // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
+  // d-pad or stick moves the cursor, A picks, B resumes
+  if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
   if(rose(1)&&_gameState!=='game') Kj['Escape']=true;      // B backs out of menus
+  if(typeof _paused!=='undefined'&&_paused&&_gameState==='game'){
+    const sy=ay<-0.5?-1:ay>0.5?1:0;
+    if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
+    if(rose(13)||(sy>0&&GP.prevSy<=0)) Kj['ArrowDown']=true;
+    GP.prevSy=sy;
+  }
+  [0,1,2,3,4,8,9,12,13,14,15].forEach(i=>GP.prev[i]=pressed(i));
 }
 function clkj(){ Object.keys(Kj).forEach(k=>delete Kj[k]); }
 

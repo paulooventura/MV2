@@ -28,11 +28,14 @@
 // ── UI state ──────────────────────────────────────────────────
 let _gameState='title';
 let _paused=false;
+let _pauseIdx=0, _optFromPause=false, _optBackFr=-99;
+const PAUSE_ITEMS=['RESUME','OPTIONS','EXIT'];
 function _togglePause(){
   if(_gameState!=='game') return;
   if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
+  if(_paused&&typeof fr!=='undefined'&&fr-_optBackFr<=2) return;   // the B / ESC that closed Options stays in the pause menu
   _paused=!_paused;
-  if(_paused){
+  if(_paused){ _pauseIdx=0;
     try{ if(typeof _gameAudioEl!=='undefined'&&_gameAudioEl) _gameAudioEl.pause(); }catch(e){}
   }else if(typeof _playBGM==='function'){
     _playBGM('game',OPT.musicVol);
@@ -183,6 +186,39 @@ function _titleMenuActivate(){
   item.activate();
 }
 
+// ── Pause menu: RESUME · OPTIONS · EXIT ───────────────────────
+// Opened with START (the ☰ Menu button next to X) or ESC. Up/down (d-pad,
+// stick, W/S, arrows) moves, A / Space / Enter picks, B or START resumes.
+function _pauseInput(){
+  if(Kj['ArrowUp']||Kj['KeyW']) _pauseIdx=(_pauseIdx+PAUSE_ITEMS.length-1)%PAUSE_ITEMS.length;
+  if(Kj['ArrowDown']||Kj['KeyS']) _pauseIdx=(_pauseIdx+1)%PAUSE_ITEMS.length;
+  if(Kj['KeyE']&&!K['KeyE_kb']){ _togglePause(); return; }          // pad B: back to the game
+  if(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']){
+    const it=PAUSE_ITEMS[_pauseIdx];
+    if(it==='RESUME') _togglePause();
+    else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
+    else if(it==='EXIT'){
+      _paused=false;
+      if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
+      else { try{ if(typeof _stopBGM==='function') _stopBGM('game'); }catch(e){} _gameState='title'; if(typeof _titleT!=='undefined') _titleT=0; }
+    }
+  }
+}
+function drawPauseMenu(){
+  ctx.fillStyle='rgba(4,2,10,0.6)'; ctx.fillRect(0,0,W,H);
+  const pw=380, rowH=52, ph=110+PAUSE_ITEMS.length*rowH, px=W/2-pw/2, py=Math.round(H/2-ph/2);
+  uiPanel(px,py,pw,ph,{r:20});
+  uiLogo('PAUSED',W/2,py+16,46,{sweep:150});
+  let y=py+86;
+  PAUSE_ITEMS.forEach((it,i)=>{
+    const sel=i===_pauseIdx;
+    if(sel){ uiPanel(px+28,y-12,pw-56,rowH-8,{sel:true,r:12,flat:true}); uiCursor(px+50,y+10,10); }
+    drawTextC(it,W/2,y,sel?'#ffe39a':'#c8b8ff',3);
+    y+=rowH;
+  });
+  drawTextC('A SELECT    B / START RESUME',W/2,py+ph-22,'#8a7ab8',1);
+}
+
 // ── Options ───────────────────────────────────────────────────
 const OPT_FIXED_ROWS=5;   // music style, music vol, sfx vol, console, CRT TV
 function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS; }
@@ -190,7 +226,7 @@ function _optionsInput(ev){
   if(_gameState!=='options') return false;
   if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
   const n=_optRowCount();
-  if(ev.back){_gameState='title';return true;}
+  if(ev.back){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
   if(ev.up){_optRow=(_optRow+n-1)%n;return true;}
   if(ev.down){_optRow=(_optRow+1)%n;return true;}
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
