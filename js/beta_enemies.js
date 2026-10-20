@@ -34,9 +34,10 @@
   if(!B.difficulty) B.difficulty=2;
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
 
-  // sizes (Paulo, Oct 20): A stays as it was; B (triangle) is 3 blocks tall,
-  // C (square) 4 blocks tall
-  const SIZE={circle:{w:56,h:56}, tri:{w:110,h:96}, square:{w:128,h:128}};
+  // sizes from Paulo's size chart (Oct 20), measured against an omni block
+  // (1 block = 32 px) drawn next to them: A ≈ 0.9 block across, B ≈ 2 blocks
+  // tall × 1.6 wide, C ≈ 2.5 blocks square
+  const SIZE={circle:{w:30,h:30}, tri:{w:52,h:64}, square:{w:80,h:80}};
   // Paulo (Oct 20): nothing happens to them from far away — they only start to
   // glow red within 3 blocks (full red and boom at 1), push from 2 blocks, and
   // the jacks only move an enemy that's within reach (MAX_ITEM_R from MIND).
