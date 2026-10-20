@@ -82,7 +82,7 @@
     if(baked||!inFrame) return; baked=true;
     const M=MODES[mode]; if(!M) return;
     surfaces(M);
-    resample(lo,true);            // palette: the display shader (or ?palette=cpu on machines without one)
+    resample(lo,/[?&]px=soft/.test(location.search));   // nearest: crisp console pixels, like real pixel art; palette: the display shader (or ?palette=cpu on machines without one)
     if(!gpu()&&cpuPalette){ palettize(lo,mode==='md'); ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false; ctx.drawImage(lo,0,0,W,H); ctx.restore(); }
   }
   // Whole frame: mosaic, then (fallback only) the text-layer grid + stepped fade

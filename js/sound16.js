@@ -5,13 +5,15 @@
 //  soundtrack — goes through a bus voiced like the console picked in
 //  Options (MV_CONSOLE, see console16.js):
 //
-//   A · SNES (Sony SPC700 + S-DSP): samples at 32 kHz through the DSP's
-//       Gaussian interpolation, so the top end is soft and round; the
-//       famous echo buffer (a delay with feedback through an 8-tap FIR
-//       low-pass) gives every sound its space. Warm, lush, a bit muffled.
-//   B · MEGA DRIVE (Yamaha YM2612 FM + TI SN76489 PSG): no echo hardware, a
-//       9-bit DAC with its "ladder" grit, brighter highs, punchy bass and a
-//       harder output stage. Dry, gritty, in your face.
+//   A · SNES (Sony SPC700 + S-DSP): chip_worklet.js resamples everything to
+//       32 kHz, runs it through real BRR encoding (16-sample blocks of 4-bit
+//       numbers, shift + prediction filter) and plays it back through the
+//       DSP's 4-point Gaussian interpolation; then the S-DSP echo (delay +
+//       FIR feedback). Warm, round, a little grainy on quiet tails.
+//   B · MEGA DRIVE (YM2612): the DAC — 8-bit sample-and-hold, no
+//       interpolation (aliased, bright), with the discrete DAC's "ladder"
+//       crossover crunch; FM-style presence and bass; then the Model 1's
+//       ~3.4 kHz first-order output filter. Dry, gritty, punchy.
 //
 //  It works by catching node.connect(ctx.destination) and, for <audio>
 //  elements, routing them through a MediaElementSource the first time they
@@ -35,6 +37,12 @@
   }
   function softCurve(k){ const N=1024, c=new Float32Array(N); for(let i=0;i<N;i++){ const x=i/(N-1)*2-1; c[i]=Math.tanh(k*x)/Math.tanh(k); } return c; }
 
+  // Model 1 output stage: a first-order low-pass (~3.4 kHz) as an IIR node
+  function firstOrderLP(ac,fc){
+    const a=1-Math.exp(-2*Math.PI*fc/ac.sampleRate);
+    try{ const n=ac.createIIRFilter([a],[1,-(1-a)]); SKIP.add(n); return n; }
+    catch(e){ const n=ac.createBiquadFilter(); n.type='lowpass'; n.frequency.value=fc; n.Q.value=0.5; SKIP.add(n); return n; }
+  }
   function busFor(ac){
     let b=BUS.get(ac); if(b) return b;
     const C=(a,b2)=>origConnect.call(a,b2);
@@ -44,53 +52,52 @@
     const out=mk(ac.createDynamicsCompressor()); out.threshold.value=-8; out.knee.value=8; out.ratio.value=3; out.attack.value=0.004; out.release.value=0.2;
     C(out,ac.destination);
 
-    // SNES voice: Gaussian-interpolation roll-off, gentle warmth, echo buffer
-    function snesChain(echoSend){
-      const inp=G(1);
-      const g1=F('lowpass',7600,0.55), g2=F('lowpass',11000,0.5);           // ~ Gaussian interpolation at 32 kHz
-      const warm=F('lowshelf',220,null,2.5);
-      const sat=mk(ac.createWaveShaper()); sat.curve=softCurve(1.3);
-      const dry=G(0.95);
-      C(inp,warm); C(warm,g1); C(g1,g2); C(g2,sat); C(sat,dry);
-      const send=G(echoSend), dl=mk(ac.createDelay(1)); dl.delayTime.value=0.176;           // EDL ~ 11 x 16 ms
+    // SNES after the chip: a little warmth and the S-DSP echo (delay + 8-tap FIR feedback)
+    function snesPost(echoSend){
+      const inp=G(1), warm=F('lowshelf',220,null,2), dry=G(0.95);
+      C(inp,warm); C(warm,dry);
+      const send=G(echoSend), dl=mk(ac.createDelay(1)); dl.delayTime.value=0.176;            // EDL 11 × 16 ms
       const fir=F('lowpass',2600,0.7), fb=G(0.42), wet=G(0.6);
-      C(sat,send); C(send,dl); C(dl,fir); C(fir,fb); C(fb,dl); C(fir,wet);
-      // a second, shorter tap spreads the echo a little (stereo echo feel)
-      const dl2=mk(ac.createDelay(1)); dl2.delayTime.value=0.088; const w2=G(0.18);
-      C(send,dl2); C(dl2,w2);
+      C(warm,send); C(send,dl); C(dl,fir); C(fir,fb); C(fb,dl); C(fir,wet);
+      const dl2=mk(ac.createDelay(1)); dl2.delayTime.value=0.088; const w2=G(0.18); C(send,dl2); C(dl2,w2);
       return {inp, outs:[dry,wet,w2]};
     }
-    // Mega Drive voice: 9-bit DAC grit, presence, punchy bass, no echo
-    function mdChain(grit){
-      const inp=G(1);
-      const bass=F('peaking',95,0.9,4), pres=F('peaking',2800,0.8,3), air=F('highshelf',9000,null,2);
-      const top=F('lowpass',15000,0.6);
-      const dacN=mk(ac.createWaveShaper()); dacN.curve=stepCurve(9,1.8); dacN.oversample='none';
-      const cleanG=G(1-grit), gritG=G(grit);
-      const sat=mk(ac.createWaveShaper()); sat.curve=softCurve(2.2);
-      const mix=G(1);
-      C(inp,bass); C(bass,pres); C(pres,air); C(air,top);
-      C(top,dacN); C(dacN,gritG); C(gritG,mix);
-      C(top,cleanG); C(cleanG,mix);
-      C(mix,sat);
-      const o=G(0.9); C(sat,o);
+    // Mega Drive after the DAC: FM brightness + bass punch, then the Model 1 output filter
+    function mdPost(){
+      const inp=G(1), bass=F('peaking',95,0.9,4), pres=F('peaking',2800,0.8,4);
+      const lp=firstOrderLP(ac,3390), o=G(1.05);
+      C(inp,bass); C(bass,pres); C(pres,lp); C(lp,o);
       return {inp, outs:[o]};
     }
-    // Pass-through (console off)
     const thruS=G(1), thruM=G(1);
-
-    const sfx={snes:snesChain(0.24), md:mdChain(1), off:{inp:thruS,outs:[thruS]}};
-    const mus={snes:snesChain(0.1), md:mdChain(0.45), off:{inp:thruM,outs:[thruM]}};
-    const sel={};                                       // per-voicing level, cross-faded on switch
-    const inS=G(1), inM=G(1);
-    for(const [inp,set,key] of [[inS,sfx,'s'],[inM,mus,'m']]){
+    const sfx={snes:snesPost(0.24), md:mdPost(), off:{inp:thruS,outs:[thruS]}};
+    const mus={snes:snesPost(0.08), md:mdPost(), off:{inp:thruM,outs:[thruM]}};
+    // the chips themselves sit in front (an AudioWorklet each; until the module
+    // loads, a plain pass-through)
+    const inS=G(1), inM=G(1), postS=G(1), postM=G(1);
+    C(inS,postS); C(inM,postM);
+    const sel={};
+    for(const [post,set,key] of [[postS,sfx,'s'],[postM,mus,'m']]){
       for(const k of ['snes','md','off']){
         const lvl=G(k===mode()?1:0); sel[key+k]=lvl;
-        C(inp,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
+        C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
       }
     }
-    b={sfx:inS, music:inM, sel, ac};
+    b={sfx:inS, music:inM, sel, ac, chips:[]};
     BUS.set(ac,b);
+    try{
+      if(ac.audioWorklet&&!disabled){
+        ac.audioWorklet.addModule('js/chip_worklet.js').then(()=>{
+          for(const [inp,post,rate] of [[inS,postS,15600],[inM,postM,22050]]){
+            const node=new AudioWorkletNode(ac,'mv-chip',{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2]});
+            SKIP.add(node); node._rate=rate;
+            node.port.postMessage({mode:mode()==='snes'?'snes':mode()==='md'?'md':'off', rate});
+            try{ inp.disconnect(post); }catch(e){}
+            C(inp,node); C(node,post); b.chips.push(node);
+          }
+        }).catch(e=>console.warn('MV sound chip worklet unavailable',e));
+      }
+    }catch(e){}
     return b;
   }
   function applyMode(){
@@ -99,6 +106,7 @@
       for(const key of ['s','m']) for(const k of ['snes','md','off']){
         const g=b.sel[key+k].gain; g.cancelScheduledValues(t); g.setTargetAtTime(k===m?1:0,t,0.03);
       }
+      for(const node of b.chips) node.port.postMessage({mode:m==='snes'?'snes':m==='md'?'md':'off', rate:node._rate});
     }
   }
   const known=new Set();
@@ -136,5 +144,5 @@
 
   const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
   hook();
-  window.MV_SOUND16={ get mode(){ return mode(); }, refresh:applyMode };
+  window.MV_SOUND16={ get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
 })();

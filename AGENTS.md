@@ -164,3 +164,8 @@ After completing substantive work in this repo, **commit and push to `main` with
 - No A/B lab bar or debug readouts on index (`ab-switch.js` no longer loaded; `#mvVer/#inf` hidden). The lab pages still exist for development.
 - Controls, SNES layout: A jump · B item select · X run + use item · Y punch. Keyboard Space / E / Q (Q also runs) / F; Esc or START pauses (B quits to title, Tab restarts the stage). Pads follow the letters on Paulo's Xbox-style pad (standard mapping: 0 A, 1 B, 2 X, 3 Y); the phone pad is the same diamond (Y top, X left, B right, A bottom).
 
+## Console fidelity pass (Oct 20)
+
+- Sound: `js/chip_worklet.js` (AudioWorklet, loaded by `sound16.js`) does the chips sample by sample. SNES: resample to 32 kHz → real BRR encode/decode (16-sample blocks, 4-bit, shift + filter 0-2) → 4-tap Gaussian interpolation; then the S-DSP echo. Mega Drive: YM2612 DAC — 8-bit sample-and-hold (SFX 15.6 kHz, music 22.05 kHz), no interpolation, ladder-effect crossover step; then FM-ish EQ and the Model 1 first-order ~3.4 kHz output filter. Falls back to pass-through if worklets are unavailable.
+- Picture: world layer sampled nearest (crisp console pixels; `?px=soft` for the old blend). With the CRT on, the shader runs an NTSC composite stage: luma sharper than chroma (I/Q bleed 2–3 console px), MD luma softer (faster pixel clock), and luma→chroma crosstalk that makes the MD rainbow / dot crawl on dithering and edges (subtle on SNES).
+

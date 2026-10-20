@@ -67,6 +67,8 @@
     vec3 x=c*255.+(bayer4(floor(q*grid*.5))-.47)*24.;              // MD: dither on console pixels
     return vec3(dac(x.r),dac(x.g),dac(x.b));
   }
+  vec3 toYIQ(vec3 c){ return vec3(dot(c,vec3(.299,.587,.114)), dot(c,vec3(.596,-.274,-.322)), dot(c,vec3(.211,-.523,.312))); }
+  vec3 toRGB(vec3 y){ return vec3(y.x+.956*y.y+.621*y.z, y.x-.272*y.y-.647*y.z, y.x-1.106*y.y+1.703*y.z); }
   void main(){
     vec2 q=crt>.5?curve(uv):uv;
     if(crt>.5){ float oy=clamp(on*1.6,.004,1.), ox=clamp(on*6.,.02,1.); q=(q-.5)/vec2(ox,oy)+.5; }
@@ -74,11 +76,24 @@
     vec3 c;
     if(pal>.5){
       float px=1./grid.x;
-      vec3 m=pix(q);
       if(crt>.5){
-        float bl=pal<1.5?.24:.42;                                  // composite blur (melts MD dither)
-        c=m*(1.-bl)+(pix(q-vec2(px,0.))+pix(q+vec2(px,0.)))*.5*bl;
-      }else c=m;
+        // NTSC composite: brightness (Y) keeps more detail than colour (I/Q),
+        // which bleeds across several pixels; fine luma detail leaks into the
+        // colour carrier as rainbow / dot crawl (strong on the Mega Drive,
+        // whose dithering the TV melts into new colours).
+        float cp=2./grid.x;                                        // one console pixel
+        bool md=pal>1.5;
+        vec3 s0=toYIQ(pix(q)), sl=toYIQ(pix(q-vec2(cp,0.))), sr=toYIQ(pix(q+vec2(cp,0.)));
+        vec3 sl2=toYIQ(pix(q-vec2(2.*cp,0.))), sr2=toYIQ(pix(q+vec2(2.*cp,0.)));
+        float Y=md? s0.x*.5+(sl.x+sr.x)*.25 : s0.x*.72+(sl.x+sr.x)*.14;   // MD's faster pixel clock blurs more
+        vec2 IQ=(s0.yz*3.+(sl.yz+sr.yz)*2.+(sl2.yz+sr2.yz))/9.;
+        if(md){ vec3 l3=toYIQ(pix(q-vec2(3.*cp,0.))), r3=toYIQ(pix(q+vec2(3.*cp,0.))); IQ=(IQ*9.+(l3.yz+r3.yz)*1.5)/12.; }
+        float hf=(sr.x-sl.x);                                       // luma edges / dither
+        float ph=floor(q.x*grid.x*.5)*1.5708+floor(time*60.)*3.14159;
+        float art=(md?.42:.12)*hf;
+        IQ+=vec2(cos(ph),sin(ph))*art;
+        c=clamp(toRGB(vec3(Y,IQ)),0.,1.);
+      }else c=pix(q);
     }else{
       vec2 d=q-.5; float ca=crt>.5?.0064*dot(d,d):0.;
       c=vec3(texture2D(t,q+vec2(ca,0.)).r, texture2D(t,q).g, texture2D(t,q-vec2(ca,0.)).b)*(1.-fade);
