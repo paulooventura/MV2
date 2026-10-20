@@ -669,7 +669,7 @@
     // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
     if(M.held.length>1&&heldWeight()>magCap(p.itemStamina)+0.01){ dropHeld(M.held.pop()); try{ sfx('omniblock_chip'); }catch(e){} }
     // lock new things that come within reach of the poles (never through a wall)
-    const onlyCubes=M.held.every(h=>h.kind==='cube');
+    const onlyCubes=M.held.every(h=>h.kind==='cube')&&!(B.wplay&&B.wplay.blob);   // holding water: no blocks
     if(onlyCubes){
       let best=null, bd=MAG.LOCK;
       const reach=M.held.length?M.held.length*(T+1):0;   // the next cube locks onto the outer face

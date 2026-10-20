@@ -167,7 +167,7 @@
         gl.uniform2f(G.u.src,game.width,game.height); gl.uniform1f(G.u.time,t);
         gl.uniform1f(G.u.on,crtOn?Math.min(1,Math.max(0,(t-0.15)/0.7)):1);
         gl.uniform1f(G.u.crt,crtOn?1:0); gl.uniform1f(G.u.pal,cm==='snes'?1:cm==='md'?2:0);
-        gl.uniform2f(G.u.grid,M?M.hw:1024,M?M.hh:768);
+        gl.uniform2f(G.u.grid,M?M.hw:game.width,M?M.hh:game.height);
         gl.uniform1f(G.u.fade,C&&C.fadeStep?C.fadeStep:0);
         gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
         const dt=now-(S.last||now); S.last=now;
@@ -188,7 +188,7 @@
   }
   function setCrt(v){
     crtOn=!!v; store.set(crtOn?'on':'off');
-    document.documentElement.classList.toggle('mv-tv-on',crtOn&&!!S);
+    document.documentElement.classList.toggle('mv-tv-on',crtOn&&(!!S||isPhone()));   // phones: CSS tube (#phoneCrt)
     if(S) S.t0=performance.now();
     document.querySelectorAll('.mv-tvbtn').forEach(b=>{ b.setAttribute('aria-pressed',crtOn); b.textContent=crtOn?'CRT TV: ON':'CRT TV: OFF'; });
   }

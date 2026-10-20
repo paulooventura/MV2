@@ -195,6 +195,34 @@
     if(!on()||!hb) return hb;
     return {x:hb.x-10, y:hb.y-22, w:hb.w+20, h:hb.h+26};
   };
+  // Throwing the rope on the move: the line between MIND and the flying hook sweeps
+  // through the level, and the first grabbable surface it crosses becomes the anchor.
+  function ropeSweepLatch(h){
+    if(Math.hypot(p.vx||0,p.vy||0)<0.8||typeof _hookRayHit!=='function') return false;
+    const a=ropePlayerEndWorld();
+    const hit=_hookRayHit(a.x,a.y,h.ex,h.ey);
+    if(!hit) return false;
+    const d=Math.hypot(hit.tx-a.x,hit.ty-a.y);
+    if(d<20||Math.hypot(h.ex-hit.tx,h.ey-hit.ty)<6) return false;   // too close to MIND, or the hook's own path (the game handles that)
+    const feet=p.y+FEET_OFF;
+    if((hit.ny||0)<-0.55&&Math.abs(hit.ty-feet)<14&&d<40) return false;   // the floor he's rolling on
+    h.ax=hit.tx+(hit.nx||0)*2; h.ay=hit.ty+(hit.ny||0)*2; h.nx=hit.nx||0; h.ny=hit.ny||0;
+    h.ex=hit.tx; h.ey=hit.ty;
+    h.pivots=[]; h.vr=null;
+    h.rl=Math.max(Math.hypot(h.ax-a.x,h.ay-a.y),ROPE_RL_MIN);
+    h._path=[{x:h.ax,y:h.ay},{x:a.x,y:a.y}];
+    h._tension=0; h._slack=true; h._tight=false; h._grace=14;
+    h.tgt=null; h.plat=hit.plat||null; h.st='on';
+    if(p.vy>0) p.vy*=0.2;
+    try{ sfx('hook_latch'); }catch(e){}
+    return true;
+  }
+  const _origUpdateHook=window.updateHook;
+  window.updateHook=function(){
+    if(on()&&p.hook&&p.hook.st==='ext'&&ropeSweepLatch(p.hook)) return;
+    return _origUpdateHook.apply(this, arguments);
+  };
+  B.ropeSweepLatch=ropeSweepLatch;
   // Switching items while hooked keeps the hook: the rope's player end moves from the
   // RCA nose to MIND's body (and back) and the rope length follows, so nothing snaps.
   const ropeEnd=()=>{ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null;

@@ -32,5 +32,8 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 | Splashes, title, pause menu, shut-down, game over | `beta/js/beta_intro.js` |
 | Save slots (Journeys: delete / copy / paste) | `beta/js/beta_slots.js` |
 | Button hints per device (keyboard vs pad) | `beta/js/beta_input.js` |
+| MAG holds water / XLR blows air pockets / puddles | `beta/js/beta_waterplay.js` |
+| Phone ABXY (one thumb on X + A = run + jump) | `beta/js/beta_touch.js` |
+| Rope latches on surfaces it sweeps through while moving | `beta/js/beta_feel.js` (`ropeSweepLatch`) |
 
 `index.html` only loads scripts. Do not rebuild a monolith.

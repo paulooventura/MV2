@@ -23,7 +23,7 @@
   B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[];
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[]; B.ridePlat=null; };
+  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.bubbles=[]; B.ridePlat=null; B.airs=[]; if(B.waterPlayReset) B.waterPlayReset(); };
   B.onEntities=function(ents, F, cell){
     for(const e of ents){
       const g=cell(e), id=e.__identifier;
@@ -31,28 +31,34 @@
         const a=(F(e,'a')??g.c)*T, b=(F(e,'b')??g.c)*T;
         B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a, b, dir:1, spd:(F(e,'speed')||12)/10, dx:0});
       }else if(id==='Water'){
-        const w={c0:g.c, c1:g.c+g.w-1, r0:g.r, r1:g.r+g.h-1, x0:g.c*T, x1:(g.c+g.w)*T, base:g.r*T, level:g.r*T,
-          elec:0, n:0, h:[], v:[], bottom:[], step:8};
-        w.n=Math.ceil((w.x1-w.x0)/w.step)+1;
-        for(let i=0;i<w.n;i++){ w.h.push(0); w.v.push(0); }
-        B.waters.push(w);
+        makeWater(g.c, g.c+g.w-1, g.r, g.r+g.h-1, g.r*T);
       }else if(id==='Isolator'){
         B.isoPickup={x:g.c*T+T/2, y:(g.r+1)*T, got:false};
       }
     }
-    // pool depth per wave column: down to the first solid cell under the surface
-    for(const w of B.waters){
-      for(let i=0;i<w.n;i++){
-        const x=Math.min(w.x1-1,w.x0+i*w.step), c=Math.floor(x/T);
-        let r=w.r0; while(r<=w.r1+4&&!gridSolid(c,r)) r++;
-        w.bottom.push(r*T);
-      }
-    }
   };
+  // A body of water over cells c0..c1. baseRest = rest level without air pockets
+  // (beta_waterplay.js moves water in and out by changing it).
+  function makeWater(c0,c1,r0,r1,level,dyn){
+    const w={c0, c1, r0, r1, x0:c0*T, x1:(c1+1)*T, base:level, baseRest:level, level, elec:0, n:0, h:[], v:[], bottom:[], step:8, dyn:!!dyn};
+    w.n=Math.ceil((w.x1-w.x0)/w.step)+1;
+    for(let i=0;i<w.n;i++){ w.h.push(0); w.v.push(0); }
+    // pool depth per wave column: down to the first solid cell under the surface
+    for(let i=0;i<w.n;i++){
+      const x=Math.min(w.x1-1,w.x0+i*w.step), c=Math.floor(x/T);
+      let r=w.r0; while(r<=w.r1+4&&!gridSolid(c,r)) r++;
+      w.bottom.push(r*T);
+    }
+    B.waters.push(w);
+    return w;
+  }
 
   // ── Water queries ──────────────────────────────────────────────
+  // B.airs: air pockets (XLR) — circles {x,y,r} where there is no water.
+  B.airs=[];
+  const inAir=(x,y)=>{ for(const a of B.airs) if((x-a.x)*(x-a.x)+(y-a.y)*(y-a.y)<a.r*a.r) return true; return false; };
   function surfaceAt(w,x){ const i=Math.max(0,Math.min(w.n-1,Math.round((x-w.x0)/w.step))); return w.level+w.h[i]; }
-  function waterAt(x,y){
+  function waterAtRaw(x,y){
     for(const w of B.waters){
       if(x<w.x0||x>=w.x1) continue;
       const i=Math.max(0,Math.min(w.n-1,Math.round((x-w.x0)/w.step)));
@@ -60,10 +66,12 @@
     }
     return null;
   }
+  function waterAt(x,y){ const w=waterAtRaw(x,y); return w&&!(B.airs.length&&inAir(x,y))?w:null; }
   B.inWater=(x,y)=>!!waterAt(x,y);
   // how much of MIND is under water (0..1) and which pool
   function mindDepth(){
     const feet=p.y+FEET_OFF, top=feet-(STAND_H+WHEEL_R), cx=p.x+SW/2;
+    if(B.airs.length&&inAir(cx,feet-STAND_H*0.6)) return {w:null,f:0,s:0};   // the speaker sits in an air pocket: dry
     for(const w of B.waters){
       if(cx<w.x0||cx>=w.x1) continue;
       const s=surfaceAt(w,cx);
@@ -172,6 +180,7 @@
   function waterTick(){
     platformTick();
     isolatorTick();
+    if(B.waterPlayTick) B.waterPlayTick();             // MAG / XLR moving water (beta_waterplay.js)
     if(!B.waters.length) return;
     const list=bodies();
     for(const w of B.waters){
@@ -203,20 +212,7 @@
         for(let i=0;i<w.n;i++){ if(i>0) w.v[i-1]+=L[i]; if(i<w.n-1) w.v[i+1]+=R[i]; }
       }
       for(let i=0;i<w.n;i++) w.h[i]+=Math.sin(fr*0.04+i*0.45)*0.04;   // a living, slight lap
-      // 4) XLR underwater pushes a current
-      if(p&&p.xlrOn&&ITEM===2&&typeof connectorTipWorld==='function'){
-        const t=connectorTipWorld(2), a=Math.atan2(p.aimDY,p.aimDX), ux=Math.cos(a), uy=Math.sin(a);
-        if(waterAt(t.x,t.y)===w){
-          for(const b of list){ if(b.me) continue;
-            const dx=b.x+b.w/2-t.x, dy=b.y+b.h/2-t.y, d=Math.hypot(dx,dy); if(d>200||(dx*ux+dy*uy)/Math.max(1,d)<0.5) continue;
-            const k=(1-d/200)*0.6/Math.max(1,b.m*0.4);
-            if(b.enemy||b.ref.kind){ b.ref.vx=(b.ref.vx||0)+ux*k*3; b.ref.vy=(b.ref.vy||0)+uy*k*3; }
-            else if(b.ref._fly){ b.ref.vx+=ux*k*3; b.ref.vy+=uy*k*3; } }
-          p.vx-=ux*0.18; p.vy-=uy*0.18;                       // and the push shoves MIND back
-          if(fr%4===0) splash(w,t.x+ux*40,0.4,false);
-          if(fr%2===0) B.bubbles.push({x:t.x+ux*20,y:t.y+uy*20,r:2+Math.random()*2,vy:-0.4+uy*1.5,vx:ux*2.5,w});
-        }
-      }
+      // 4) the XLR's air pocket and the MAG's water grab live in beta_waterplay.js
       // 5) electricity
       for(const s of (p&&p.shots)||[]){
         if(s.type==='laser'&&s.life>0&&waterAt(s.x,s.y)===w){ w.elec=Math.max(w.elec,s.charged?90:55); s.life=0; zap(1); }
@@ -224,9 +220,9 @@
       if(w.elec>0) w.elec--;
       for(const b of list){
         if(!b.enemy) continue;
-        const e=b.ref, inside=waterAt(e.x+e.w/2,e.y+e.h*0.6)===w;
+        const e=b.ref, inside=waterAt(e.x+e.w/2,e.y+e.h*0.6)===w||waterAt(e.x+e.w/2,e.y+e.h-3)===w;   // feet in a puddle count
         if(inside){
-          if(e.alive){ if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y); e._shorted=true; if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24); }
+          shortEnemy(e);
           e._revT=0;                                           // no rebooting while soaked
           if(!e.alive){ e.vy=Math.min((e.vy||0),1.2); e.vx=(e.vx||0)*0.9; if(fr%9===0) spark(e.x+e.w/2,e.y+e.h/3,16); }
         }
@@ -264,6 +260,15 @@
     if(B.bubbles.length>160) B.bubbles.splice(0,B.bubbles.length-160);
   }
   B.waterTick=waterTick;
+  // water shorts an enemy out on contact
+  function shortEnemy(e){
+    if(!e.alive||e.mind) return;
+    if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y);
+    e._shorted=true; e._revT=0;
+    if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1;
+    zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24);
+  }
+  B.W={waterAt, waterAtRaw, surfaceAt, splash, spark, zap, makeWater, shortEnemy};
 
   function spark(x,y,spread,col){
     for(let k=0;k<2;k++){ const a=Math.random()*Math.PI*2, r=Math.random()*spread;
@@ -294,7 +299,7 @@
       if(B.openPopup) B.openPopup(4);
     }
   }
-  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IN WATER: {jump} KICKS, HOLD XLR FOR A CURRENT.']};
+  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER BUBBLE AROUND THE SPEAKER: MIND','GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','{jump} SWIMS. XLR BLOWS AIR, MAG GRABS WATER.']};
   B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.hasIsolator) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
 
   // ── Drawing ───────────────────────────────────────────────────
@@ -327,6 +332,17 @@
     return r;
   };
   function drawWater(){
+    const airs=B.airs;
+    if(airs.length){                                     // air pockets: cut circles out of the water
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H);
+      for(const a of airs){ ctx.moveTo(sx(a.x)+sw(a.r),sy(a.y)); ctx.arc(sx(a.x),sy(a.y),sw(a.r),0,Math.PI*2,true); }
+      ctx.clip('evenodd');
+    }
+    drawPools();
+    if(airs.length) ctx.restore();
+    if(B.drawWaterPlay) B.drawWaterPlay();
+  }
+  function drawPools(){
     for(const w of B.waters){
       if(sx(w.x1)<0||sx(w.x0)>W) continue;
       const elec=w.elec>0;
@@ -361,18 +377,22 @@
     }
     for(const b of B.bubbles){ ctx.strokeStyle='rgba(220,245,255,0.7)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(sx(b.x),sy(b.y),sw(b.r),0,Math.PI*2); ctx.stroke(); }
   }
-  // the Isolator wraps MIND: a glossy orange rubber skin over the box and wheel
+  // the Isolator: an orange bubble around the speaker box only (wheel, arms and head stay outside)
   const _origDrawChar=window.drawCharacter;
   window.drawCharacter=function(){
     const r=_origDrawChar.apply(this, arguments);
     if(on()&&B.hasIsolator){
-      const cx=sx(p.x+SW/2), feet=sy(p.y+FEET_OFF), top=feet-sw(STAND_H+WHEEL_R)+sw((p.crouchAmt||0)*30)-4;
-      const wet=B.mindWet||0, a=0.28+0.25*wet+0.06*Math.sin(fr*0.12);
+      const bd=p._bodyDraw||playerCoreHB(p);
+      const wet=B.mindWet||0, wob=Math.sin(fr*0.09)*0.04;
+      const cx=sx(bd.x+bd.w/2), cy=sy(bd.y+bd.h/2), rx=sw(bd.w/2+9)*(1+wob), ry=sw(bd.h/2+9)*(1-wob);
       ctx.save();
-      ctx.fillStyle='rgba(255,150,60,'+(a*0.45)+')'; ctx.strokeStyle='rgba(255,180,100,'+(a+0.2)+')'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.roundRect(cx-sw(32),top,sw(64),feet-top+2,sw(18)); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle='rgba(255,240,210,'+(0.35+0.3*wet)+')'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(cx-sw(12),top+sw(20),sw(10),Math.PI*1.1,Math.PI*1.55); ctx.stroke();
+      const g=ctx.createRadialGradient(cx-rx*0.3,cy-ry*0.35,Math.min(rx,ry)*0.1,cx,cy,Math.max(rx,ry));
+      g.addColorStop(0,'rgba(255,200,120,0.06)'); g.addColorStop(0.7,'rgba(255,140,40,'+(0.16+0.1*wet)+')'); g.addColorStop(1,'rgba(255,110,20,'+(0.42+0.15*wet)+')');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,160,60,'+(0.75+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(2,sw(2.5)); ctx.stroke();
+      ctx.strokeStyle='rgba(255,245,225,0.75)'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineCap='round';      // shine
+      ctx.beginPath(); ctx.ellipse(cx,cy,rx*0.78,ry*0.8,0,Math.PI*1.12,Math.PI*1.42); ctx.stroke();
+      ctx.fillStyle='rgba(255,250,235,0.85)'; ctx.beginPath(); ctx.arc(cx+rx*0.52,cy-ry*0.55,Math.max(1.5,sw(2.5)),0,Math.PI*2); ctx.fill();
       ctx.restore();
     }
     if(on()&&B.shortT>0){                                 // shorting out: crackle over the speaker

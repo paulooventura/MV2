@@ -79,6 +79,16 @@ closes the item window. **Journeys:** clearing 1.1 saves; 5 slots
 a save exists, with Delete / Copy / Paste to branch timelines. Game over offers
 Retry stage / Main menu.
 
+Build 165: **water play.** MAG in water: tap = 1 block of water held at the tip,
+hold = grows to a 9-block (3×3) circle; grip follows the power, drips as it
+drains, all falls at 0%; release throws it (pools, new puddles, shorts enemies).
+XLR under water: tap = 1-block air pocket, hold = up to 9 blocks pushing water
+out; release = bubble rises and pops. Water volume is conserved. Isolator is an
+orange bubble around the speaker body. **Rope:** thrown while moving, it latches
+on any grabbable surface the line sweeps through. **Phones:** picture widened to
+the screen (no side bars), CSS CRT overlay, bigger spaced ABXY; one thumb
+between X and A holds run + jump.
+
 ### Classic Awdjoo (lab G, `awdjoo-classic.html`) — the old main game
 
 Awdjoo Town from Tiled (`assets/Awdjoo/Awdjoo.json` → generated `js/awdjoo_map.js`).

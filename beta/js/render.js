@@ -886,6 +886,7 @@ function drawCharacter(){
   const shoulderY=bodyTop+BODY_H*0.22;
   const bodyLeft=wWcx-BODY_W/2, bodyRight=wWcx+BODY_W/2;
   const glovShoulderWX=fc?bodyRight:bodyLeft;
+  p._bodyDraw={x:bodyLeft,y:bodyTop,w:BODY_W,h:BODY_H};
 
   const pose=p._armPose||computeConnectorArmPose(p);
   p.tipWorldX=pose.tipX; p.tipWorldY=pose.tipY;

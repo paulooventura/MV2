@@ -1,5 +1,5 @@
-// Headless walk-through of the live game's menus (index.html):
-// splashes → title → Esc shut-down prompt → options → story → 1.1 → pause menu
+﻿// Headless walk-through of the live game's menus (index.html):
+// splashes â†’ title â†’ Esc shut-down prompt â†’ options â†’ story â†’ 1.1 â†’ pause menu
 // (resume / options / exit). No visible browser, no audio. Exit 0 = PASS.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -81,15 +81,15 @@ await expect('EXIT back to main menu', s => s.gs === 'title');
 await key('Enter', 200); await expect('STORY MODE opens JOURNEYS', s => s.gs === 'slots'); await shot('5-journeys');
 const slotsNow = () => ev(() => MV_SLOTS.slots().map(s => s && s.stage));
 for (let i = 0; i < 5; i++) await key('ArrowDown');
-await key('ArrowRight'); await key('Enter'); await key('Enter');        // COPY → journey 1
-await key('ArrowUp'); await key('Enter'); await key('ArrowDown'); await key('Enter');   // PASTE → slot 2
+await key('ArrowRight'); await key('Enter'); await key('Enter');        // COPY â†’ journey 1
+await key('ArrowUp'); await key('Enter'); await key('ArrowDown'); await key('Enter');   // PASTE â†’ slot 2
 let sl = await slotsNow(); check('COPY + PASTE journey 1 into slot 2', sl[0] === '1.2' && sl[1] === '1.2', sl);
 await shot('6-journeys-pasted');
 for (let i = 0; i < 4; i++) await key('ArrowDown');
 await key('ArrowLeft'); await key('ArrowLeft'); await key('Enter');      // DELETE
-await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('Enter');   // slot 2 → YES
+await key('ArrowDown'); await key('Enter'); await key('ArrowRight'); await key('Enter');   // slot 2 â†’ YES
 sl = await slotsNow(); check('DELETE slot 2', sl[0] === '1.2' && !sl[1], sl);
-await key('ArrowUp'); await key('Enter', 200);                            // journey 1 → load
+await key('ArrowUp'); await key('Enter', 200);                            // journey 1 â†’ load
 await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && MV_BETA.stageId === '1.2' && _gameState === 'game', null, { timeout: 12000 }).catch(() => {});
 await pg.waitForTimeout(800);
 await expect('journey 1 continues in 1.2', s => s.gs === 'game' && s.stage === '1.2');
@@ -108,6 +108,108 @@ await key('Escape'); await key('ArrowDown'); await key('Enter', 600);
 await expect('YES powers off', s => s.gs === 'off'); await shot('4-off');
 await pg.waitForTimeout(1200); await key('Enter', 300);
 await expect('Start powers back on', s => s.gs === 'splash');
+
+// â”€â”€ water play: MAG holds water, XLR blows air, the Isolator bubble, rope sweep â”€â”€
+await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.2`, { waitUntil: 'load' });
+await pg.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game' && MV_BETA.waters && MV_BETA.waters.length, null, { timeout: 15000 }).catch(() => {});
+const frames = n => pg.evaluate(n => new Promise(r => { const f0 = fr; const t = () => (fr - f0 >= n ? r() : requestAnimationFrame(t)); t(); }), n);
+const wsetup = await ev(() => {
+  const B = MV_BETA; B.popup = null;
+  if (!B.waters.length) return { pools: 0, stage: B.stageId, gs: _gameState };
+  const w = B.waters.slice().sort((a, b) => (b.x1 - b.x0) * (b.r1 - b.r0) - (a.x1 - a.x0) * (a.r1 - a.r0))[0];
+  const pt = { x: (w.x0 + w.x1) / 2, y: Math.min(w.base + 70, (w.r1 + 1) * 32 - 20) };
+  window.__pt = pt; window.__w = w; window.__fire = false;
+  window._itemFireDown = () => window.__fire;
+  B.magTip = () => ({ x: __pt.x, y: __pt.y, ux: 0, uy: -1 });
+  const ctw = window.connectorTipWorld; window.connectorTipWorld = i => (i === 2 ? { x: __pt.x, y: __pt.y } : ctw(i));
+  _unlockedMask = 0xff; ITEM = 3; p.itemStamina = 100;
+  return { pools: B.waters.length, pt, inWater: !!B.W.waterAtRaw(pt.x, pt.y), v0: B.waterVolume() };
+});
+check('water lab: a pool to play in', wsetup.pools > 0 && wsetup.inWater, wsetup);
+const BLK = 1024;
+await ev(() => { window.__fire = true; }); await frames(60);
+const mag = await ev(() => ({ A: MV_BETA.wplay.blob && MV_BETA.wplay.blob.A, v: MV_BETA.waterVolume(), base: __w.baseRest }));
+await shot('8-mag-water');
+check('MAG hold grows to ~9 blocks of water', mag.A >= 7 * BLK && mag.A <= 9 * BLK + 1, mag);
+check('water volume conserved while held', Math.abs(mag.v - wsetup.v0) < 2, { v0: wsetup.v0, v: mag.v });
+await ev(() => { MV_BETA.mag.power = 30; }); await frames(40);
+const drip = await ev(() => ({ A: MV_BETA.wplay.blob && MV_BETA.wplay.blob.A, drops: MV_BETA.wplay.drops.length, v: MV_BETA.waterVolume() }));
+check('losing power drips water off (30% = ~2.7 blocks)', drip.A <= 3.2 * BLK && drip.A > 0, drip);
+await ev(() => { MV_BETA.mag.power = 0; p.itemStamina = 0; }); await frames(5);
+check('0% power releases all the water', await ev(() => !MV_BETA.wplay.blob), null);
+await ev(() => { window.__fire = false; p.itemStamina = 100; }); await frames(120);
+const back = await ev(() => ({ v: MV_BETA.waterVolume(), drops: MV_BETA.wplay.drops.length }));
+check('released water goes back (volume conserved)', back.drops === 0 && Math.abs(back.v - wsetup.v0) < 2, { v0: wsetup.v0, ...back });
+
+const zap = await ev(() => {
+  const e = ENEMS.find(e => e.alive && !e.mind); if (!e) return null;
+  e._shorted = false; MV_BETA.wplay.drops.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, vx: 0, vy: 0, A: 1024, t: 5 });
+  return true;
+});
+if (zap) { await frames(2); check('thrown water shorts an enemy', await ev(() => ENEMS.some(e => e._shorted)), null); }
+
+await ev(() => { ITEM = 2; window.__fire = true; p.itemStamina = 100; }); await frames(60);
+const xlr = await ev(() => { const a = MV_BETA.airs[0]; return a && { r: a.r, A: a.A, dry: !MV_BETA.W.waterAt(__pt.x, __pt.y), rise: __w.baseRest - __w.base }; });
+await shot('9-xlr-air');
+check('XLR hold blows a big air pocket (power-capped), dry inside', xlr && xlr.A >= 6.5 * BLK && xlr.dry, xlr);
+check('the pocket pushes the water level up', xlr && xlr.rise > 4, xlr);
+await ev(() => { window.__fire = false; }); await frames(240);
+check('released air rises and pops', await ev(() => !MV_BETA.wplay.air && MV_BETA.wplay.rising.length === 0 && Math.abs(__w.base - __w.baseRest) < 0.5), null);
+
+await ev(() => { MV_BETA.isoOwned = true; MV_BETA.hasIsolator = true; p.x = __pt.x - SW / 2; p.y = __pt.y - FEET_OFF + 20; p.vx = 0; p.vy = 0; }); await frames(20);
+await shot('10-isolator');
+
+const rope = await ev(() => {
+  const h = p.hook; ITEM = 1;
+  p.x = _spawnX; p.y = _spawnY - 40; p.vx = 0; p.vy = 0;
+  const a = ropePlayerEndWorld();
+  for (let k = 0; k < 64; k++) {
+    const an = -Math.PI * 2 * k / 64, ux = Math.cos(an), uy = Math.sin(an);
+    const hit = gridRayHit(a.x, a.y, a.x + ux * 320, a.y + uy * 320);
+    if (!hit) continue;
+    const d = Math.hypot(hit.tx - a.x, hit.ty - a.y); if (d < 50 || d > 300) continue;
+    const ex = hit.tx + ux * 30, ey = hit.ty + uy * 30;
+    Object.assign(h, { st: 'ext', ex, ey, evx: 0, evy: 0 });
+    p.vx = 0; p.vy = 0; const still = MV_BETA.ropeSweepLatch(h);
+    p.vx = 3; const moving = MV_BETA.ropeSweepLatch(h);
+    const near = Math.hypot(h.ax - hit.tx, h.ay - hit.ty) < 4;
+    h.st = 'idle'; p.vx = 0;
+    return { still, moving, near, d: Math.round(d) };
+  }
+  return null;
+});
+check('rope: moving throw latches on a surface it sweeps through', rope && !rope.still && rope.moving && rope.near, rope);
+
+// â”€â”€ phone: wide picture fills the screen, CRT overlay, one thumb on X + A â”€â”€
+const ph = await b.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+ph.on('pageerror', e => errs.push('phone: ' + String(e)));
+await ph.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.1&phone=1`, { waitUntil: 'load' });
+await ph.waitForFunction(() => window.MV_BETA && MV_BETA.on && _gameState === 'game', null, { timeout: 15000 }).catch(() => {});
+await ph.evaluate(() => { MV_BETA.popup = null; if (window.MV_TV) MV_TV.on = true; });
+await ph.waitForTimeout(3000);
+await ph.screenshot({ path: `${out}/11-phone.png` });
+const pl = await ph.evaluate(() => { const r = document.getElementById('c').getBoundingClientRect(); const crt = getComputedStyle(document.getElementById('phoneCrt')).display;
+  return { W, cw: document.getElementById('c').width, x: r.left, y: r.top, w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, crt }; });
+check('phone: wide picture fills the screen (no side bars)', pl.W > 1024 && pl.cw === pl.W && pl.x <= 1 && Math.abs(pl.w - pl.vw) <= 2 && Math.abs(pl.h - pl.vh) <= 2, pl);
+check('phone: CRT TV overlay is on', pl.crt === 'block', pl.crt);
+const thumb = await ph.evaluate(() => {
+  const c = id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  const X = c('bF'), A = c('bSp');
+  const fire = (type, id, x, y, el) => { const t = new Touch({ identifier: id, target: el, clientX: x, clientY: y, radiusX: 12, radiusY: 12 });
+    el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t] })); };
+  const run = _phonePlay ? 'KeyQ' : 'KeyF';
+  const bf = document.getElementById('bF'), bs = document.getElementById('bSp');
+  fire('touchstart', 7, X.x, X.y, bf); const onX = { run: !!K[run], jump: !!K.Space };
+  fire('touchmove', 7, (X.x + A.x) / 2, (X.y + A.y) / 2, bf); const roll = { run: !!K[run], jump: !!K.Space };
+  fire('touchend', 7, (X.x + A.x) / 2, (X.y + A.y) / 2, bf); const up = { run: !!K[run], jump: !!K.Space };
+  fire('touchstart', 8, X.x, X.y, bf); fire('touchstart', 9, A.x, A.y, bs); const two = { run: !!K[run], jump: !!K.Space };
+  fire('touchend', 8, X.x, X.y, bf); fire('touchend', 9, A.x, A.y, bs);
+  return { onX, roll, up, two };
+});
+check('phone: thumb on X runs only', thumb.onX.run && !thumb.onX.jump, thumb.onX);
+check('phone: thumb rolled between X and A holds run AND jump', thumb.roll.run && thumb.roll.jump, thumb.roll);
+check('phone: lifting the thumb lets both go', !thumb.up.run && !thumb.up.jump, thumb.up);
+check('phone: two fingers press X and A together', thumb.two.run && thumb.two.jump, thumb.two);
 
 const pass = steps.every(s => s[1] === 'ok') && errs.length === 0;
 for (const [n, r, s] of steps) console.log((r === 'ok' ? '  ok   ' : '  FAIL ') + n + '  ' + JSON.stringify(s));

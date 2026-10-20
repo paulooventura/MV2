@@ -11,7 +11,9 @@ if (!cv || typeof cv.getContext !== 'function') {
 }
 const ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');
-const W = 1024, H = 768;
+// Phones get a wider picture (same height, more level to the sides) so it fills the screen.
+const W = Math.max(1024, Math.min(1856, (window.MV_VIEW_W | 0) || 1024)), H = 768;
+if (cv.width !== W) cv.width = W;
 const SMS_SCALE = 1;
 
 if (!CanvasRenderingContext2D.prototype.roundRect) {

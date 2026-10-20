@@ -25,9 +25,10 @@
 // ============================================================
 (function(){
   'use strict';
+  const wk=(typeof W!=='undefined'?W:1024)/1024;          // wide phone picture: same pixel shape, more of them
   const MODES={
-    snes:{name:'SNES', w:256, h:224, hw:512, hh:448},
-    md:  {name:'MEGA DRIVE', w:320, h:224, hw:640, hh:448}
+    snes:{name:'SNES', w:Math.round(256*wk), h:224, hw:Math.round(512*wk), hh:448},
+    md:  {name:'MEGA DRIVE', w:Math.round(320*wk), h:224, hw:Math.round(640*wk), hh:448}
   };
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
   let mode=(()=>{ if(qs&&(MODES[qs]||qs==='off')) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||v==='off') return v; }catch(e){} return 'snes'; })();

@@ -150,7 +150,7 @@ function _titleMenuItems(){
   ];
 }
 function _titleMenuGeom(){
-  const gw=1024, gh=768;
+  const gw=W, gh=H;
   const cx=gw/2, startY=Math.round(gh*0.50), lineH=40;
   const menu=_titleMenuItems();
   return menu.map((it,i)=>{
@@ -167,8 +167,8 @@ function _titleMenuClick(e){
   if(!c) return;
   const rect=c.getBoundingClientRect();
   if(!rect.width||!rect.height) return;
-  const mx=(e.clientX-rect.left)*(1024/rect.width);
-  const my=(e.clientY-rect.top)*(768/rect.height);
+  const mx=(e.clientX-rect.left)*(W/rect.width);
+  const my=(e.clientY-rect.top)*(H/rect.height);
   const rows=_titleMenuGeom();
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
