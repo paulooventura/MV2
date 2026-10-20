@@ -128,6 +128,23 @@ ent('Item', 86, 38, item='TRS')
 ent('Crystal', 74, 2)                    # Laitu's roof, in the TRS cage
 ent('Crystal', 28, 28)                   # tree-room ledge (RCA only)
 ent('Crystal', 91, 37)                   # TRS room
+
+# ── Revisit tier 1: what 1.1 becomes after you have been to 1.2 ──────────
+# (entities with tier=N only exist once the player has gone N stages further
+#  and comes back; RevisitWall rewrites the map for that tier.)
+# The Echo Well: a shaft opens left of the arch, down into a flooded chamber.
+# One echo crystal waits at the bottom (you need 1.2's ISOLATOR to fetch it),
+# one hangs high over the road (XLR launch or a super jump). The arch stays
+# shut until both are found.
+ent('RevisitWall', 100, 20, 4, 6, kind='open', tier=1)          # the shaft, cols 100-103
+ent('RevisitWall', 98, 26, 20, 11, kind='open', tier=1)         # the chamber, cols 98-117, rows 26-36
+ent('RevisitWall', 98, 29, 3, 1, kind='oneway', tier=1)         # ledges to climb back out
+ent('RevisitWall', 102, 26, 2, 1, kind='oneway', tier=1)
+ent('RevisitWall', 100, 23, 2, 1, kind='oneway', tier=1)
+ent('Water', 98, 31, 20, 6, tier=1)                             # surface at row 31
+ent('EchoCrystal', 115, 35, tier=1)                             # bottom of the well
+ent('EchoCrystal', 92, 10, tier=1)                              # high over the road
+ent('Label', 97, 17, text='ECHO WELL', tier=1)
 for c, r in [(33, 18), (37, 18), (43, 15), (80, 12), (84, 16), (95, 18)]:
     ent('Knowl', c, r)                   # seeds (dropped to the floor below)
 ent('Laitu', 50, 11, 1, 3)

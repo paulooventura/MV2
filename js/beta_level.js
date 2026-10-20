@@ -50,9 +50,13 @@
     const gen=B.loadGen=(B.loadGen||0)+1;             // a newer load wins (e.g. a stage button during boot)
     const res=await fetch(PATH);
     if(!res.ok) throw new Error('beta level fetch failed '+res.status);
-    const raw=await res.json();
+    const raw0=await res.json();
+    if(opts.fresh) delete B.saves[id];
+    const tier=revisitTier(id);
+    const raw=applyTiers(raw0, tier);                  // revisit layers: new areas, echo crystals
     const level=await parseLdtkProject(raw, PATH);   // Collision grid + seeds (Knowl) via lab F
     if(gen!==B.loadGen) return;
+    B.tier=tier; B.progress=Math.max(B.progress||0, ORDER.indexOf(id));
     B.stageId=id; B.carryMask=carryMask!=null?carryMask:(id==='1.1'?0:15);   // straight into 1.2 = all four jacks
     applyLdtkLevel(level);
     applyBeta(raw, level);
@@ -68,11 +72,12 @@
   // after that); walking left into 1.2's arrival arch takes you back to 1.1,
   // out of its arch. Jacks you own go with you both ways.
   B.saves=B.saves||{};
+  const kKey=k=>k.kind+':'+Math.round(k.ox!=null?k.ox:k.x)+','+Math.round(k.oy!=null?k.oy:k.y);
   function saveStage(){
     if(!B.stageId) return;
     B.saves[B.stageId]={
-      knowls:KDROP.map(k=>!!k.got&&!k._carried&&!k._fly),
-      drops:(typeof ITEM_DROPS!=='undefined'?ITEM_DROPS:[]).map(d=>!!d.got),
+      knowls:KDROP.filter(k=>k.got&&!k._carried&&!k._fly).map(kKey),
+      drops:(typeof ITEM_DROPS!=='undefined'?ITEM_DROPS:[]).filter(d=>d.got).map(d=>d._cell||(d.item+'@'+Math.round(d.x))),
       rope:!!(_mapRopePickup&&_mapRopePickup.got),
       iso:!!(B.isoPickup&&B.isoPickup.got),
       met:!!(B.laitu&&B.laitu.met),
@@ -84,14 +89,20 @@
     const sv=opts.fresh?null:B.saves[B.stageId];
     if(opts.fresh) delete B.saves[B.stageId];
     if(sv){
-      KDROP.forEach((k,i)=>{ if(sv.knowls[i]){ k.got=true; } });
+      const ks=new Set(sv.knowls), ds=new Set(sv.drops);
+      KDROP.forEach(k=>{ if(ks.has(kKey(k))) k.got=true; });
       kColl=KDROP.filter(k=>k.got).length;
-      if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.forEach((d,i)=>{ if(sv.drops[i]) d.got=true; });
+      if(typeof ITEM_DROPS!=='undefined') ITEM_DROPS.forEach(d=>{ if(ds.has(d._cell||(d.item+'@'+Math.round(d.x)))) d.got=true; });
       if(_mapRopePickup&&sv.rope) _mapRopePickup.got=true;
       if(B.isoPickup&&sv.iso) B.isoPickup.got=true;
       if(B.laitu&&sv.met) B.laitu.met=true;
       B.cleared=sv.cleared; B.stats=Object.assign(B.stats,sv.stats);
-      const n=counts(); if(n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds) B.open=true;
+      if(gateReady()) B.open=true;
+      if(B.tier>0&&B.echoNeed>0&&!B.open){                // the town has changed since you left
+        B.shake=Math.max(B.shake||0,9);
+        try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(0.8); }catch(e){}
+        B.revisitNote=360;
+      }
     }
     if(B.isoOwned) B.hasIsolator=true;
     B.arriveCd=90;
@@ -139,10 +150,54 @@
   }
   B.travel=travel; B.saveStage=saveStage;
 
+  // ── Revisits: a beaten stage changes as the game goes on ───────
+  // Entities can carry a "tier" field: tier 0 = always, tier N = only once
+  // the player has gone N stages past this one and comes back. RevisitWall
+  // rectangles rewrite the map for their tier (open = carve a new area,
+  // seal = block a path, oneway = add a ledge). EchoCrystal entities are the
+  // revisit goal: a beaten stage's arch stays shut until its echo crystals
+  // for the current tier are collected.
+  const ORDER=Object.keys(LEVELS);
+  function revisitTier(id){
+    const sv=B.saves[id];
+    if(!sv||!sv.cleared) return 0;
+    return Math.max(0,(B.progress||0)-ORDER.indexOf(id));
+  }
+  function applyTiers(raw0, tier){
+    const raw=JSON.parse(JSON.stringify(raw0));
+    for(const lv of raw.levels||[]){
+      const layers=lv.layerInstances||[];
+      const L=n=>layers.find(l=>l.__identifier===n);
+      const ent=L('Entities'), col=L('Collision'), skin=L('Skin');
+      if(!ent) continue;
+      ent.entityInstances=ent.entityInstances.filter(e=>((F(e,'tier')|0)<=tier));
+      for(const e of ent.entityInstances){
+        if(e.__identifier!=='RevisitWall') continue;
+        const g=cell(e), kind=F(e,'kind')||'open';
+        const v=kind==='seal'?1:kind==='oneway'?2:0, sk=F(e,'skin');
+        for(let r=g.r;r<g.r+g.h;r++) for(let c=g.c;c<g.c+g.w;c++){
+          if(col&&c>=0&&c<col.__cWid&&r>=0&&r<col.__cHei) col.intGridCsv[r*col.__cWid+c]=v;
+          if(skin&&c>=0&&c<skin.__cWid&&r>=0&&r<skin.__cHei){
+            if(kind==='open') skin.intGridCsv[r*skin.__cWid+c]=sk!=null?sk:5;
+            else if(kind==='seal') skin.intGridCsv[r*skin.__cWid+c]=sk!=null?sk:0;
+          }
+        }
+      }
+    }
+    return raw;
+  }
+  function gateReady(){
+    const n=counts();
+    const base=n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds;
+    return B.tier>0&&B.echoNeed>0 ? base&&n.echo>=B.echoNeed : base;
+  }
+  B.gateReady=gateReady;
+
   function applyBeta(raw, level){
     B.on=true; B.level=level; B.open=false; B.cleared=false; B.talked=0;
     B.rooms=[]; B.labels=[]; B.rings=[]; B.shells=[]; B.decor=[]; B.crateCells=new Set(); B.flying=[];
     B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[];
+    B.echoNeed=0; B.revisitNote=0;
     B.stats={shutdowns:0, permOff:0, booms:0, hits:0, frames:0, items:0}; B.popup=null; B.results=null; B.lastMask=0; B.shake=0;
     B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]};
     const lv=raw.levels[0];
@@ -180,6 +235,9 @@
         case 'Gate':
           B.gate={x, y, w:g.w*T, h:g.h*T};
           B.need={crystals:F(e,'crystals')|0||3, seeds:F(e,'seeds')|0||6}; break;
+        case 'EchoCrystal':
+          B.echoNeed++;
+          KDROP.push({x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2, kind:'echo'}); break;
         case 'Crystal':
           KDROP.push({x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false,
             bob:Math.random()*Math.PI*2, kind:'crystal'}); break;
@@ -265,9 +323,9 @@
   }
 
   function counts(){
-    let crystals=0, seeds=0;
-    for(const k of KDROP){ if(!k.got||k._carried||k._fly) continue; if(k.kind==='crystal') crystals++; else seeds++; }
-    return {crystals, seeds};
+    let crystals=0, seeds=0, echo=0;
+    for(const k of KDROP){ if(!k.got||k._carried||k._fly) continue; if(k.kind==='crystal') crystals++; else if(k.kind==='echo') echo++; else seeds++; }
+    return {crystals, seeds, echo};
   }
 
   // ── Line of sight (Paulo: nothing acts through a wall) ───────────
@@ -820,11 +878,12 @@
     for(const e of ENEMS) if(e._thrownF>0) e._thrownF--;
     goalOpen=false;                                   // main.js must not zone-hop
     const n=counts();
-    if(!B.open&&n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds){
+    if(!B.open&&gateReady()){
       B.open=true;
       try{ sfx('unlock'); }catch(e){}
-      if(typeof uiShowToast==='function') uiShowToast('THE ARCH IS OPEN');
+      if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN');
     }
+    if(B.revisitNote>0) B.revisitNote--;
     if(!B.open&&B.gate&&p){
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x+8,g.y,g.w-16,g.h)){
@@ -890,6 +949,7 @@
     for(const k of KDROP){
       if(k.got&&!k._carried&&!k._fly) continue;
       if(k.kind==='crystal'){ if(D) D.crystal(k); }
+      else if(k.kind==='echo'){ if(D) D.crystal(k,'echo'); }
       else if(D) D.seed(k);
     }
   };
@@ -1041,7 +1101,15 @@
       ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='700 12px "MV Sans", system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
     }else if(tg.name) drawTextC('LAITU', cx, top-14, '#a8d4ff');
   }
+  // Text that belongs to the world (signs, labels, crate names) is drawn on the
+  // console's text layer, so it stays legible at the console's resolution.
+  B.textQ=[];
+  B.wtext=function(fn,...args){
+    const C=window.MV_CONSOLE;
+    if(C&&C.MODES&&C.MODES[C.mode]&&_gameState==='game') B.textQ.push([fn,args]); else fn(...args);
+  };
   function drawBetaHud(){
+    for(const [fn,args] of B.textQ) fn(...args); B.textQ.length=0;
     drawLaituTag();
     const n=counts();
     uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
@@ -1062,14 +1130,33 @@
     drawText(n.crystals+'/'+B.need.crystals, gx+2, gy-6, '#8ef0ff', 1); gx+=46;
     for(let i=0;i<B.need.seeds;i++){ const on=i<n.seeds; ctx.fillStyle=on?'#ffd860':'rgba(255,255,255,0.14)'; ctx.save(); if(on){ ctx.shadowColor='#ffd860'; ctx.shadowBlur=8; } ctx.beginPath(); ctx.ellipse(gx+5,gy+2,4.5,6,0,0,Math.PI*2); ctx.fill(); ctx.restore(); gx+=14; }
     drawText(n.seeds+'/'+B.need.seeds, gx+4, gy-6, '#ffd860', 1);
+    if(B.tier>0&&B.echoNeed>0){
+      let ex=360; for(let i=0;i<B.echoNeed;i++){ const on=i<n.echo; ctx.save(); ctx.translate(ex+7,gy+2); ctx.rotate(Math.PI/4); ctx.fillStyle=on?'#ff9ae0':'rgba(255,255,255,0.14)'; if(on){ ctx.shadowColor='#ff9ae0'; ctx.shadowBlur=8; } ctx.fillRect(-5,-5,10,10); ctx.restore(); ex+=20; }
+      drawText('ECHO '+n.echo+'/'+B.echoNeed, ex+2, gy-6, '#ff9ae0', 1);
+    }
+    if(B.revisitNote>0){
+      const a=Math.min(1,B.revisitNote/30,(360-B.revisitNote)/20);
+      ctx.save(); ctx.globalAlpha=Math.max(0,a);
+      uiPanel(W/2-300,H*0.2,600,92,{r:18,sel:true,accent:'#ff9ae0'});
+      drawTextC(B.stageName+' HAS CHANGED', W/2, H*0.2+16, '#ff9ae0', 2);
+      drawTextC('NEW PATHS OPENED - THE ARCH WANTS '+B.echoNeed+' ECHO CRYSTALS', W/2, H*0.2+46, C.SILVER, 1);
+      drawTextC('BRING WHAT YOU FOUND FURTHER ON', W/2, H*0.2+66, '#ffe39a', 1);
+      ctx.restore();
+    }
     if(B.open){ ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN!', 554, gy-8, C.GREEN_L||'#7dffcf', 2); ctx.restore(); }
     if(B.bounceT>0&&!B.open){
       const a=Math.min(1,B.bounceT/20), bw=Math.min(W-40,560), bx=(W-bw)/2, by=H*0.28;
       ctx.globalAlpha=a;
       uiPanel(bx,by,bw,96,{r:18,sel:true});
+      if(B.tier>0&&B.echoNeed>0){
+        drawTextC('NEW PATHS HAVE OPENED', W/2, by+16, '#ff9ae0', 2);
+        drawTextC('FIND THE ECHO CRYSTALS', W/2, by+40, C.YELLOW, 2);
+        drawTextC('ECHO CRYSTALS '+n.echo+'/'+B.echoNeed, W/2, by+70, C.SILVER, 1);
+      }else{
       drawTextC('GATHER THE SEEDS & CRYSTALS', W/2, by+16, C.YELLOW, 2);
       drawTextC('TO PROCEED', W/2, by+40, C.YELLOW, 2);
       drawTextC('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds, W/2, by+70, C.SILVER, 1);
+      }
       ctx.globalAlpha=1;
     }
     drawEnemyBars();

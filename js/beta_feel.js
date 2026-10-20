@@ -286,7 +286,7 @@
     const cx=sx(p.x+SW/2), y=sy(p.y)-6-dy, w=sw(48);
     ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(cx-w/2-1,y-1,w+2,7);
     ctx.fillStyle=col; ctx.fillRect(cx-w/2,y,w*Math.max(0,Math.min(1,f)),5);
-    drawText(label,cx+w/2+4,y-1,'#e8dcc0',1);
+    (B.wtext||((f,...a)=>f(...a)))(drawText,label,cx+w/2+4,y-1,'#e8dcc0',1);
   }
 
   // ── RCA rope: holds about twice the strain before it snaps; a tension meter

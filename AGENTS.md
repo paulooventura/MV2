@@ -143,4 +143,13 @@ After completing substantive work in this repo, **commit and push to `main` with
 - UI kit in `js/core.js`: `uiPanel` (glass panels), `uiBar` (glossy meters), `uiPill`, `uiLogo` (chrome title text), `uiSparkle`, `uiCursor`. Title, options, story, HUD, stage card (`drawZoneCard` in `ui.js`) and the beta windows use them.
 - `js/crt_room.js`: WebGL tube-TV pass over `#c` (curve, scanlines, mask, bloom, power-on). Input still goes to `#c`. Off for phones in play mode, headless browsers, software GL (CSS scanlines instead), `?tv=0`, or the CRT button. `?tv=1` forces it on in tests.
 - `js/sound16.js`: every WebAudio sound goes through a 16-bit style bus (warm low-pass, soft saturation, echo buffer, small room, gentle compressor). The mp3 soundtrack is untouched. `?sfx16=0` bypasses it.
+- `js/console16.js` (loaded LAST on every page): console modes, Options row CONSOLE + buttons under the screen. A = SNES (world at 256x224, 15-bit colour, mosaic + 16-step brightness), B = Mega Drive (320x224, 9-bit DAC + ordered dither, 8-step palette fades). World is resampled when the first HUD draw starts (`drawItemTutorial`/`drawHUD`); HUD/text use the 2x text layer. Palette + text grid run in the display shader (`crt_room.js`); without a GPU only the world resample runs (`?palette=cpu` forces the CPU palette). Render camera snaps to console pixels. `?console=snes|md|off`.
+- `js/sound16.js`: the chip voicing follows the console mode (SNES: Gaussian roll-off + echo buffer; MD: 9-bit DAC grit, presence, no echo). The mp3 soundtrack joins the bus through MediaElementSource on first play.
+- Beta world text (signs, labels, crate names) goes through `MV_BETA.wtext` so it lands on the text layer.
+
+## Stage revisits (lab G)
+
+- Session saves per stage in `MV_BETA.saves` (knowls keyed by kind+position, crates by cell). `B.progress` = furthest stage index reached.
+- Any LDtk entity may carry a `tier` field: it exists only when the player has gone that many stages past this one and comes back (tier 0/none = always). `RevisitWall` rects (kind open|seal|oneway, optional skin) rewrite Collision/Skin for their tier before parsing. `EchoCrystal` = revisit goal: a beaten stage's arch stays shut until its echo crystals are collected.
+- 1.1 tier 1 = the Echo Well (shaft left of the arch → flooded chamber; one echo at the bottom needs 1.2's Isolator, one high over the road needs an XLR launch / super jump). Referees check tier 0 only.
 

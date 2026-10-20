@@ -59,7 +59,7 @@
   const mk=(w,h)=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; };
   let lo=null, hi=null, mos=null;
   function surfaces(M){
-    if(!lo||lo.width!==M.w){ lo=mk(M.w,M.h); lo.g=lo.getContext('2d',{willReadFrequently:!gpu()}); }
+    if(!lo||lo.width!==M.w){ lo=mk(M.w,M.h); lo.g=lo.getContext('2d',{willReadFrequently:cpuPalette}); }
     if(!hi||hi.width!==M.hw){ hi=mk(M.hw,M.hh); hi.g=hi.getContext('2d'); }
   }
   function resample(dst,smooth){
@@ -68,6 +68,7 @@
     ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false;
     ctx.drawImage(dst,0,0,W,H); ctx.restore();
   }
+  const cpuPalette=/[?&]palette=cpu/.test(location.search);
   const gpu=()=>!!(window.MV_TV&&MV_TV.gl);       // the display shader does palette + text layer
   function palettize(c,dither){                     // CPU palette (fallback path only, small canvases)
     const g=c.g, img=g.getImageData(0,0,c.width,c.height), d=img.data, w=c.width;
@@ -81,12 +82,8 @@
     if(baked||!inFrame) return; baked=true;
     const M=MODES[mode]; if(!M) return;
     surfaces(M);
-    if(gpu()){ resample(lo,true); return; }
-    const g=lo.g; g.imageSmoothingEnabled=true; if(g.imageSmoothingQuality) g.imageSmoothingQuality='low';
-    g.clearRect(0,0,lo.width,lo.height); g.drawImage(cv,0,0,lo.width,lo.height);
-    palettize(lo,mode==='md');
-    ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(lo,0,0,W,H); ctx.restore();
+    resample(lo,true);            // palette: the display shader (or ?palette=cpu on machines without one)
+    if(!gpu()&&cpuPalette){ palettize(lo,mode==='md'); ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false; ctx.drawImage(lo,0,0,W,H); ctx.restore(); }
   }
   // Whole frame: mosaic, then (fallback only) the text-layer grid + stepped fade
   function finish(){
@@ -101,7 +98,7 @@
     const f=api.fade||0;
     api.fadeStep=f<=0?0:mode==='snes'?Math.ceil(f*15)/15:Math.ceil(f*7)/7;   // SNES 16 brightness steps, MD 8 palette steps
     if(gpu()) return;
-    resample(hi,true);
+    if(cpuPalette) resample(hi,true);       // no GPU: the text layer stays smooth (saves two full-frame copies)
     if(api.fadeStep>0){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=api.fadeStep; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); ctx.restore(); }
   }
 

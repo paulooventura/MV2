@@ -97,48 +97,60 @@
     "uid": 102
    },
    {
-    "identifier": "Enemy",
+    "identifier": "EchoCrystal",
     "uid": 103
    },
    {
-    "identifier": "Gate",
+    "identifier": "Enemy",
     "uid": 104
    },
    {
-    "identifier": "GateShell",
+    "identifier": "Gate",
     "uid": 105
    },
    {
-    "identifier": "Item",
+    "identifier": "GateShell",
     "uid": 106
    },
    {
-    "identifier": "Knowl",
+    "identifier": "Item",
     "uid": 107
    },
    {
-    "identifier": "KnowlTree",
+    "identifier": "Knowl",
     "uid": 108
    },
    {
-    "identifier": "Label",
+    "identifier": "KnowlTree",
     "uid": 109
    },
    {
-    "identifier": "Laitu",
+    "identifier": "Label",
     "uid": 110
    },
    {
-    "identifier": "MindSpawn",
+    "identifier": "Laitu",
     "uid": 111
    },
    {
-    "identifier": "Rca",
+    "identifier": "MindSpawn",
     "uid": 112
    },
    {
-    "identifier": "Room",
+    "identifier": "Rca",
     "uid": 113
+   },
+   {
+    "identifier": "RevisitWall",
+    "uid": 114
+   },
+   {
+    "identifier": "Room",
+    "uid": 115
+   },
+   {
+    "identifier": "Water",
+    "uid": 116
    }
   ]
  },
@@ -19531,8 +19543,227 @@
        "fieldInstances": []
       },
       {
-       "__identifier": "Knowl",
+       "__identifier": "RevisitWall",
        "iid": "beta-141",
+       "width": 64,
+       "height": 96,
+       "px": [
+        1600,
+        512
+       ],
+       "__grid": [
+        100,
+        32
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "kind",
+         "__type": "String",
+         "__value": "open"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "RevisitWall",
+       "iid": "beta-142",
+       "width": 320,
+       "height": 176,
+       "px": [
+        1568,
+        608
+       ],
+       "__grid": [
+        98,
+        38
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "kind",
+         "__type": "String",
+         "__value": "open"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "RevisitWall",
+       "iid": "beta-143",
+       "width": 48,
+       "height": 16,
+       "px": [
+        1568,
+        656
+       ],
+       "__grid": [
+        98,
+        41
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "kind",
+         "__type": "String",
+         "__value": "oneway"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "RevisitWall",
+       "iid": "beta-144",
+       "width": 32,
+       "height": 16,
+       "px": [
+        1632,
+        608
+       ],
+       "__grid": [
+        102,
+        38
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "kind",
+         "__type": "String",
+         "__value": "oneway"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "RevisitWall",
+       "iid": "beta-145",
+       "width": 32,
+       "height": 16,
+       "px": [
+        1600,
+        560
+       ],
+       "__grid": [
+        100,
+        35
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "kind",
+         "__type": "String",
+         "__value": "oneway"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "Water",
+       "iid": "beta-146",
+       "width": 320,
+       "height": 96,
+       "px": [
+        1568,
+        688
+       ],
+       "__grid": [
+        98,
+        43
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "EchoCrystal",
+       "iid": "beta-147",
+       "width": 16,
+       "height": 16,
+       "px": [
+        1840,
+        752
+       ],
+       "__grid": [
+        115,
+        47
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "EchoCrystal",
+       "iid": "beta-148",
+       "width": 16,
+       "height": 16,
+       "px": [
+        1472,
+        352
+       ],
+       "__grid": [
+        92,
+        22
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "Label",
+       "iid": "beta-149",
+       "width": 16,
+       "height": 16,
+       "px": [
+        1552,
+        464
+       ],
+       "__grid": [
+        97,
+        29
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "text",
+         "__type": "String",
+         "__value": "ECHO WELL"
+        },
+        {
+         "__identifier": "tier",
+         "__type": "Int",
+         "__value": 1
+        }
+       ]
+      },
+      {
+       "__identifier": "Knowl",
+       "iid": "beta-150",
        "width": 16,
        "height": 16,
        "px": [
@@ -19547,7 +19778,7 @@
       },
       {
        "__identifier": "Knowl",
-       "iid": "beta-142",
+       "iid": "beta-151",
        "width": 16,
        "height": 16,
        "px": [
@@ -19562,7 +19793,7 @@
       },
       {
        "__identifier": "Knowl",
-       "iid": "beta-143",
+       "iid": "beta-152",
        "width": 16,
        "height": 16,
        "px": [
@@ -19577,7 +19808,7 @@
       },
       {
        "__identifier": "Knowl",
-       "iid": "beta-144",
+       "iid": "beta-153",
        "width": 16,
        "height": 16,
        "px": [
@@ -19592,7 +19823,7 @@
       },
       {
        "__identifier": "Knowl",
-       "iid": "beta-145",
+       "iid": "beta-154",
        "width": 16,
        "height": 16,
        "px": [
@@ -19607,7 +19838,7 @@
       },
       {
        "__identifier": "Knowl",
-       "iid": "beta-146",
+       "iid": "beta-155",
        "width": 16,
        "height": 16,
        "px": [
@@ -19622,7 +19853,7 @@
       },
       {
        "__identifier": "Laitu",
-       "iid": "beta-147",
+       "iid": "beta-156",
        "width": 16,
        "height": 48,
        "px": [
@@ -19637,7 +19868,7 @@
       },
       {
        "__identifier": "Enemy",
-       "iid": "beta-148",
+       "iid": "beta-157",
        "width": 16,
        "height": 16,
        "px": [
@@ -19658,7 +19889,7 @@
       },
       {
        "__identifier": "Enemy",
-       "iid": "beta-149",
+       "iid": "beta-158",
        "width": 16,
        "height": 16,
        "px": [
@@ -19679,7 +19910,7 @@
       },
       {
        "__identifier": "Label",
-       "iid": "beta-150",
+       "iid": "beta-159",
        "width": 16,
        "height": 16,
        "px": [
@@ -19700,7 +19931,7 @@
       },
       {
        "__identifier": "Label",
-       "iid": "beta-151",
+       "iid": "beta-160",
        "width": 16,
        "height": 16,
        "px": [
@@ -19721,7 +19952,7 @@
       },
       {
        "__identifier": "Label",
-       "iid": "beta-152",
+       "iid": "beta-161",
        "width": 16,
        "height": 16,
        "px": [
@@ -19742,7 +19973,7 @@
       },
       {
        "__identifier": "Label",
-       "iid": "beta-153",
+       "iid": "beta-162",
        "width": 16,
        "height": 16,
        "px": [
@@ -19763,7 +19994,7 @@
       },
       {
        "__identifier": "Label",
-       "iid": "beta-154",
+       "iid": "beta-163",
        "width": 16,
        "height": 16,
        "px": [
@@ -19784,7 +20015,7 @@
       },
       {
        "__identifier": "Room",
-       "iid": "beta-155",
+       "iid": "beta-164",
        "width": 448,
        "height": 176,
        "px": [
@@ -19810,7 +20041,7 @@
       },
       {
        "__identifier": "Room",
-       "iid": "beta-156",
+       "iid": "beta-165",
        "width": 272,
        "height": 112,
        "px": [
@@ -19831,7 +20062,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-157",
+       "iid": "beta-166",
        "width": 16,
        "height": 16,
        "px": [
@@ -19862,7 +20093,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-158",
+       "iid": "beta-167",
        "width": 16,
        "height": 16,
        "px": [
@@ -19893,7 +20124,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-159",
+       "iid": "beta-168",
        "width": 16,
        "height": 16,
        "px": [
@@ -19914,7 +20145,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-160",
+       "iid": "beta-169",
        "width": 16,
        "height": 16,
        "px": [
@@ -19935,7 +20166,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-161",
+       "iid": "beta-170",
        "width": 16,
        "height": 16,
        "px": [
@@ -19956,7 +20187,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-162",
+       "iid": "beta-171",
        "width": 16,
        "height": 16,
        "px": [
@@ -19977,7 +20208,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-163",
+       "iid": "beta-172",
        "width": 16,
        "height": 16,
        "px": [
@@ -19998,7 +20229,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-164",
+       "iid": "beta-173",
        "width": 16,
        "height": 16,
        "px": [

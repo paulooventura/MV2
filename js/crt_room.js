@@ -33,11 +33,10 @@
   .mv-screen #gameWrap{display:block!important;max-width:none!important;width:100%;}
   .mv-screen canvas#c{display:block;width:100%!important;max-width:none!important;height:auto;border:none!important;}
   .mv-crt{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
-  .mv-scan{position:absolute;inset:0;pointer-events:none;z-index:2;mix-blend-mode:multiply;display:none;
+  .mv-scan{position:absolute;inset:0;pointer-events:none;z-index:2;display:none;
       background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 1.7px,rgba(0,0,0,.3) 1.7px 3.4px),
                  radial-gradient(ellipse at 50% 50%,transparent 60%,rgba(0,0,0,.55) 100%);}
   html.mv-tv-on .mv-screen.no-gl .mv-scan{display:block}
-  html.mv-tv-on .mv-screen.no-gl canvas#c{filter:saturate(1.15) contrast(1.06) brightness(1.06)}
   .mv-glass{position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:inherit;display:none;
       background:radial-gradient(ellipse 85% 60% at 28% 12%,rgba(255,255,255,.06),transparent 55%);
       box-shadow:inset 0 0 60px rgba(0,0,0,.5), inset 0 0 6px rgba(0,0,0,.9);}

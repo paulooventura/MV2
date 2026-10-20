@@ -332,7 +332,7 @@
   function sign(x,floor){ rect(x-2,floor-70,4,70,P.woodD);
     const a=Math.sin(fr*0.02)*0.02; ctx.save(); ctx.translate(X(x),Y(floor-70)); ctx.rotate(a);
     ctx.fillStyle='#24402a'; ctx.fillRect(-S(34),-S(4),S(68),S(30)); ctx.fillStyle='#2e5234'; ctx.fillRect(-S(31),-S(1),S(62),S(24)); ctx.restore();
-    drawTextC('AWDJOO',X(x),Y(floor-67),'#c8e8a8',1); drawTextC('POP. ∞',X(x),Y(floor-56),'#c8e8a8',1); }
+    MV_BETA.wtext(drawTextC,'AWDJOO',X(x),Y(floor-67),'#c8e8a8',1); MV_BETA.wtext(drawTextC,'POP. ∞',X(x),Y(floor-56),'#c8e8a8',1); }
   // flowers + grass tufts on top of the ground: they sway with a little wind
   function flowers(c,r){
     const wind=Math.sin(fr*0.02+c*0.15)*0.18+Math.sin(fr*0.07+c*0.6)*0.08;
@@ -500,11 +500,13 @@
       ctx.fillStyle='rgba(220,255,240,0.95)'; ctx.fillRect(X(sxp-s),Y(syp),S(s*2+1),S(1)); ctx.fillRect(X(sxp),Y(syp-s),S(1),S(s*2+1));
     }
   }
-  function crystal(k){
+  function crystal(k,style){
+    const echo=style==='echo';
     const bob=Math.sin(fr*0.06+(k.bob||0))*3;
-    const x=X(k.x), y=Y(k.y)+bob, s=S(13);
-    glow(k.x,k.y+bob/Z,44,0.35+0.1*Math.sin(fr*0.08),'rgba(120,230,255,');
-    ctx.fillStyle='#7fe8ff'; ctx.strokeStyle='#103040'; ctx.lineWidth=2;
+    const x=X(k.x), y=Y(k.y)+bob, s=S(echo?15:13);
+    glow(k.x,k.y+bob/Z,echo?56:44,0.35+0.1*Math.sin(fr*0.08),echo?'rgba(255,140,220,':'rgba(120,230,255,');
+    if(echo){ ctx.save(); ctx.strokeStyle='rgba(255,170,230,'+(0.5+0.4*Math.sin(fr*0.1))+')'; ctx.lineWidth=2; const rr=s*(1.3+0.25*Math.sin(fr*0.07)); ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    ctx.fillStyle=echo?'#ff9ae0':'#7fe8ff'; ctx.strokeStyle=echo?'#40102c':'#103040'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.moveTo(x, y-s); ctx.lineTo(x+s*0.7, y); ctx.lineTo(x, y+s); ctx.lineTo(x-s*0.7, y); ctx.closePath();
     ctx.fill(); ctx.stroke();
     ctx.strokeStyle='#ffffff'; ctx.beginPath(); ctx.moveTo(x, y-s*0.6); ctx.lineTo(x+s*0.3, y); ctx.stroke();
@@ -538,7 +540,7 @@
     else if(typeof drawConnectorTip==='function') drawConnectorTip(idx===3?-14:-16,0,0,0,idx,enh);
     ctx.restore();
     // name under the crate
-    if(!noName) drawTextC(ITEM_NAMES[idx]||'?', X(cx), Y(bottom+3), enh?'#7dffcf':'#ffe8b0', 1);
+    if(!noName) (window.MV_BETA&&MV_BETA.wtext?MV_BETA.wtext:(f,...a)=>f(...a))(drawTextC, ITEM_NAMES[idx]||'?', X(cx), Y(bottom+3), enh?'#7dffcf':'#ffe8b0', 1);
     // a shine sweeps across now and then so it reads as a pickup
     const t=((fr+idx*40)%150)/150;
     if(t<0.25){ ctx.save(); ctx.globalAlpha=0.35*(1-Math.abs(t*8-1)); ctx.fillStyle='#fff';
@@ -604,7 +606,7 @@
       else if(d.kind==='arrival') arrivalArch(d);
     }
     fireflies(B);
-    for(const l of B.labels) drawText(l.text, X(l.x), Y(l.y), '#f0d8a8', 1);
+    for(const l of B.labels) B.wtext(drawText, l.text, X(l.x), Y(l.y), '#f0d8a8', 1);
     choirTick(B);
   }
 
