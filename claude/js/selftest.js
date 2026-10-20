@@ -1,0 +1,539 @@
+// ============================================================
+//  Mind & Venture — selftest.js   (automated bot + glitch catcher)
+//
+//  GATED: ?selftest=1, sessionStorage mv_selftest, or MV_SELFTEST.start()
+// ============================================================
+(function(){
+  var ENABLED = /[?&]selftest/i.test(location.search)
+    || window.MV_SELFTEST_AUTOSTART
+    || sessionStorage.getItem('mv_selftest')==='1'
+    || window.__MV_FORCE_SELFTEST;
+
+  function stub(){ window.MV_SELFTEST = window.MV_SELFTEST || { start: boot, stop: stop }; }
+  if(!ENABLED){ stub(); return; }
+
+  var CI = /[?&]ci/i.test(location.search);
+  var QUICK = /[?&]quick/i.test(location.search);
+  var RUN_FRAMES = QUICK ? 1200 : (CI ? 1800 : 3600);
+  var CAP_PER_TYPE = 25;
+  var SLOW_MS = 12;
+  var JITTER_TOL = 0.6;
+  var STUCK_DX = 6;
+  var STUCK_WIN = 60;
+  var MENU_TICK_MS = CI ? 280 : 420;
+
+  var armed=false, running=false, lf=0, t0=0, lastMenu=0;
+  var _orig=null, _origDraw=null, _origReadGP=null, renderFrames=0;
+  var violations={}, perf={maxUpdateMs:0, slowFrames:0};
+  var phaseIdx=0, phaseFrame=0, jumpHold=0, baselineY=null, idleMaxDev=0;
+  var xHist=[];
+
+  // Start walking immediately so it's obvious the bot is driving.
+  var PHASES=[
+    {name:'walkR', dur:120},
+    {name:'idle',  dur:30},
+    {name:'walkR', dur:420},
+    {name:'crouch',dur:50},
+    {name:'walkR', dur:520},
+    {name:'walkR', dur:480},
+    {name:'jumpR', dur:120},
+    {name:'walkR', dur:360},
+    {name:'walkR', dur:300}
+  ];
+
+  function bind(name, fallback){
+    try{
+      if(typeof OPT!=='undefined' && OPT.binds && OPT.binds[name] && OPT.binds[name][0])
+        return OPT.binds[name][0];
+    }catch(e){}
+    return fallback;
+  }
+  function codes(){
+    return {
+      L: bind('left','KeyA'), R: bind('right','KeyD'),
+      D: bind('down','KeyS'), J: bind('jump','Space')
+    };
+  }
+
+  function rec(type, extra){
+    var arr = violations[type] || (violations[type]=[]);
+    if(arr.length>=CAP_PER_TYPE){ arr._more=(arr._more||0)+1; return; }
+    var pl = (typeof p!=='undefined')?p:null;
+    var s = { f: lf };
+    if(pl){ s.x=Math.round(pl.x); s.y=Math.round(pl.y); s.vx=+(pl.vx||0).toFixed(2); s.vy=+(pl.vy||0).toFixed(2); s.og=!!pl.og; }
+    if(extra) for(var k in extra) s[k]=extra[k];
+    arr.push(s);
+  }
+
+  function solids(){
+    try{ if(typeof allP==='function') return allP().filter(function(q){return q.tp==='solid';}); }catch(e){}
+    return [];
+  }
+
+  function checkCampaignContent(){
+    if(lf!==120) return;
+    if(typeof _mapRopePickup==='undefined'||!_mapRopePickup) rec('rcaMissing',{});
+    if(typeof _spawnX==='number'){
+      var sc=(typeof TILED_WORLD_SCALE!=='undefined'?TILED_WORLD_SCALE:4);
+      var spawnCol=Math.floor((_spawnX+(typeof SW!=='undefined'?SW:64)*0.5)/(8*sc));
+      if(spawnCol<28||spawnCol>34) rec('spawnNotHouse2',{col:spawnCol});
+    }
+    if(typeof GOALPL!=='undefined'&&GOALPL.x!=null&&GOALPL.x<2800) rec('goalNotHouse5',{x:GOALPL.x});
+    var slopeE=(_mapEnemyDefs||[]).some(function(e){ return e&&e.col===17; });
+    if(!slopeE) rec('slopeEnemyMissing',{});
+    var slopeCluster=(_mapEnemyDefs||[]).filter(function(e){ return e&&e.col>=12&&e.col<=20; }).length;
+    if(slopeCluster>1) rec('tooManySlopeEnemies',{n:slopeCluster});
+    var slopeDef=(_mapEnemyDefs||[]).find(function(e){ return e&&e.col===17; });
+    if(slopeDef&&!(slopeDef.kit&&slopeDef.kit.length===1&&slopeDef.kit[0]===0)) rec('slopeEnemyKit',{kit:slopeDef.kit});
+    var islandSquare=(_mapMinionDefs||[]).some(function(d){ return d&&d._awdjooIsland&&d.kind==='square'; });
+    if(!islandSquare) rec('islandSquareMissing',{});
+    var islandLive=(typeof ENEMS!=='undefined'?ENEMS:[]).some(function(e){ return e&&e._awdjooIsland&&e.type==='square'&&e.alive; });
+    if(!islandLive) rec('islandSquareNotSpawned',{});
+    var hillCircle=(_mapMinionDefs||[]).some(function(d){ return d&&d._awdjooHill&&d.kind==='circle'; });
+    if(!hillCircle) rec('hillCircleMissing',{});
+    var hillLive=(typeof ENEMS!=='undefined'?ENEMS:[]).some(function(e){ return e&&e._awdjooHill&&e.type==='circle'&&e.alive; });
+    if(!hillLive) rec('hillCircleNotSpawned',{});
+    if(typeof _knowlTreeZone==='undefined'||!_knowlTreeZone) rec('knowlTreeMissing',{});
+    var islandPlat=(typeof APLAT!=='undefined'?APLAT:[]).find(function(a){ return a&&a._awdjooIsland; });
+    if(!islandPlat) rec('movingIslandMissing',{});
+    else if(islandPlat.y>2080) rec('islandTooLow',{y:Math.round(islandPlat.y)});
+  }
+
+  function checkSlopeAndOpening(){
+    if(lf!==90) return;
+    if(typeof _gridReady!=='function'||!_gridReady()||!MV_GRID) return;
+    var t=MV_GRID.tile, found=null, slopeCount=0;
+    for(var r=0;r<MV_GRID.rows;r++){
+      for(var c=0;c<MV_GRID.cols;c++){
+        if(gridCell(c,r)!==MV_GRID_SLOPE_L&&gridCell(c,r)!==MV_GRID_SLOPE_R) continue;
+        slopeCount++;
+        if(!found) found={c:c,r:r,s:gridSlopeAt(c,r)};
+      }
+    }
+    if(slopeCount<8) rec('slopeMissing',{count:slopeCount});
+    var ride=null;
+    for(r=0;r<MV_GRID.rows;r++){
+      for(c=0;c<MV_GRID.cols;c++){
+        if(gridCell(c,r)!==MV_GRID_SLOPE_L&&gridCell(c,r)!==MV_GRID_SLOPE_R) continue;
+        var ss=gridSlopeAt(c,r); if(!ss) continue;
+        var mx=(ss.x1+ss.x2)*0.5, my=(ss.y1+ss.y2)*0.5;
+        if(mx>620&&mx<920&&my>2140&&my<2460){ ride={c:c,r:r,s:ss}; break; }
+      }
+      if(ride) break;
+    }
+    if(!ride) ride=found;
+    if(ride&&ride.s){
+      var s=ride.s, wx=(s.x1+s.x2)*0.5, sy=gridSlopeY(ride.c,ride.r,wx);
+      var hbw=(typeof HBW!=='undefined')?HBW:52;
+      var stand=(typeof STAND_H!=='undefined')?STAND_H:70;
+      var wr=(typeof WHEEL_R!=='undefined')?WHEEL_R:20;
+      var hullH=stand+wr;
+      function tryRide(dx){
+        var body={x:wx-hbw*0.5, y:sy-hullH, w:hbw, h:hullH, feetY:sy, vx:0, vy:0, onGround:true, slopeAng:0, _hitX:false, _hitY:false};
+        gridMoveSwept(body, dx, Math.abs(dx)*0.8);
+        return body;
+      }
+      var right=tryRide(16), left=tryRide(-16);
+      var moved=Math.max(right.x-(wx-hbw*0.5), (wx-hbw*0.5)-left.x);
+      if(moved<4) rec('slopeBlocked',{x0:Math.round(wx), right:Math.round(right.x), left:Math.round(left.x)});
+      var nsy=gridSlopeY(Math.floor((right.x+right.w*0.5)/t), Math.floor((right.feetY-0.001)/t), right.x+right.w*0.5);
+      if(nsy!=null && Math.abs(right.feetY-nsy)>6 && moved>=4) rec('slopeMiss',{feet:Math.round(right.feetY), surf:Math.round(nsy)});
+      var drop={x:wx-hbw*0.5, y:sy-hullH, w:hbw, h:hullH, feetY:sy, vx:0, vy:8, onGround:true, slopeAng:0, _hitX:false, _hitY:false, wheelR:wr};
+      if(typeof gridResolvePlayer==='function'){
+        // Resolve a raw body through the same sweep the living actors use.
+        gridMoveSwept(drop, 2, 8);
+        if(typeof gridFollowSlope==='function') gridFollowSlope(drop, true);
+      }else{
+        gridMoveSwept(drop, 2, 8);
+      }
+      var dropSurf=gridSlopeY(Math.floor((drop.x+drop.w*0.5)/t), Math.floor((drop.feetY-0.001)/t), drop.x+drop.w*0.5);
+      if(!drop.onGround || (dropSurf!=null && drop.feetY>dropSurf+10) || drop.feetY>sy+t*2){
+        rec('slopeFallThrough',{feet:Math.round(drop.feetY), surf:dropSurf!=null?Math.round(dropSurf):null, start:Math.round(sy)});
+      }
+    }
+    var roofFeet=2176, roofWx=1088, wr=(typeof WHEEL_R!=='undefined')?WHEEL_R:20;
+    var roofH=(typeof STAND_H!=='undefined'?STAND_H:70)+wr;
+    var roof0=roofWx-wr;
+    var roofBody={x:roof0,y:roofFeet-roofH,w:wr*2,h:roofH,feetY:roofFeet,vx:0,vy:0,onGround:true,slopeAng:0,wheelR:wr,wheelCx:roofWx};
+    if(typeof gridMoveSwept==='function'){
+      gridMoveSwept(roofBody, 40, 1);
+      if(roofBody.x<roof0+6) rec('roofStuckRight',{x:Math.round(roofBody.x),x0:Math.round(roof0)});
+      roofBody.x=roof0; roofBody.feetY=roofFeet; roofBody.y=roofFeet-roofH; roofBody._hitX=false;
+      gridMoveSwept(roofBody, -40, 1);
+      if(roofBody.x>roof0-6) rec('roofStuckLeft',{x:Math.round(roofBody.x),x0:Math.round(roof0)});
+    }
+    var doorX=848, doorY=2240, gap=0, guard=0;
+    var col=Math.floor(doorX/t), row=Math.floor(doorY/t);
+    while(!gridSolid(col,row) && col<MV_GRID.cols && guard++<64){ gap+=t; col++; }
+    col=Math.floor(doorX/t)-1;
+    while(col>=0 && !gridSolid(col,row) && guard++<128){ gap+=t; col--; }
+    var need=(typeof HBW!=='undefined')?HBW:52;
+    if(gap<need) rec('openingTooTight',{gap:gap, need:need});
+  }
+
+  var _slopeCornerOnce=false;
+
+  function checkSlopeCorner(){
+    if(_slopeCornerOnce || lf!==8) return;
+    _slopeCornerOnce=true;
+    if(typeof gridSelftestSlopeCorner!=='function') return;
+    try{
+      var r=gridSelftestSlopeCorner();
+      if(!r||!r.ok) rec('slopeCorner', r||{ok:false});
+    }catch(e){ rec('slopeCorner',{ok:false,msg:String(e&&e.message||e)}); }
+  }
+
+  function checkOmniblockCorner(){
+    if(lf<400||lf%30!==0) return;
+    var pl=(typeof p!=='undefined')?p:null;
+    if(!pl) return;
+    var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
+    var feet=pl.y+FO;
+    if(pl.x<860||pl.x>980||feet<2380||feet>2460) return;
+    if((pl._grindF||0)>=3&&Math.abs(pl.vx||0)>1.5) rec('omniblockCorner',{x:Math.round(pl.x),y:Math.round(pl.y),feet:Math.round(feet),vx:+(pl.vx||0).toFixed(2),grind:pl._grindF});
+  }
+
+  function checkBasementReach(){
+    if(lf!==1100 && lf!==RUN_FRAMES-1) return;
+    if(typeof _mapRopePickup==='undefined'||!_mapRopePickup) return;
+    var r=_mapRopePickup, pl=(typeof p!=='undefined')?p:null;
+    if(!pl||!r) return;
+    if(typeof _gridReady==='function'&&_gridReady()&&typeof gridSolid==='function'){
+      var t=MV_GRID.tile, col=Math.floor((pl.x+(typeof SW!=='undefined'?SW:64)*0.5)/t);
+      var from=Math.floor((pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88))/t);
+      var to=Math.floor((r.y+(r.h||0)*0.5)/t);
+      var drop=0;
+      for(var rr=from;rr<to;rr++){
+        if(!gridSolid(col,rr)&&!gridIsSlope(col,rr)) drop++;
+        else break;
+      }
+      if(drop<3) return;
+    }
+    var rx=r.x+(r.w||0)*0.5, ry=r.y+(r.h||0)*0.5;
+    var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
+    var px=pl.x+(typeof SW!=='undefined'?SW:64)*0.5, py=pl.y+FO;
+    var dist=Math.hypot(px-rx, py-ry);
+    if(Math.abs(px-rx)>96) rec('basementUnreachable',{dist:Math.round(dist), reason:'horizontal', px:Math.round(pl.x), py:Math.round(pl.y), rx:Math.round(rx), ry:Math.round(ry)});
+    else if(py<ry-420) rec('basementUnreachable',{dist:Math.round(dist), reason:'vertical', px:Math.round(pl.x), py:Math.round(pl.y), rx:Math.round(rx), ry:Math.round(ry)});
+  }
+
+  function checkInvariants(phase){
+    var pl=(typeof p!=='undefined')?p:null;
+    if(!pl) return;
+    var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
+    if(!Number.isFinite(pl.x)||!Number.isFinite(pl.y)){ rec('nonFinite'); return; }
+    if(!Number.isFinite(pl.vx)||!Number.isFinite(pl.vy)){ rec('nonFinite'); return; }
+    if(typeof WH!=='undefined' && pl.y+FO > WH+200) rec('fellOutOfWorld');
+    if(pl._wasOg && !pl.og && (pl.vy||0)>1.2 && Math.abs(pl.vx||0)<9){
+      var wt0=null;
+      try{ if(typeof _wallTouchInfo==='function') wt0=_wallTouchInfo(pl); }catch(e){}
+      if(!wt0||!wt0.touch) rec('airLaunch',{vy:+(pl.vy||0).toFixed(2), vx:+(pl.vx||0).toFixed(2)});
+    }
+    pl._wasOg=!!pl.og;
+    if(pl._prevCheckY!=null && pl.og && Math.abs(pl.y-pl._prevCheckY)>28 && Math.abs(pl.vy||0)<0.6){
+      rec('groundSnap',{dy:Math.round(pl.y-pl._prevCheckY)});
+    }
+    pl._prevCheckY=pl.y;
+    try{
+      if(typeof _gridReady==='function'&&_gridReady()&&typeof gridPlayerOverlapsSolid==='function'){
+        if(gridPlayerOverlapsSolid(pl)) rec('embeddedSolid',{});
+      }else if(typeof playerCoreHB==='function'){
+        var b=playerCoreHB(pl), bx=b.x+b.w/2, by=b.y+b.h/2, S=solids();
+        for(var i=0;i<S.length;i++){
+          var r=S[i];
+          if(bx>r.x+2 && bx<r.x+r.w-2 && by>r.y+2 && by<r.y+r.h-2){
+            rec('wallClip', {depth:Math.round(Math.min(bx-r.x, r.x+r.w-bx, by-r.y, r.y+r.h-by))});
+            break;
+          }
+        }
+      }
+    }catch(e){}
+    if((phase==='walkR'||phase==='walkL') && (K[codes().R]||K[codes().L])){
+      var embedded=false, intoWall=false;
+      try{
+        if(typeof gridPlayerOverlapsSolid==='function') embedded=gridPlayerOverlapsSolid(pl);
+        var wt=typeof _wallTouchInfo==='function'?_wallTouchInfo(pl):null;
+        intoWall=!!(wt&&wt.touch);
+      }catch(e){}
+      pl._inputStuck=(pl._inputStuck||0)+1;
+      if(Math.abs(pl.x-(pl._stuckX0!=null?pl._stuckX0:pl.x))>4){ pl._inputStuck=0; pl._stuckX0=pl.x; }
+      else if(pl._stuckX0==null) pl._stuckX0=pl.x;
+      if((pl._inputStuck||0)>18 && Math.abs(pl.vx||0)<0.15 && (embedded || (!intoWall && !!pl.og && !pl._onSlope))){
+        var atEdge=(typeof WW!=='undefined')&&(pl.x<6||pl.x>WW-(typeof SW!=='undefined'?SW:64)-2);
+        var huntingDrop=false;
+        try{
+          var rca=(typeof _mapRopePickup!=='undefined')?_mapRopePickup:null;
+          if(rca&&lf>280){
+            var rcy=rca.y+(rca.h||0)*0.5;
+            huntingDrop=(pl.y+FO)<rcy-72;
+          }
+        }catch(e2){}
+        if(!atEdge&&!huntingDrop) rec('frozenInput',{frames:pl._inputStuck, embedded:!!embedded, intoWall:!!intoWall});
+      }
+    }else{ pl._inputStuck=0; pl._stuckX0=undefined; }
+    if(pl.og && Math.abs(pl.vy||0)<0.3 && typeof gridStandY==='function' && typeof _gridReady==='function' && _gridReady()){
+      try{
+        var feetY=pl.y+FO;
+        var surf=gridStandY(pl.x+(typeof SW!=='undefined'?SW:64)*0.5, feetY, {maxUp:8,maxDrop:8});
+        if(surf!=null && Math.abs(feetY-surf)>1.5) rec('floatFeet',{gap:+(feetY-surf).toFixed(2), feet:Math.round(feetY), top:Math.round(surf)});
+      }catch(e){}
+    }
+    if(lf===240 && typeof _gridReady==='function'&&_gridReady()){
+      var oldY=pl.y;
+      pl.vy=16;
+      try{ if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(pl,0,16); }catch(e){}
+      if(typeof gridPlayerOverlapsSolid==='function'&&gridPlayerOverlapsSolid(pl)) rec('tunnelFall',{});
+      if(pl.y>oldY+400) rec('tunnelFall',{dy:Math.round(pl.y-oldY)});
+    }
+    if(lf===260 && typeof _gridReady==='function'&&_gridReady()&&typeof MV_GRID!=='undefined'&&MV_GRID){
+      var t=MV_GRID.tile, col=Math.floor((pl.x+(typeof SW!=='undefined'?SW:64)*0.5)/t);
+      var row=Math.floor((pl.y+FO)/t);
+      pl.y=row*t-(typeof FEET_OFF!=='undefined'?FEET_OFF:88)+8;
+      try{
+        if(typeof gridDepenetrate==='function'){
+          var body=gridPlayerBody(pl);
+          gridDepenetrate(body);
+          gridWritePlayer(pl, body);
+        }
+      }catch(e){}
+      if(typeof gridPlayerOverlapsSolid==='function'&&gridPlayerOverlapsSolid(pl)) rec('embedRecoverFail',{});
+    }
+    if(phase==='idle' && pl.og && (pl._grindF||0)<1 && Math.abs(pl.vy||0)<0.25){
+      if(baselineY==null && phaseFrame>12) baselineY=pl.y;
+      if(baselineY!=null){
+        const step=Math.abs(pl.y-(pl._idlePrevY??pl.y));
+        if(step>10){ baselineY=pl.y; }
+        else{
+          const dev=Math.abs(pl.y-baselineY);
+          if(dev>idleMaxDev) idleMaxDev=dev;
+          if(dev>JITTER_TOL && dev<6) rec('idleJitter',{dev:+dev.toFixed(2)});
+        }
+      }
+      pl._idlePrevY=pl.y;
+    }else{ baselineY=null; pl._idlePrevY=undefined; }
+    if((phase==='walkR'||phase==='walkL'||phase==='jumpR'||phase==='jumpL') && pl.og){
+      xHist.push(pl.x); if(xHist.length>STUCK_WIN) xHist.shift();
+      if(xHist.length===STUCK_WIN){
+        var dx=Math.abs(pl.x-xHist[0]);
+        var atEdge = (typeof WW!=='undefined') && (pl.x<6 || pl.x>WW-64);
+        var pushing=(phase.indexOf('R')>=0&&K[codes().R])||(phase.indexOf('L')>=0&&K[codes().L]);
+        var grinding=((pl._grindF||0)>=4)||(pushing && Math.abs(pl.vx||0)>1.8 && dx<3);
+        var huntingDrop=false;
+        try{
+          var rca=(typeof _mapRopePickup!=='undefined')?_mapRopePickup:null;
+          if(rca&&lf>280){
+            var rcy=rca.y+(rca.h||0)*0.5;
+            huntingDrop=(pl.y+FO)<rcy-72;
+          }
+        }catch(e){}
+        if(grinding && !atEdge && !huntingDrop && dx<STUCK_DX && Math.abs(pl.vy||0)<0.5) rec('stuckWalking',{dir:(phase.indexOf('R')>=0?'right':'left'), dx:Math.round(dx), vx:+(pl.vx||0).toFixed(2)});
+      }
+    }else xHist.length=0;
+  }
+
+  function driveInput(phase){
+    var c=codes();
+    K[c.L]=false; K[c.R]=false; K[c.D]=false;
+    if(jumpHold>0){ K[c.J]=true; jumpHold--; } else { K[c.J]=false; }
+    var pl=(typeof p!=='undefined')?p:null;
+    var r=(typeof _mapRopePickup!=='undefined')?_mapRopePickup:null;
+    if(pl&&r&&lf>280){
+      var FO=(typeof FEET_OFF!=='undefined')?FEET_OFF:88;
+      var SWid=(typeof SW!=='undefined')?SW:64;
+      var rx=r.x+(r.w||0)*0.5, ry=r.y+(r.h||0)*0.5;
+      var px=pl.x+SWid*0.5, py=pl.y+FO;
+      if(Math.abs(px-rx)<52 && py<ry-72){
+        if(phaseFrame%110<58) K[c.R]=true;
+        else K[c.L]=true;
+        if(phaseFrame%64===0){ Kj[c.J]=true; K[c.J]=true; jumpHold=6; }
+        try{
+          var pk=bind('punch','KeyF');
+          if(phaseFrame%28===0) Kj[pk]=true;
+        }catch(e){}
+      }else if(py<ry-80){
+        if(px>rx+40) K[c.L]=true;
+        else if(px<rx-24) K[c.R]=true;
+        else K[c.R]=true;
+      }else if(px<rx-16) K[c.R]=true;
+      else if(px>rx+16) K[c.L]=true;
+      if(phase==='crouch') K[c.D]=true;
+      if((phase==='jumpR'||phase==='jumpL') && phaseFrame>0 && phaseFrame%48===0){
+        Kj[c.J]=true; K[c.J]=true; jumpHold=8;
+      }
+      return;
+    }
+    if(phase==='walkR'||phase==='jumpR') K[c.R]=true;
+    if(phase==='walkL'||phase==='jumpL') K[c.L]=true;
+    if(phase==='crouch') K[c.D]=true;
+    if((phase==='jumpR'||phase==='jumpL') && phaseFrame>0 && phaseFrame%48===0){
+      Kj[c.J]=true; K[c.J]=true; jumpHold=8;
+    }
+  }
+
+  function curPhase(){ return PHASES[phaseIdx % PHASES.length]; }
+  function advancePhase(){
+    phaseFrame++;
+    if(phaseFrame >= curPhase().dur){
+      phaseIdx++; phaseFrame=0; baselineY=null; idleMaxDev=0; xHist.length=0;
+    }
+  }
+
+  function hud(extra){
+    var ph=curPhase();
+    var c=codes();
+    var keys=(K[c.R]?'R':'')+(K[c.L]?'L':'')+(K[c.D]?'D':'')+(K[c.J]?'J':'')||'-';
+    overlay(
+      'SELF-TEST RUNNING\n'+
+      'phase '+ph.name+'  '+phaseFrame+'/'+ph.dur+'  keys '+keys+'\n'+
+      'logic frame '+lf+' / '+RUN_FRAMES+
+      (extra?'\n'+extra:'')
+    );
+  }
+
+  function wrappedReadGamepad(){
+    if(running) driveInput(curPhase().name);
+    else if(_origReadGP) _origReadGP();
+  }
+
+  function wrappedUpdate(){
+    var ph=curPhase().name;
+    driveInput(ph);
+    var ts=(typeof performance!=='undefined')?performance.now():Date.now();
+    try{ _orig(); }
+    catch(err){ rec('updateException',{msg:String(err&&err.message||err)}); }
+    var dt=((typeof performance!=='undefined')?performance.now():Date.now())-ts;
+    if(dt>perf.maxUpdateMs) perf.maxUpdateMs=+dt.toFixed(2);
+    if(dt>SLOW_MS) perf.slowFrames++;
+    try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); checkSlopeAndOpening(); checkSlopeCorner(); }catch(e){}
+    if(typeof p!=='undefined'&&p&&(p._grindF||0)>=4&&phaseFrame>36){
+      phaseIdx++; phaseFrame=0; baselineY=null; idleMaxDev=0; xHist.length=0;
+    }else advancePhase();
+    lf++;
+    if(lf%12===0) hud();
+    if(lf>=RUN_FRAMES) finish();
+  }
+
+  function wrappedDraw(){ renderFrames++; try{ _origDraw(); }catch(e){} }
+
+  function overlay(txt, color){
+    var d=document.getElementById('mvSelfTestHud');
+    if(!d){
+      d=document.createElement('div'); d.id='mvSelfTestHud';
+      d.style.cssText='position:fixed;left:6px;top:6px;z-index:99999;max-width:46vw;'+
+        'font:11px/1.35 monospace;white-space:pre-wrap;padding:6px 8px;border-radius:4px;'+
+        'background:rgba(0,0,0,0.82);color:#7CFC7C;border:1px solid #2a6';
+      document.body.appendChild(d);
+    }
+    d.style.color=color||'#7CFC7C';
+    d.textContent=txt;
+  }
+
+  function autoMenu(){
+    try{
+      if(typeof _unlockAudio==='function') _unlockAudio();
+      if(typeof _gameState==='undefined') return 'waiting…';
+      if(_gameState==='title'){
+        if(typeof startStoryMode==='function') startStoryMode();
+        return 'auto: story mode';
+      }
+      if(_gameState==='story'){
+        if(typeof startGame==='function') startGame();
+        return 'auto: story page '+((typeof _storyPage!=='undefined')?_storyPage:'?');
+      }
+      if(_gameState==='select'){
+        if(typeof _selectStep!=='undefined' && _selectStep===0){
+          if(typeof _playModeIdx!=='undefined') _playModeIdx=0;
+          if(typeof _playerCount!=='undefined') _playerCount=1;
+        } else if(typeof _heroChoice!=='undefined') _heroChoice='mind';
+        if(typeof startGame==='function') startGame();
+        return 'auto: hero select step '+((typeof _selectStep!=='undefined')?_selectStep:'?');
+      }
+      if(_gameState==='cutscene'){
+        if(typeof _advanceCutscene==='function') _advanceCutscene();
+        return 'auto: cutscene';
+      }
+      return null;
+    }catch(e){ return 'menu error: '+e.message; }
+  }
+
+  function start(){
+    if(running) return;
+    if(typeof update!=='function'){ overlay('SELF-TEST: update() not found','#f88'); return; }
+    _orig=update; update=wrappedUpdate;
+    if(typeof draw==='function'){ _origDraw=draw; draw=wrappedDraw; }
+    if(typeof readGamepad==='function'){ _origReadGP=readGamepad; readGamepad=wrappedReadGamepad; }
+    window.__MV_SELFTEST_ACTIVE=true;
+    running=true; lf=0; t0=Date.now(); renderFrames=0;
+    violations={}; perf={maxUpdateMs:0,slowFrames:0};
+    phaseIdx=0; phaseFrame=0; jumpHold=0; baselineY=null; idleMaxDev=0; xHist.length=0;
+    _slopeCornerOnce=false;
+    if(typeof p!=='undefined'&&p) p._idlePrevY=undefined;
+    if(typeof p!=='undefined'&&p){ p._wasOg=false; p._prevCheckY=undefined; }
+    hud('bot driving — character should walk right');
+    console.info('MV self-test started');
+  }
+
+  function finish(){
+    if(!running) return;
+    running=false;
+    window.__MV_SELFTEST_ACTIVE=false;
+    if(_orig) update=_orig;
+    if(_origDraw) draw=_origDraw;
+    if(_origReadGP) readGamepad=_origReadGP;
+    var secs=(Date.now()-t0)/1000;
+    var counts={}, samples={};
+    for(var k in violations){ counts[k]=violations[k].length+(violations[k]._more||0); samples[k]=violations[k].slice(0,8); }
+    var report={
+      build:(window.MV_BUILD||'?'),
+      logicFrames:lf, durationS:+secs.toFixed(1),
+      logicHz:+(lf/secs).toFixed(1), renderHz:+(renderFrames/secs).toFixed(1),
+      idleMaxDevPx:+idleMaxDev.toFixed(2), perf:perf,
+      violationCounts:counts, samples:samples,
+      demo:(typeof _awdjooLevelSnapshot==='function'?_awdjooLevelSnapshot():(typeof _demoSnapshot==='function'?_demoSnapshot():null)),
+      health:(window.__MV_HEALTH?window.__MV_HEALTH.summary():null)
+    };
+    window.__mvReport=report;
+    window.__MV_SELFTEST_DONE=true;
+    try{ localStorage.setItem('mv_selftest_report', JSON.stringify(report)); }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent('mv-selftest-done',{detail:report})); }catch(e){}
+    console.log('%cMV SELF-TEST REPORT','color:#0f0;font-weight:bold');
+    console.table(counts);
+    console.log('MV_SELFTEST_REPORT '+JSON.stringify(report));
+    var human='SELF-TEST DONE  build '+report.build+'\n'+
+      'logic '+report.logicHz+'Hz · render '+report.renderHz+'Hz · '+report.durationS+'s\n'+
+      'idle wobble max '+report.idleMaxDevPx+'px · slowFrames '+perf.slowFrames+'\n';
+    var any=false;
+    for(var t in counts){ any=true; human+='  '+t+': '+counts[t]+'\n'; }
+    if(!any) human+='  none flagged\n';
+    human+='\n(copy "MV_SELFTEST_REPORT" line from console)';
+    overlay(human, any?'#ffcf6b':'#7CFC7C');
+  }
+
+  function stop(){ if(running) finish(); }
+
+  function boot(){
+    if(armed) return; armed=true;
+    overlay('SELF-TEST ARMED\nAuto-starting story → level…\n(watch for WALK RIGHT)');
+    var tries=0;
+    (function poll(){
+      tries++;
+      var gs=(typeof _gameState!=='undefined')?_gameState:'?';
+      if(!running){
+        var now=Date.now();
+        if(now-lastMenu>MENU_TICK_MS){
+          lastMenu=now;
+          var msg=autoMenu();
+          if(msg) overlay('SELF-TEST ARMED\n'+msg+'\nstate: '+gs);
+        }
+      }
+      var ready = gs==='game' && (typeof p!=='undefined') && p;
+      if(ready && !running){ start(); return; }
+      if(tries>60*60*8){ overlay('SELF-TEST: timed out waiting for gameplay','#f88'); return; }
+      requestAnimationFrame(poll);
+    })();
+  }
+
+  window.MV_SELFTEST={ start: boot, stop: stop, get report(){ return window.__mvReport; } };
+  if(document.readyState==='complete') setTimeout(boot, 400);
+  else window.addEventListener('load', function(){ setTimeout(boot, 400); });
+})();

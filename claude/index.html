@@ -1,0 +1,314 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!DOCTYPE html>
+<html lang="en" data-ab="a">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mind & Venture">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#04020a">
+<meta name="description" content="Mind & Venture — a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
+<link rel="canonical" href="https://paulooventura.github.io/MV2/">
+<meta property="og:title" content="Mind & Venture">
+<meta property="og:description" content="Play Mind & Venture in your browser — a sentient studio monitor on a wheel, exploring Awdjoo Town.">
+<meta property="og:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
+<meta property="og:url" content="https://paulooventura.github.io/MV2/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mind & Venture">
+<meta name="twitter:description" content="Play in your browser — platformer by Paulo Ventura.">
+<meta name="twitter:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Mind &amp; Venture</title>
+<script>window.MV_BUILD='180';</script>
+<script src="js/phone.js?v=135"></script>
+<script>
+if(location.protocol==='file:'){
+  document.addEventListener('DOMContentLoaded',function(){
+    var v=document.getElementById('mvVer');
+    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// — close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
+  });
+}
+</script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/story/title-key-art.png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{min-height:100%;overscroll-behavior:none;}
+body{background:#04020a;display:flex;flex-direction:column;align-items:center;
+  padding:8px;font-family:ui-monospace,Consolas,monospace;gap:6px;}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;
+  -ms-interpolation-mode:nearest-neighbor;max-width:100%;width:100%;height:auto;
+  border:1px solid #1a1a30;cursor:crosshair;touch-action:none;}
+.row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.acts-row{display:flex;gap:6px;align-items:center;}
+.devrow{display:flex;gap:6px;align-items:center;}
+.ph{display:none;}
+button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
+  border-radius:2px;font:13px/1.2 ui-monospace,Consolas,monospace;cursor:pointer;touch-action:none;user-select:none;}
+.dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(3,28px);gap:2px;}
+.d-plus,.d-dish,.d-diags{display:none;}
+.d-hub{background:#1a1a24;border-radius:4px;}
+#rotateHint{display:none;}
+@media (max-width:1100px){
+  body{padding:4px;gap:3px;}
+  button{padding:8px 12px;font-size:11px;min-height:44px;}
+  .dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px);}
+}
+@media (display-mode:standalone){
+  body{padding:2px;gap:2px;}
+  #mvVer{display:none;}
+}
+#battleHud{display:none;box-sizing:border-box;position:fixed;top:0;left:0;right:0;z-index:9000;padding:18px 22px;background:linear-gradient(180deg,#1a0a22 0%,#120a1a 88%,transparent 100%);border-bottom:4px solid #e44;font-family:Segoe UI,system-ui,sans-serif;color:#fff;pointer-events:none;}
+#battleHud .bh-title{font-size:clamp(32px,7vw,52px);font-weight:800;color:#f88;letter-spacing:.05em;margin-bottom:10px;text-align:center;text-shadow:0 2px 8px #000;}
+#battleHud .bh-row{display:flex;justify-content:center;gap:clamp(16px,5vw,48px);flex-wrap:wrap;font-size:clamp(26px,5.5vw,42px);font-weight:800;}
+#battleHud .bh-kills{color:#8feb8f;text-shadow:0 1px 4px #000;}
+#battleHud .bh-deaths{color:#faa;text-shadow:0 1px 4px #000;}
+#battleHud .bh-hp{color:#fff;text-shadow:0 1px 4px #000;}
+#battleHud .bh-rival{margin-top:12px;text-align:center;font-size:clamp(28px,6vw,44px);font-weight:800;color:#fc8;text-shadow:0 2px 6px #000;}
+#gameWrap{position:relative;display:inline-block;max-width:100%;}
+/* Delivered game (Oct 2026): no debug readouts; SNES-style controls strip; the
+   on-screen pad only on touch screens. */
+#mvVer,#inf{display:none!important;}
+.mv-controls{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;max-width:1100px;margin:8px auto 0;
+  font:600 12px/1.6 system-ui,sans-serif;color:#9c8cc8;}
+.mv-controls kbd{font:700 11px/1 ui-monospace,Menlo,monospace;color:#e8e0ff;background:#1a1030;border:1px solid #3a2878;border-bottom-width:2px;border-radius:4px;padding:2px 5px;margin:0 3px}
+.mv-controls i{font:800 11px/18px system-ui,sans-serif;font-style:normal;display:inline-block;width:18px;height:18px;border-radius:50%;text-align:center;color:#fff;margin-right:2px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.3)}
+.mv-controls .pa{background:#2a9a48}.mv-controls .pb{background:#d8302c}.mv-controls .px{background:#3a5ad8}.mv-controls .py{background:#e8b818;color:#3a2a00}
+@media (hover:hover) and (pointer:fine){ html:not(.phone-play) #touchHud{display:none!important;} }
+/* Xbox face buttons on the phone pad: Y top (yellow), X left (blue), B right (red), A bottom (green) */
+
+/* Phone landscape play — full viewport canvas, overlay pads, portrait rotate */
+html.phone-play,html.phone-play body{
+  width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
+  padding:0;gap:0;touch-action:none;-webkit-user-select:none;user-select:none;
+}
+html.phone-play body{position:fixed;inset:0;}
+html.phone-play #mvVer,html.phone-play #inf,html.phone-play #helpLine{display:none!important;}
+html.phone-play .desk{display:none;}
+html.phone-play .ph{display:inline;}
+html.phone-play.land #gameWrap{
+  position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+}
+html.phone-play.land canvas{
+  width:min(100vw,calc(100dvh * 1024 / 768));
+  height:min(100dvh,calc(100vw * 768 / 1024));
+  max-width:100%;max-height:100%;border:none;
+}
+html.phone-play.land #touchHud{
+  position:fixed;inset:0;z-index:30;display:block!important;pointer-events:none;
+  background:none;gap:0;flex-wrap:nowrap;
+}
+html.phone-play.land #padLeft{
+  position:absolute;left:max(8px,env(safe-area-inset-left,0px));
+  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:block;width:168px;height:168px;
+}
+html.phone-play.land #padLeft > .d-hub,html.phone-play.land #padLeft > div:not([class]){display:none;}
+html.phone-play.land #padLeft .d-dish{
+  display:block;position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#4a4a54,#1a1a22 72%);
+  box-shadow:inset 0 3px 10px #000c,0 5px 10px #000a;
+}
+html.phone-play.land #padLeft .d-plus{
+  display:block;position:absolute;inset:4%;
+  background:linear-gradient(180deg,#5a5a66 0%,#2c2c36 50%,#14141c 100%);
+  clip-path:polygon(33% 0,67% 0,67% 33%,100% 33%,100% 67%,67% 67%,67% 100%,33% 100%,33% 67%,0 67%,0 33%,33% 33%);
+}
+html.phone-play.land #padLeft .d-plus:after{
+  content:"";position:absolute;left:50%;top:50%;width:22%;height:22%;
+  margin:-11% 0 0 -11%;border-radius:50%;background:#101018;
+  box-shadow:inset 0 2px 4px #000,0 1px 0 #555;
+}
+html.phone-play.land #padLeft .d-diags{display:block;position:absolute;inset:0;pointer-events:none;}
+html.phone-play.land #padLeft .d-diags span{
+  position:absolute;width:12px;height:12px;
+  border-style:solid;border-color:#d0d0d8;border-width:0 3px 0 0;
+}
+html.phone-play.land #padLeft .d-diags .ne{top:11%;right:11%;height:0;width:14px;border-width:3px 3px 0 0;transform:rotate(8deg);}
+html.phone-play.land #padLeft .d-diags .nw{top:11%;left:11%;height:0;width:14px;border-width:3px 0 0 3px;transform:rotate(-8deg);}
+html.phone-play.land #padLeft .d-diags .se{bottom:11%;right:11%;height:0;width:14px;border-width:0 3px 3px 0;transform:rotate(-8deg);}
+html.phone-play.land #padLeft .d-diags .sw{bottom:11%;left:11%;height:0;width:14px;border-width:0 0 3px 3px;transform:rotate(8deg);}
+html.phone-play.land #padLeft button{
+  position:absolute;width:34%;height:34%;margin:0;padding:0;min-width:0;min-height:0;
+  height:34%!important;background:transparent;border:none;box-shadow:none;
+  color:#d8d8e0;font-size:20px;font-weight:900;border-radius:0;pointer-events:none;
+}
+html.phone-play.land #bU{top:0;left:33%;}
+html.phone-play.land #bDn{bottom:0;left:33%;}
+html.phone-play.land #bL{left:0;top:33%;}
+html.phone-play.land #bR{right:0;top:33%;}
+html.phone-play.land #padLeft button:active{color:#fff;filter:brightness(1.35);}
+html.phone-play.land #padRight{
+  position:absolute;right:max(8px,env(safe-area-inset-right,0px));
+  bottom:max(12px,env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:block;width:118px;height:118px;
+}
+html.phone-play.land #padRight button{
+  position:absolute;width:56px;height:56px!important;min-width:56px;min-height:56px;
+  padding:0;border-radius:50%;font-size:20px;font-weight:900;letter-spacing:0;
+  border:2px solid #0a0a10;box-shadow:0 2px 0 #000,0 4px 8px #0008;
+  -webkit-tap-highlight-color:transparent;
+}
+html.phone-play.land #bF{top:0;left:50%;margin-left:-28px;background:radial-gradient(circle at 32% 28%,#ffe27a,#c89010);color:#221!important;}
+html.phone-play.land #bQ{top:50%;left:0;margin-top:-28px;background:radial-gradient(circle at 32% 28%,#9ad4ff,#1e5fd0);color:#fff!important;}
+html.phone-play.land #bE{top:50%;right:0;margin-top:-28px;background:radial-gradient(circle at 32% 28%,#ff8a8a,#c81c1c);color:#fff!important;}
+html.phone-play.land #bSp{bottom:0;left:50%;margin-left:-28px;background:radial-gradient(circle at 32% 28%,#7ae08a,#1a8a2a);color:#fff!important;}
+html.phone-play.land #padRight button:active{transform:scale(.92);filter:brightness(.85);}
+html.phone-play.land .devrow{
+  position:absolute;top:max(8px,env(safe-area-inset-top,0px));
+  right:max(8px,env(safe-area-inset-right,0px));pointer-events:auto;
+}
+html.phone-play.land .desk-only{display:none!important;}
+html.phone-play.land #touchHud button{-webkit-tap-highlight-color:transparent;}
+html.phone-play.land #bPause{
+  position:absolute;top:max(8px,env(safe-area-inset-top,0px));left:50%;
+  transform:translateX(-50%);pointer-events:auto;min-width:52px;min-height:40px;
+  font-size:20px;font-weight:900;padding:0 12px;border-radius:10px;
+  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);color:#eee;
+}
+html.phone-play.land #bRst{
+  min-width:44px;min-height:36px;font-size:11px;opacity:.8;padding:0 10px;
+  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
+  color:#ff0;border-radius:10px;
+}
+html.phone-play.port #rotateHint{
+  display:flex;position:fixed;inset:0;z-index:100000;background:#04020a;
+  color:#e8d0ff;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;text-align:center;padding:max(24px,env(safe-area-inset-top)) 28px;
+}
+html.phone-play.port #rotateHint .rh-glyph{
+  width:64px;height:108px;border:3px solid #c8a0e8;border-radius:14px;
+  position:relative;animation:rh-spin 1.8s ease-in-out infinite;
+}
+html.phone-play.port #rotateHint .rh-glyph:after{
+  content:"";position:absolute;left:50%;bottom:10px;width:16px;height:4px;
+  margin-left:-8px;border-radius:2px;background:#c8a0e8;
+}
+html.phone-play.port #rotateHint .rh-msg{
+  font:800 22px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em;
+}
+html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,monospace;color:#9a88b8;}
+@keyframes rh-spin{
+  0%,18%{transform:rotate(0deg);}
+  45%,70%{transform:rotate(90deg);}
+  100%{transform:rotate(0deg);}
+}
+@media (max-height:380px){
+  html.phone-play.land #padLeft{width:148px;height:148px;}
+  html.phone-play.land #padRight{width:110px;height:110px;}
+  html.phone-play.land #padRight button{width:52px;height:52px!important;min-width:52px;min-height:52px;font-size:18px;}
+  html.phone-play.land #bE,html.phone-play.land #bSp{margin-left:-26px;}
+  html.phone-play.land #bF,html.phone-play.land #bQ{margin-top:-26px;}
+}
+</style>
+</head>
+<body>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture · Awdjoo · build 138</div>
+<div id="battleHud">
+  <div class="bh-title">BATTLE PRACTICE</div>
+  <div class="bh-row">
+    <span class="bh-kills" id="battleKills">KILLS 0</span>
+    <span class="bh-deaths" id="battleDeaths">DEATHS 0</span>
+    <span class="bh-hp" id="battleHp">HP 100</span>
+  </div>
+  <div class="bh-rival" id="battleRival">VS SIGNOL</div>
+</div>
+<div id="gameWrap">
+<canvas id="c" width="1024" height="768"></canvas>
+</div>
+<div id="inf" style="font-size:14px;color:#8f8;min-height:20px;word-break:break-all;"></div>
+<div id="touchHud" class="row">
+  <div class="dpad" id="padLeft">
+    <div class="d-dish" aria-hidden="true"></div>
+    <div class="d-plus" aria-hidden="true"></div>
+    <div class="d-diags" aria-hidden="true"><span class="nw"></span><span class="ne"></span><span class="sw"></span><span class="se"></span></div>
+    <div></div>
+    <button id="bU" type="button" aria-label="Up"><span class="desk">W↑</span><span class="ph">↑</span></button>
+    <div></div>
+    <button id="bL" type="button" aria-label="Left"><span class="desk">A←</span><span class="ph">←</span></button>
+    <div class="d-hub" aria-hidden="true"></div>
+    <button id="bR" type="button" aria-label="Right"><span class="desk">D→</span><span class="ph">→</span></button>
+    <div></div>
+    <button id="bDn" type="button" aria-label="Down"><span class="desk">S↓</span><span class="ph">↓</span></button>
+    <div></div>
+  </div>
+  <div class="acts" id="padRight">
+    <button id="bQ" type="button" aria-label="X: run and use item"><span class="desk">X</span><span class="ph">X</span></button>
+    <button id="bF" type="button" aria-label="Y: punch"><span class="desk">Y</span><span class="ph">Y</span></button>
+    <button id="bSp" type="button" aria-label="A: jump"><span class="desk">A</span><span class="ph">A</span></button>
+    <button id="bE" type="button" aria-label="B: item select"><span class="desk">B</span><span class="ph">B</span></button>
+  </div>
+  <button id="bPause" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="Pause"><span class="desk">PAUSE</span><span class="ph">☰</span></button>
+  <div class="devrow">
+    <button id="bRst" type="button" aria-label="Restart the stage">↺</button>
+  </div>
+</div>
+<div id="helpLine" class="mv-controls" aria-label="Controls">
+  <span><kbd>←→↑↓</kbd>/<kbd>WASD</kbd> move · aim</span>
+  <span><i class="pa">A</i><kbd>Space</kbd> jump</span>
+  <span><i class="pb">B</i><kbd>E</kbd> item select</span>
+  <span><i class="px">X</i><kbd>Q</kbd> run · use item</span>
+  <span><i class="py">Y</i><kbd>F</kbd> punch</span>
+  <span><kbd>S</kbd> duck</span><span><kbd>Esc</kbd> / ☰ Menu button: pause (resume · options · exit)</span><span><kbd>Tab</kbd> restart stage</span>
+</div>
+<div id="rotateHint">
+  <div class="rh-glyph" aria-hidden="true"></div>
+  <div class="rh-msg">TURN THE PHONE SIDEWAYS</div>
+  <div class="rh-sub">Landscape is the play view</div>
+</div>
+<script>
+window.onerror=function(msg,src,line,col,err){
+  var s=src?String(src):'';
+  if(/inpage\.js|content[_-]?script|extension:\/\/|chrome-extension:|moz-extension:|safari-extension:/i.test(s)) return true;
+  var inf=document.getElementById('inf');
+  if(inf){
+    inf.style.color='#ff0';
+    var file=s?(s.split('/').pop().split('?')[0]):'?';
+    inf.textContent='ERROR: '+msg+' ('+file+':'+line+')';
+  }
+  console.error('MV onerror',msg,src,line,err);
+  return false;
+};
+</script>
+<script src="js/save.js?v=170"></script>
+<script src="js/core.js?v=170"></script>
+<script src="js/audio.js?v=160"></script>
+<script src="js/sound16.js?v=172"></script>
+<script src="js/enemies.js?v=139"></script>
+<script src="js/collision_grid.js?v=154"></script>
+  <script src="js/physics.js?v=174"></script>
+  <script src="js/player.js?v=178"></script>
+  <script src="js/weapons.js?v=154"></script>
+<script src="js/ui.js?v=180"></script>
+  <script src="js/render.js?v=170"></script>
+<script src="js/editor.js?v=125"></script>
+<script src="js/map_edit.js?v=138"></script>
+<script src="js/spawn_fix.js?v=139"></script>
+<script src="js/awdjoo_level.js?v=139"></script>
+<script src="js/healthwatch.js?v=1"></script>
+<script src="js/awdjoo_map.js?v=106"></script>
+<script src="js/main.js?v=180"></script>
+<script src="js/crt_room.js?v=177"></script>
+<script src="js/item_lab.js?v=157"></script>
+<script src="js/physics_lab.js?v=157"></script>
+<script src="js/selftest.js?v=146"></script>
+<script src="js/ldtk_loader.js?v=170"></script>
+<script>window.MV_STORY_STAGES=1;</script>
+<script src="js/beta_audio.js?v=173"></script>
+<script src="js/beta_decor.js?v=179"></script>
+<script src="js/beta_level.js?v=180"></script>
+<script src="js/beta_feel.js?v=170"></script>
+<script src="js/beta_water.js?v=180"></script>
+<script src="js/beta_enemies.js?v=179"></script>
+<script src="js/console16.js?v=177"></script>
+</body>
+</html>
+
+</body></html>

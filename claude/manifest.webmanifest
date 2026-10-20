@@ -1,0 +1,26 @@
+{
+  "name": "Mind & Venture",
+  "short_name": "Mind&Venture",
+  "description": "2D platformer by Paulo Ventura — play in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#04020a",
+  "theme_color": "#04020a",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "assets/story/title-key-art.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/story/title-key-art.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
