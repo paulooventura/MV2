@@ -518,16 +518,53 @@
       ctx.fillStyle='rgba(220,255,240,0.95)'; ctx.fillRect(X(sxp-s),Y(syp),S(s*2+1),S(1)); ctx.fillRect(X(sxp),Y(syp-s),S(1),S(s*2+1));
     }
   }
+  // Knowl crystal (Paulo, Oct 21): sits still at its spawn spot — a little cluster
+  // of faceted green crystal, glossy, with the greens shifting through the facets
+  // like light through a gem, a specular streak and twinkling glints.
+  function gemShard(x,base,w,h,tilt,ph,echo){
+    ctx.save(); ctx.translate(X(x),Y(base)); ctx.rotate(tilt);
+    const W2=S(w)/2, Hh=S(h), sh=Hh*0.74, bw=W2*0.82;
+    const hue=t=>echo?(320+18*Math.sin(t)):(138+22*Math.sin(t));        // the green spectrum (echo: pink)
+    const c=(t,l,a)=>'hsla('+hue(fr*0.03+ph+t).toFixed(1)+',85%,'+l+'%,'+(a==null?1:a)+')';
+    const facet=(pts,g)=>{ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.fillStyle=g; ctx.fill(); };
+    const tip=[0,-Hh], ls=[-W2,-sh], rs=[W2,-sh], lb=[-bw,0], rb=[bw,0], ml=[-W2*0.3,-sh*0.98], mr=[W2*0.3,-sh*0.98], mb=[0,0];
+    let g=ctx.createLinearGradient(-W2,0,0,0); g.addColorStop(0,c(0,22)); g.addColorStop(1,c(0.6,38));
+    facet([ls,ml,mb,lb],g);                                                   // left face (shadow)
+    g=ctx.createLinearGradient(0,-sh,0,0); g.addColorStop(0,c(1.2,72)); g.addColorStop(1,c(1.8,46));
+    facet([ml,mr,mb],g);                                                      // front face (lit)
+    g=ctx.createLinearGradient(0,0,W2,0); g.addColorStop(0,c(2.4,52)); g.addColorStop(1,c(3,30));
+    facet([mr,rs,rb,mb],g);                                                   // right face
+    g=ctx.createLinearGradient(0,-Hh,0,-sh); g.addColorStop(0,c(3.6,88)); g.addColorStop(1,c(4.2,62));
+    facet([tip,rs,mr,ml],g);                                                  // crown, right
+    g=ctx.createLinearGradient(0,-Hh,0,-sh); g.addColorStop(0,c(4.8,80)); g.addColorStop(1,c(5.4,40));
+    facet([tip,ml,ls],g);                                                     // crown, left
+    ctx.strokeStyle=echo?'#3a0c2c':'#06321e'; ctx.lineWidth=Math.max(1,S(1.2)); ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(lb[0],lb[1]); ctx.lineTo(ls[0],ls[1]); ctx.lineTo(tip[0],tip[1]); ctx.lineTo(rs[0],rs[1]); ctx.lineTo(rb[0],rb[1]); ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=Math.max(1,S(0.8));
+    ctx.beginPath(); ctx.moveTo(ml[0],ml[1]); ctx.lineTo(mb[0],mb[1]); ctx.moveTo(mr[0],mr[1]); ctx.lineTo(mb[0],mb[1]); ctx.moveTo(ml[0],ml[1]); ctx.lineTo(mr[0],mr[1]); ctx.stroke();
+    // gloss: a soft specular streak that slides up the front face
+    const gl=(Math.sin(fr*0.035+ph)+1)/2;
+    ctx.fillStyle='rgba(255,255,255,'+(0.35+0.35*gl).toFixed(3)+')';
+    ctx.beginPath(); ctx.moveTo(-W2*0.18,-sh*(0.2+0.5*gl)); ctx.lineTo(-W2*0.02,-sh*(0.2+0.5*gl)-Hh*0.18); ctx.lineTo(W2*0.06,-sh*(0.2+0.5*gl)-Hh*0.14); ctx.lineTo(-W2*0.1,-sh*(0.2+0.5*gl)+Hh*0.04); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(-W2*0.35,-sh*0.9,Math.max(1,S(1.3)),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
   function crystal(k,style){
     const echo=style==='echo';
-    const bob=Math.sin(fr*0.06+(k.bob||0))*3;
-    const x=X(k.x), y=Y(k.y)+bob, s=S(echo?15:13);
-    glow(k.x,k.y+bob/Z,echo?56:44,0.35+0.1*Math.sin(fr*0.08),echo?'rgba(255,140,220,':'rgba(120,230,255,');
-    if(echo){ ctx.save(); ctx.strokeStyle='rgba(255,170,230,'+(0.5+0.4*Math.sin(fr*0.1))+')'; ctx.lineWidth=2; const rr=s*(1.3+0.25*Math.sin(fr*0.07)); ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-    ctx.fillStyle=echo?'#ff9ae0':'#7fe8ff'; ctx.strokeStyle=echo?'#40102c':'#103040'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(x, y-s); ctx.lineTo(x+s*0.7, y); ctx.lineTo(x, y+s); ctx.lineTo(x-s*0.7, y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    ctx.strokeStyle='#ffffff'; ctx.beginPath(); ctx.moveTo(x, y-s*0.6); ctx.lineTo(x+s*0.3, y); ctx.stroke();
+    const x=k.x, base=k.y+12;
+    if(!inView(x-60,base-80,120,100)) return;
+    glow(x,base-14,echo?60:52,0.36+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,160,');
+    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(base+1),S(17),S(3),0,0,Math.PI*2); ctx.fill();
+    gemShard(x-10,base+1,10,20,-0.42,1.7,echo);                    // side shards behind
+    gemShard(x+11,base+1,9,17,0.46,3.1,echo);
+    gemShard(x,base+2,15,34,0,0,echo);                               // the main point
+    if(echo){ ctx.save(); ctx.strokeStyle='rgba(255,170,230,'+(0.5+0.4*Math.sin(fr*0.1))+')'; ctx.lineWidth=2; const rr=S(22)*(1.3+0.25*Math.sin(fr*0.07)); ctx.beginPath(); ctx.arc(X(x),Y(base-16),rr,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    for(let i=0;i<3;i++){                                            // twinkling glints
+      const t=((fr*0.02+i*0.37+(k.ox||0)*0.001)%1); if(t>0.3) continue;
+      const a=Math.sin(t/0.3*Math.PI), gx=x+[-6,5,1][i], gy=base-[14,8,30][i], r=S(2+4*a);
+      ctx.fillStyle='rgba(255,255,255,'+a.toFixed(3)+')';
+      ctx.fillRect(X(gx)-r,Y(gy)-0.5,r*2,Math.max(1,S(1))); ctx.fillRect(X(gx)-0.5,Y(gy)-r,Math.max(1,S(1)),r*2);
+    }
   }
   // A wooden crate with a paper label showing the jack inside (all male plugs).
   const ITEM_NAMES=['TRS','RCA','XLR','MAG','ISOLATOR'];

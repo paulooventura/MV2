@@ -588,7 +588,8 @@
     }
     if(!iso||iso.got||!p) return;
     const core=playerCoreHB(p), feet=p.y+FEET_OFF;
-    if(ov(core.x-4,core.y,core.w+8,feet+6-core.y,iso.x-23,iso.y-40,46,40)){
+    const iR=B.crateRect?B.crateRect(iso):{x:iso.x-23,y:iso.y-40,w:46,h:40};   // boxed: break it open first
+    if(iR&&ov(core.x-4,core.y,core.w+8,feet+6-core.y,iR.x,iR.y,iR.w,iR.h)){
       iso.got=true; iso.re=ISO_RESPAWN; B.hasIsolator=true; B.isoT=ISO_TIME;
       if(!B.isoEver){ B.isoEver=true; B.stats.items++; }
       for(let k=0;k<16;k++){ const a=Math.random()*Math.PI*2, s=1.6+Math.random()*3; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,life:16+Math.random()*12|0,maxLife:28,r:2+Math.random()*2,col:'#ffa040'}); }
@@ -615,7 +616,7 @@
       ctx.fillStyle='rgba(120,230,255,'+(0.4+0.4*pulse)+')'; ctx.fillRect(m.dir>0?x+w-sw(4):x,y,sw(4),sw(4));
     }
     const iso=B.isoPickup;
-    if(iso&&!iso.got&&D){ D.glow&&D.glow(iso.x,iso.y-20,50,0.25+0.1*Math.sin(fr*0.08),'rgba(255,150,60,'); D.itemCrate(4,iso.x,iso.y,false); }
+    if(iso&&!iso.got&&D){ D.glow&&D.glow(iso.x,iso.y-20,50,0.25+0.1*Math.sin(fr*0.08),'rgba(255,150,60,'); if(B.drawCrate) B.drawCrate(iso); else D.itemCrate(4,iso.x,iso.y,false); }
   };
   // water goes over the characters (they look submerged), under the HUD
   const _origFg=window.drawTmjForeground;

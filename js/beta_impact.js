@@ -109,8 +109,76 @@
     prevPt=pt;
     for(let i=swings.length-1;i>=0;i--) if(++swings[i].t>swings[i].max) swings.splice(i,1);
   }
+  // ── Live yellow cage blocks (Paulo, Oct 21) ──────────────────────
+  // The gold TRS-cage blocks are electrical. Touching one shocks MIND;
+  // the harder he hits it, the worse: a brush costs a little, slamming into
+  // it at speed a lot, a punch more, and a loaded punch nearly shuts him down.
+  const SHOCK={CD:40, MIN:6, PER_SPD:4.2, MAX:55, PUNCH:26};
+  let shockCd=0, lastSpd=0, zapT=0, zapMax=1, zapFrom=null;
+  const isLive=bw=>bw&&bw.only==='laser'&&bw.hp>0;
+  function shock(bw,kind,ang){
+    if(!on()||(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)) return;
+    const punch=kind==='punch'||kind==='punchLoaded';
+    if(!punch&&shockCd>0) return;
+    let dmg=kind==='punchLoaded'?Math.max(60,(p.hp||0)-8):kind==='punch'?SHOCK.PUNCH:kind;
+    dmg=Math.max(1,Math.round(dmg));
+    const bx=bw.x+bw.w/2, by=bw.y+bw.h/2, mx=p.x+SW/2, my=p.y+FEET_OFF-50;
+    let kx=mx-bx, ky=my-by; const d=Math.hypot(kx,ky)||1; kx/=d; ky/=d;
+    const kb=kind==='punchLoaded'?9:punch?6:Math.min(8,3+dmg/8);
+    try{ applyPlayerHit(kx*kb, Math.min(-3,ky*kb-2), dmg); }catch(e){}
+    shockCd=SHOCK.CD; zapT=zapMax=kind==='punchLoaded'?54:dmg>25?36:24; zapFrom={x:bx,y:by};
+    bw.hitGlow=16; bw.shakeX=(Math.random()-0.5)*4;
+    B.shake=Math.max(B.shake||0,kind==='punchLoaded'?11:Math.min(8,3+dmg/8));
+    S(kind==='punchLoaded'||dmg>30?'zap_big':'zap');
+    for(let k=0;k<(kind==='punchLoaded'?26:14);k++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*5;
+      PFXS.push({x:bx+(mx-bx)*0.3,y:by+(my-by)*0.3,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:10+Math.random()*12|0,maxLife:22,r:1.5+Math.random()*2,col:k%3?'#fff6a0':'#80d8ff'}); }
+  }
+  window._shockFromBlock=shock;
+  function shockTick(){
+    if(shockCd>0) shockCd--;
+    if(zapT>0) zapT--;
+    if(!on()) return;
+    const core=playerCoreHB(p), feet=p.y+FEET_OFF;
+    const x0=core.x-3, x1=core.x+core.w+3, y0=core.y-3, y1=feet+3;
+    if(shockCd<=0) for(const bw of BWALLS){
+      if(!isLive(bw)) continue;
+      if(x1>bw.x&&x0<bw.x+bw.w&&y1>bw.y&&y0<bw.y+bw.h){
+        shock(bw, Math.min(SHOCK.MAX, SHOCK.MIN+lastSpd*SHOCK.PER_SPD)); break;   // harder impact, more damage
+      }
+    }
+    lastSpd=Math.hypot(p.vx||0,p.vy||0);
+  }
+  // a jagged bolt between two screen points
+  function bolt(x0,y0,x1,y1,seg,amp,col,w){
+    ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x0,y0);
+    for(let i=1;i<seg;i++){ const t=i/seg, nx=-(y1-y0), ny=x1-x0, l=Math.hypot(nx,ny)||1, o=(Math.random()-0.5)*amp;
+      ctx.lineTo(x0+(x1-x0)*t+nx/l*o, y0+(y1-y0)*t+ny/l*o); }
+    ctx.lineTo(x1,y1); ctx.stroke();
+  }
+  function drawShock(){
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    // the cage blocks crackle now and then so you can tell they're live
+    for(const bw of BWALLS){
+      if(!isLive(bw)) continue;
+      const X=sx(bw.x), Y=sy(bw.y), Wd=sw(bw.w);
+      if(X<-40||X>W+40||Y<-40||Y>H+40) continue;
+      const ph=(fr+(bw.homeCol||0)*17+(bw.homeRow||0)*29)%70;
+      if(ph<5){ ctx.globalAlpha=0.9; const a=Math.random()*Math.PI*2, b=a+1+Math.random()*2.5, r=Wd*0.55;
+        bolt(X+Wd/2+Math.cos(a)*r,Y+Wd/2+Math.sin(a)*r,X+Wd/2+Math.cos(b)*r,Y+Wd/2+Math.sin(b)*r,5,Wd*0.25,'#fff6a0',sw(1.6)); }
+    }
+    // MIND being electrocuted: bolts over his body, and one from the block for the first frames
+    if(zapT>0&&p){
+      const k=zapT/zapMax, mx=sx(p.x+SW/2), my=sy(p.y+FEET_OFF-50), r=sw(46);
+      ctx.globalAlpha=0.5+0.5*k;
+      for(let i=0;i<(zapMax>40?6:4);i++){ const a=Math.random()*Math.PI*2, b=a+0.8+Math.random()*2;
+        bolt(mx+Math.cos(a)*r*0.8,my+Math.sin(a)*r,mx+Math.cos(b)*r*0.8,my+Math.sin(b)*r,6,r*0.5,i%2?'#80d8ff':'#fff6a0',sw(2)); }
+      if(zapFrom&&zapMax-zapT<10){ bolt(sx(zapFrom.x),sy(zapFrom.y),mx,my,9,sw(30),'#ffffff',sw(3)); bolt(sx(zapFrom.x),sy(zapFrom.y),mx,my,9,sw(30),'#fff6a0',sw(1.5)); }
+      if((zapT&3)<2){ ctx.globalAlpha=0.18*k; ctx.fillStyle='#e8f8ff'; ctx.fillRect(0,0,W,H); }
+    }
+    ctx.restore();
+  }
   function tick(){
-    bedTick(); if(on()) swingTick();
+    bedTick(); if(on()) swingTick(); shockTick();
     for(let i=B.impacts.length-1;i>=0;i--) if(++B.impacts[i].t>B.impacts[i].max) B.impacts.splice(i,1);
     for(let i=puffs.length-1;i>=0;i--){ const d=puffs[i]; d.x+=d.vx; d.y+=d.vy; d.vx*=0.93; d.vy=d.vy*0.93-0.02; d.r+=0.35; if(++d.t>d.max) puffs.splice(i,1); }
   }
@@ -119,6 +187,7 @@
   // drawn in screen space on the HUD pass (beta_level.js drawLdtkLabHud)
   B.drawImpactFx=function(){
     if(!on()) return;
+    drawShock();
     ctx.save();
     for(const d of puffs){ const a=0.32*(1-d.t/d.max); ctx.fillStyle='rgba('+d.col+','+a.toFixed(3)+')'; ctx.beginPath(); ctx.arc(sx(d.x),sy(d.y),sw(d.r),0,Math.PI*2); ctx.fill(); }
     // swing smear: a crescent swoosh in the punch direction + speed lines

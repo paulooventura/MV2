@@ -698,6 +698,19 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
   ctx.restore();
 }
 
+// Paulo (Oct 21): a punch only lands if nothing solid is between MIND's shoulder
+// and the target. The segment is sampled; a solid cell inside the target's own
+// box (a cube's own cell) doesn't count as a wall.
+function _punchReach(x0,y0,x1,y1,box){
+  if(typeof gridWorldSolid!=='function') return true;
+  const n=Math.max(2,Math.ceil(Math.hypot(x1-x0,y1-y0)/6));
+  for(let i=1;i<=n;i++){
+    const x=x0+(x1-x0)*i/n, y=y0+(y1-y0)*i/n;
+    if(box&&x>=box.x-1&&x<=box.x+box.w+1&&y>=box.y-1&&y<=box.y+box.h+1) return true;   // reached the target first
+    if(gridWorldSolid(x,y)) return false;
+  }
+  return true;
+}
 /* -- Boxing glove arm (right) --
    Rendering uses vector connector art; the punch hit-check below runs in
    WORLD coordinates with the exact original reach values. */
@@ -751,11 +764,22 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       const _charged=(p.pCharge||0)>20;
       let _hit=false, _hitKind='';
 
+      // Item boxes first (beta_crates.js): wood breaks, the loose item gets knocked around
+      if(typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
+        p._hitDone=true;_hit=true;_hitKind='crate';p._pRecoil=8;
+      }
       // Breakable walls
-      for(const bw of BWALLS){
+      if(!_hit) for(const bw of BWALLS){
         if(bw.hp<=0)continue;
         if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
+          // Paulo (Oct 21): no punching through a wall into the block behind it
+          if(!_punchReach(shWX,shWY,_wx,_wy,bw)) continue;
           p._hitDone=true;_hit=true;_hitKind='block';
+          // the yellow cage block is live: punching it shocks MIND (beta_impact.js), no crumbs
+          if(bw.only==='laser'&&typeof _shockFromBlock==='function'){
+            _hitKind='zap'; _shockFromBlock(bw,_charged?'punchLoaded':'punch',punchAngle);
+            p._pRecoil=12; break;
+          }
           // Paulo: a loaded punch smashes the whole omni block and cracks the ones around it
           if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(bw)&&!bw.only){
             const cx0=bw.x+bw.w/2, cy0=bw.y+bw.h/2;
@@ -808,6 +832,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         if(eh.w<=0||eh.h<=0) continue;
         const fistW=26,fistH=26;
         if(_fistHitsHB(_wx-fistW*0.5,_wy-fistH*0.5,fistW,fistH,eh)){
+          if(!_punchReach(shWX,shWY,_wx,_wy,eh)) continue;           // a wall between them
           p._hitDone=true;_hit=true;_hitKind='enemy';
           const _charged=(p.pCharge||0)>20||(p.pCd>4);
           if(_enemyRebootInterruptable(e)){

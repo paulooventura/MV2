@@ -172,8 +172,31 @@ function sy(y){
   return MV2_VISUAL?Math.round(y-_rcamY):Math.floor((y-_rcamY)/SMS_SCALE);
 }
 function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floor(v/SMS_SCALE)); }
+// Paulo (Oct 21): the camera sits closer when MIND stands still and pulls back
+// as he speeds up, so you can see farther ahead; it eases in and out smoothly.
+// The world is drawn scaled by camZoom (main.js draw: _worldZoomBegin/_worldZoomEnd);
+// the HUD is not. Never below 1, so the full-screen layers always cover the screen.
+const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
+let _camSpdS=0, _zoomSaved=false;
+function _updateCamZoom(){
+  if(camZoom==null) _initCamZoom();
+  const ed=typeof _mapEdActive!=='undefined'&&_mapEdActive;
+  if(ed||_playerCount===2||!p){ camZoomTgt=1; camZoom+=(1-camZoom)*0.2; return; }
+  const spd=Math.hypot(p.vx||0,(p.vy||0)*0.55);
+  _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?0.05:0.02);         // speeds up the pull-back faster than it settles in
+  const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
+  camZoomTgt=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e;
+  camZoom+=(camZoomTgt-camZoom)*CAM_ZOOM_EASE;
+  if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
+}
+function _worldZoomBegin(){
+  if(_zoomSaved||camZoom==null||Math.abs(camZoom-1)<0.0005) return;
+  ctx.save(); ctx.scale(camZoom,camZoom); _zoomSaved=true;
+}
+function _worldZoomEnd(){ if(_zoomSaved){ ctx.restore(); _zoomSaved=false; } }
 function _syncGameCamera(){
   if(_gameState!=='game'||!p) return;
+  _updateCamZoom();
   if(!isFinite(p.x)) p.x=_spawnX;
   if(!isFinite(p.y)) p.y=_spawnY;
   const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X;

@@ -122,6 +122,7 @@ function _wakeBwall(bw){ if(!bw||!bw.movable||bw.hp<=0) return; bw._awake=true; 
 function _bwallMovedFromHome(bw){ if(bw.homeX==null||bw.homeY==null) return false; return Math.abs(bw.x-bw.homeX)>4||Math.abs(bw.y-bw.homeY)>4; }
 
 const _OMNI_SHARD_COLS=['#1a0428','#2a0840','#3d0a5c','#4a148c','#6a1b9a','#7b1fa2','#4a0e6a'];
+const _LASER_SHARD_COLS=['#7a5a08','#d8a820','#ffe27a','#b08010','#2a1e02','#ffd040','#d8a820'];
 function spawnDebris(bw,count){
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
@@ -134,7 +135,7 @@ function spawnDebris(bw,count){
       rot:Math.random()*Math.PI*2, rotSpd:(Math.random()-0.5)*0.35,
       w:big?7+Math.random()*6:3+Math.random()*5, h:big?6+Math.random()*5:3+Math.random()*4,
       life, maxLife:life, sides:3+((Math.random()*3)|0),
-      col:_OMNI_SHARD_COLS[(Math.random()*_OMNI_SHARD_COLS.length)|0]
+      col:(bw.only==='laser'?_LASER_SHARD_COLS:_OMNI_SHARD_COLS)[(Math.random()*_OMNI_SHARD_COLS.length)|0]   // purple crumbs are the omni block's; the cage block breaks gold
     });
   }
 }
@@ -1002,6 +1003,14 @@ function updateCrates(){
 }
 
 // ── Knowl pickup ──────────────────────────────────────────────
+// Paulo (Oct 21): each pickup in a stage rings a step higher (a pentatonic
+// climb) — seeds on their own ladder, crystals on theirs.
+const _KNOWL_STEPS=[0,2,4,7,9,12,14,16,19,21,24];
+function _knowlPickPitch(k){
+  const crys=k&&(k.kind==='crystal'||k.kind==='echo');
+  let n=0; for(const o of KDROP){ if(o===k||!o.got) continue; const oc=o.kind==='crystal'||o.kind==='echo'; if(oc===crys) n++; }
+  return Math.pow(2,_KNOWL_STEPS[Math.min(n,_KNOWL_STEPS.length-1)]/12);
+}
 function updateKnowls(){
   for(const k of KDROP){
     if(k.got) continue;
@@ -1019,7 +1028,7 @@ function updateKnowls(){
       if(_awdjooTutorial) _stageScore+=250;
       if(p1Gets) healPlayerFromKnowl();
       if(p2Gets) healAnyPlayerFromKnowl(p2);
-      sfx('knowl_pickup');
+      sfx((k.kind==='crystal'||k.kind==='echo')?'crystal_pickup':'knowl_pickup', _knowlPickPitch(k));
       for(let pi=0;pi<8;pi++){
         const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*2.8;
         PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,
