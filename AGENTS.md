@@ -251,3 +251,7 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Hooked, MIND tilts with the rope (`pl._tilt`, up to ±0.55 rad, rotated round the body centre in render.js drawCharacter); the disc puts the jack arm on the side of the box facing the rope (`_discSide` with hysteresis), upper arm pokes out sideways, forearm + jack point up the rope beside the head; glove on the other side. Rope is drawn to `pose.worldNose`.
 - Physics rope end (`ropePlayerEndWorld`, RCA latched/flying): fixed point `ROPE_END_R`=48 px from the body centre along the rope — independent of the drawn arm, so the swing keeps its energy.
 - Swing drag 0.996 (~12%/half-swing); the settle drag (0.95) now only when hanging nearly straight (offset < 16 px), not at every swing's peak.
+
+### Build 208 — switching items while hooked
+- Rope clip point `hookAttachWorld()` = back edge of the disc on top of the speaker. With another item out the rope's drawn end is the clip, with the RCA plug hanging in it (render.js); the arm follows the aim (auto-aim at the hook only with the RCA: player.js `_aimHook` guard).
+- beta_feel `B.ropeClip` (26 frames): switching RCA ↔ other item while latched carries the plug along an arc between the hand and the clip (`B.ropeClipPoint`), the arm reaching with it; a click (`grap_attach`) when it seats. Rope length re-fit uses `ropePlayerEndWorld()`.
