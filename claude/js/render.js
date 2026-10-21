@@ -958,9 +958,9 @@ function drawCharacter(){
   const bodyTop=bodyCY;
   const shoulderY=bodyTop+BODY_H*0.22;
   const bodyLeft=wWcx-BODY_W/2, bodyRight=wWcx+BODY_W/2;
-  const glovShoulderWX=fc?bodyRight:bodyLeft;
-
   const pose=p._armPose||computeConnectorArmPose(p);
+  // the glove rides the same disc as the jack arm (player.js computeConnectorArmPose)
+  const glovShoulderWX=pose.gloveShX!=null?pose.gloveShX:(fc?bodyRight:bodyLeft);
   p.tipWorldX=pose.tipX; p.tipWorldY=pose.tipY;
   const {armA0,armA1,useElbow,aimAngle:ca}=pose;
 
@@ -987,6 +987,27 @@ function drawCharacter(){
   drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
 
+  const drawConnArm=()=>{
+  const isVenture=p.hero==='venture';
+  const _armDark=isVenture?C.MAROON:C.PURPLE_D;
+  const _armMain=isVenture?C.RED_D:C.INDIGO;
+  const _armGlow=isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
+  const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
+  const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
+  if(useElbow){
+    drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
+    drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
+    if(held>=0) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
+  }else{
+    drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
+    if(held>=0) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
+  }
+  if(coilFlow){
+    const tw=connectorTipWorld(held);
+    drawArmEnergyFlow(connShX,connShY,elbowX,elbowY,sx(tw.x),sy(tw.y),useElbow,coilFlow);
+  }
+  };
+  if(pose.behindHead) drawConnArm();
   // 3. HEAD â€” tucked in box when ducking; tiny peek when spring/wall charge ready
   const chargeInfo=_playerChargeInfo(p);
   const springReady=!!p.duckBoostReady;
@@ -1010,25 +1031,9 @@ function drawCharacter(){
   // 4. BODY BOX â€” in front of glove arm + head
   drawBody(wcx,bTopS,fc,0);
 
-  // 5. CONNECTOR ARM â€” in front of body
-  const isVenture=p.hero==='venture';
-  const _armDark=isVenture?C.MAROON:C.PURPLE_D;
-  const _armMain=isVenture?C.RED_D:C.INDIGO;
-  const _armGlow=isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
-  const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
-  const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
-  if(useElbow){
-    drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
-  }else{
-    drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
-  }
-  if(coilFlow){
-    const tw=connectorTipWorld(held);
-    drawArmEnergyFlow(connShX,connShY,elbowX,elbowY,sx(tw.x),sy(tw.y),useElbow,coilFlow);
-  }
+  // 5. CONNECTOR ARM — in front of body (latched and reaching up: it comes off the disc
+  //    behind the bulb instead, drawn before the head — see drawConnArm above)
+  if(!pose.behindHead) drawConnArm();
   ctx.restore();
 }
 function drawCharacterFor(pl){
@@ -2078,31 +2083,50 @@ function drawItemDrops(){
 }
 // RCA rope tip: a strong magnet puck on the end of the cord (Paulo, Oct 20).
 // ang points from the tip back along the cord. Latched: it clamps flat and its field pulses.
+// RCA rope (Paulo's sketch, Oct 21): the cord lives coiled on a spool inside the jack; the
+// tip is a strong magnet BALL. ang points from the tip back along the cord.
 function _drawRopeMagnetTip(x,y,ang,latched,glow){
-  const r=Math.max(4,6.5/(typeof SMS_SCALE!=='undefined'?SMS_SCALE:1)*1.4);
-  ctx.save(); ctx.translate(x,y); ctx.rotate(ang+Math.PI);       // +x faces away from the cord (into the surface)
-  if(latched){
+  const r=Math.max(4,7/(typeof SMS_SCALE!=='undefined'?SMS_SCALE:1));
+  ctx.save(); ctx.translate(x,y);
+  if(latched){                                            // the field pulsing round the ball where it holds
     const pulse=0.5+0.5*Math.sin(fr*0.25);
     ctx.strokeStyle=glow; ctx.lineWidth=1.5;
-    for(let k=1;k<=2;k++){ ctx.globalAlpha=(0.55-k*0.18)*(0.6+0.4*pulse); ctx.beginPath(); ctx.arc(r*0.2,0,r*(1.2+k*0.55+pulse*0.25),-1.2,1.2); ctx.stroke(); }
+    for(let k=1;k<=2;k++){ ctx.globalAlpha=(0.5-k*0.15)*(0.6+0.4*pulse); ctx.beginPath(); ctx.arc(0,0,r*(1.25+k*0.5+pulse*0.2),0,Math.PI*2); ctx.stroke(); }
     ctx.globalAlpha=1;
   }
-  ctx.fillStyle='#1a1420'; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-r*1.1,-r,r*1.6,r*2,r*0.4):ctx.rect(-r*1.1,-r,r*1.6,r*2); ctx.fill();   // housing on the cord
-  ctx.fillStyle='#d8d4e0'; ctx.fillRect(r*0.2,-r,r*0.5,r);                         // N face (silver)
-  ctx.fillStyle='#e0303c'; ctx.fillRect(r*0.2,0,r*0.5,r);                          // S face (red)
-  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-r*1.0,-r*0.85,r*1.2,r*0.35);
+  ctx.fillStyle='#2a2830'; ctx.fillRect(Math.cos(ang)*r*0.6-2,Math.sin(ang)*r*0.6-2,4,4);   // the collar where the cord goes in
+  const g=ctx.createRadialGradient(-r*0.35,-r*0.4,r*0.15,0,0,r);
+  g.addColorStop(0,'#f4f2fa'); g.addColorStop(0.35,'#a8a6b8'); g.addColorStop(1,'#3a3846');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#18161e'; ctx.lineWidth=1.2; ctx.stroke();
   ctx.restore();
 }
-// The jack end: the cord coils in and out of a spool — it spins while reeling / paying out
-function _drawRopeSpool(x,y,h,col,glow){
+// The jack end: the cord comes off a spool INSIDE the jack — a few loops of coil show in
+// the jack's mouth, more of them the more cord is wound in; they turn while reeling.
+function _drawRopeSpool(x,y,h,col,glow,ang){
   if(h._reel) h._spoolA=(h._spoolA||0)+h._reel*0.45;
-  const r=Math.max(4,5/(typeof SMS_SCALE!=='undefined'?SMS_SCALE:1)*1.5), a=h._spoolA||0;
-  ctx.save(); ctx.translate(x,y);
-  ctx.fillStyle='#120c18'; ctx.beginPath(); ctx.arc(0,0,r+1.5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,r*0.75,0,Math.PI*2); ctx.stroke();
-  ctx.strokeStyle=h._reel?glow:col; ctx.lineWidth=1.5;
-  for(let k=0;k<3;k++){ const t=a+k*Math.PI*2/3; ctx.beginPath(); ctx.moveTo(Math.cos(t)*r*0.2,Math.sin(t)*r*0.2); ctx.lineTo(Math.cos(t)*r,Math.sin(t)*r); ctx.stroke(); }
-  if(h._reel){ ctx.globalAlpha=0.35+0.25*Math.sin(fr*0.6); ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.fill(); }
+  const sc=typeof SMS_SCALE!=='undefined'?SMS_SCALE:1;
+  const a=ang==null?0:ang, wound=1-Math.max(0,Math.min(1,(h.rl||0)/((typeof CMAX!=='undefined'?CMAX:400)||400)));
+  const n=2+Math.round(wound*3), rr=Math.max(3,5/sc), step=Math.max(2,3/sc), ph=((h._spoolA||0)%1+1)%1;
+  ctx.save(); ctx.translate(x,y); ctx.rotate(a);
+  ctx.fillStyle='rgba(20,14,28,0.85)'; ctx.fillRect(-(n+0.5)*step-2,-rr-1.5,(n+0.5)*step+3,rr*2+3);      // the jack's mouth
+  for(let i=0;i<n;i++){
+    const xx=-(i+ph)*step;
+    ctx.strokeStyle=i%2?col:glow; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.ellipse(xx,0,step*0.45,rr,0,0,Math.PI*2); ctx.stroke();
+  }
+  if(h._reel){ ctx.globalAlpha=0.35+0.25*Math.sin(fr*0.6); ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,rr+2,0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
+// a braided cord: two strands of short alternating ticks that run along it as it reels
+function _drawRopeBraid(wpts,phase,colA,colB){
+  ctx.save(); ctx.lineCap='butt'; ctx.lineWidth=3;
+  for(const [col,off] of [[colA,0],[colB,4]]){
+    ctx.setLineDash([3,5]); ctx.lineDashOffset=-phase+off;
+    ctx.strokeStyle=col; ctx.beginPath(); ctx.moveTo(wpts[wpts.length-1].x,wpts[wpts.length-1].y);
+    for(let i=wpts.length-2;i>=0;i--) ctx.lineTo(wpts[i].x,wpts[i].y);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 function drawRopePickup(){
@@ -2388,12 +2412,15 @@ function drawFX(){
     const _ap=p._armPose||computeConnectorArmPose(p);
     const bx=sx(_ap.noseX), by=sy(_ap.noseY);
     if(p.hook.st==='ext'){
-      ctx.strokeStyle=_ropeDash;ctx.lineWidth=3;ctx.setLineDash([5,3]);
-      ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(sx(p.hook.ex),sy(p.hook.ey));ctx.stroke();
-      ctx.setLineDash([]);
-      _drawRopeMagnetTip(sx(p.hook.ex),sy(p.hook.ey),Math.atan2(by-sy(p.hook.ey),bx-sx(p.hook.ex)),false,_ropeGlow);
-      p.hook._spoolA=(p.hook._spoolA||0)+0.6;               // the cord whips out of the jack
-      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow);
+      const ex=sx(p.hook.ex), ey=sy(p.hook.ey);
+      ctx.lineCap='round';
+      ctx.strokeStyle=_ropeDark;ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.strokeStyle=_ropeMain;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(ex,ey);ctx.stroke();
+      p.hook._flyPh=(p.hook._flyPh||0)+6;                    // the cord streams off the spool
+      _drawRopeBraid([{x:ex,y:ey},{x:bx,y:by}],p.hook._flyPh,_ropeDotA,_ropeDark);
+      _drawRopeMagnetTip(ex,ey,Math.atan2(by-ey,bx-ex),false,_ropeGlow);
+      p.hook._spoolA=(p.hook._spoolA||0)+0.6;               // the spool spins as the cord pays out
+      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(ey-by,ex-bx));
     }else{
       const end=ropePlayerEndWorld();
       const taut=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
@@ -2413,13 +2440,11 @@ function drawFX(){
       }
       // braid marks that travel along the cord: they run toward the jack while
       // reeling in and away from it while paying out slack (Paulo, Oct 20)
-      ctx.save(); ctx.setLineDash([2,8]); ctx.lineDashOffset=-(p.hook._reelPhase||0)/SMS_SCALE;
-      ctx.strokeStyle=_ropeDotA; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(wpts[wpts.length-1].x,wpts[wpts.length-1].y);
-      for(let i=wpts.length-2;i>=0;i--) ctx.lineTo(wpts[i].x,wpts[i].y);
-      ctx.stroke(); ctx.restore();
+      _drawRopeBraid(wpts,(p.hook._reelPhase||0)/SMS_SCALE,_ropeDotA,_ropeDark);
       const ax=wpts[0].x, ay=wpts[0].y, nb=wpts[Math.min(1,wpts.length-1)];
       _drawRopeMagnetTip(ax,ay,Math.atan2(nb.y-ay,nb.x-ax),true,_ropeGlow);
-      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow);
+      const pe=wpts[Math.max(0,wpts.length-2)];
+      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(pe.y-by,pe.x-bx));
     }
   }
 }

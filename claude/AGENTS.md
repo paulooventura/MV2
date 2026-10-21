@@ -240,3 +240,9 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Frags (beta_enemies): stay hot `FRAG_MIN_LIVE` 130 frames and keep hopping (min bounce 2.4) before they can settle after `FRAG_BOUNCES` 5; circle frags cool at `FRAG_HOT` 170.
 - Enemy reboot plays `enemy_boot` (= `enemy_dead` reversed: voices swell and sweep up, ending together), started 66 frames before `revive` so it lands on the reboot.
 - Knowl crystal (beta_decor `crystal`): one symmetrical hexagon, translucent facets, drifting prism bands, rainbow edge; HUD icon matches (`hudCrystal`).
+
+### Build 206 — Paulo's rope/disc sketch (+ main's logos/water build merged)
+- Arms ride a disc on top of the speaker (player.js `computeConnectorArmPose`): latched, the jack mounts on the disc rim facing the rope's last bend, in line with it (`discS`, `_discBlend`), arm straight (no speed bend) so the swing keeps its energy; reaching up it's drawn behind the bulb (`pose.behindHead`); the glove rides the opposite side (`pose.gloveShX`).
+- Rope look (render.js): magnet ball tip `_drawRopeMagnetTip`, braided cord `_drawRopeBraid`, coil showing in the jack's mouth `_drawRopeSpool` (more loops the more is wound in).
+- Rope wraps edges (physics.js): the latch face is only ignored while the rope pulls away from it (`_ropeIntoLatch`); grid hits grow to the whole face (`_ropeGridFace`) so it bends once at the slab's real corner.
+- Merged main's dc4ef22 (splash logos `beta_splash.js`, music slows only on hits, water shutdowns, platform full-charge launch).
