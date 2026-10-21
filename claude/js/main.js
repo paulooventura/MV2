@@ -983,7 +983,8 @@ function update(){
     if(!isJump()) p._jumpArmed=true;
     const _grounded=_playerOnGround(p);
     p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
-    if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
+    let _platLaunch=false;
+    if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');if(typeof _onDropPlatform==='function'&&_onDropPlatform(p))_platLaunch=true;}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     p._ux0=p.x;
@@ -996,16 +997,17 @@ function update(){
     for(let i=p.smoke.length-1;i>=0;i--){const sm=p.smoke[i];sm.x+=sm.vx;sm.y+=sm.vy;sm.vx*=0.88;sm.vy+=0.05;sm.life--;if(sm.life<=0)p.smoke.splice(i,1);}
     // Paulo: on a platform (not a solid block), DOWN + JUMP drops through it
     if(_mvDropThru>0) _mvDropThru--;
-    if(isJumpJ()&&isDn()&&_playerOnGround(p)&&_onDropPlatform(p)){
+    if(!_platLaunch&&isJumpJ()&&isDn()&&_playerOnGround(p)&&_onDropPlatform(p)&&!p.duckBoostReady){
       _mvDropThru=16; p.og=false; p._groundHold=0; p._groundSeg=null; p.vy=2.5; p.y+=6; p.duckBoostReady=false; p.duckCharge=0;
       if(window.MV_BETA) MV_BETA.ridePlat=null;
       OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
-    if(isJumpJ()&&p._jumpArmed&&_playerOnGround(p)){
+    if(_platLaunch||(isJumpJ()&&p._jumpArmed&&_playerOnGround(p))){
       p._jumpArmed=false;
       if(measureHeadroom(p)<6) p._autoHeadTuck=1;
-      const _ch=Math.max(0,Math.min(1,(p.duckCharge||0)/60));
+      const _ch=_platLaunch?1:Math.max(0,Math.min(1,(p.duckCharge||0)/60));
       p.vy=JI*(1+1.05*_ch); p.jf=Math.round(JMH+10*_ch);
+      if(_platLaunch) p._autoJump=p.jf;
       p.duckBoostReady=false; p.duckCharge=0;
       const _jp=1.32-_ch*0.74;
       if(_ch>0.2){ p.flashF=Math.max(p.flashF,Math.round(2+4*_ch)); const n=Math.round(3+7*_ch); for(let i=0;i<n;i++){const a=Math.PI+(Math.random()-0.5)*1.9,sp=(1+Math.random()*2.2)*(0.5+_ch);PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.2,life:10+Math.random()*8|0,maxLife:22,r:2+Math.random()*2.5,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'});} }
@@ -1014,10 +1016,11 @@ function update(){
     }
     const _inJumpAir=!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0;
     if(_inJumpAir&&p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-0.55);else if(p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-2.5);
-    if(isJump()&&p.jf>0){p.vy=Math.max(p.vy-JHH,JMX);p.jf--;}else if(!isJump())p.jf=0;
+    const _holdJump=isJump()||(p._autoJump||0)>0;
+    if(_holdJump&&p.jf>0){p.vy=Math.max(p.vy-JHH,JMX);p.jf--; if(p._autoJump>0) p._autoJump--;}else if(!isJump()){p.jf=0; p._autoJump=0;}
     if(p._magWorldStick) p.vy=0;
     else if(_grounded&&p.vy>=0) p.vy=0;
-    else p.vy=Math.min(p.vy+(isJump()&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
+    else p.vy=Math.min(p.vy+(_holdJump&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
     if(p._magWorldStick){ p.vx=0; p.vy=0; if(typeof _applyMagWorldStick==='function') _applyMagWorldStick(p); }
     else _movePlayerWithColl(p,p.vx,p.vy);

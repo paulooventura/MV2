@@ -85,6 +85,20 @@
   }
   B.surfaceAt=(x)=>{ for(const w of B.waters) if(x>=w.x0&&x<w.x1) return surfaceAt(w,x); return null; };
   B.inWater=(x,y)=>!!waterAt(x,y);
+  // any overlap with the pool counts — an enemy does not get to stand in it
+  B.enemySubmerged=function(e){
+    if(!e) return false;
+    const x0=e.x+3, x1=e.x+Math.max(4,e.w)-3, top=e.y+Math.max(4,e.h)*0.2, bot=e.y+e.h-1;
+    for(const w of B.waters){
+      if(x1<w.x0||x0>=w.x1) continue;
+      for(let k=0;k<=4;k++){
+        const x=x0+(x1-x0)*(k/4), i=colOf(w,x);
+        if((w.amt[i]||0)<2) continue;
+        if(bot>w.s[i]+1&&top<w.bottom[i]) return true;
+      }
+    }
+    return false;
+  };
   // how much of MIND is under water (0..1) and which pool
   function mindDepth(){
     const feet=p.y+FEET_OFF, top=feet-(STAND_H+WHEEL_R), cx=p.x+SW/2;
@@ -498,7 +512,7 @@
       if(w.elec>0) w.elec--;
       for(const b of list){
         if(!b.enemy) continue;
-        const e=b.ref, inside=waterAt(e.x+e.w/2,e.y+e.h*0.45)===w||waterAt(e.x+e.w/2,e.y+e.h-6)===w||waterAt(e.x+8,e.y+e.h*0.6)===w||waterAt(e.x+e.w-8,e.y+e.h*0.6)===w;
+        const e=b.ref, inside=B.enemySubmerged?B.enemySubmerged(e):(waterAt(e.x+e.w/2,e.y+e.h*0.45)===w||waterAt(e.x+e.w/2,e.y+e.h-6)===w);
         if(e._iso) continue;                                   // wears an Isolator
         if(inside){
           // Paulo (Oct 20): an enemy that ends up in the water shorts out and dies

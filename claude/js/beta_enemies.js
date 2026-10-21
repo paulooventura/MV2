@@ -480,8 +480,9 @@
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
   function touchesWater(e){
+    if(B.enemySubmerged) return B.enemySubmerged(e);
     if(!B.inWater) return false;
-    const pts=[[e.w*0.5,e.h*0.35],[e.w*0.5,e.h*0.7],[e.w*0.5,e.h-6],[8,e.h*0.55],[e.w-8,e.h*0.55]];
+    const pts=[[e.w*0.5,e.h*0.35],[e.w*0.5,e.h*0.7],[e.w*0.5,e.h-6],[8,e.h*0.55],[e.w-8,e.h*0.55],[e.w*0.2,e.h-4],[e.w*0.8,e.h-4]];
     for(const [dx,dy] of pts) if(B.inWater(e.x+dx, e.y+dy)) return true;
     return false;
   }
@@ -555,6 +556,7 @@
   }
 
   function think(e){
+    if(!e._iso&&shortIfWet(e)) return;
     const c=center(e), m=mindCenter(), dx=m.x-c.x, dist=Math.hypot(dx,m.y-c.y);
     // they notice MIND as soon as they're on screen together, and go for him
     const near=onScreen(e);
