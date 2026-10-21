@@ -81,7 +81,14 @@
   function floorSnap(e,feet){                   // feet onto the highest ground under its width
     let top=null;
     for(const x of [e.x+4,e.x+e.w/2,e.x+e.w-4]){ const g=groundTop(x,feet); if(g!=null&&(top==null||g<top)) top=g; }
-    return top!=null?top-e.h:Math.floor((feet+4)/T)*T-e.h;
+    if(top==null){
+      const x=e.x+e.w/2;
+      for(let i=0;i<=6*T;i+=2){ if(!solidAt(x,feet-i)){ top=feet-i; break; } }
+    }
+    if(top==null) return e.y;
+    const y=top-e.h;
+    if(solidAt(e.x+e.w/2, y+e.h*0.42)) return e.y;
+    return y;
   }
   function boxFree(x,y,w,h){                 // no solid cell inside the box (sampled every half tile)
     for(let yy=y+2;yy<y+h-1;yy+=T/2) for(let xx=x+2;xx<x+w-1;xx+=T/2){ if(solidAt(xx,yy)) return false; }
@@ -193,6 +200,7 @@
     const orig=window._applyItemForceToEnemy;
     window._applyItemForceToEnemy=function(e){
       if(B.on&&e&&p){ const m=mindCenter(), c=center(e); if(Math.hypot(m.x-c.x,m.y-c.y)>MAX_ITEM_R) return; }
+      if(e&&e._ai){ e._shoveX=(e._shoveX||0)+(arguments[1]||0); e._shoveY=(e._shoveY||0)+(arguments[2]||0); }
       return orig.apply(this,arguments);
     };
     window._applyItemForceToEnemy._betaWrapped=true;
@@ -407,7 +415,63 @@
     try{ sfx(v>5?'stomp':'land'); }catch(_e){}
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
+  function touchesWater(e){
+    if(!B.inWater) return false;
+    const pts=[[e.w*0.5,e.h*0.35],[e.w*0.5,e.h*0.7],[e.w*0.5,e.h-6],[8,e.h*0.55],[e.w-8,e.h*0.55]];
+    for(const [dx,dy] of pts) if(B.inWater(e.x+dx, e.y+dy)) return true;
+    return false;
+  }
+  function shortIfWet(e){
+    if(!e||e._iso||e._shorted||!touchesWater(e)) return false;
+    e._shorted=true;
+    if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y+e.h/2);
+    e.alive=false; e._permOff=true; e._downs=3; e._revT=0;
+    e.vy=Math.min(e.vy||0,0); e.vx=(e.vx||0)*0.4;
+    if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1;
+    return true;
+  }
+  function bodyBuried(e){
+    const y=e.y+e.h*0.42;
+    return solidAt(e.x+e.w*0.5,y)||solidAt(e.x+6,y)||solidAt(e.x+e.w-6,y);
+  }
+  function liftOut(e){
+    if(!e||e._betaHeld||ropeOf(e)||!bodyBuried(e)) return;
+    const y0=e.y, x0=e.x;
+    for(let i=1;i<=e.h+T*3;i++){
+      e.y=y0-i;
+      if(!bodyBuried(e)){ if((e.vy||0)>0) e.vy=0; e.og=!!floorUnder(e.x,e.w,e.y+e.h); return; }
+    }
+    e.y=y0;
+    for(const s of [-1,1]){
+      for(let i=2;i<=T*2;i+=2){
+        e.x=x0+s*i;
+        if(!bodyBuried(e)&&boxFree(e.x,e.y,e.w,e.h)){ e.vx=0; return; }
+      }
+      e.x=x0;
+    }
+  }
+  function applyShove(e){
+    let sx=e._shoveX||0, sy=e._shoveY||0;
+    e._shoveX=0; e._shoveY=0;
+    if((!sx&&!sy)||e._betaHeld) return;
+    const step=2.5, n=Math.max(1,Math.ceil(Math.hypot(sx,sy)/step));
+    sx/=n; sy/=n;
+    for(let i=0;i<n;i++){
+      if(!e._iso&&touchesWater(e)){ shortIfWet(e); break; }
+      const nx=e.x+sx, ny=e.y+sy;
+      const both=boxFree(nx,ny,e.w,e.h)&&!enemyIn(e,nx,ny,e.w,e.h);
+      const xOk=boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h);
+      const yOk=boxFree(e.x,ny,e.w,e.h)&&!enemyIn(e,e.x,ny,e.w,e.h);
+      if(both){ e.x=nx; e.y=ny; }
+      else if(xOk) e.x=nx;
+      else if(yOk) e.y=ny;
+      else break;
+    }
+    e.og=!!floorUnder(e.x,e.w,e.y+e.h);
+    if(!e.og) e._falling=true;
+  }
   function fallTick(e){
+    if(!e._iso&&shortIfWet(e)) return;
     if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
     else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
@@ -615,11 +679,13 @@
       if(!e._ai) continue;
       e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
       e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
-      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
+      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
       if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       think(e);
     }
-    ropeTick(); fragTick();
+    ropeTick();
+    for(const e of ENEMS){ if(!e._ai||!e.alive) continue; applyShove(e); if(!e._iso) shortIfWet(e); liftOut(e); }
+    fragTick();
     for(let i=B.pushFx.length-1;i>=0;i--){ if(++B.pushFx[i].t>22) B.pushFx.splice(i,1); }
   };
   B.onLevelStartEnemies=function(){ B.frags.length=0; B.ropes.length=0; B.pushFx.length=0; };
@@ -663,7 +729,8 @@
     if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
     else if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
       const bx=sx(e.x+e.w/2), by=sy(e.y+e.h);
-      ctx.translate(0,sw(e.gDy||0));
+      const dy=e.gDy||0, sinkClear=dy>0.5&&!solidAt(e.x+e.w/2, e.y+e.h+Math.min(dy,8)-1);
+      if(sinkClear) ctx.translate(0,sw(dy));
       if(e._ai!=='circle'){ ctx.translate(bx,by); ctx.rotate(e.gAng||0); ctx.translate(-bx,-by); }
       else ctx.translate(0,-sw(e.w/2)*(1-Math.cos(e.gAng||0)));      // a ball touches the slope a bit higher
     }

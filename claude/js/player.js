@@ -251,8 +251,8 @@ function _grantPlayerItem(idx, silent){
   const lines=[
     ['Hold X / Q to charge a beam. Release to shoot.'],
     ['X / Q — launch the hook, press again to let go · W/S — reel','Down + jump lets go of the rope'],
-    ['Hold X / Q to push enemies and shots away.'],
-    ['Hold X / Q to pull enemies and shots in.'],
+    ['Hold X / Q — the blast goes where you aim. You fly the other way.'],
+    ['Hold X / Q — it pulls along the aim, and it pulls you that way too.'],
   ];
   _itemTutorial={title:titles[idx],lines:lines[idx],t:0,maxT:280};
   if(idx===1&&typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;

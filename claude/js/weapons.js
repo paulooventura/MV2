@@ -780,8 +780,8 @@ function updateXLR(){
     const strength=f.prox*f.cone*0.72*hold*pow;
     const close=f.dist<56?Math.pow(1-f.dist/56,1.55):0;
     const adx=ox-pcx, ady=oy-pcy, ad=Math.hypot(adx,ady)||1;
-    const fx=f.ax*strength+(adx/ad)*close*0.55;
-    const fy=f.ay*strength*0.42+(ady/ad)*close*0.18;
+    const fx=f.ax*strength+(adx/ad)*close*0.45;
+    const fy=f.ay*strength+(ady/ad)*close*0.45;
     if(box) _applyTipTorque(box,_tip,fx,fy);
     return {fx,fy};
   };
@@ -821,13 +821,7 @@ function updateMAG(){
   p.flashF=4;
   if(fr%6===0) for(let i=0;i<4;i++) p.magPts.push({x:_tip.x,y:_tip.y,vx:Math.cos(i*Math.PI/2)*5,vy:Math.sin(i*Math.PI/2)*5,life:14});
   const hold=Math.min(1,(p.magHeld||0)/160)*1.15+1;
-  // standing and aiming it straight down (DOWN held): it locks him to the floor
-  if(!locked&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&(p.og||_playerOnGround(p))){
-    p._magHold={kind:'world', ref:p}; p._magWorldStick=true; p._magFloorLock=true;
-    p._magWorldX=p.x+SW/2; p._magWorldY=p.y+FEET_OFF; p._magWorldNx=0; p._magWorldNy=-1;
-    try{ sfx('grap_attach'); }catch(e){}
-    return;
-  }
+  const locked=!!p._magHold;
   if(locked){
     const obj=p._magHold.ref;
     if(p._magHold.kind==='world'){

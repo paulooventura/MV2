@@ -458,14 +458,23 @@
     }
     B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
     if(B._xlrTapped){ B.chX=0; }
-    else if(xlrNow){ B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY}; } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
+    else if(xlrNow){
+      B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
+      for(const bw of cubes()){
+        if(bw.only==='pull'||bw._carried||bw._fly) continue;
+        if(Math.hypot(bw.vx||0,bw.vy||0)>0.8) throwCube(bw,(bw.vx||0)*4,(bw.vy||0)*4);
+      }
+    } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
     if(magNow) B.chM++; else if(B.chM>0){ if(!B.mag.lockedThisHold) fireCube('pull',B.chM); B.chM=0; B.mag.lockedThisHold=false; }
   }
   // Dominant aim axis → one of the four cell directions.
   function aimAxis(){
-    const ax=p.aimDX||0, ay=p.aimDY||0;
-    if(Math.abs(ay)>Math.abs(ax)*1.1) return {dc:0, dr:ay>0?1:-1};
-    return {dc:ax>=0?1:-1, dr:0};
+    const ax=p.aimDX||0, ay=p.aimDY||0, l=Math.hypot(ax,ay)||1;
+    const x=ax/l, y=ay/l;
+    const dc=x>0.38?1:x<-0.38?-1:0;
+    const dr=y>0.38?1:y<-0.38?-1:0;
+    if(!dc&&!dr) return {dc:x>=0?1:-1, dr:0};
+    return {dc, dr};
   }
   // A push shoves the whole line of cubes in front of the target (Sokoban style):
   // it moves only if the cell past the far end is free. A pull-only or laser
@@ -637,7 +646,7 @@
   const LAITU_SCALE=1.75;                       // a bit taller than MIND
   const LAITU_TALK=['THEY TOOK THE ELDERS. FOLLOW THE SEEDS!','THE ARCH WANTS 3 CRYSTALS AND 6 SEEDS.',
     'YOUR HOME HIDES THE KNOWL TREE, MIND.','A MAGNET CAN CARRY WHAT A PUNCH CANNOT.',
-    'AIM THE XLR AT THE FLOOR AND LET IT RIP!','KNOWLS WAKE ANYTHING UP. CAREFUL!'];
+    'THE XLR THROWS YOU BACK FROM WHERE YOU AIM.','KNOWLS WAKE ANYTHING UP. CAREFUL!'];
 
   // ── Magnet carry (Paulo): hold the MAG to lock things to the poles and carry
   //   them. Grip is a weight budget: full power holds 9 units = 3 omni cubes,
@@ -713,6 +722,32 @@
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,sw(30),Math.PI,0); ctx.fill();
     ctx.restore();
   };
+  function pullAround(){
+    if(typeof _tipField!=='function') return;
+    const tip=magTip(), a=Math.atan2(tip.uy,tip.ux), range=200;
+    const force=(ox,oy)=>{
+      const f=_tipField({x:tip.x,y:tip.y},a,ox,oy,range);
+      if(!f) return null;
+      const s=f.prox*f.cone*1.1;
+      return {fx:-f.ux*s, fy:-f.uy*s, s};
+    };
+    for(const e of ENEMS){
+      if(!e._ai||e._betaHeld) continue;
+      const f=force(e.x+e.w/2,e.y+e.h/2);
+      if(f&&typeof _applyItemForceToEnemy==='function') _applyItemForceToEnemy(e,f.fx,f.fy);
+    }
+    for(const bw of BWALLS){
+      if(bw.hp<=0||bw._carried||bw.only==='push') continue;
+      const f=force(bw.x+(bw.w||T)/2, bw.y+(bw.h||T)/2);
+      if(!f||f.s<0.25) continue;
+      if(bw._fly){ bw.vx=(bw.vx||0)+f.fx; bw.vy=(bw.vy||0)+f.fy; }
+      else if(bw.cube&&f.s>0.45) throwCube(bw, f.fx*6, f.fy*6);
+    }
+    for(const c2 of (typeof CRATES!=='undefined'?CRATES:[])){
+      const f=force(c2.x+c2.w/2,c2.y+c2.h/2);
+      if(f){ c2.vx=(c2.vx||0)+f.fx; c2.vy=(c2.vy||0)+f.fy; }
+    }
+  }
   function magnetTick(){
     const M=B.mag;
     const on=!!(p&&p.magOn&&ITEM===3);
@@ -725,6 +760,7 @@
     }
     M.wasOn=on;
     if(!on||p.itemStamina<=0){ if(B.magLock){ B.magLock=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} } while(M.held.length) dropHeld(M.held.pop()); return; }
+    pullAround();
     // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
     // MIND to SOLID ground — nothing moves him (pushes, currents, slopes) until he
     // lets go of the button. On an omni / pull block it grabs the block instead
