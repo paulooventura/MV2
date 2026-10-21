@@ -7,7 +7,7 @@
 //  AI (enemies.js _updateMindEnemy) with stage rules on top:
 //   - it hunts only once it has seen MIND ('!'), loses him after a while
 //     out of sight ('?') and goes back to patrolling its stretch;
-//   - it shuts down like the other enemies: back up in about two seconds,
+//   - it shuts down like the other enemies (greyed out, no sign): back up in about two seconds,
 //     off for good after three shutdowns, or at once in water;
 //   - it never spawns minions (the old rival did).
 // ============================================================
@@ -78,10 +78,14 @@
 
   // the '!' / '?' over its head
   const _draw=window.drawMindEnemy;
+  // Shut down it just goes grey, like the other enemies (Paulo, Oct 21: no OFF sign over its head)
   if(typeof _draw==='function') window.drawMindEnemy=function(e){
     if(!e||!e.mirror) return _draw.apply(this,arguments);
-    window._mirrorHat=true;
-    try{ _draw.apply(this,arguments); } finally{ window._mirrorHat=false; }
+    const off=!e.alive;
+    window._mirrorHat=true; window._mindOffNoLabel=off;
+    ctx.save();
+    if(off){ ctx.filter='grayscale(1) brightness(0.72) contrast(0.9)'; ctx.globalAlpha*=0.9; }
+    try{ _draw.apply(this,arguments); } finally{ ctx.restore(); window._mirrorHat=false; window._mindOffNoLabel=false; }
     if(B.drawEnemyMark&&e.mark) B.drawEnemyMark({mark:e.mark, alive:e.alive, x:e.x, y:e.y+FEET_OFF-STAND_H-WHEEL_R-30, w:SW});
   };
 })();

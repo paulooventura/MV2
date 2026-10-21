@@ -1578,11 +1578,11 @@ function _drawMindEnemyOff(e){
       ctx.fillStyle=fr%4?C.PURPLE_L:C.LILAC;
       ctx.fillRect(px,py,2,2);
     }
-    if(shutT>0.2&&fr%12<8){
+    if(shutT>0.2&&fr%12<8&&!window._mindOffNoLabel){
       drawTextC('SHUTDOWN',wcx,headCY-22,C.PURPLE_L,1);
     }
   }
-  if(settled||shutT>0.65){
+  if((settled||shutT>0.65)&&!window._mindOffNoLabel){
     if(e._mindOff==='rebooting'){
       drawTextC('BOOT',wcx,headCY-50,C.PURPLE_L,1);
     }else if(e._mindOff==='cooldown'){
