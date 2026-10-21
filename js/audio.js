@@ -552,7 +552,7 @@ function _hitSfxPitch(hp,maxHp){
 // ── SFX DISPATCHER ───────────────────────────────────────────
 function sfx(t){
   if(!_audioUnlocked) return;
-  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire';
+  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed';
   const pitch=(pitchable&&typeof arguments[1]==='number')?arguments[1]:1;
   const sampleAlias={
     jump:'jump_reg',
@@ -589,7 +589,10 @@ function sfx(t){
     src.start(t0);src.stop(t0+d+.02);
   };
   switch(t){
-    case'jump':o(150,650,.09,.16);break;
+    case'jump':
+    case'jump_reg':o(150*pitch,650*pitch,.09,.16);break;
+    case'jump_spring':
+    case'jump_good':o(110*pitch,420*pitch,.2,.16);o(220*pitch,80*pitch,.16,.1);break;
     case'land':nz(.06,.16);o(90,55,.05,.1);break;
     case'punch':nz(.07,.18,false,0.75);o(165,52,.07,.13,0,'square');o(82,38,.05,.09,0.02,'triangle');break;
     case'hook':o(210,430,.16,.11,0,'triangle');o(130,290,.2,.07,0.03,'sine');nz(.14,.09,false,0.45);break;
@@ -609,6 +612,14 @@ function sfx(t){
     case'hurt':o(340*pitch,90*pitch,.12,.12);nz(.08,.08,true,0.7*pitch);break;
     case'knowl':o(660,660,.06,.1);o(880,880,.06,.1,.06);o(1320,1320,.08,.09,.12);break;
     case'knowl_pickup':o(523,523,.06,.12);o(659,659,.06,.11,.06);o(784,784,.06,.1,.12);o(1047,1047,.1,.1,.18);break;
+    case'knowl_seed':{
+      const f0=523*pitch, f1=659*pitch, f2=784*pitch, f3=1047*pitch;
+      const tap=(dt,v)=>{ o(f0,f0,.06,v,dt); o(f1,f1,.06,v*.9,dt+.06); o(f2,f2,.06,v*.8,dt+.12); o(f3,f3,.1,v*.8,dt+.18); };
+      tap(0,.12); tap(.2,.06); tap(.4,.03);
+      break;
+    }
+    case'frag_fire':nz(.28,.2,false,0.6); o(180,70,.32,.16,0,'sawtooth'); o(640,220,.12,.08,0.02,'triangle'); nz(.08,.12,false,1.8,.05); nz(.06,.1,false,2.2,.1); break;
+    case'run_click':o(148,92,.04,.12,0,'square'); o(74,70,.05,.08,0,'triangle'); break;
     case'ping':o(1100,1100,.06,.09);break;
     case'ropeSnap':o(300,820,.05,.13);break;
     case'ropeBreak':o(150,60,.1,.16);nz(.08,.14);break;
@@ -641,12 +652,20 @@ function sfx(t){
       o(880,140,.1,.08,0.18,'square');
       break;
     // Enemy: shorter, higher rival pop — not the player shutdown
-    case'enemy_shut':
-      nz(.12,.26,false,0.85);
-      nz(.1,.16,true,0.55,0.04);
-      o(980,180,.16,.2,0,'sawtooth');
-      o(640,90,.14,.14,0.03,'square');
-      o(160,50,.12,.12,0.06,'triangle');
+    case'enemy_shut':{
+      const sp=typeof arguments[1]==='number'?arguments[1]:1;
+      nz(.12,.26,false,0.85*sp);
+      nz(.1,.16,true,0.55*sp,0.04);
+      o(980*sp,180*sp,.16,.2,0,'sawtooth');
+      o(640*sp,90*sp,.14,.14,0.03,'square');
+      o(160*sp,50*sp,.12,.12,0.06,'triangle');
+      break;}
+    case'enemy_dead':
+      nz(.22,.2,true,0.22);
+      o(220,40,.7,.2,0,'sawtooth');
+      o(110,28,.85,.16,0.05,'triangle');
+      o(55,24,.9,.14,0.1,'sine');
+      o(70,70,.1,.12,0.72,'square');
       break;
   }
 }

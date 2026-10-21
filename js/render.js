@@ -227,6 +227,9 @@ function drawWheel(cx,cy,angle,plRef){
     ctx.lineTo(Math.cos(a)*spR*0.88,Math.sin(a)*spR*0.88);ctx.stroke();
   }
   ctx.restore();
+  ctx.beginPath(); ctx.arc(cx,cy,Math.max(2.2,spR*0.1),0,Math.PI*2);
+  ctx.fillStyle=(pl===p&&typeof isSprintHeld==='function'&&isSprintHeld())?'#3dff7a':'#080612';
+  ctx.fill();
   if(!pl.xlrOn&&!pl.magOn&&Math.abs(pl.vx||0)>2){
     ctx.beginPath();ctx.arc(cx,cy,R+2,0,Math.PI*2);
     ctx.strokeStyle=pal.b3;ctx.globalAlpha=0.35;ctx.lineWidth=3;ctx.stroke();ctx.globalAlpha=1;

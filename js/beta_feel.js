@@ -127,45 +127,59 @@
     }
   };
 
-  // ── XLR aimed at the floor: B.on overrides the game's floor reaction ──
+  // ── XLR / MAG throw MIND along the aim (8 directions) ──
+  // Push: the blast goes where he aims, and he is thrown the opposite way.
+  // Magnet: everything is pulled toward the aim, and so is he.
   const _origReact=window._applyPushWallReaction;
-  window._applyPushWallReaction=function(pl,ox,oy,aimA){
-    if(on()&&pl===p&&Math.sin(aimA)>0.55) return;     // beta: hover + launch handle the floor
-    if(on()&&pl===p&&Math.sin(aimA)<-0.5){             // mostly up: no sideways drift while pushing blocks up
-      const args=[...arguments]; args[3]=-Math.PI/2; return _origReact.apply(this, args);
-    }
+  window._applyPushWallReaction=function(pl){
+    if(on()&&pl===p&&ITEM===2) return;             // the jet is the recoil, in every direction
     return _origReact.apply(this, arguments);
   };
-  function xlrHover(){
-    if(!(p.xlrOn&&ITEM===2)||B._xlrTapped) return;          // a tap launch isn't held back by the hover
-    const a=aimUnit(); if(a.y<0.55) return;
-    if(p.og||(p.hook&&p.hook.st==='on')) return;
-    const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
-    const R=enh?FEEL.HOVER_R_ENH:FEEL.HOVER_R;
-    const d=floorBelow(R);
-    if(d>R) return;
-    const prox=1-d/R;
-    if(p.vy>0) p.vy*=0.9;                              // brake the fall
-    p.vy-=GRAV*(0.7+0.85*prox)*(enh?1.2:1);            // and push up off the floor
-    p.vy=Math.max(p.vy,-4);
-    if(fr%5===0) PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*20,y:p.y+FEET_OFF+d,vx:(Math.random()-0.5)*3,vy:-1-Math.random(),life:14,maxLife:14,r:2,col:'#aaddff'});
+  function unitAim(raw){
+    const ax=raw?raw.x:(p.aimDX||0), ay=raw?raw.y:(p.aimDY||0), l=Math.hypot(ax,ay)||1;
+    return {x:ax/l, y:ay/l};
+  }
+  function capSpeed(max){
+    const sp=Math.hypot(p.vx,p.vy);
+    if(sp>max){ p.vx*=max/sp; p.vy*=max/sp; }
+  }
+  function xlrJet(){
+    if(!(p.xlrOn&&ITEM===2)||B._xlrTapped) return;
+    if(p.hook&&p.hook.st==='on') return;
+    const a=aimUnit();
+    const charge=Math.min(1,(p.xlrHeld||0)/FEEL.XLR_FULL);
+    const thrust=(0.55+charge*1.15)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[2]?1.25:1);
+    p.vx-=a.x*thrust; p.vy-=a.y*thrust;            // opposite the aim
+    if((p.xlrHeld||0)>3){ p.og=false; p._groundHold=0; }
+    capSpeed(7+charge*6);
+    if(fr%4===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
+  }
+  function magJet(){
+    if(!(p.magOn&&ITEM===3)||p._magWorldStick||B.magLock) return;
+    if(p.hook&&p.hook.st==='on') return;
+    const a=aimUnit();
+    const charge=Math.min(1,(p.magHeld||0)/FEEL.XLR_FULL);
+    const thrust=(0.5+charge*1.05)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[3]?1.25:1);
+    p.vx+=a.x*thrust; p.vy+=a.y*thrust;            // along the aim (the pull)
+    if((p.magHeld||0)>3){ p.og=false; p._groundHold=0; }
+    capSpeed(7+charge*5.5);
+    if(fr%4===0) PFXS.push({x:p.x+SW/2-a.x*16,y:p.y+FEET_OFF-36-a.y*16,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#e0c070'});
   }
   B.onXlrRelease=function(held){
-    // the aim it had while held (letting go of DOWN on the same frame must not cancel the launch)
-    const la=B.xlrAim, a=la?(()=>{ const l=Math.hypot(la.x,la.y)||1; return {x:la.x/l,y:la.y/l}; })():aimUnit();
-    if(a.y<0.55) return;
-    const d=floorBelow(FEEL.LAUNCH_REACH);
-    if(d>FEEL.LAUNCH_REACH) return;
+    const la=B.xlrAim, a=unitAim(la);
     const charge=Math.min(1,held/FEEL.XLR_FULL);
-    const vFull=Math.sqrt(2*GRAV*FEEL.SUPER_H);          // ballistic speed that peaks at a loaded jump
-    const near=1-d/FEEL.LAUNCH_REACH*0.35;
-    const v=vFull*Math.sqrt(Math.max(0.12,charge))*near;
-    p.vy=Math.min(p.vy,-v); p.og=false; p._groundHold=0; p.jf=0;
-    st.lastLaunch={held, charge:+charge.toFixed(2), vy:+(-v).toFixed(2), y0:p.y};
+    const vFull=Math.sqrt(2*GRAV*FEEL.SUPER_H);
+    const v=vFull*Math.sqrt(Math.max(0.18,charge))*0.62;
+    p.vx-=a.x*v; p.vy-=a.y*v;
+    capSpeed(16);
+    p.og=false; p._groundHold=0; p.jf=0;
+    st.lastLaunch={held, charge:+charge.toFixed(2), vx:+(p.vx).toFixed(2), vy:+(p.vy).toFixed(2), y0:p.y};
     try{ sfx(charge>=1?'jump_spring':'jump_reg'); }catch(e){}
     p.flashF=Math.max(p.flashF||0,charge>=1?12:6);
-    for(let i=0;i<(charge>=1?16:8);i++){ const ang=Math.PI*(0.1+Math.random()*0.8);
-      PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF+d,vx:Math.cos(ang)*(2+Math.random()*4)*(Math.random()<0.5?-1:1),vy:-Math.sin(ang)*2,life:16+Math.random()*10|0,maxLife:26,r:2+Math.random()*2,col:'#88ccff'}); }
+    for(let i=0;i<(charge>=1?14:7);i++){
+      const ang=Math.atan2(a.y,a.x)+(Math.random()-0.5)*0.8;
+      PFXS.push({x:p.x+SW/2+a.x*12,y:p.y+FEET_OFF-40+a.y*12,vx:Math.cos(ang)*(2+Math.random()*4),vy:Math.sin(ang)*(2+Math.random()*3),life:14+Math.random()*8|0,maxLife:22,r:2,col:'#88ccff'});
+    }
   };
 
   // ── RCA hook rides along with the cube it bit; lets go when the cube breaks
@@ -370,7 +384,8 @@
     if(p.hook&&p.hook.st!=='on'&&p.hook._cord) p.hook._cord=null;
     // still ducks with DOWN while roped to the ground
     if(p.hook&&p.hook.st==='on'&&typeof isDn==='function'&&isDn()&&_playerOnGround(p)){ p.crouchAmt=(p.crouchAmt||0)+(1-(p.crouchAmt||0))*0.28; }
-    xlrHover();
+    xlrJet();
+    magJet();
     hookTick();
     wallTick();
     ropeSounds();

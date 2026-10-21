@@ -84,7 +84,14 @@
   function floorSnap(e,feet){                   // feet onto the highest ground under its width
     let top=null;
     for(const x of [e.x+4,e.x+e.w/2,e.x+e.w-4]){ const g=groundTop(x,feet); if(g!=null&&(top==null||g<top)) top=g; }
-    return top!=null?top-e.h:Math.floor((feet+4)/T)*T-e.h;
+    if(top==null){
+      const x=e.x+e.w/2;
+      for(let i=0;i<=6*T;i+=2){ if(!solidAt(x,feet-i)){ top=feet-i; break; } }
+    }
+    if(top==null) return e.y;
+    const y=top-e.h;
+    if(solidAt(e.x+e.w/2, y+e.h*0.42)) return e.y;
+    return y;
   }
   function boxFree(x,y,w,h){                 // no solid cell inside the box (sampled every half tile)
     for(let yy=y+2;yy<y+h-1;yy+=T/2) for(let xx=x+2;xx<x+w-1;xx+=T/2){ if(solidAt(xx,yy)) return false; }
@@ -147,17 +154,18 @@
     if(ground){
       for(const [vx,vy] of FRAG_GROUND[e._ai]){
         const ox=Math.sign(vx)*e.w*(Math.abs(vx)>3.3?0.5:0.35), oy=vy<-6.5?-e.h*0.45:e.h*0.25;
-        B.frags.push({x:c.x+ox, y:Math.min(c.y+oy,e.y+e.h-6), vx:vx*(0.92+Math.random()*0.16), vy:vy*(0.92+Math.random()*0.16), t:0, settle:0, owner:e, bounce:0});
+        B.frags.push({x:c.x+ox, y:Math.min(c.y+oy,e.y+e.h-6), vx:vx*(0.92+Math.random()*0.16), vy:vy*(0.92+Math.random()*0.16), t:0, settle:0, owner:e, bounce:0, ai:e._ai, cold:false, smoked:0, hitCd:0});
       }
     }else{
       for(const [dx,dy] of FRAG_AIR[e._ai]){
         const sp=4.4+Math.random()*0.6, r=e._ai==='circle'?0.42:0.5;
-        B.frags.push({x:c.x+dx*e.w*r, y:c.y+dy*e.h*r, vx:dx*sp, vy:dy*sp-0.8, t:0, settle:0, owner:e, bounce:0});
+        B.frags.push({x:c.x+dx*e.w*r, y:c.y+dy*e.h*r, vx:dx*sp, vy:dy*sp-0.8, t:0, settle:0, owner:e, bounce:0, ai:e._ai, cold:false, smoked:0, hitCd:0});
       }
     }
     B.blasts.push({x:c.x, y:c.y, t:0, amp:1});
     B.shake=Math.max(B.shake||0,8);
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(1);
+    if(e._ai==='circle') try{ sfx('frag_fire'); }catch(_e){}
     // the blast itself shoves MIND
     const m=mindCenter(), d=Math.hypot(m.x-c.x,m.y-c.y)||1;
     if(d<3*T&&_shutdownTimer<=0){ const k=1-d/(3*T); applyPlayerHit((m.x-c.x)/d*8*k,-4*k-1,Math.round(6+8*k)); }
@@ -166,27 +174,50 @@
     // second (grey, steaming) and then carries on as before.
     e.fuse=0; e.heat=0; e.cool=COOL; e.vx=0; e.vy=0;
   }
+  const FRAG_HOT=90, FRAG_LINGER=30*60, FRAG_GLITCH=28*60;
+  function fragSmoke(f){
+    for(let s=0;s<5;s++) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y,vx:(Math.random()-0.5)*0.7,vy:-0.35-Math.random()*1.1,life:22+Math.random()*14|0,maxLife:36,r:2+Math.random()*2.5,col:Math.random()<0.5?'#d0d0d4':'#8a8a90'});
+  }
   function fragTick(){
     for(let i=B.frags.length-1;i>=0;i--){
       const f=B.frags[i]; f.t++;
-      if(f.settle>0){ if(++f.settle>90) B.frags.splice(i,1); continue; }
-      f.vy=Math.min(f.vy+GRAV*0.6,13);
-      const nx=f.x+f.vx, ny=f.y+f.vy;
-      if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
-      if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
-      else f.y=ny;
-      if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
-      if(f.t%3===0) PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#ff5500':'#ffcc33'});
-      if(f.t>240){ B.frags.splice(i,1); continue; }
-      if(f.settle) continue;
+      const circle=f.ai==='circle';
+      if(!circle&&f.settle>0){ if(++f.settle>90) B.frags.splice(i,1); continue; }
+      if(circle&&f.cold){
+        f.smoked++;
+        if(f.smoked===1||(f.smoked<22&&f.smoked%4===0)) fragSmoke(f);
+        if(f.smoked>FRAG_LINGER){ B.frags.splice(i,1); continue; }
+      }
+      if(!f.settle){
+        f.vy=Math.min(f.vy+GRAV*0.6,13);
+        const nx=f.x+f.vx, ny=f.y+f.vy;
+        if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
+        if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
+        else f.y=ny;
+        if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
+      }
+      if(circle&&!f.cold&&f.t>=FRAG_HOT){ f.cold=true; f.smoked=0; fragSmoke(f); }
+      if(!circle&&f.t%3===0) PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#ff5500':'#ffcc33'});
+      else if(circle&&!f.cold&&f.t%3===0){
+        const col=f.t<24?'#fff6a0':f.t<50?'#ff9a20':'#e02810';
+        PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col});
+      }
+      if(!circle&&f.t>240){ B.frags.splice(i,1); continue; }
+      if(f.settle&&!circle) continue;
+      if(circle&&f.cold) continue;
+      if((f.hitCd||0)>0){ f.hitCd--; continue; }
       const h=playerCoreHB(p);
       if(_shutdownTimer<=0&&ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
         applyPlayerHit((p.x+SW/2-f.x)*0.15,-3.2,12);
-        B.frags.splice(i,1); continue;
+        if(circle) f.hitCd=18; else { B.frags.splice(i,1); continue; }
       }
       for(const e of ENEMS){
         if(e===f.owner||!e.alive||!e._betaEnemy) continue;
-        if(ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){ _damageEnemy(e,14,f.x,f.y,0.5); B.frags.splice(i,1); break; }
+        if(ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){
+          _damageEnemy(e,14,f.x,f.y,0.5);
+          if(circle) f.hitCd=18; else B.frags.splice(i,1);
+          break;
+        }
       }
     }
   }
@@ -196,6 +227,7 @@
     const orig=window._applyItemForceToEnemy;
     window._applyItemForceToEnemy=function(e){
       if(B.on&&e&&p){ const m=mindCenter(), c=center(e); if(Math.hypot(m.x-c.x,m.y-c.y)>MAX_ITEM_R) return; }
+      if(e&&e._ai){ e._shoveX=(e._shoveX||0)+(arguments[1]||0); e._shoveY=(e._shoveY||0)+(arguments[2]||0); }
       return orig.apply(this,arguments);
     };
     window._applyItemForceToEnemy._betaWrapped=true;
@@ -410,7 +442,63 @@
     try{ sfx(v>5?'stomp':'land'); }catch(_e){}
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
+  function touchesWater(e){
+    if(!B.inWater) return false;
+    const pts=[[e.w*0.5,e.h*0.35],[e.w*0.5,e.h*0.7],[e.w*0.5,e.h-6],[8,e.h*0.55],[e.w-8,e.h*0.55]];
+    for(const [dx,dy] of pts) if(B.inWater(e.x+dx, e.y+dy)) return true;
+    return false;
+  }
+  function shortIfWet(e){
+    if(!e||e._iso||e._shorted||!touchesWater(e)) return false;
+    e._shorted=true;
+    if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y+e.h/2);
+    e.alive=false; e._permOff=true; e._downs=3; e._revT=0;
+    e.vy=Math.min(e.vy||0,0); e.vx=(e.vx||0)*0.4;
+    if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1;
+    return true;
+  }
+  function bodyBuried(e){
+    const y=e.y+e.h*0.42;
+    return solidAt(e.x+e.w*0.5,y)||solidAt(e.x+6,y)||solidAt(e.x+e.w-6,y);
+  }
+  function liftOut(e){
+    if(!e||e._betaHeld||ropeOf(e)||!bodyBuried(e)) return;
+    const y0=e.y, x0=e.x;
+    for(let i=1;i<=e.h+T*3;i++){
+      e.y=y0-i;
+      if(!bodyBuried(e)){ if((e.vy||0)>0) e.vy=0; e.og=!!floorUnder(e.x,e.w,e.y+e.h); return; }
+    }
+    e.y=y0;
+    for(const s of [-1,1]){
+      for(let i=2;i<=T*2;i+=2){
+        e.x=x0+s*i;
+        if(!bodyBuried(e)&&boxFree(e.x,e.y,e.w,e.h)){ e.vx=0; return; }
+      }
+      e.x=x0;
+    }
+  }
+  function applyShove(e){
+    let sx=e._shoveX||0, sy=e._shoveY||0;
+    e._shoveX=0; e._shoveY=0;
+    if((!sx&&!sy)||e._betaHeld) return;
+    const step=2.5, n=Math.max(1,Math.ceil(Math.hypot(sx,sy)/step));
+    sx/=n; sy/=n;
+    for(let i=0;i<n;i++){
+      if(!e._iso&&touchesWater(e)){ shortIfWet(e); break; }
+      const nx=e.x+sx, ny=e.y+sy;
+      const both=boxFree(nx,ny,e.w,e.h)&&!enemyIn(e,nx,ny,e.w,e.h);
+      const xOk=boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h);
+      const yOk=boxFree(e.x,ny,e.w,e.h)&&!enemyIn(e,e.x,ny,e.w,e.h);
+      if(both){ e.x=nx; e.y=ny; }
+      else if(xOk) e.x=nx;
+      else if(yOk) e.y=ny;
+      else break;
+    }
+    e.og=!!floorUnder(e.x,e.w,e.y+e.h);
+    if(!e.og) e._falling=true;
+  }
   function fallTick(e){
+    if(!e._iso&&shortIfWet(e)) return;
     if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
     else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
@@ -641,11 +729,13 @@
       if(!e._ai) continue;
       e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
       e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
-      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); continue; }
+      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
       if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       think(e);
     }
-    ropeTick(); fragTick();
+    ropeTick();
+    for(const e of ENEMS){ if(!e._ai||!e.alive) continue; applyShove(e); if(!e._iso) shortIfWet(e); liftOut(e); }
+    fragTick();
     for(let i=B.pushFx.length-1;i>=0;i--){ if(++B.pushFx[i].t>22) B.pushFx.splice(i,1); }
   };
   B.onLevelStartEnemies=function(){ B.frags.length=0; B.ropes.length=0; B.pushFx.length=0; };
@@ -694,7 +784,8 @@
     if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
     else if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
       const bx=sx(e.x+e.w/2), by=sy(e.y+e.h);
-      ctx.translate(0,sw(e.gDy||0));
+      const dy=e.gDy||0, sinkClear=dy>0.5&&!solidAt(e.x+e.w/2, e.y+e.h+Math.min(dy,8)-1);
+      if(sinkClear) ctx.translate(0,sw(dy));
       if(e._ai!=='circle'){ ctx.translate(bx,by); ctx.rotate(e.gAng||0); ctx.translate(-bx,-by); }
       else ctx.translate(0,-sw(e.w/2)*(1-Math.cos(e.gAng||0)));      // a ball touches the slope a bit higher
     }
@@ -748,8 +839,32 @@
       ctx.restore();
     }
   }
+  function circleFragLook(t){
+    if(t<24) return {body:'#ffe14a', core:'#fffce8', glow:'255,246,160'};
+    if(t<50) return {body:'#ff8a18', core:'#ffe08a', glow:'255,150,40'};
+    if(t<FRAG_HOT) return {body:'#d02010', core:'#ffb0a0', glow:'220,40,20'};
+    return {body:'#2a2a2e', core:'#6a6a70', glow:'30,30,34'};
+  }
   function drawFrags(){
     for(const f of B.frags){
+      if(f.ai==='circle'){
+        const look=circleFragLook(f.t);
+        const glitch=f.cold&&f.smoked>FRAG_GLITCH;
+        if(glitch&&(f.smoked&2)===0) continue;
+        let x=sx(f.x), y=sy(f.y);
+        if(glitch){ x+=(Math.random()-0.5)*16; y+=(Math.random()-0.5)*10; }
+        ctx.save();
+        if(!f.cold){
+          const g=ctx.createRadialGradient(x,y,0,x,y,sw(12));
+          g.addColorStop(0,'rgba('+look.glow+',0.95)'); g.addColorStop(1,'rgba('+look.glow+',0)');
+          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,sw(12),0,Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle=look.body; ctx.beginPath(); ctx.arc(x,y,sw(5.5),0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=look.core; ctx.beginPath(); ctx.arc(x-sw(1.2),y-sw(1.4),sw(2.1),0,Math.PI*2); ctx.fill();
+        if(glitch){ ctx.fillStyle=(f.smoked&1)?'#fff6a0':'#ff3040'; ctx.fillRect(x-sw(9),y+(Math.random()-0.5)*8,sw(18),2); }
+        ctx.restore();
+        continue;
+      }
       const x=sx(f.x), y=sy(f.y), a=f.settle?Math.max(0,1-f.settle/90):1;
       ctx.save(); ctx.globalAlpha=a;
       const g=ctx.createRadialGradient(x,y,0,x,y,sw(10)); g.addColorStop(0,'rgba(255,220,120,0.9)'); g.addColorStop(1,'rgba(255,90,0,0)');

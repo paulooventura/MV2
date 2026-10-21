@@ -2855,6 +2855,9 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
   if(!e.alive) return false;
   e.hp=Math.max(0,e.hp-dmg);
   e.hitF=14;
+  e._pwrHits=(e._pwrHits||0)+1;
+  const _lives=(e._downs||0)+(e.mind?(e._shutCount||0):0);
+  const powerPitch=Math.max(0.46, Math.pow(0.93,e._pwrHits)*Math.pow(0.86,_lives));
   if(e.type==='signol'&&e.signolState==='charge'&&e.hp>0){ e.signolState='roll'; e.chargeT=0; }
   if(fromX!=null&&fromY!=null) _enemyHitKnock(e,fromX,fromY,dmg,kbScale==null?1:kbScale);
   if(e.hp<=0){
@@ -2867,11 +2870,15 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     e.vx=(e.vx||0)*0.35; e.vy=0; e.og=true;
     if(typeof _pinActorToFloor==='function') _pinActorToFloor(e,{force:true,maxDrop:160});
     e._itemForceF=0; e._kbF=0;
+    const perm=!!e._shorted
+      ||(!!(e._betaEnemy||e._ai)&&((e._downs||0)+1)>=3)
+      ||(!!e.mind&&!e._battleAi&&((e._shutCount||0)+1)>=SHUT_LIMIT);
+    if(perm) sfx('enemy_dead');
+    else sfx('enemy_shut', powerPitch);
     if(p&&p.hook&&p.hook.tgt===e){
       if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);
       p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};
     }
-    sfx('enemy_shut');
     if(e.mind&&!e._battleAi){
       e._shutCount=(e._shutCount||0)+1;
       if(typeof _dropEnemyItems==='function') _dropEnemyItems(e);
@@ -2881,7 +2888,7 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     if(_battleTestMode&&e._battleSignol) _onBattleSignolDefeated();
     return true;
   }
-  sfx('hit_enemy',_hitSfxPitch(e.hp,e.mhp));
+  sfx('hit_enemy',powerPitch);
   return false;
 }
 

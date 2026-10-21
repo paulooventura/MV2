@@ -212,10 +212,10 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - `js/beta_impact.js`: punch swing crescent + impact stars/shake (render.js calls `_punchConnect(x,y,ang,charged,kind)`), omni-block dust. Sounds in sfx_posh: `omniblock_chip` crunch, `omniblock_shatter` crush, `punch`/`punch_heavy` whoosh, `punch_hit(_heavy)`, `punch_wall`, `bed_boing`, `reel_in`/`reel_out`.
 - RCA rope (player.js): swing drag 0.993 (0.96 below 1.6 px/f, 0.998 while pumping) so it runs down to hanging still; `h._reel`, `h._reelPhase` drive moving braid marks + a spinning spool at the jack; tip drawn as a magnet puck (`_drawRopeMagnetTip`).
 
-### Build 197 — live cage blocks, crystals, speed camera, enemy awareness, item crates
+### Build 201 (my 197, merged over main 197–200) — live cage blocks, crystals, speed camera, enemy awareness, item crates
 - Yellow TRS-cage blocks are electrical (`beta_impact.js` `_shockFromBlock`): touch = 6 + 4.2×speed dmg (max 55, 40-frame cooldown), punch 26, loaded punch leaves 8 HP. Bolts + flash; no omni crumbs (weapons.js `_LASER_SHARD_COLS`).
 - Punches need a clear line from the shoulder (`_punchReach` in render.js) for blocks, enemies and crates.
-- Knowl crystals: static green faceted cluster (`beta_decor.js crystal/gemShard`); `crystal_pickup` sfx; seeds and crystals each climb a pentatonic ladder per stage (`_knowlPickPitch` in weapons.js).
+- Knowl crystals: static green faceted cluster (`beta_decor.js crystal/gemShard`); `crystal_pickup` sfx rises with the share collected like seeds' `seedPitch` (`_knowlPickPitch` in weapons.js).
 - Camera: `camZoom` 1.2 standing → 1.0 at speed (physics.js `_updateCamZoom`); world drawn inside `_worldZoomBegin/_worldZoomEnd` (main.js draw), HUD unscaled. Never below 1.
 - Story enemies: `aware` needs line of sight; '!' on spotting, '?' after ~1.5 s lost, then search last-seen spot (7–10 s) within `leash` of `homeX`; eyes follow `e.look`.
 - Item boxes (`js/beta_crates.js`): wood-pallet crates (100 HP: punch 34, loaded/charged laser 100, laser 50), splinters, item pops out by hit strength, gets knocked by later hits, picked up by touch after 32 frames. Pickup sites use `B.crateRect(o)`.

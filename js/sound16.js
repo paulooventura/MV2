@@ -85,7 +85,7 @@
         C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
       }
     }
-    b={sfx:inS, music:inM, sel, ac, chips:[], crusher, phase:5};
+    b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5};
     BUS.set(ac,b);
     try{
       if(ac.audioWorklet&&!disabled){
@@ -136,7 +136,7 @@
       if(ac){
         try{
           const src=ac.createMediaElementSource(this); SKIP.add(src);
-          const b=busFor(ac); known.add(ac); origConnect.call(src,b.music); routed.add(this);
+          const b=busFor(ac); known.add(ac); origConnect.call(src,b.musicPost||b.music); routed.add(this);
         }catch(e){ routed.add(this); }
       }
     }
