@@ -250,7 +250,7 @@ function _grantPlayerItem(idx, silent){
   const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MAG Pull'];
   const lines=[
     ['Hold X / Q to charge a beam. Release to shoot.'],
-    ['X / Q — launch hook · W/S — reel in or let out rope','A / Space — release to swing or catapult off walls'],
+    ['X / Q — launch the hook, press again to let go · W/S — reel','Down + jump lets go of the rope'],
     ['Hold X / Q to push enemies and shots away.'],
     ['Hold X / Q to pull enemies and shots in.'],
   ];
@@ -645,6 +645,16 @@ function ropePlayerEndWorld(){
   if(ITEM===1){ const pose=computeConnectorArmPose(p); return {x:pose.noseX,y:pose.noseY}; }
   return hookAttachWorld();
 }
+// Voluntary let-go: keep the swing's speed and the current aim (a new throw
+// should go where MIND is pointing, not back at the old latch).
+function _detachPlayerRope(h){
+  if(!h||h.st==='idle') return false;
+  h.st='idle'; h.ox=NaN; h.oy=NaN; h.tgt=null; h.plat=null;
+  h._tight=false; h._slack=false; h._path=null; h._tension=0;
+  h.pivots=null; h.vr=null; h._cord=null; h._cube=null; h._cubeChecked=false;
+  try{ sfx('ropeSlack'); }catch(e){}
+  return true;
+}
 
 // ── Fire item ─────────────────────────────────────────────────
 function fireItem(charged=false){
@@ -658,8 +668,11 @@ function fireItem(charged=false){
   const c=connectorTipWorld(ITEM);
 
   if(ITEM===1){ // RCA GRAPPLING HOOK
-    if(p.hook.st==='on'||p.hook.st==='ext'){                       // another rope: the old one lets go, the new one flies
-      if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);
+    if(p.hook.st==='on'){                                          // latched: the item button lets go. Press it again to throw.
+      _detachPlayerRope(p.hook);
+      return;
+    }
+    if(p.hook.st==='ext'){                                         // still flying: the old throw stops and a new one flies
       p.hook.st='idle'; p.hook.ox=NaN; p.hook.oy=NaN; p.hook.tgt=null; p.hook.plat=null; p.hook._path=null; p.hook.pivots=null; p.hook.vr=null;
     }
     if(p.hook.st==='idle'&&typeof _itemDownAim==='function'&&_itemDownAim(p)){
@@ -806,9 +819,13 @@ function updateHook(){
     }
     p.wallGrip=0;
     if(!p._hasAimInput) _aimHook(h.ax,h.ay);
-    // Paulo (Oct 20): jumping on the rope does NOT let go of it — the rope only
-    // comes off if the strain snaps it or he throws another rope. A jump is a kick:
-    // off the ground a real jump, in the air a pump along the swing.
+    // Down + jump lets go (item button does the same when the rope is selected).
+    // Jump alone stays a kick: off the ground a real jump, in the air a pump along the swing.
+    if(isJumpJ()&&isDn()){
+      _detachPlayerRope(h);
+      if(OPT&&OPT.binds&&OPT.binds.jump) OPT.binds.jump.forEach(c=>delete Kj[c]);
+      return;
+    }
     if(isJumpJ()){
       if(p.og||_playerOnGround(p)){ p.vy=JI; p.og=false; p._groundHold=0; }
       else{ const a=ropePlayerEndWorld(); const dx=h.ax-a.x, dy=h.ay-a.y, d=Math.hypot(dx,dy)||1;
