@@ -39,6 +39,8 @@
     bb:{x0:0,x1:-1,y0:0,y1:-1}, rects:[], ready:false, lost:0, vapor:0, total0:0};
   B.fluid=F;
   const MAXC=0.012, MINM=0.0005, K=0.4, DAMP=0.6, FILM=0.03, SUB=4, SUP=0.97;
+  B.waterShortsEnemies=true;
+  const ENEMY_SHORT_FR=40;                                   // frames in the water before an enemy shuts down for good
   const ELEC_BOIL=0.006, BOIL_SHOT=10, BOIL_CHARGED=24;
   function stable(t){ if(t<=1) return 1; if(t<2+MAXC) return (1+t*MAXC)/(1+MAXC); return (t+MAXC)/2; }
 
@@ -694,16 +696,26 @@
       s.life=0; zap(1); try{ sfx('water_boil'); }catch(e){}
       for(let k=0;k<(s.charged?14:7);k++) B.steam.push({x:s.x+(Math.random()-0.5)*30,y:s.y-Math.random()*20,vx:(Math.random()-0.5)*1.2,vy:-1-Math.random()*1.5,r:8+Math.random()*10,life:70+Math.random()*40|0,max:110});
     }
-    // enemies short out in water (unless they wear an Isolator)
+    // enemies short-circuit in water just like MIND does (Paulo, Oct 21): sparks and
+    // crackle over them, they lose power fast, and if they stay in they shut down
+    // for good. Out of the water in time, they recover.
     for(const b of list){
       if(!b.enemy) continue;
       const e=b.ref; if(e._iso) continue;
-      if(B.enemySubmerged(e)){
-        if(e.alive&&!e._shorted){ e._shorted=true; if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y); if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24); }
-        if(!e._permOff){ e._permOff=true; e._downs=3; if(B.stats) B.stats.permOff=(B.stats.permOff||0)+1; }
-        e._revT=0;
-        if(!e.alive){ e.vy=Math.min((e.vy||0),1.2); e.vx=(e.vx||0)*0.9; if(fr%9===0) spark(e.x+e.w/2,e.y+e.h/3,16); }
-      }
+      const wet=B.enemySubmerged(e);
+      if(wet&&e.alive){
+        e._shortT=(e._shortT||0)+1; e._shorting=true;
+        if(fr%3===0) spark(e.x+e.w/2,e.y+e.h/2,Math.max(e.w,e.h)*0.6);
+        if(fr%8===0) zap(0.6);
+        e.vx=(e.vx||0)*0.85+(Math.random()-0.5)*0.6;
+        if(e._shortT>=ENEMY_SHORT_FR&&!e._shorted){
+          e._shorted=true; if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y);
+          if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(1); for(let k=0;k<12;k++) spark(e.x+e.w/2,e.y+e.h/2,28);
+          if(!e._permOff){ e._permOff=true; e._downs=3; if(B.stats) B.stats.permOff=(B.stats.permOff||0)+1; }
+          e._revT=0;
+        }
+      }else{ e._shorting=false; if(e._shortT>0) e._shortT=Math.max(0,e._shortT-2); }
+      if(wet&&!e.alive&&e._shorted){ e.vy=Math.min((e.vy||0),1.2); e.vx=(e.vx||0)*0.9; if(fr%9===0) spark(e.x+e.w/2,e.y+e.h/3,16); }
     }
     // MIND: short-circuit without the Isolator
     const dpt=mindDepth();
@@ -986,6 +998,10 @@
       ctx.beginPath(); ctx.arc(cx-sw(12),top+sw(20),sw(10),Math.PI*1.1,Math.PI*1.55); ctx.stroke();
       ctx.restore();
     }
+    if(on()) for(const e of ENEMS){ if(!e._shorting||!e.alive) continue;   // enemies shorting out: the same crackle
+      const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h*0.4), hw=sw(Math.max(e.w,30))*0.5;
+      ctx.strokeStyle='rgba(255,250,150,0.9)'; ctx.lineWidth=2;
+      for(let k=0;k<2;k++){ let x=cx+(Math.random()-0.5)*hw*2, y=cy-hw*0.6; ctx.beginPath(); ctx.moveTo(x,y); for(let j=0;j<4;j++){ x+=(Math.random()-0.5)*hw*0.7; y+=hw*0.4; ctx.lineTo(x,y); } ctx.stroke(); } }
     if(on()&&B.shortT>0){                                 // shorting out: crackle over the speaker
       const cx=sx(p.x+SW/2), cy=sy(p.y+FEET_OFF-55);
       ctx.strokeStyle='rgba(255,250,150,0.9)'; ctx.lineWidth=2;

@@ -153,7 +153,7 @@ ent('Laitu', 50, 11, 1, 3)
 ent('Enemy', 78, 13, ai='circle', range=4)
 ent('Enemy', 36, 19, ai='tri', range=4)
 # Paulo (Oct 20): no room names — you can see which room is which
-ent('Label', 61, 9, text="LAITU'S HOUSE")
+# (no label over Laitu's house — Paulo, Oct 21)
 ent('Room', 2, 7, 28, 13, style='home', loft=14 + SKY)
 ent('Room', 57, 7, 17, 7, style='laitu')
 # drawing-only decor anchors (cell = anchor point)

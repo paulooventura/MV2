@@ -488,6 +488,7 @@
   }
   function shortIfWet(e){
     if(!e||e._iso||e._shorted||!touchesWater(e)) return false;
+    if(B.waterShortsEnemies) return false;              // beta_water shorts them out over a moment, like MIND
     e._shorted=true;
     if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y+e.h/2);
     e.alive=false; e._permOff=true; e._downs=3; e._revT=0;

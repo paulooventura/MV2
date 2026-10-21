@@ -343,24 +343,59 @@ function _drawHatBrim(brimL,brimR,hatBrimY,brimH){
   ctx.fillStyle='#040405';ctx.fillRect(brimL,hatBrimY+1,3,brimH-2);
   ctx.fillStyle='#0c0c0e';ctx.fillRect(brimR-4,hatBrimY+1,4,brimH-2);
 }
+// Paulo (Oct 21): MIND's hat is his logo — a long flat brim with slanted ends,
+// a squared crown with a window cut in it (chamfered top-left / bottom-right),
+// and the little spike under the brim at the crown's back wall. Units below
+// are the logo's, as fractions of the brim width (origin: brim top, centre).
+// dir: 1 = as drawn (MIND facing right), -1 mirrored. opt.front=false leaves
+// the front brim off (Venture: a backwards cap).
+function drawLogoHat(cx,brimY,Wd,dir,opt){
+  opt=opt||{}; dir=dir<0?-1:1;
+  const front=opt.front!==false;
+  const X=u=>cx+dir*u*Wd;
+  const brimT=opt.brimT||Math.max(3.5,0.0305*Wd), wall=opt.wall||Math.max(2.6,0.028*Wd), sl=Math.max(2,0.026*Wd);
+  const crownH=opt.crownH||0.205*Wd, cL=-0.2127, cR=0.2134, chf=Math.max(1,0.013*Wd);
+  const col=opt.col||'#050507', inner=opt.inner||'#1a1820', hi=opt.hi||'#4a4656';
+  ctx.save();
+  // shadow under the brim on the bulb
+  if(!opt.noShadow){ const e0=X(-0.42), e1=X(front?0.42:cR); ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(Math.min(e0,e1),brimY+brimT,Math.abs(e1-e0),2.5); }
+  // the brim: a parallelogram (top edge shifted toward the front)
+  const bL=-0.5, bR=front?0.5:cR;
+  ctx.fillStyle=col; ctx.beginPath();
+  ctx.moveTo(X(bL)+dir*sl,brimY); ctx.lineTo(X(bR),brimY); ctx.lineTo(front?X(bR)-dir*sl:X(bR),brimY+brimT); ctx.lineTo(X(bL),brimY+brimT); ctx.closePath(); ctx.fill();
+  // the spike under the brim, below the crown's back wall
+  const sT=brimY+brimT-0.5, sB=brimY+brimT+Math.max(3,0.07*Wd);
+  ctx.beginPath(); ctx.moveTo(X(-0.207),sT); ctx.lineTo(X(-0.148),sT); ctx.lineTo(X(-0.168),sB); ctx.lineTo(X(-0.181),sB); ctx.closePath(); ctx.fill();
+  // the crown
+  const top=brimY-crownH;
+  ctx.beginPath(); ctx.moveTo(X(cL),brimY+0.5); ctx.lineTo(X(cL),top+chf); ctx.lineTo(X(cL)+dir*chf,top); ctx.lineTo(X(cR)-dir*chf,top); ctx.lineTo(X(cR),top+chf); ctx.lineTo(X(cR),brimY+0.5); ctx.closePath(); ctx.fill();
+  // its window (open at the bottom onto the brim), chamfered top-left and bottom-right
+  const iL=X(cL)+dir*wall, iR=X(cR)-dir*wall, iT=top+wall, k1=Math.max(2,0.06*Wd), k2=Math.max(2,0.05*Wd);
+  ctx.fillStyle=inner; ctx.beginPath();
+  ctx.moveTo(iL,brimY); ctx.lineTo(iL,iT+k1); ctx.lineTo(iL+dir*k1,iT); ctx.lineTo(iR,iT); ctx.lineTo(iR,brimY-k2); ctx.lineTo(iR-dir*k2,brimY); ctx.closePath(); ctx.fill();
+  // a thin edge light around the whole silhouette so the black reads on a dark world (and on the bulb)
+  ctx.strokeStyle=hi; ctx.lineWidth=1; ctx.lineJoin='miter';
+  ctx.beginPath(); ctx.moveTo(X(cL),brimY); ctx.lineTo(X(cL),top+chf); ctx.lineTo(X(cL)+dir*chf,top); ctx.lineTo(X(cR)-dir*chf,top); ctx.lineTo(X(cR),top+chf); ctx.lineTo(X(cR),brimY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(cL),brimY); ctx.lineTo(X(bL)+dir*sl,brimY); ctx.lineTo(X(bL),brimY+brimT); ctx.lineTo(X(-0.207),brimY+brimT);
+  ctx.lineTo(X(-0.181),sB); ctx.lineTo(X(-0.168),sB); ctx.lineTo(X(-0.148),brimY+brimT);
+  ctx.lineTo(front?X(bR)-dir*sl:X(bR),brimY+brimT); ctx.lineTo(X(bR),brimY); ctx.lineTo(X(cR),brimY); ctx.stroke();
+  ctx.strokeStyle=hi; ctx.globalAlpha=0.7; ctx.beginPath();
+  ctx.moveTo(iL,brimY); ctx.lineTo(iL,iT+k1); ctx.lineTo(iL+dir*k1,iT); ctx.lineTo(iR,iT); ctx.lineTo(iR,brimY-k2); ctx.lineTo(iR-dir*k2,brimY); ctx.stroke(); ctx.globalAlpha=1;
+  ctx.restore();
+}
+function _hatDir(){ return (typeof p!=='undefined'&&p&&p.fc===false)?-1:1; }
 function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
-  const hatBrimY=drawY-R+2+ty, crownH=9, hatTopY=hatBrimY-crownH;
-  _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH);
-  _drawHatBrim(cx-28+tx,cx+30+tx,hatBrimY,6);
+  const hatBrimY=drawY-R+3+ty;
+  drawLogoHat(cx+tx,hatBrimY,64,window._hatDirOverride||_hatDir());
 }
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
-  const facing=!(p&&p.fc===false);
-  const hatBrimY=drawY-R+2+ty, crownH=9, hatTopY=hatBrimY-crownH;
-  _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH);
-  // Back brim only — same black as Mind, reads as a laid-down P.
-  const back=facing?-1:1;
-  const inner=cx+tx+back*2;
-  const outer=cx+tx+back*27;
-  _drawHatBrim(Math.min(inner,outer),Math.max(inner,outer),hatBrimY,6);
+  const hatBrimY=drawY-R+3+ty;
+  // Paulo (Oct 21): the same hat with no front brim — a backwards baseball cap
+  drawLogoHat(cx+tx,hatBrimY,64,window._hatDirOverride||_hatDir(),{front:false});
 }
 
 /* -- Lightbulb head â€” glass, iris, wide hat -- */
@@ -499,6 +534,17 @@ function drawArmEnergyFlow(x0,y0,x1,y1,x2,y2,useElbow,mode){
 }
 
 /* -- Coiled cable â€” curved bezier coils -- */
+// The jack arm as a coiled spring (Paulo's RCA sketches, Oct 21): a fixed number of
+// turns, so a short arm is tight loops and a stretched one pulls the loops open.
+function drawSpringCoil(sx0,sy0,angle,len,col1,col2){
+  if(len<1) return;
+  const N=5, b=6, a=len/(2*Math.PI*N), steps=N*14;
+  ctx.save(); ctx.translate(sx0,sy0); ctx.rotate(angle); ctx.lineCap='round'; ctx.lineJoin='round';
+  const path=()=>{ ctx.beginPath(); for(let i=0;i<=steps;i++){ const th=i/steps*N*2*Math.PI, x=a*th+b*(Math.cos(th)-1)*0.8, y=b*Math.sin(th); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); } };
+  path(); ctx.strokeStyle=col1; ctx.lineWidth=6; ctx.stroke();
+  path(); ctx.strokeStyle=col2; ctx.lineWidth=3.2; ctx.stroke();
+  ctx.restore();
+}
 function drawCoil(sx0,sy0,angle,len,col1,col2,shine,flowMode=0){
   if(len<1) return;
   const shineCol=shine||'rgba(120,80,200,0.15)';
@@ -1006,7 +1052,8 @@ function drawCharacter(){
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
+    if(p.hook&&p.hook.st==='on'&&held===1) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);
+    else drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
     if(held>=0) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
   }else{
     drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
@@ -2109,22 +2156,11 @@ function _drawRopeMagnetTip(x,y,ang,latched,glow){
   ctx.strokeStyle='#18161e'; ctx.lineWidth=1.2; ctx.stroke();
   ctx.restore();
 }
-// The jack end: the cord comes off a spool INSIDE the jack — a few loops of coil show in
-// the jack's mouth, more of them the more cord is wound in; they turn while reeling.
+// The jack end (Paulo, Oct 21): no spool showing — the cord just comes out of the
+// jack's tip, from inside it: a small dark mouth where it goes in.
 function _drawRopeSpool(x,y,h,col,glow,ang){
-  if(h._reel) h._spoolA=(h._spoolA||0)+h._reel*0.45;
-  const sc=typeof SMS_SCALE!=='undefined'?SMS_SCALE:1;
-  const a=ang==null?0:ang, wound=1-Math.max(0,Math.min(1,(h.rl||0)/((typeof CMAX!=='undefined'?CMAX:400)||400)));
-  const n=2+Math.round(wound*3), rr=Math.max(3,5/sc), step=Math.max(2,3/sc), ph=((h._spoolA||0)%1+1)%1;
-  ctx.save(); ctx.translate(x,y); ctx.rotate(a);
-  ctx.fillStyle='rgba(20,14,28,0.85)'; ctx.fillRect(-(n+0.5)*step-2,-rr-1.5,(n+0.5)*step+3,rr*2+3);      // the jack's mouth
-  for(let i=0;i<n;i++){
-    const xx=-(i+ph)*step;
-    ctx.strokeStyle=i%2?col:glow; ctx.lineWidth=1.6;
-    ctx.beginPath(); ctx.ellipse(xx,0,step*0.45,rr,0,0,Math.PI*2); ctx.stroke();
-  }
-  if(h._reel){ ctx.globalAlpha=0.35+0.25*Math.sin(fr*0.6); ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,rr+2,0,Math.PI*2); ctx.fill(); }
-  ctx.restore();
+  const sc=typeof SMS_SCALE!=='undefined'?SMS_SCALE:1, r=Math.max(2.2,3.2/sc);
+  ctx.save(); ctx.fillStyle='rgba(12,8,18,0.9)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
 }
 // a braided cord: two strands of short alternating ticks that run along it as it reels
 function _drawRopeBraid(wpts,phase,colA,colB){
@@ -2434,6 +2470,10 @@ function drawFX(){
       _drawRopeMagnetTip(ex,ey,Math.atan2(by-ey,bx-ex),false,_ropeGlow);
       p.hook._spoolA=(p.hook._spoolA||0)+0.6;               // the spool spins as the cord pays out
       _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(ey-by,ex-bx));
+    }else if(p._jackOnSurface&&!_onBody&&!_clipQ){
+      // Paulo's sketch (Oct 21): reeled in close, the jack's magnet tip sits right on the
+      // wall / floor / ceiling and the coil arm holds MIND to it — no cord showing
+      _drawRopeMagnetTip(bx,by,Math.atan2(sy(_ap.tipY)-by,sx(_ap.tipX)-bx),true,_ropeGlow);
     }else{
       const end=ropePlayerEndWorld();
       const taut0=p.hook._path||_ropePathPts(p.hook,end.x,end.y);

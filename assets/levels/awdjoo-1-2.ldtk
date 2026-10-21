@@ -11733,12 +11733,12 @@
        "width": 16,
        "height": 16,
        "px": [
-        144,
-        976
+        64,
+        864
        ],
        "__grid": [
-        9,
-        61
+        4,
+        54
        ],
        "fieldInstances": [
         {
@@ -11748,11 +11748,6 @@
         },
         {
          "__identifier": "range",
-         "__type": "Int",
-         "__value": 3
-        },
-        {
-         "__identifier": "iso",
          "__type": "Int",
          "__value": 1
         }

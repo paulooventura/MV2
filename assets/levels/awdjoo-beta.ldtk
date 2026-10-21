@@ -19919,29 +19919,8 @@
        ]
       },
       {
-       "__identifier": "Label",
-       "iid": "beta-159",
-       "width": 16,
-       "height": 16,
-       "px": [
-        976,
-        336
-       ],
-       "__grid": [
-        61,
-        21
-       ],
-       "fieldInstances": [
-        {
-         "__identifier": "text",
-         "__type": "String",
-         "__value": "LAITU'S HOUSE"
-        }
-       ]
-      },
-      {
        "__identifier": "Room",
-       "iid": "beta-160",
+       "iid": "beta-159",
        "width": 448,
        "height": 208,
        "px": [
@@ -19967,7 +19946,7 @@
       },
       {
        "__identifier": "Room",
-       "iid": "beta-161",
+       "iid": "beta-160",
        "width": 272,
        "height": 112,
        "px": [
@@ -19988,7 +19967,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-162",
+       "iid": "beta-161",
        "width": 16,
        "height": 16,
        "px": [
@@ -20019,7 +19998,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-163",
+       "iid": "beta-162",
        "width": 16,
        "height": 16,
        "px": [
@@ -20050,7 +20029,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-164",
+       "iid": "beta-163",
        "width": 16,
        "height": 16,
        "px": [
@@ -20071,7 +20050,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-165",
+       "iid": "beta-164",
        "width": 16,
        "height": 16,
        "px": [
@@ -20092,7 +20071,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-166",
+       "iid": "beta-165",
        "width": 16,
        "height": 16,
        "px": [
@@ -20113,7 +20092,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-167",
+       "iid": "beta-166",
        "width": 16,
        "height": 16,
        "px": [
@@ -20134,7 +20113,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-168",
+       "iid": "beta-167",
        "width": 16,
        "height": 16,
        "px": [
@@ -20155,7 +20134,7 @@
       },
       {
        "__identifier": "Decor",
-       "iid": "beta-169",
+       "iid": "beta-168",
        "width": 16,
        "height": 16,
        "px": [

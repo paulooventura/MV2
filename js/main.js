@@ -848,8 +848,11 @@ function update(){
   else if(dn&&_punchingNow){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
   else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=0;p.tAimDY=0;}}
   if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
-  if(!p._hasAimInput&&!p.wallGrip&&!(_punchingNow&&Math.abs(p.tAimDY)>0.55)){p.aimDX=p.fc?1:-1;p.aimDY=0;}
-  const _aimLerp=p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
+  // spamming the TRS: the arm sweeps to the new aim instead of snapping (the shots fan out on the way)
+  const _trsSweep=ITEM===0&&typeof TRS_SWEEP_FR!=='undefined'&&fr-(p._trsLastFr==null?-99:p._trsLastFr)<TRS_SWEEP_FR;
+  if(_trsSweep&&!p._hasAimInput){p.tAimDX=p.fc?1:-1;p.tAimDY=0;}
+  if(!_trsSweep&&!p._hasAimInput&&!p.wallGrip&&!(_punchingNow&&Math.abs(p.tAimDY)>0.55)){p.aimDX=p.fc?1:-1;p.aimDY=0;}
+  const _aimLerp=_trsSweep?0.06:p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
   p.pupilX+=(p.tAimDX*4-p.pupilX)*(p.og?0.18:0.07); p.pupilY+=(p.tAimDY*4-p.pupilY)*(p.og?0.18:0.07);
@@ -984,7 +987,7 @@ function update(){
     const _grounded=_playerOnGround(p);
     p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
     let _platLaunch=false;
-    if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');if(typeof _onDropPlatform==='function'&&_onDropPlatform(p))_platLaunch=true;}}
+    if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     p._ux0=p.x;
