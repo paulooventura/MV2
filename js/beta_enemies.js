@@ -178,11 +178,40 @@
   function fragSmoke(f){
     for(let s=0;s<5;s++) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y,vx:(Math.random()-0.5)*0.7,vy:-0.35-Math.random()*1.1,life:22+Math.random()*14|0,maxLife:36,r:2+Math.random()*2.5,col:Math.random()<0.5?'#d0d0d4':'#8a8a90'});
   }
+  function kickFrag(f){
+    if(!p||(f.kickCd||0)>0||Math.abs(p.vx||0)<0.4) return false;
+    const R=typeof WHEEL_R!=='undefined'?WHEEL_R:14, wx=p.x+SW/2, wy=p.y+FEET_OFF-R;
+    if(Math.hypot(f.x-wx,f.y-wy)>R+7) return false;
+    const s=Math.sign(p.vx);
+    f.vx=p.vx*1.25+s*1.2; f.vy=-2-Math.abs(p.vx)*0.35; f.settle=0; f.bounce=0; f.dud=true; f.kickCd=10;
+    if(f.ai!=='circle') f.t=Math.min(f.t,100); else f.smoked=Math.min(f.smoked||0,FRAG_LINGER-600);
+    try{ sfx('debris',0.7); }catch(e){}
+    return true;
+  }
+  // XLR (sign +1, push) / MAG (sign -1, pull): frags in front of the jack get shoved or drawn in
+  B.forceFrags=function(tx,ty,ang,sign,str,range){
+    if(!B.frags||!B.frags.length||str<=0) return;
+    const ca=Math.cos(ang), sa=Math.sin(ang);
+    for(const f of B.frags){
+      const dx=f.x-tx, dy=f.y-ty, d=Math.hypot(dx,dy); if(d>range||d<1) continue;
+      const ux=dx/d, uy=dy/d, al=ux*ca+uy*sa; if(al<0.3) continue;            // in front of the jack
+      if(!solidFree(tx,ty,f.x,f.y)) continue;                                    // not through a wall
+      const k=str*(1-d/range*0.7)*al;
+      f.vx+=ux*k*sign; f.vy+=uy*k*sign;
+      const sp=Math.hypot(f.vx,f.vy); if(sp>12){ f.vx*=12/sp; f.vy*=12/sp; }
+      if(f.settle){ f.settle=0; f.bounce=0; f.dud=true; }
+      if(f.ai!=='circle') f.t=Math.min(f.t,100);
+    }
+  };
+  function solidFree(x0,y0,x1,y1){ const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/10); for(let i=1;i<n;i++){ if(solidAt(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return false; } return true; }
   function fragTick(){
     for(let i=B.frags.length-1;i>=0;i--){
       const f=B.frags[i]; f.t++;
       const circle=f.ai==='circle';
-      if(!circle&&f.settle>0){ if(++f.settle>90) B.frags.splice(i,1); continue; }
+      if(f.kickCd>0) f.kickCd--;
+      // Paulo (Oct 21): spent frags are like the omni crumbs — roll over one and it gets kicked along
+      if((f.settle>0||(circle&&f.cold)||f.dud)&&kickFrag(f)){}
+      if(!circle&&f.settle>0){ if(++f.settle>240) B.frags.splice(i,1); continue; }
       if(circle&&f.cold){
         f.smoked++;
         if(f.smoked===1||(f.smoked<22&&f.smoked%4===0)) fragSmoke(f);
@@ -207,7 +236,7 @@
       if(circle&&f.cold) continue;
       if((f.hitCd||0)>0){ f.hitCd--; continue; }
       const h=playerCoreHB(p);
-      if(_shutdownTimer<=0&&ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
+      if(!f.dud&&_shutdownTimer<=0&&ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
         applyPlayerHit((p.x+SW/2-f.x)*0.15,-3.2,12);
         if(circle) f.hitCd=18; else { B.frags.splice(i,1); continue; }
       }

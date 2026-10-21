@@ -457,19 +457,34 @@
     // the power he has (100% = a full launch); the power is spent
     if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease){
       const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
-      B.xlrAim={x:0,y:1}; B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; B._xlrTapped=true;
+      B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};   // an almost empty bar barely lifts him B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
     }
     B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
     if(B._xlrTapped){ B.chX=0; }
     else if(xlrNow){
       B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
+      if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }   // the blow shoves frags away
       for(const bw of cubes()){
         if(bw.only==='pull'||bw._carried||bw._fly) continue;
         if(Math.hypot(bw.vx||0,bw.vy||0)>0.8) throwCube(bw,(bw.vx||0)*4,(bw.vy||0)*4);
       }
-    } else if(B.chX>0){ fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX); B.chX=0; }
-    if(magNow) B.chM++; else if(B.chM>0){ if(!B.mag.lockedThisHold) fireCube('pull',B.chM); B.chM=0; B.mag.lockedThisHold=false; }
+    } else if(B.chX>0){
+      // Paulo (Oct 21): every blast costs power on top of the hold, and its strength is
+      // the power left — spamming it empties the bar and the pushes fade to nothing
+      B.relPow=powNow(); fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX);
+      if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,9*Math.min(1,B.chX/45)*B.relPow+2*B.relPow,220); }
+      spend(ITEM_COST.XLR_BASE+ITEM_COST.XLR_CHARGE*Math.min(1,B.chX/45)); B.chX=0;
+    }
+    if(magNow) B.chM++; else if(B.chM>0){
+      B.relPow=powNow(); if(!B.mag.lockedThisHold) fireCube('pull',B.chM);
+      spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
+    }
   }
+  const ITEM_COST={XLR_BASE:14, XLR_CHARGE:22, MAG_BASE:10, MAG_CHARGE:16}, ITEM_REST=45;
+  B.ITEM_COST=ITEM_COST;
+  function xlrTip(){ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null; return pose?{x:pose.noseX,y:pose.noseY}:{x:p.x+SW/2,y:p.y+FEET_OFF-50}; }
+  const powNow=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+  function spend(n){ p.itemStamina=Math.max(0,(p.itemStamina||0)-n); p._itemRest=ITEM_REST; }   // and the bar waits a moment before refilling
   // Dominant aim axis → one of the four cell directions.
   function aimAxis(){
     const ax=p.aimDX||0, ay=p.aimDY||0, l=Math.hypot(ax,ay)||1;
@@ -529,7 +544,8 @@
       bs=score; bd=f.dist; best=bw;
     }
     if(!best) return;
-    const charge=Math.min(1,held/CUBE.CHARGE_FULL);
+    const charge=Math.min(1,held/CUBE.CHARGE_FULL)*(B.relPow==null?1:B.relPow);   // weaker on a low power bar
+    if(charge<0.06){ best.shakeX=2; best.hitGlow=8; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, weak:true}; return; }
     const near=bd<=CUBE.NEAR?1:Math.max(0,1-(bd-CUBE.NEAR)/(CUBE.RANGE-CUBE.NEAR));
     const cells=Math.max(1,Math.min(3,Math.round(1+2*charge*near)));
     const ax=aimAxis();
@@ -731,9 +747,10 @@
     const force=(ox,oy)=>{
       const f=_tipField({x:tip.x,y:tip.y},a,ox,oy,range);
       if(!f) return null;
-      const s=f.prox*f.cone*1.1;
+      const s=f.prox*f.cone*1.1*(0.2+0.8*powNow());          // a low bar pulls weakly
       return {fx:-f.ux*s, fy:-f.uy*s, s};
     };
+    if(B.forceFrags) B.forceFrags(tip.x,tip.y,a,-1,0.9*(0.2+0.8*powNow()),range);   // enemy frags are drawn in too
     for(const e of ENEMS){
       if(!e._ai||e._betaHeld) continue;
       const f=force(e.x+e.w/2,e.y+e.h/2);
@@ -960,6 +977,7 @@
       k.got=true; kColl++;
       if(typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
       try{ sfx('knowl_seed', seedPitch()); }catch(e){}
+      if(KDROP.every(o=>o.kind!=='seed'||o.got)){ B.seedsAllT=120; setTimeout(()=>{ try{ sfx('seeds_all'); }catch(e){} },380); }   // the whole set
       for(let pi=0;pi<12;pi++){
         const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*3;
         PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.8,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*3,col:'#66ffaa'});
@@ -1234,10 +1252,68 @@
   // The stage HUD goes on with the main HUD (the console's text layer, see console16.js)
   const _origDrawHUD=window.drawHUD;
   window.drawHUD=function(){
+    if(B.on&&_gameState==='game'&&!(typeof _battleTestMode!=='undefined'&&_battleTestMode)&&!(typeof _runTestMode!=='undefined'&&_runTestMode)){
+      drawTopBar(); drawBetaHud(); return;
+    }
     const r=_origDrawHUD.apply(this, arguments);
     if(B.on&&_gameState==='game') drawBetaHud();
     return r;
   };
+  // ── Top bar (Paulo, Oct 21): MIND's head + lives · HP with the power bar under it ·
+  //   the four jacks as their tips, left to right XLR > RCA > TRS > MAG
+  function hudHead(x,y,s,dim){                             // MIND's head: dark box, one big eye, black hat
+    ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+    ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#1c1430'; uiRound(-11,-8,22,18,4); ctx.fill();
+    ctx.fillStyle=dim?'rgba(255,255,255,0.14)':'#e8e0ff'; ctx.beginPath(); ctx.arc(0,1,6.5,0,Math.PI*2); ctx.fill();
+    if(!dim){ ctx.fillStyle='#3a2a6a'; ctx.beginPath(); ctx.arc(1,1,3.4,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(1,1,1.6,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(-2,-2,1.6,1.6); }
+    ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8);
+    ctx.restore();
+  }
+  const JACK_ORDER=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MAG'];
+  function drawTopBar(){
+    const y0=4, h=60;
+    uiPanel(6,y0,W-12,h,{r:14,alpha:0.78,flat:true,accent:'rgba(200,170,255,0.55)'});
+    ctx.imageSmoothingEnabled=true;
+    // MIND + lives
+    const lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
+    hudHead(34,y0+31,1.35,false);
+    drawText('x'+Math.max(0,B.lives|0), 54, y0+14, lost?'#ff6a7a':'#ffffff', 3);
+    drawText('CONT '+(B.continues|0), 56, y0+42, '#c8b8ff', 1);
+    // HP, and the power bar right under it
+    const hx=118, low=p.hp<=PLAYER_HIT_DMG*2;
+    drawText('HP',hx,y0+10,'#ffb0b8',2);
+    uiBar(hx+36,y0+10,220,15,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
+    const pw=Math.max(0,Math.min(100,p.itemStamina||0)), pc=pw>50?'#5ac8ff':(pw>20?'#ffa040':'#ff4a5a');
+    drawText('PWR',hx,y0+36,pc,1);
+    uiBar(hx+36,y0+35,220,9,pw/100,pc,pw>50?'#c0f0ff':pc,10,{pulse:pw<20});
+    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',hx+262,y0+34,pc,1);
+    // the jacks, drawn as their tips
+    const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
+    JACK_ORDER.forEach((i,k)=>{
+      const bx=hx+300+k*78, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
+      uiPill(bx,y0+8,70,44,{on:cur,col:icols[i]});
+      ctx.save(); ctx.beginPath(); ctx.rect(bx+3,y0+10,64,40); ctx.clip();
+      ctx.translate(bx+35,y0+30);
+      if(!on) ctx.globalAlpha=0.18;
+      ctx.scale(0.82,0.82);
+      if(typeof drawConnectorTip==='function') drawConnectorTip(i===3?-14:-16,0,0,0,i,enh);
+      ctx.restore();
+      if(!on){ ctx.fillStyle='rgba(10,6,24,0.35)'; uiRound(bx+2,y0+10,66,40,10); ctx.fill(); }
+      if(on&&enh) uiSparkle(bx+62,y0+13,5,icols[i],0.9);
+      if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ ctx.fillStyle=(fr&4)?'#fff':icols[i]; ctx.beginPath(); ctx.arc(bx+62,y0+44,3,0,Math.PI*2); ctx.fill(); }
+      if(cur) drawTextC(JACK_NAMES[i], bx+35, y0+h+2, '#ffffff', 1);
+    });
+    if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawTextR('KNOWL TREE 2X',W-22,y0+40,C.MINT,1); ctx.globalAlpha=1; }
+    if(Math.abs(p.vx)>0.3) drawTextR('SPD '+Math.round(Math.abs(p.vx)),W-22,y0+12,'#ece4ff',1);
+    if(GP&&GP.pad) drawTextR('PAD',W-22,y0+26,C.GREEN,1);
+    // the charge meter (sprint / duck / wall jump) under the bar
+    const ch=_playerChargeInfo(p), cs=ch.chargeFrac;
+    if((p.og&&cs>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||ch.sprinting){
+      const ready=p.duckBoostReady||p._wallChargeReady||ch.ready;
+      uiBar(14,y0+h+8,130,10,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
+    }
+  }
   function drawLaituTag(){
     const tg=B._laituTag; B._laituTag=null; if(!tg) return;
     const {cx, top}=tg;
@@ -1259,20 +1335,43 @@
     const C=window.MV_CONSOLE;
     if(C&&C.MODES&&C.MODES[C.mode]&&_gameState==='game') B.textQ.push([fn,args]); else fn(...args);
   };
+  // little HUD versions of the pickups (beta_decor draws the real ones)
+  function hudCrystal(x,y,on,all,i){
+    ctx.save(); ctx.translate(x,y);
+    if(!on){ ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(4,-3); ctx.lineTo(3,5); ctx.lineTo(-3,5); ctx.lineTo(-4,-3); ctx.closePath(); ctx.fill(); ctx.restore(); return; }
+    if(all){ ctx.shadowColor='#5dffa0'; ctx.shadowBlur=10+4*Math.sin(fr*0.12+i); }
+    const h=t=>'hsl('+(138+22*Math.sin(fr*0.03+t)).toFixed(0)+',85%,';
+    ctx.fillStyle=h(0)+'30%)'; ctx.beginPath(); ctx.moveTo(-4,-3); ctx.lineTo(0,-8); ctx.lineTo(0,5); ctx.lineTo(-3,5); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle=h(1.5)+'62%)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(4,-3); ctx.lineTo(3,5); ctx.lineTo(0,5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fillRect(-2,-4,1.5,4);
+    ctx.restore();
+  }
+  function hudSeed(x,y,on,all,i){
+    ctx.save(); ctx.translate(x,y);
+    ctx.beginPath(); ctx.moveTo(0,-8); ctx.bezierCurveTo(4,-3,5,1,0,5); ctx.bezierCurveTo(-5,1,-4,-3,0,-8); ctx.closePath();
+    if(!on){ ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.fill(); ctx.restore(); return; }
+    if(all){ ctx.shadowColor='#7dffcf'; ctx.shadowBlur=10+4*Math.sin(fr*0.12+i); }
+    ctx.fillStyle='#7dffcf'; ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#13684e'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.ellipse(-1.2,-1.5,1,1.8,-0.4,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  function hudSetGlow(x,y,w,h,rgb){                       // a full set: a soft pulsing halo + a glint running along it
+    const a=0.22+0.12*Math.sin(fr*0.1);
+    ctx.save(); const g=ctx.createRadialGradient(x+w/2,y+h/2,2,x+w/2,y+h/2,w*0.7);
+    g.addColorStop(0,'rgba('+rgb+','+a.toFixed(3)+')'); g.addColorStop(1,'rgba('+rgb+',0)');
+    ctx.fillStyle=g; ctx.fillRect(x-10,y-8,w+20,h+16);
+    const t=(fr*0.012)%1, gx=x+t*w;
+    ctx.fillStyle='rgba(255,255,255,'+(0.7*Math.sin(t*Math.PI)).toFixed(3)+')'; ctx.fillRect(gx-1,y+h/2-6,2,12); ctx.fillRect(gx-6,y+h/2-1,12,2);
+    ctx.restore();
+  }
   function drawBetaHud(){
     if(B.textQ.length){ if(typeof _worldZoomBegin==='function') _worldZoomBegin(); try{ for(const [fn,args] of B.textQ) fn(...args); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); } } B.textQ.length=0;
     drawLaituTag();
     const n=counts();
     uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
     drawText(B.stageName, 22, H-52, '#c8b8ff', 1);
-    // lives (little MIND heads) and continues
-    { const lx=W-210, ly=H-44, lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
-      uiPanel(lx-14, ly-14, 210, 36, {r:12, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
-      for(let i=0;i<3;i++){ const on=i<B.lives||(lost&&i===B.lives); const x=lx+i*30;
-        ctx.fillStyle=on?'#1c1430':'rgba(255,255,255,0.10)'; ctx.fillRect(x,ly-6,22,18);
-        ctx.fillStyle=on?'#e8e0ff':'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc(x+11,ly+3,6,0,Math.PI*2); ctx.fill();
-        if(on){ ctx.fillStyle='#2a2040'; ctx.beginPath(); ctx.arc(x+12,ly+3,3,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.fillRect(x+1,ly-9,20,3); ctx.fillRect(x+5,ly-14,12,6); } }
-      drawText('CONT '+B.continues, lx+98, ly-2, '#ffd860', 1); }
     drawTextR(fmtTime(B.stats.frames), 190, H-52, '#ffffff', 1);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
@@ -1285,10 +1384,16 @@
     }
     // crystals + seeds as little gems
     let gx=22; const gy=H-26;
-    for(let i=0;i<B.need.crystals;i++){ const on=i<n.crystals; ctx.save(); ctx.translate(gx+7,gy+2); ctx.rotate(Math.PI/4); ctx.fillStyle=on?'#4cffa8':'rgba(255,255,255,0.14)'; if(on){ ctx.shadowColor='#4cffa8'; ctx.shadowBlur=8; } ctx.fillRect(-5,-5,10,10); ctx.restore(); gx+=20; }
-    drawText(n.crystals+'/'+B.need.crystals, gx+2, gy-6, '#4cffa8', 1); gx+=46;
-    for(let i=0;i<B.need.seeds;i++){ const on=i<n.seeds; ctx.fillStyle=on?'#ffd860':'rgba(255,255,255,0.14)'; ctx.save(); if(on){ ctx.shadowColor='#ffd860'; ctx.shadowBlur=8; } ctx.beginPath(); ctx.ellipse(gx+5,gy+2,4.5,6,0,0,Math.PI*2); ctx.fill(); ctx.restore(); gx+=14; }
-    drawText(n.seeds+'/'+B.need.seeds, gx+4, gy-6, '#ffd860', 1);
+    // Paulo (Oct 21): the same look and colour as the real pickups; a full set glows
+    const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
+    const x0c=gx;
+    for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+7,gy+3,i<n.crystals,cAll,i); gx+=20; }
+    if(cAll) hudSetGlow(x0c-4,gy-10,gx-x0c+4,26,'90,255,160');
+    drawText(n.crystals+'/'+B.need.crystals, gx+2, gy-6, '#5dffa0', 1); gx+=46;
+    const x0s=gx;
+    for(let i=0;i<B.need.seeds;i++){ hudSeed(gx+5,gy+3,i<n.seeds,sAll,i); gx+=14; }
+    if(sAll) hudSetGlow(x0s-4,gy-10,gx-x0s+2,26,'125,255,207');
+    drawText(n.seeds+'/'+B.need.seeds, gx+4, gy-6, '#7dffcf', 1);
     if(B.tier>0&&B.echoNeed>0){
       let ex=360; for(let i=0;i<B.echoNeed;i++){ const on=i<n.echo; ctx.save(); ctx.translate(ex+7,gy+2); ctx.rotate(Math.PI/4); ctx.fillStyle=on?'#ff9ae0':'rgba(255,255,255,0.14)'; if(on){ ctx.shadowColor='#ff9ae0'; ctx.shadowBlur=8; } ctx.fillRect(-5,-5,10,10); ctx.restore(); ex+=20; }
       drawText('ECHO '+n.echo+'/'+B.echoNeed, ex+2, gy-6, '#ff9ae0', 1);

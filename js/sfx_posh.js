@@ -137,9 +137,10 @@
       const k=typeof p==='number'?p:2;
       const notes=[N(84),N(88),N(91),N(96)];
       const tap=(dt,v)=>notes.forEach((f,i)=>bell(a,{f:f*k,dt:dt+i*0.055,ratio:3.0,index:1.4,d:0.7,v,rev:0.55}));
-      tap(0,0.08); tap(0.18,0.045); tap(0.36,0.024); tap(0.54,0.012);
-      tone(a,{f:N(72)*k,d:0.55,v:0.05,rev:0.45});
-      tone(a,{f:N(72)*k,dt:0.18,d:0.4,v:0.028,rev:0.5});
+      const q=0.9;                                    // Paulo (Oct 21): seeds 10% quieter
+      tap(0,0.08*q); tap(0.18,0.045*q); tap(0.36,0.024*q); tap(0.54,0.012*q);
+      tone(a,{f:N(72)*k,d:0.55,v:0.05*q,rev:0.45});
+      tone(a,{f:N(72)*k,dt:0.18,d:0.4,v:0.028*q,rev:0.5});
     },
     frag_fire(a){
       hiss(a,{f:380,f1:2400,q:0.7,d:0.42,v:0.22,rev:0.28});
@@ -149,6 +150,19 @@
       tone(a,{f:rnd(520,860),f1:180,d:0.12,v:0.06,type:'triangle'});
     },
     run_click(a){ tone(a,{f:148,f1:92,d:0.045,v:0.13,type:'square',lp:420}); tone(a,{f:74,d:0.05,v:0.08,type:'triangle'}); },
+    // every seed in the stage found (Paulo, Oct 21): a rising sparkle run that blooms into a warm chord
+    seeds_all(a){
+      [N(72),N(76),N(79),N(84),N(88),N(91),N(96)].forEach((f,i)=>bell(a,{f,dt:i*0.06,ratio:3.0,index:1.3,d:0.9,v:0.07,rev:0.6}));
+      [N(60),N(67),N(72),N(76),N(79)].forEach(f=>{ for(const det of [-6,6]) tone(a,{f,dt:0.42,d:2.2,v:0.03,type:'triangle',det,at:0.12,rev:0.8}); });
+      bell(a,{f:N(100),dt:0.5,ratio:2,index:0.9,d:1.8,v:0.06,rev:0.9});
+      for(let k=0;k<12;k++) hiss(a,{type:'highpass',f:rnd(6500,10000),dt:0.42+k*rnd(0.04,0.09),d:0.05,v:rnd(0.02,0.04),rev:0.6});
+    },
+    // every crystal found: glassy, higher, with a shimmering tail
+    crystals_all(a){
+      [N(84),N(91),N(96),N(100),N(103),N(108)].forEach((f,i)=>bell(a,{f,dt:i*0.05,ratio:3.99,index:1.1,d:1.4,v:0.07,rev:0.75}));
+      [N(64),N(71),N(76),N(83)].forEach(f=>{ for(const det of [-8,8]) tone(a,{f,dt:0.35,d:2.4,v:0.028,type:'sine',det,at:0.15,rev:0.85,vib:5,vibd:6}); });
+      bell(a,{f:N(112),dt:0.4,ratio:2,index:0.7,d:2,v:0.05,rev:0.9});
+    },
     // Knowl crystal (Paulo, Oct 21): bright and glassy — a fast shimmering run up, a high ting
     // and an airy sparkle tail; it climbs with each crystal like the seeds do
     crystal_pickup(a,p){ p=p||1;

@@ -1024,6 +1024,7 @@ function updateKnowls(){
       if(p1Gets) healPlayerFromKnowl();
       if(p2Gets) healAnyPlayerFromKnowl(p2);
       sfx((k.kind==='crystal'||k.kind==='echo')?'crystal_pickup':'knowl_pickup', _knowlPickPitch(k));
+      if(k.kind==='crystal'&&KDROP.every(o=>o.kind!=='crystal'||o.got)) setTimeout(()=>{ try{ sfx('crystals_all'); }catch(e){} },420);   // the whole set
       for(let pi=0;pi<8;pi++){
         const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*2.8;
         PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,

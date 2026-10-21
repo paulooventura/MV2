@@ -169,7 +169,8 @@
     const la=B.xlrAim, a=unitAim(la);
     const charge=Math.min(1,held/FEEL.XLR_FULL);
     const vFull=Math.sqrt(2*GRAV*FEEL.SUPER_H);
-    const v=vFull*Math.sqrt(Math.max(0.18,charge))*0.62;
+    const pw=B.relPow==null?1:Math.max(0,Math.min(1,B.relPow));   // Paulo (Oct 21): the launch follows the power bar
+    const v=vFull*Math.sqrt(Math.max(0.18,charge))*0.62*pw;
     p.vx-=a.x*v; p.vy-=a.y*v;
     capSpeed(16);
     p.og=false; p._groundHold=0; p.jf=0;

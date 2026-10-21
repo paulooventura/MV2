@@ -219,3 +219,9 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Camera: `camZoom` 1.2 standing → 1.0 at speed (physics.js `_updateCamZoom`); world drawn inside `_worldZoomBegin/_worldZoomEnd` (main.js draw), HUD unscaled. Never below 1.
 - Story enemies: `aware` needs line of sight; '!' on spotting, '?' after ~1.5 s lost, then search last-seen spot (7–10 s) within `leash` of `homeX`; eyes follow `e.look`.
 - Item boxes (`js/beta_crates.js`): wood-pallet crates (100 HP: punch 34, loaded/charged laser 100, laser 50), splinters, item pops out by hit strength, gets knocked by later hits, picked up by touch after 32 frames. Pickup sites use `B.crateRect(o)`.
+
+### Build 202 — frags, HUD, item power
+- Enemy frags: spent ones (settled / cold) get kicked by the wheel (`kickFrag`, become `dud` = harmless to MIND); `B.forceFrags(tx,ty,ang,sign,str,range)` — MAG pulls (pullAround), XLR shoves while held and blasts on release. Settled tri/square frags now linger 4 s.
+- Seeds 10% quieter (`knowl_seed`); full sets play `seeds_all` / `crystals_all`; bottom-left bar draws real seed/crystal shapes + colours and glows when complete. Lives moved off the bottom-right.
+- Top bar (beta_level `drawTopBar`, replaces ui.js drawHUD in stages): MIND head + lives + continues, HP, power bar under HP, jack tips XLR > RCA > TRS > MAG.
+- XLR/MAG releases cost power (`ITEM_COST`: XLR 14+22×charge, MAG 10+16×charge) and refill waits 45 frames (`p._itemRest`, main.js); push/pull/launch strength × power at release (`B.relPow`); magnet field × (0.2+0.8×power).
