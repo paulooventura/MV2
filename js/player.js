@@ -543,6 +543,21 @@ function _clampSegFrom(shX,shY,tx,ty){
   return {x:shX+(tx-shX)*pull, y:shY+(ty-shY)*pull};
 }
 
+function _armSolid(x,y){
+  if(typeof gridWorldSolid!=='function') return false;
+  if(gridWorldSolid(x,y)) return true;
+  if(typeof gridIsSlope==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID){ const t=MV_GRID.tile, c=Math.floor(x/t), r=Math.floor(y/t); if(gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); return sy!=null&&y>sy+1; } }
+  return false;
+}
+// is a drawn limb (a chain of points, MIND's own frame, tilted round cx,cy) clear of rock?
+function _armPathClear(pts,cx,cy,t){
+  for(let i=0;i<pts.length-1;i++){
+    const a=_tiltPt(pts[i][0],pts[i][1],cx,cy,t), b=_tiltPt(pts[i+1][0],pts[i+1][1],cx,cy,t);
+    const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/4));
+    for(let j=(i===0?1:0);j<=n;j++){ const x=a.x+(b.x-a.x)*j/n, y=a.y+(b.y-a.y)*j/n; if(_armSolid(x,y)) return false; }
+  }
+  return true;
+}
 function _tiltPt(x,y,cx,cy,t){ if(!t) return {x,y}; const c=Math.cos(t), s=Math.sin(t), dx=x-cx, dy=y-cy; return {x:cx+dx*c-dy*s, y:cy+dx*s+dy*c}; }
 function computeConnectorArmPose(pl=p){
   const ca2=pl.crouchAmt, fc=pl.fc;
@@ -571,7 +586,15 @@ function computeConnectorArmPose(pl=p){
     pl._discFr=fr;
     const back=fc?-1:1;
     const tgtTilt=(rW&&pl.hook.st==='on')?Math.max(-0.55,Math.min(0.55,Math.atan2(rW.x,-rW.y)*0.6)):0;
-    pl._tilt=(pl._tilt||0)+(tgtTilt-(pl._tilt||0))*0.15;
+    let nt=(pl._tilt||0)+(tgtTilt-(pl._tilt||0))*0.15;
+    // Paulo (Oct 21): never lean into a wall — the tilt gives way before the wheel, box or
+    // bulb would swing into rock (points already touching at no tilt don't count)
+    const feetY=pl.y+FEET_OFF;
+    const P0=[[bodyCX-BODY_W/2,bodyTop],[bodyCX+BODY_W/2,bodyTop],[bodyCX-BODY_W/2,bodyTop+BODY_H],[bodyCX+BODY_W/2,bodyTop+BODY_H],
+              [bodyCX,feetY-2],[bodyCX-WHEEL_R,feetY-WHEEL_R],[bodyCX+WHEEL_R,feetY-WHEEL_R],[bodyCX,bodyTop-30],[bodyCX-14,bodyTop-18],[bodyCX+14,bodyTop-18]];
+    const hits=t=>P0.some(([x,y])=>{ if(_armSolid(x,y)) return false; const q=_tiltPt(x,y,tiltCX,tiltCY,t); return _armSolid(q.x,q.y); });
+    for(let g=0;g<4&&nt&&hits(nt);g++) nt=g<3?nt*0.5:0;
+    pl._tilt=nt;
     let side=pl._discSide==null?back:pl._discSide;
     if(rW){ const th=pl._tilt, lx=rW.x*Math.cos(th)+rW.y*Math.sin(th); if(lx>0.18) side=1; else if(lx<-0.18) side=-1; }
     else side=back;
@@ -597,7 +620,7 @@ function computeConnectorArmPose(pl=p){
   let ca=rawAngle*(1-aimDuckBlend*0.85)+duckAngle*(aimDuckBlend*0.85)+recoilTilt;
   let aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
   const _nudge=_rf*3*recoilSnap;
-  const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
+  let connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
   const connShY=connShoulderYd-Math.sin(ca)*_nudge;
   let noseX,noseY,tipX,tipY,useElbow=false,elbowX=0,elbowY=0,armA0=ca,armA1=ca,armL0=aimLen,armL1=0;
   if(hookOn&&rL){
@@ -608,8 +631,23 @@ function computeConnectorArmPose(pl=p){
     const reach=aimLen*0.55;
     tipX=elbowX+rL.x*reach; tipY=elbowY+rL.y*reach;
     noseX=tipX+rL.x*RCA_NOSE_LEN; noseY=tipY+rL.y*RCA_NOSE_LEN;
-    armA0=Math.atan2(elbowY-connShY,elbowX-connShX); armL0=Math.max(5,Math.hypot(elbowX-connShX,elbowY-connShY));
-    armA1=Math.atan2(rL.y,rL.x); armL1=reach;
+    // Paulo (Oct 21): the arm, the jack and its tip never go into a wall. Fit it: on this side
+    // first, then the other side of the disc, folding the arm and jack in until it's clear.
+    const fitArm=(sd)=>{
+      const shx=bodyCX+sd*BODY_W/2;
+      for(const k of [1,0.8,0.62,0.45,0.3,0.18]){
+        const ex=shx+sd*(6+8*sideK)*Math.min(1,k+0.3), ey=connShY+3;
+        const tx=ex+rL.x*reach*k, ty=ey+rL.y*reach*k, nx=tx+rL.x*RCA_NOSE_LEN*k, ny=ty+rL.y*RCA_NOSE_LEN*k;
+        if(_armPathClear([[shx,connShY],[ex,ey],[tx,ty],[nx,ny]],tiltCX,tiltCY,tilt)) return {k,shx,ex,ey,tx,ty,nx,ny};
+      }
+      return null;
+    };
+    let fit=fitArm(side);
+    if(!fit||fit.k<0.62){ const other=fitArm(-side); if(other&&(!fit||other.k>fit.k+0.15)){ fit=other; pl._discSide=-side; } }
+    if(!fit){ const shx=bodyCX+side*BODY_W/2; fit={k:0.12,shx,ex:shx,ey:connShY,tx:shx+rL.x*4,ty:connShY+rL.y*4,nx:shx+rL.x*10,ny:connShY+rL.y*10}; }
+    connShX=fit.shx; elbowX=fit.ex; elbowY=fit.ey; tipX=fit.tx; tipY=fit.ty; noseX=fit.nx; noseY=fit.ny;
+    armA0=Math.atan2(elbowY-connShY,elbowX-connShX); armL0=Math.max(2,Math.hypot(elbowX-connShX,elbowY-connShY));
+    armA1=Math.atan2(rL.y,rL.x); armL1=Math.max(2,reach*fit.k);
     useElbow=true;
   }else{
     tipX=connShX+Math.cos(ca)*aimLen; tipY=connShY+Math.sin(ca)*aimLen;

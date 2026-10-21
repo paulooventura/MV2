@@ -255,3 +255,7 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 ### Build 208 — switching items while hooked
 - Rope clip point `hookAttachWorld()` = back edge of the disc on top of the speaker. With another item out the rope's drawn end is the clip, with the RCA plug hanging in it (render.js); the arm follows the aim (auto-aim at the hook only with the RCA: player.js `_aimHook` guard).
 - beta_feel `B.ropeClip` (26 frames): switching RCA ↔ other item while latched carries the plug along an arc between the hand and the clip (`B.ropeClipPoint`), the arm reaching with it; a click (`grap_attach`) when it seats. Rope length re-fit uses `ropePlayerEndWorld()`.
+
+### Build 209 — nothing goes into walls
+- player.js: `_armSolid(x,y)` (grid + slopes), `_armPathClear(pts,cx,cy,tilt)`. Hooked RCA arm is fitted each frame (`fitArm`): current disc side, else the other side, folding arm+jack in (k 1→0.18) until shoulder→elbow→tip→nose is clear. Tilt shrinks (halving to 0) if it would swing the wheel, box or bulb into rock.
+- render.js: glove guard tucks toward the body if its fist would be in rock; a punch's fist stops at the wall face. The cord is shaped with the visible jack end already in place, so its rock collision covers the last stretch.
