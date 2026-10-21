@@ -888,6 +888,7 @@
   const REVIVE_FR=120,          // Paulo: rebooting takes 2 s
     SHUT_LIMIT_BETA=3, TREE_R=300;
   function energize(e,why){
+    if(e._shorted) return;                                 // water shutdown stays down
     e._downs=0; e._permOff=false; e._pwrHits=0;
     if(!e.alive) revive(e); else e.hp=e.mhp;
     e._glowF=40;
@@ -910,7 +911,7 @@
       if(e._wasAlive!==false&&!e.alive){ e._downs=(e._downs||0)+1; e._revT=0; B.stats.shutdowns++;
         if(e._downs>=SHUT_LIMIT_BETA){ e._permOff=true; B.stats.permOff++; } }
       e._wasAlive=e.alive;
-      if(!e.alive&&!e._permOff&&!e._betaHeld){
+      if(!e.alive&&!e._permOff&&!e._shorted&&!e._betaHeld){
         e._revT=(e._revT||0)+1;
         e.hp=Math.min(e.mhp,Math.ceil(e.mhp*e._revT/REVIVE_FR));     // the bar fills back up
         if(e._revT===REVIVE_FR-66) try{ sfx('enemy_boot'); }catch(_e){}   // the boot sound swells up to the moment it comes back on

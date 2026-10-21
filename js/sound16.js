@@ -50,9 +50,12 @@
     const G=v=>{ const g=mk(ac.createGain()); g.gain.value=v; return g; };
     const F=(type,f,qv,gain)=>{ const n=mk(ac.createBiquadFilter()); n.type=type; n.frequency.value=f; if(qv!=null) n.Q.value=qv; if(gain!=null) n.gain.value=gain; return n; };
     const out=mk(ac.createDynamicsCompressor()); out.threshold.value=-8; out.knee.value=8; out.ratio.value=3; out.attack.value=0.004; out.release.value=0.2;
-    // damage bit-crush on everything you hear (follows the HP phase, see console16)
+    // damage bit-crush is for effects and the picture, not the soundtrack.
+    // Music only slows down (playbackRate in beta_audio / audio.js).
     const crusher=mk(ac.createWaveShaper()); crusher.oversample='none';
+    const musicOut=G(1);
     C(out,crusher); C(crusher,ac.destination);
+    C(musicOut,ac.destination);
 
     // SNES after the chip: a little warmth and the S-DSP echo (delay + 8-tap FIR feedback)
     function snesPost(echoSend){
@@ -82,7 +85,7 @@
     for(const [post,set,key] of [[postS,sfx,'s'],[postM,mus,'m']]){
       for(const k of ['snes','md','off']){
         const lvl=G(k===mode()?1:0); sel[key+k]=lvl;
-        C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,out));
+        C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,key==='m'?musicOut:out));
       }
     }
     b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5};

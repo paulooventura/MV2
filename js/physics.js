@@ -2395,15 +2395,37 @@ function _ropeHitsLatch(hit, h){
   const r=Math.floor((hit.ty-(hit.ny||0)*0.6)/t);
   return c===Math.floor(h.ax/t)&&r===Math.floor(h.ay/t);
 }
+function _ropeIntoLatch(h,x1,y1,x2,y2){
+  if(!h||!isFinite(h.ax)||!(h.nx||h.ny)) return false;
+  const d=Math.hypot(x2-x1,y2-y1)||1;
+  return ((x2-x1)*(h.nx||0)+(y2-y1)*(h.ny||0))/d< -0.02;
+}
+// The solid run the rope hit, grown along the face it hit (a whole slab or wall, not one
+// cell), so the rope bends once at the slab's real edge.
+function _ropeGridFace(g){
+  const t=MV_GRID.tile;
+  const c=Math.floor((g.tx-(g.nx||0)*0.6)/t), r=Math.floor((g.ty-(g.ny||0)*0.6)/t);
+  let c0=c,c1=c,r0=r,r1=r;
+  if(Math.abs(g.ny||0)>=Math.abs(g.nx||0)){
+    const side=(g.ny||0)<0?-1:1;                                  // the open side of the face
+    while(c-c0<48&&gridSolid(c0-1,r)&&!gridSolid(c0-1,r+side)) c0--;
+    while(c1-c<48&&gridSolid(c1+1,r)&&!gridSolid(c1+1,r+side)) c1++;
+  }else{
+    const side=(g.nx||0)<0?-1:1;
+    while(r-r0<48&&gridSolid(c,r0-1)&&!gridSolid(c+side,r0-1)) r0--;
+    while(r1-r<48&&gridSolid(c,r1+1)&&!gridSolid(c+side,r1+1)) r1++;
+  }
+  return {x:c0*t,y:r0*t,w:(c1-c0+1)*t,h:(r1-r0+1)*t,tp:'solid'};
+}
 function _ropeFirstHit(x1,y1,x2,y2,h){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
     const g=gridRayHit(x1,y1,x2,y2);
-    if(g&&!_ropeHitsLatch(g,h)){
-      const tile=MV_GRID.tile;
-      const c=Math.floor((g.tx-(g.nx||0)*0.6)/tile), r=Math.floor((g.ty-(g.ny||0)*0.6)/tile);
-      return {hit:g, rect:{x:c*tile,y:r*tile,w:tile,h:tile,tp:'solid'}};
+    // Paulo (Oct 21, "YES / NO" sketch): the rope may ignore the face it's latched to only
+    // while it pulls AWAY from it — heading into that face it must wrap round its edge
+    if(g&&(!_ropeHitsLatch(g,h)||_ropeIntoLatch(h,x1,y1,x2,y2))){
+      return {hit:g, rect:_ropeGridFace(g)};
     }
     for(const bw of BWALLS){
       if(!bw||bw.hp<=0) continue;

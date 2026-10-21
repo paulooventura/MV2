@@ -553,8 +553,36 @@ function computeConnectorArmPose(pl=p){
   const bodyCX=px+SW/2;
   const bodyTop=bodyCY;
   const shoulderY=bodyTop+BODY_H*0.22;
-  const connShoulderX=fc?bodyCX-BODY_W/2:bodyCX+BODY_W/2;
   const hookOn=pl.hook&&pl.hook.st!=='idle';
+  // Paulo (Oct 21): both arms sit on a disc screwed to the top of the speaker. Hooked, the
+  // disc turns so the jack arm's mount faces the rope (never an awkward angle across the
+  // body); the glove arm rides round to the other side. s = -1 left edge … +1 right edge.
+  // Latched, the jack comes off the disc on the side facing the rope, in line with it
+  // (aimed at the rope's last bend, or the latch): the rope's end then sits on the rope's
+  // own line, so the swing keeps its length and its energy. Easing only when latching on
+  // or letting go.
+  const hookPt=hookOn?((pl.hook.st==='on'&&pl.hook.pivots&&pl.hook.pivots.length)?pl.hook.pivots[pl.hook.pivots.length-1]
+    :{x:pl.hook.st==='on'?pl.hook.ax:pl.hook.ex, y:pl.hook.st==='on'?pl.hook.ay:pl.hook.ey}):null;
+  let rU=null;
+  if(hookPt){ const dx0=hookPt.x-bodyCX, dy0=hookPt.y-shoulderY, d0=Math.hypot(dx0,dy0)||1; rU={x:dx0/d0,y:dy0/d0}; }
+  { const back=fc?-1:1, tgt=rU?rU.x:back;
+    if(pl._discS==null) pl._discS=back;
+    if(pl._discFr!==fr){ pl._discFr=fr;
+      pl._discBlend=hookOn&&pl.hook.st==='on'?Math.min(1,(pl._discBlend||0)+0.1):0;
+      if(pl._discEase==null) pl._discEase=back;
+      pl._discEase+=(tgt-pl._discEase)*0.18;
+      pl._discS=pl._discBlend>0?pl._discEase+(tgt-pl._discEase)*pl._discBlend:pl._discEase;
+      if(pl._discBlend>=1) pl._discEase=tgt;
+    }
+  }
+  const discS=pl._discS, discK=pl._discBlend||0;
+  let connShoulderX=bodyCX+discS*BODY_W/2, connShoulderYd=shoulderY;
+  if(rU&&discK>0){                                            // on the rope's line, round the disc's rim
+    const rim=BODY_W/2;
+    connShoulderX+= (bodyCX+rU.x*rim-connShoulderX)*discK;
+    connShoulderYd+=(shoulderY+rU.y*rim-shoulderY)*discK;
+  }
+  const gloveShoulderX=bodyCX-discS*BODY_W/2;
   const cptY=pl.y+FEET_OFF-STAND_H*0.5;
   const rawAngle=hookOn
     ?Math.atan2((pl.hook.st==='on'?pl.hook.ay:pl.hook.ey)-cptY,(pl.hook.st==='on'?pl.hook.ax:pl.hook.ex)-(pl.x+SW/2))
@@ -569,16 +597,17 @@ function computeConnectorArmPose(pl=p){
   let aimLen=Math.max(6,AIM_LEN-_rf*11*recoilSnap);
   const _nudge=_rf*3*recoilSnap;
   const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
-  const connShY=shoulderY-Math.sin(ca)*_nudge;
+  const connShY=connShoulderYd-Math.sin(ca)*_nudge;
   let noseX,noseY,tipX,tipY,useElbow=false,elbowX=0,elbowY=0,armA0=ca,armA1=ca,armL0=aimLen,armL1=0;
   if(hookOn){
-    const hx=pl.hook.st==='on'?pl.hook.ax:pl.hook.ex;
-    const hy=pl.hook.st==='on'?pl.hook.ay:pl.hook.ey;
+    const hx=hookPt.x, hy=hookPt.y;                     // toward the rope's last bend (or the latch)
     let dx=hx-connShX, dy=hy-connShY, dd=Math.hypot(dx,dy)||1;
     let ux=dx/dd, uy=dy/dd;
     const pxn=-uy, pyn=ux;
     const speed=Math.hypot(pl.vx||0,pl.vy||0);
-    const bend=7+Math.min(12,speed*0.7)+(pl.hook.st==='ext'?2:0);
+    // latched: the arm lies straight along the rope (the disc already faces it), so the
+    // rope's end doesn't shift sideways with speed; flying: a little elbow for life
+    const bend=pl.hook.st==='on'?0:7+Math.min(12,speed*0.7)+2;
     const bendSign=(fc?1:-1)*((dy>=0)?1:-1);
     elbowX=connShX+ux*aimLen*0.52+pxn*bend*bendSign;
     elbowY=connShY+uy*aimLen*0.52+pyn*bend*bendSign;
@@ -614,9 +643,9 @@ function computeConnectorArmPose(pl=p){
     const ex=(connShX+jx)/2+side*4, ey=Math.min(connShY,jy)-12;  // elbow: up and between
     const a0=Math.atan2(ey-connShY,ex-connShX), a1=Math.PI/2;
     return {connShX,connShY,elbowX:ex,elbowY:ey,tipX:jx,tipY:jy,armA0:a0,armA1:a1,armL0:Math.hypot(ex-connShX,ey-connShY),armL1:Math.hypot(jx-ex,jy-ey),
-      useElbow:true,noseX:jx,noseY:jy+(ITEM===1?RCA_NOSE_LEN:0),aimAngle:a1};
+      useElbow:true,noseX:jx,noseY:jy+(ITEM===1?RCA_NOSE_LEN:0),aimAngle:a1,gloveShX:gloveShoulderX,discS};
   }
-  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca};
+  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca,gloveShX:gloveShoulderX,discS,behindHead:!!(rU&&discK>0.5&&rU.y<-0.35)};
 }
 
 function connectorTipWorld(itemOverride=ITEM){
