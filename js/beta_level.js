@@ -280,7 +280,7 @@
           if(kind==='laser'){                  // TRS-only cage block: fixed in place, only the laser breaks it
             const bw=_mkBwall(x, y, T, T, {tileGid:typeof BWALL_RED_GID!=='undefined'?BWALL_RED_GID:242, movable:false,
               hp:RED_BWALL_HP, maxHp:RED_BWALL_HP, label:'LASER', homeX:x, homeY:y, homeCol:g.c, homeRow:g.r, col:'#e0b020'});
-            bw.only='laser'; BWALLS.push(bw); break;
+            bw.only='laser'; bw.plug=F(e,'plug')||null; BWALLS.push(bw); break;
           }
           const hard=kind!=='omni';
           // Cube: lives in one grid cell, never a rigid body (no physics cost while idle).
@@ -296,6 +296,7 @@
         }
         case 'Enemy': {
           const ai=F(e,'ai');
+          if(ai==='mirror'&&B.mkMirror){ ENEMS.push(B.mkMirror(cx, feet, (F(e,'range')||8)*T)); break; }
           if(ai&&B.mkAiEnemy){ ENEMS.push(B.mkAiEnemy(ai, cx, feet, {range:(F(e,'range')||5)*T, dir:F(e,'dir')|0||undefined, iso:!!F(e,'iso')})); break; }
           const type=F(e,'kind')==='B'?'square':'circle';
           if(typeof _mkMinion==='function'){
@@ -1041,6 +1042,7 @@
     if(B.enemyAITick) B.enemyAITick();
     if(B.impactTick) B.impactTick();
     if(B.clipTick) B.clipTick();
+    if(B.mirrorTick) B.mirrorTick();
     if(B.crateTick) B.crateTick();
     if(B.waterTick) B.waterTick();
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.hurtTick) MV_BETA_AUDIO.hurtTick();

@@ -36,7 +36,7 @@
         B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a, b, dir:1, spd:(F(e,'speed')||12)/10, dx:0});
       }else if(id==='Water'){
         const w={c0:g.c, c1:g.c+g.w-1, r0:g.r, r1:g.r+g.h-1, x0:g.c*T, x1:(g.c+g.w)*T, base:g.r*T, level:g.r*T,
-          elec:0, n:0, s:[], amt:[], occ:[], flux:[], pull:[], bottom:[], step:8};
+          elec:0, n:0, s:[], amt:[], occ:[], flux:[], pull:[], bottom:[], step:8, plug:F(e,'plug')||null, draining:false};
         w.n=Math.ceil((w.x1-w.x0)/w.step);
         B.waters.push(w);
       }else if(id==='Isolator'){
@@ -67,7 +67,7 @@
         w.bottom.push(r*T);
         w.amt.push(Math.max(0,r*T-w.base)); w.occ.push(0); w.flux.push(0); w.pull.push(0); w.s.push(Math.min(w.base,r*T));
       }
-      w.open=w.bottom.map((b,i)=>b>w.r1*T);                // columns with the pit under them
+      w.open=w.bottom.map((b,i)=>b>(w.r1+1)*T);            // columns with the pit under them (a floor right under the water is not a pit)
       w.vol0=w.amt.reduce((a,b)=>a+b,0);
     }
   };
@@ -430,10 +430,52 @@
     for(const r of (B.ropes||[])){ if(r.st!=='fly') continue; ropeWater(r,'vx','vy',()=>{ r.t=999; }); }
   }
 
+  // ── Plugged water (Paulo, Oct 21): a room of water held in by electro blocks.
+  //   Shoot one out and the water rushes through the hole: the room empties in a
+  //   few seconds, a jet pours out of the hole and spreads over the floor beyond.
+  const DRAIN={RATE:0.55, JET:3};
+  B.drainJets=[];
+  const _ls=B.onLevelStart; B.onLevelStart=function(){ B.drainJets=[]; return _ls.apply(this,arguments); };
+  function drainTick(){
+    for(const w of B.waters){
+      if(!w.plug||w.empty) continue;
+      if(!w.draining){
+        const hole=BWALLS.find(b=>b.plug===w.plug&&b.hp<=0);
+        if(!hole) continue;
+        w.draining=true; w.hole={x:hole.x, y:hole.y+hole.h, dir:-1};
+        for(const o of B.waters) if(o.plug===w.plug&&!o.draining){ o.draining=true; o.hole=w.hole; }
+        try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(1); sfx('water_gush'); }catch(e){}
+      }
+      let left=0;
+      for(let i=0;i<w.n;i++){ if(w.amt[i]>0){ w.amt[i]=Math.max(0,w.amt[i]-DRAIN.RATE); left+=w.amt[i]; } }
+      if(left<1){ w.empty=true; for(let i=0;i<w.n;i++) w.amt[i]=0; continue; }
+      const k=Math.min(1,left/(w.vol0||1)+0.25);       // a strong jet that weakens as the room empties
+      const h=w.hole;
+      for(let j=0;j<DRAIN.JET;j++) B.drainJets.push({x:h.x+2, y:h.y-4-Math.random()*T*0.9*k, vx:-(2.5+Math.random()*3.5)*k, vy:-Math.random()*1.2, life:90, r:2.5+Math.random()*2.5});
+    }
+    for(let i=B.drainJets.length-1;i>=0;i--){
+      const d=B.drainJets[i]; d.vy+=0.35; d.x+=d.vx; d.y+=d.vy;
+      if(gridWorldSolid(d.x,d.y+d.r)){ d.y-=d.vy; d.vy=0; d.vx*=0.97; d.flat=true; }   // runs along the floor
+      if(gridWorldSolid(d.x-d.r,d.y)) d.vx=Math.abs(d.vx)*0.3;
+      if(--d.life<=0||(d.flat&&Math.abs(d.vx)<0.4)) B.drainJets.splice(i,1);
+    }
+    if(B.drainJets.length>500) B.drainJets.splice(0,B.drainJets.length-500);
+  }
+  B.drawDrain=function(){
+    if(!B.drainJets.length) return;
+    ctx.save();
+    for(const d of B.drainJets){
+      const a=Math.min(0.85,d.life/40);
+      ctx.fillStyle=d.flat?'rgba(120,190,255,'+(a*0.6).toFixed(2)+')':'rgba(160,215,255,'+a.toFixed(2)+')';
+      ctx.beginPath(); ctx.ellipse(sx(d.x),sy(d.y),sw(d.flat?d.r*1.8:d.r),sw(d.flat?d.r*0.6:d.r),0,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  };
   function waterTick(){
     platformTick();
     isolatorTick();
     if(!B.waters.length) return;
+    drainTick();
     airBubbleTick(); ringsTick();
     hookWaterTick();
     magWaterTick();
@@ -636,7 +678,7 @@
   const _origFg=window.drawTmjForeground;
   window.drawTmjForeground=function(){
     const r=_origFg?_origFg.apply(this, arguments):undefined;
-    if(on()) drawWater();
+    if(on()){ drawWater(); B.drawDrain(); }
     return r;
   };
   function smoothSurf(w){

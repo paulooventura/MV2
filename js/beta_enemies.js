@@ -920,6 +920,7 @@
   }
   const _origDrawEnemy=window.drawEnemy;
   // '!' / '?' over its head: pops in, holds, fades out over a second
+  B.drawEnemyMark=(e)=>drawMark(e);
   function drawMark(e){
     const mk=e.mark; if(!mk||!e.alive) return;
     const t=mk.t, a=t<45?1:Math.max(0,1-(t-45)/15), pop=t<8?0.5+0.7*Math.sin(t/8*Math.PI*0.75):1;
