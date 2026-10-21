@@ -235,3 +235,8 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 ### Build 204 — no invisible walls, items only from the loose jack
 - beta_level `throwCube` now `gridSmashCell`s the cube's old home before it flies (MAG/XLR tugging a resting cube used to leave its cell solid = invisible wall). `ghostSweep()` (every 30 frames) clears any cell a cube ever held (`B.cubeCellsEver`) that no live block holds.
 - weapons.js `updateItemDrops` / `updateRopePickup` don't collect in story stages; the only pickup is the loose item after the crate breaks (beta_level `cratePickups` + `B.crateRect`).
+
+### Build 205 — hot frags, boot sound, hex crystal
+- Frags (beta_enemies): stay hot `FRAG_MIN_LIVE` 130 frames and keep hopping (min bounce 2.4) before they can settle after `FRAG_BOUNCES` 5; circle frags cool at `FRAG_HOT` 170.
+- Enemy reboot plays `enemy_boot` (= `enemy_dead` reversed: voices swell and sweep up, ending together), started 66 frames before `revive` so it lands on the reboot.
+- Knowl crystal (beta_decor `crystal`): one symmetrical hexagon, translucent facets, drifting prism bands, rainbow edge; HUD icon matches (`hudCrystal`).

@@ -174,7 +174,8 @@
     // second (grey, steaming) and then carries on as before.
     e.fuse=0; e.heat=0; e.cool=COOL; e.vx=0; e.vy=0;
   }
-  const FRAG_HOT=90, FRAG_LINGER=30*60, FRAG_GLITCH=28*60;
+  // Paulo (Oct 21): frags stay hot (and hurt) longer and bounce around more before they go cold and still
+  const FRAG_HOT=170, FRAG_LINGER=30*60, FRAG_GLITCH=28*60, FRAG_MIN_LIVE=130, FRAG_BOUNCES=5;
   function fragSmoke(f){
     for(let s=0;s<5;s++) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y,vx:(Math.random()-0.5)*0.7,vy:-0.35-Math.random()*1.1,life:22+Math.random()*14|0,maxLife:36,r:2+Math.random()*2.5,col:Math.random()<0.5?'#d0d0d4':'#8a8a90'});
   }
@@ -221,7 +222,14 @@
         f.vy=Math.min(f.vy+GRAV*0.6,13);
         const nx=f.x+f.vx, ny=f.y+f.vy;
         if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
-        if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
+        if(solidAt(f.x,ny)){
+          if(f.vy>0){
+            f.bounce++;
+            const live=!f.dud&&f.t<FRAG_MIN_LIVE;                      // still hot: it keeps hopping
+            if(!live&&(f.bounce>=FRAG_BOUNCES||Math.abs(f.vy)<1.6)){ f.settle=1; f.vx=0; f.vy=0; }
+            else { f.vy=-Math.max(Math.abs(f.vy)*0.58,live?2.4:0.8); f.vx=f.vx*0.78+(live?(Math.random()-0.5)*1.4:0); }
+          } else f.vy*=-0.3;
+        }
         else f.y=ny;
         if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
       }
@@ -231,7 +239,7 @@
         const col=f.t<24?'#fff6a0':f.t<50?'#ff9a20':'#e02810';
         PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col});
       }
-      if(!circle&&f.t>240){ B.frags.splice(i,1); continue; }
+      if(!circle&&f.t>360){ B.frags.splice(i,1); continue; }
       if(f.settle&&!circle) continue;
       if(circle&&f.cold) continue;
       if((f.hitCd||0)>0){ f.hitCd--; continue; }
