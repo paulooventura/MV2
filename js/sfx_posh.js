@@ -120,6 +120,8 @@
     enemy_alert(a){ tone(a,{f:N(76),f1:N(88),d:0.12,v:0.08,type:'square',lp:3000}); bell(a,{f:N(91),dt:0.06,ratio:2,index:1.5,d:0.25,v:0.06}); },
     enemy_huh(a){ tone(a,{f:N(79),f1:N(74),d:0.14,v:0.06,type:'triangle'}); tone(a,{f:N(74),f1:N(81),dt:0.15,d:0.18,v:0.06,type:'triangle'}); },
     // a plug of electro blocks gives way: the water rushes out (Paulo, Oct 21)
+    // a TRS shot boiling water off: a hot sizzle and a few pops, then the steam breathing out
+    water_boil(a){ hiss(a,{type:'highpass',f:2600,f1:5200,d:0.7,v:0.16,at:0.008,rate:0.9}); hiss(a,{type:'bandpass',f:1400,f1:700,q:0.8,d:1.3,v:0.07,at:0.15,rate:0.5,rev:0.3}); for(let k=0;k<6;k++) tone(a,{f:rnd(1800,3200),f1:rnd(500,900),d:0.03,v:0.05,dt:k*rnd(0.04,0.09),type:'square',hp:900}); },
     water_gush(a){ hiss(a,{type:'lowpass',f:2200,f1:500,d:2.4,v:0.22,at:0.05,rate:0.6,rev:0.35}); hiss(a,{f:900,q:0.7,d:2.0,v:0.12,at:0.1,rate:0.45,rev:0.3}); tone(a,{f:70,f1:45,d:1.2,v:0.14}); for(let k=0;k<10;k++) bell(a,{f:rnd(600,1400),dt:0.1+k*rnd(0.1,0.2),ratio:1.5,index:0.8,d:0.2,v:0.03,rev:0.4}); },
     reel_in(a){ tone(a,{f:rnd(1700,1900),d:0.018,v:0.07,type:'triangle',hp:900}); hiss(a,{f:3200,q:5,d:0.02,v:0.06}); tone(a,{f:180,f1:150,d:0.05,v:0.05,type:'sawtooth',lp:900}); },
     reel_out(a){ tone(a,{f:rnd(900,1050),d:0.02,v:0.045,type:'triangle',hp:500}); hiss(a,{f:1400,q:2,d:0.06,v:0.05}); },

@@ -122,6 +122,12 @@ rect(67, COLS - 2, 50, ROWS - 1, SOLID)                 # right of the chamber
 rect(57, 62, 54, 56, SOLID)                             # the block in the middle (the stack sits on it)
 # chamber air: cols 57-66, rows 50-60 (stack 57-60, pocket 61-66 / shaft 63-66 / channel rows 57-60)
 
+# Paulo (Oct 21): the solid walls around the crystal chamber, the corridor and the
+# flooded chamber are brick, like the rest of this part (no dirt behind the electro floor)
+for r in range(39, ROWS):
+    for c in range(35, COLS):
+        if g[r][c] == SOLID and skin[r][c] in (SK_DIRT, SK_STONE_BG, SK_CAVE_BG): skin[r][c] = SK_BRICK
+
 # ── Entities ──────────────────────────────────────────────────────
 ent('MindSpawn', 2, 27, 1, 3)
 ent('Decor', 1, 26, 2, 4, kind='arrival')               # the arch MIND comes through
