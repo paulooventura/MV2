@@ -751,6 +751,12 @@ function _punchReach(x0,y0,x1,y1,box){
    Rendering uses vector connector art; the punch hit-check below runs in
    WORLD coordinates with the exact original reach values. */
 function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
+  // Paulo (Oct 21): the glove never goes into a wall — the guard tucks toward the body if
+  // its fist would be in rock (punches are stopped at the wall below)
+  if(typeof _armSolid==='function'&&!(p.pt>0)){
+    const fd=facing?1:-1, fx=shWX+fd*22, fy=shWY+14;
+    if(_armSolid(fx,fy)||_armSolid(fx+fd*8,fy)) facing=!facing;
+  }
   const isVenture=p.hero==='venture';
   const armCol1=isVenture?C.MAROON:C.PURPLE_D;
   const armCol2=isVenture?C.RED_D:C.INDIGO;
@@ -785,8 +791,11 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
 
   } else {
     // â”€â”€ PUNCH â€” extends in AIM direction (8-way like items) â”€â”€
-    const armLen = guardFwd + snapFrac*(punchFwd - guardFwd);
+    let armLen = guardFwd + snapFrac*(punchFwd - guardFwd);
     const punchAngle = Math.atan2(p.aimDY, p.aimDX);
+    if(typeof _armSolid==='function'){                       // the fist stops at the wall's face
+      for(let d=6; d<=armLen+10; d+=3){ if(_armSolid(shWX+Math.cos(punchAngle)*d, shWY+Math.sin(punchAngle)*d)){ armLen=Math.max(4,Math.min(armLen,d-10)); break; } }
+    }
     if(!hidden) drawCoil(sxp, syp, punchAngle, armLen/SMS_SCALE, armCol1, armCol2, armShine);
     // Fist pos in WORLD units = shoulder + arm in punch direction
     p.fistWX = shWX + Math.cos(punchAngle) * armLen;
@@ -2426,10 +2435,12 @@ function drawFX(){
       _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(ey-by,ex-bx));
     }else{
       const end=ropePlayerEndWorld();
-      const taut=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
+      const taut0=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
+      // the cord ends in the jack you see — set before the cord is shaped, so its rock
+      // collision covers the last stretch too
+      const taut=taut0.slice(); if(taut.length) taut[taut.length-1]={x:_wn.x,y:_wn.y};
       const path=typeof _ropeSlackDrawPts==='function'?_ropeSlackDrawPts(taut,p.hook.rl):taut;
       const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
-      if(wpts.length) wpts[wpts.length-1]={x:bx,y:by};             // the cord ends in the jack you see
       ctx.lineCap='round';ctx.lineJoin='round';
       const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
       for(const L of layers){
