@@ -231,3 +231,7 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - render.js `drawHead`: `window._mindHeadDmg` (HP lost, +1 while shut down) reddens the sclera, adds veins, and cracks the bulb glass (fixed crack paths, more per HP lost).
 - beta_crates: a punch must reach the crate's real box from the shoulder (`_punchReach`), so walled-in crates can't be hit.
 - Power: refill 0.8/frame (was 0.56) after a 35-frame rest; hold drain 1.55 (enh 1.0); release costs XLR 17+27×charge, MAG 13+20×charge; magnet carry drain 0.45.
+
+### Build 204 — no invisible walls, items only from the loose jack
+- beta_level `throwCube` now `gridSmashCell`s the cube's old home before it flies (MAG/XLR tugging a resting cube used to leave its cell solid = invisible wall). `ghostSweep()` (every 30 frames) clears any cell a cube ever held (`B.cubeCellsEver`) that no live block holds.
+- weapons.js `updateItemDrops` / `updateRopePickup` don't collect in story stages; the only pickup is the loose item after the crate breaks (beta_level `cratePickups` + `B.crateRect`).

@@ -326,6 +326,7 @@
     if(B.onEntities) B.onEntities(ents, F, cell);
     kTotal=KDROP.length; kColl=0; goalOpen=false;
     if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
+    B.cubeCellsEver=new Set(BWALLS.filter(b=>b.cube&&b.homeCol!=null).map(b=>b.homeCol+','+b.homeRow));   // for the ghost-cell sweep
     cubeSettleNow();
     // The referee and main.js read the exit from GOALPL; goalOpen stays false so
     // main.js never zone-hops — the arch is handled here.
@@ -394,12 +395,12 @@
     gridSmashCell(bw.homeCol,bw.homeRow);
     bw.homeCol+=dc; bw.homeRow+=dr;
     bw.x=bw.homeX=bw.homeCol*T; bw.y=bw.homeY=bw.homeRow*T;
-    gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT);
+    gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT); B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
     bw._ox-=dc*T; bw._oy-=dr*T; bw._spd=T/Math.max(1,frames);
   }
   function placeCube(bw,c,r,fromX,fromY){
     bw.homeCol=c; bw.homeRow=r; bw.x=bw.homeX=c*T; bw.y=bw.homeY=r*T;
-    gridSet(c,r,MV_GRID_DESTRUCT);
+    gridSet(c,r,MV_GRID_DESTRUCT); B.cubeCellsEver.add(c+','+r);
     bw._ox=fromX-bw.x; bw._oy=fromY-bw.y; bw._spd=6; bw._fallN=0;
   }
   const busy=bw=>Math.abs(bw._ox)>0.01||Math.abs(bw._oy)>0.01;
@@ -425,7 +426,19 @@
     }
     return best;
   }
+  B.cubeCellsEver=new Set();
+  function ghostSweep(){
+    if(fr%30!==0||!B.cubeCellsEver.size) return;
+    const live=new Set();
+    for(const bw of BWALLS) if(bw.hp>0&&bw.homeCol!=null) live.add(bw.homeCol+','+bw.homeRow);
+    for(const k of B.cubeCellsEver){
+      if(live.has(k)) continue;
+      const [c,r]=k.split(',').map(Number);
+      if(gridCell(c,r)===MV_GRID_DESTRUCT) gridSmashCell(c,r);
+    }
+  }
   function cubeTick(){
+    ghostSweep();
     // a shattered cube gives up its cell for good (the game would keep re-opening it)
     for(const bw of BWALLS) if(bw.cube&&bw.hp<=0&&bw.homeCol!=null){
       gridSmashCell(bw.homeCol,bw.homeRow); bw.homeCol=bw.homeRow=bw.homeX=bw.homeY=null;
@@ -589,6 +602,9 @@
   }
   function throwCube(bw,vx,vy){
     bw._fly=true; bw._carried=false; bw.vx=vx; bw.vy=vy; bw._rest=0; bw.spin=vx*0.02; bw.rot=0;
+    // Paulo (Oct 21): give the cell back when it leaves — a cube tugged out of its cell by the
+    // MAG / XLR used to leave that cell solid (an invisible wall where it had been)
+    if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol,bw.homeRow);
     bw.homeCol=bw.homeRow=bw.homeX=bw.homeY=null;
     B.flying.push(bw);
   }
