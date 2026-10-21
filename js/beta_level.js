@@ -559,8 +559,57 @@
       ch.left=0;
     }
   }
+  // ── XLR blast (Paulo, Oct 21): not one block but a cone of air out of the jack.
+  //   Blocks in the jack's band (about a block either side of the aim line) go
+  //   straight along the aim, 3 cells (4 at full charge); the blocks just off the
+  //   band are blown out diagonally, 2 cells (3). Each takes the line behind it.
+  //   Weaker on a low power bar, and heavy lines go less far.
+  function blastCubes(held){
+    const o=shoulder(), tip=typeof connectorTipWorld==='function'?connectorTipWorld(2):o;
+    const ax=aimAxis(); if(!ax.dc&&!ax.dr) return false;
+    const charge=Math.min(1,held/CUBE.CHARGE_FULL), pw=B.relPow==null?1:B.relPow;
+    if(pw<0.06) return false;
+    const bonus=charge>=0.8?1:0, weak=pw<0.15?2:pw<0.35?1:0;
+    const BAND=T*0.78, EDGE=T*1.85, RANGE=T*7;
+    const hits=[];
+    for(const bw of cubes()){
+      if(bw.only==='laser'||bw.only==='pull') continue;
+      const cx=bw.x+T/2, cy=bw.y+T/2;
+      let along, perp, pdc=0, pdr=0;
+      if(ax.dc&&ax.dr){ const l=Math.SQRT2; along=((cx-o.x)*ax.dc+(cy-o.y)*ax.dr)/l; perp=Math.abs((cx-tip.x)*ax.dr-(cy-tip.y)*ax.dc)/l; if(perp>BAND) continue; }
+      else if(ax.dc){ along=(cx-o.x)*ax.dc; perp=cy-tip.y; pdr=Math.sign(perp); perp=Math.abs(perp); }
+      else { along=(cy-o.y)*ax.dr; perp=cx-tip.x; pdc=Math.sign(perp); perp=Math.abs(perp); }
+      if(along<-T*0.3||along>RANGE||perp>EDGE) continue;
+      const straight=perp<=BAND;
+      if(!straight&&along<T*0.4) continue;                       // right above / below him: not in the cone
+      if(!losClear(cx,cy,bw.homeCol,bw.homeRow)) continue;
+      const far=along>T*4?1:0;
+      const cells=Math.max(1,(straight?3:2)+bonus-weak-far);
+      hits.push({bw,along,dc:straight?ax.dc:(ax.dc||pdc),dr:straight?ax.dr:(ax.dr||pdr),cells,straight});
+    }
+    if(!hits.length) return false;
+    hits.sort((a,b)=>a.along-b.along);                          // chainTick runs the last one first: the farthest goes first
+    const taken=new Set(); let any=false;
+    for(const h of hits){
+      if(taken.has(h.bw)) continue;
+      const list=lineFrom(h.bw,h.dc,h.dr,'push');
+      h.bw.hitGlow=16; h.bw._sq=-0.16; h.bw._sqV=0; h.bw._sqAx=h.dc?'x':'y';
+      const hx=h.bw.x+T/2-h.dc*T/2, hy=h.bw.y+T/2-h.dr*T/2;
+      for(let k=0;k<6;k++){ const a2=Math.atan2(h.dr,h.dc)+Math.PI+(Math.random()-0.5)*1.6; PFXS.push({x:hx,y:hy,vx:Math.cos(a2)*(1+Math.random()*2.5),vy:Math.sin(a2)*(1+Math.random()*2.5),life:12+Math.random()*8|0,maxLife:20,r:2,col:'#9fd8ff'}); }
+      if(!list){ h.bw.shakeX=h.dc*5; continue; }
+      for(const b of list){ taken.add(b); b.wedge=false; }
+      const lineW=list.reduce((w,b)=>w+weightOf('cube',b),0);
+      const go=Math.max(1,Math.round(h.cells*Math.min(1,7/lineW)));
+      B_CHAINS.push({list, dc:h.dc, dr:h.dr, left:go, cells:go}); any=true;
+    }
+    B.lastFire={mode:'push', blast:true, hits:hits.map(h=>({c:h.bw.homeCol,r:h.bw.homeRow,dc:h.dc,dr:h.dr,cells:h.cells}))};
+    if(!any) try{ sfx('omniblock_chip'); }catch(e){}
+    return true;
+  }
+  B.blastCubes=blastCubes;
   function fireCube(mode, held){
     if(typeof _tipField!=='function') return;
+    if(mode==='push'&&blastCubes(held)) return;
     // measure from MIND's shoulder, not the jack tip, so a cube right against him still counts
     const tip=shoulder(), a=Math.atan2(p.aimDY,p.aimDX);
     let best=null, bd=1e9, bs=1e9;
@@ -1037,6 +1086,7 @@
       if(_itemUnlocked(d.item)&&!d.enhanced) continue;
       if(_collectItemDrop(d)){
         d.got=true;
+        if(d._knocked){ if(typeof _itemTutorial!=='undefined') _itemTutorial=null; try{ sfx('knowl_pickup'); }catch(e){} }   // got his own jack back (no tutorial again)
         for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
           PFXS.push({x:d.x+d.w*0.5,y:d.y+d.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,life:14+Math.random()*10|0,maxLife:24,r:2+Math.random()*2,col:'#e8b070'}); }
       }
@@ -1066,6 +1116,7 @@
     if(B.impactTick) B.impactTick();
     if(B.clipTick) B.clipTick();
     if(B.mirrorTick) B.mirrorTick();
+    if(B.enemyRespawnTick) B.enemyRespawnTick();
     if(B.crateTick) B.crateTick();
     if(B.waterTick) B.waterTick();
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.hurtTick) MV_BETA_AUDIO.hurtTick();

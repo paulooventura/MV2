@@ -553,7 +553,7 @@
       e.y=floorSnap(e,feet);
       if(e._falling) land(e,e.vy);
       e.vy=0; e.og=true; e._falling=false; e.baseY=e.y;
-    }else{ e.y=ny; e.og=false; if(e.y>((typeof WH!=='undefined'?WH:4000)+200)){ e.alive=false; e._permOff=true; } }
+    }else{ e.y=ny; e.og=false; }   // (out of the world: B.enemyRespawnTick brings it back)
   }
 
   function think(e){
@@ -777,6 +777,31 @@
     for(const e of ENEMS){ if(!e._ai||!e.alive) continue; applyShove(e); if(!e._iso) shortIfWet(e); liftOut(e); }
     fragTick();
     for(let i=B.pushFx.length-1;i>=0;i--){ if(++B.pushFx[i].t>22) B.pushFx.splice(i,1); }
+  };
+  // Paulo (Oct 21): an enemy that falls down a pit isn't gone — after a moment it
+  // comes back where it started, booting back up (MIND's pit rule, for them too).
+  B.enemyRespawnTick=function(){
+    if(!B.on) return;
+    const floorY=(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.ready?MV_GRID.rows*T:(typeof WH!=='undefined'?WH:4000));
+    for(const e of ENEMS){
+      if(!isFinite(e.x)||!isFinite(e.y)) continue;
+      if(!e._spawnAt) e._spawnAt={x:e.x, y:e.y, mn:e.mn, mx:e.mx, dir:e.dir, hp:e.mhp||e.hp};
+      if(e._pitT>0){
+        if(--e._pitT>0) continue;
+        const s0=e._spawnAt;
+        e.x=s0.x; e.y=s0.y; e.vx=0; e.vy=0; e.og=false; e._falling=true; e.dir=s0.dir||e.dir;
+        if(s0.mn!=null){ e.mn=s0.mn; e.mx=s0.mx; }
+        e.alive=true; e._permOff=false; e._stayDown=false; e._shorted=false; e._shortT=0; e._downs=0; e._mindOff=null;
+        if(e.mhp) e.hp=e.mhp; e.cool=0; e.heat=0; e.fuse=0; e._hidden=false; e._spawnFx=36;
+        try{ sfx('enemy_boot'); }catch(_e){}
+        for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.5,life:18,maxLife:18,r:2,col:'#c8a8ff'}); }
+        continue;
+      }
+      if(e.y+(e.h||FEET_OFF)>=floorY-2&&!e._betaHeld){   // fell to the bottom of the world (the pit)
+        e._pitT=150; e._hidden=true; e.vx=0; e.vy=0; e.y=floorY+400;
+      }
+      if(e._spawnFx>0) e._spawnFx--;
+    }
   };
   B.onLevelStartEnemies=function(){ B.frags.length=0; B.ropes.length=0; B.pushFx.length=0; };
 

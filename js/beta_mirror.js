@@ -59,13 +59,56 @@
     }else if(e._seenT>0&&--e._seenT===0&&e.aware){
       e.aware=false; e.mark={c:'?',t:0}; try{ sfx('enemy_huh'); }catch(_e){}
     }
-    if(e.aware) return _upd.apply(this,arguments);
-    patrol(e);
+    window._mirrorActing=e;
+    try{ if(e.aware) return _upd.apply(this,arguments); patrol(e); } finally{ window._mirrorActing=null; }
   };
+
+  // Paulo (Oct 21): when D hits MIND, the jack he has in hand is knocked loose. It
+  // flies off and lies there like an item out of a crate; until he picks it up again
+  // he can't use it (it's gone from the top bar too).
+  const _hit=window.applyPlayerHit;
+  if(typeof _hit==='function') window.applyPlayerHit=function(){
+    const src=window._mirrorActing||(window._hitShotSrc&&window._hitShotSrc.mirror?window._hitShotSrc:null);
+    const hp0=p?p.hp:0, inv0=p?(p.inv||0):0;
+    const r=_hit.apply(this,arguments);
+    if(B.on&&src&&p&&(p.hp<hp0||(p.inv||0)>inv0&&p.hp<=hp0)) knockItem(src);
+    return r;
+  };
+  let lastKnock=-999, lastLevel=null;
+  const lost=new Set();                                   // knocked loose and not picked up yet
+  // leaving or restarting the stage with a jack still lying there gives it back
+  // (the loose one goes with the old stage)
+  function lostTick(){
+    for(const i of [...lost]) if(_itemUnlocked(i)) lost.delete(i);
+    if(B.level!==lastLevel){ if(lastLevel) for(const i of lost) _unlockedMask|=ITEM_UNLOCK_BITS[i]; lost.clear(); lastLevel=B.level; }
+  }
+  function knockItem(e){
+    if(fr-lastKnock<90) return;
+    const idx=typeof ITEM!=='undefined'?ITEM:-1;
+    if(idx<0||idx>3||typeof _itemUnlocked!=='function'||!_itemUnlocked(idx)) return;
+    if(typeof ITEM_UNLOCK_BITS==='undefined'||typeof ITEM_DROPS==='undefined') return;
+    lastKnock=fr;
+    if(idx===1&&p.hook&&p.hook.st!=='idle'&&typeof _detachPlayerRope==='function') _detachPlayerRope(p.hook);
+    p.xlrOn=false; p.magOn=false; p.laserCharging=false; p.laserCharge=0;
+    _unlockedMask&=~ITEM_UNLOCK_BITS[idx];
+    const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[idx];
+    // hold the next jack he still has (top bar order), or nothing
+    let next=-1; for(const i of [2,1,0,3]) if(_itemUnlocked(i)){ next=i; break; }
+    ITEM=next;
+    const cx=p.x+SW/2, cy=p.y+FEET_OFF-50, dir=Math.sign(cx-(e.x+(e.w||SW)/2))||1;
+    const d={item:idx, enhanced:enh, x:cx-16, y:cy-16, w:32, h:32, got:false, bob:0, _knocked:true,
+      _box:{hp:0, broken:true, shake:0, glow:0, item:{x:cx, y:cy, vx:dir*(3+Math.random()*1.5), vy:-6, rot:0, vr:dir*0.3, og:false, noPick:45}}};
+    ITEM_DROPS.push(d); lost.add(idx);
+    try{ sfx('item_clink'); sfx('enemy_alert'); }catch(_e){}
+    for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:cx,y:cy,vx:Math.cos(a)*3,vy:Math.sin(a)*3-1,life:16,maxLife:16,r:2,col:'#ffd070'}); }
+    const names=['TRS','RCA','XLR','MAG'];
+    if(typeof uiShowToast==='function') uiShowToast('D KNOCKED YOUR '+names[idx]+' LOOSE - GRAB IT BACK!');
+  }
 
   // shutdowns: quick reboot, three strikes, water is final
   B.mirrorTick=function(){
     if(!B.on) return;
+    if(typeof ITEM_UNLOCK_BITS!=='undefined') lostTick();
     for(const e of ENEMS){
       if(!e.mirror) continue;
       if(e.mark&&++e.mark.t>60) e.mark=null;
