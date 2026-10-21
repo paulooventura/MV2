@@ -157,6 +157,9 @@
   function magJet(){
     if(!(p.magOn&&ITEM===3)||p._magWorldStick||B.magLock) return;
     if(p.hook&&p.hook.st==='on') return;
+    // Paulo (Oct 21): standing on the ground and holding the magnet doesn't throw
+    // MIND anywhere — the pull only carries him once he's in the air
+    if(typeof _playerOnGround==='function'&&_playerOnGround(p)) return;
     const a=aimUnit();
     const charge=Math.min(1,(p.magHeld||0)/FEEL.XLR_FULL);
     const thrust=(0.5+charge*1.05)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[3]?1.25:1);
@@ -323,8 +326,8 @@
       ctx.strokeStyle='rgba(255,'+(140+80*st.heat|0)+',60,'+(0.5+0.5*st.heat)+')'; ctx.lineWidth=sw(3); ctx.beginPath(); ctx.arc(cx,cy,R-1,0,Math.PI*2); ctx.stroke();
       ctx.restore();
     }
-    if(on()&&(st.heat>0.02||p.wallGrip>0)) meter(p.itemStamina/100,'POWER',st.heat>0.6?'#ff7030':'#ffb040',0);
-    if(on()&&p.hook&&p.hook.st==='on') meter(1-Math.min(1,st.rope),'ROPE',st.rope>0.75?'#ff4040':st.rope>0.45?'#ffc040':'#60e080',p.wallGrip>0?14:0);
+    // (no POWER meter on MIND — Paulo, Oct 21: the PWR bar up top already shows it)
+    if(on()&&p.hook&&p.hook.st==='on') meter(1-Math.min(1,st.rope),'ROPE',st.rope>0.75?'#ff4040':st.rope>0.45?'#ffc040':'#60e080',0);
     return r;
   };
   function meter(f,label,col,dy){

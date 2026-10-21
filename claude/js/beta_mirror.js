@@ -82,10 +82,10 @@
   if(typeof _draw==='function') window.drawMindEnemy=function(e){
     if(!e||!e.mirror) return _draw.apply(this,arguments);
     const off=!e.alive;
-    window._mirrorHat=true; window._mindOffNoLabel=off;
+    window._mirrorHat=true; window._mindOffNoLabel=off; window._hatDirOverride=e.fc?1:-1;
     ctx.save();
     if(off){ ctx.filter='grayscale(1) brightness(0.72) contrast(0.9)'; ctx.globalAlpha*=0.9; }
-    try{ _draw.apply(this,arguments); } finally{ ctx.restore(); window._mirrorHat=false; window._mindOffNoLabel=false; }
+    try{ _draw.apply(this,arguments); } finally{ ctx.restore(); window._mirrorHat=false; window._mindOffNoLabel=false; window._hatDirOverride=0; }
     if(B.drawEnemyMark&&e.mark) B.drawEnemyMark({mark:e.mark, alive:e.alive, x:e.x, y:e.y+FEET_OFF-STAND_H-WHEEL_R-30, w:SW});
   };
 })();

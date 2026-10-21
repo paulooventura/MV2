@@ -176,7 +176,7 @@ ent('Enemy', 44, 41, ai='square', range=3)              # on the floor between t
 ent('Enemy', 8, 50, ai='tri', range=2)                  # rides the left water platform
 ent('Enemy', 28, 50, ai='square', range=2)              # rides the right one
 ent('Enemy', 32, 50, ai='circle', range=1)              # on the ledge on the right wall
-ent('Enemy', 9, 61, ai='circle', range=3, iso=1)        # pool bottom — wears an Isolator
+ent('Enemy', 4, 54, ai='circle', range=1)              # guards the Isolator on the lip (Paulo, Oct 21: no enemy lives in the water — they short out like MIND)
 ent('Enemy', 44, 60, ai='mirror', range=8)              # D: the mirror enemy, in the corridor
 # background art (no collision, drawn behind the tiles)
 ent('Decor', 2, 10, 25, 24, kind='town')                # the town behind the arrival ledge and the slope

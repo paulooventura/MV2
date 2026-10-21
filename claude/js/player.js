@@ -250,9 +250,9 @@ function _grantPlayerItem(idx, silent){
   const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MAG Pull'];
   const lines=[
     ['Hold X / Q to charge a beam. Release to shoot.'],
-    ['X / Q — launch the hook, press again to let go · W/S — reel','Down + jump lets go of the rope'],
-    ['Hold X / Q — the blast goes where you aim. You fly the other way.'],
-    ['Hold X / Q — it pulls along the aim, and it pulls you that way too.'],
+    ['X / Q - launch the hook, press again to let go / W/S - reel','Down + jump lets go of the rope'],
+    ['Hold X / Q - the blast goes where you aim. You fly the other way.'],
+    ['Hold X / Q - it pulls along the aim, and it pulls you that way too.'],
   ];
   _itemTutorial={title:titles[idx],lines:lines[idx],t:0,maxT:280};
   if(idx===1&&typeof _awdjooTutorial!=='undefined'&&_awdjooTutorial&&_zoneIdx===0) goalOpen=true;
@@ -559,7 +559,9 @@ function _armPathClear(pts,cx,cy,t){
   return true;
 }
 function _tiltPt(x,y,cx,cy,t){ if(!t) return {x,y}; const c=Math.cos(t), s=Math.sin(t), dx=x-cx, dy=y-cy; return {x:cx+dx*c-dy*s, y:cy+dx*s+dy*c}; }
+const RCA_COIL_STRETCH=3.6;                                  // how far the jack arm's coil can stretch (x its rest length)
 function computeConnectorArmPose(pl=p){
+  pl._jackOnSurface=false;
   const ca2=pl.crouchAmt, fc=pl.fc;
   const px=pl.x, py=pl.y;
   const wcy=py+FEET_OFF-WHEEL_R;
@@ -648,6 +650,27 @@ function computeConnectorArmPose(pl=p){
     connShX=fit.shx; elbowX=fit.ex; elbowY=fit.ey; tipX=fit.tx; tipY=fit.ty; noseX=fit.nx; noseY=fit.ny;
     armA0=Math.atan2(elbowY-connShY,elbowX-connShX); armL0=Math.max(2,Math.hypot(elbowX-connShX,elbowY-connShY));
     armA1=Math.atan2(rL.y,rL.x); armL1=Math.max(2,reach*fit.k);
+    // Paulo's RCA sketches (Oct 21): the jack arm is a coiled spring. Latched close to the
+    // anchor, the jack's magnet tip sits right on the surface and the coil stretches to
+    // hold MIND to it (no cord showing). Farther out the cord runs from the jack's tip,
+    // and the coil pulls open toward the anchor the harder the rope pulls (reeling in).
+    let onSurf=false;
+    if(pl.hook.st==='on'&&fit.k>=0.62){
+      const A=_tiltPt(hookPt.x,hookPt.y,tiltCX,tiltCY,-tilt);
+      const dx=A.x-elbowX, dy=A.y-elbowY, dA=Math.hypot(dx,dy)||1, ux=dx/dA, uy=dy/dA;
+      const maxF=reach*RCA_COIL_STRETCH, tens=Math.max(0,Math.min(1,pl.hook._tension||0));
+      let F=null;
+      const lim=pl._jackOnSurfPrev?maxF*1.15:maxF;                 // a little hysteresis: no flicker at the edge
+      if(dA-RCA_NOSE_LEN<=lim&&dA-RCA_NOSE_LEN>=reach*0.35){ F=dA-RCA_NOSE_LEN-1; onSurf=true; }
+      else if(dA-RCA_NOSE_LEN>maxF) F=reach*(1+1.6*tens);
+      if(F!=null){
+        const tx=elbowX+ux*F, ty=elbowY+uy*F, nx=tx+ux*RCA_NOSE_LEN, ny=ty+uy*RCA_NOSE_LEN;
+        if(_armPathClear([[connShX,connShY],[elbowX,elbowY],[tx,ty],[nx-ux*4,ny-uy*4]],tiltCX,tiltCY,tilt)){
+          tipX=tx; tipY=ty; noseX=nx; noseY=ny; armA1=Math.atan2(uy,ux); armL1=F;
+        }else onSurf=false;
+      }
+    }
+    pl._jackOnSurface=onSurf; if(pl._jackOnSurfFr!==fr){ pl._jackOnSurfFr=fr; pl._jackOnSurfPrev=onSurf; }
     useElbow=true;
   }else{
     tipX=connShX+Math.cos(ca)*aimLen; tipY=connShY+Math.sin(ca)*aimLen;
@@ -698,12 +721,19 @@ function hookAttachWorld(){
   const ca=p.crouchAmt||0, top=p.y+FEET_OFF-STAND_H-WHEEL_R+10, duckTop=(p.y+FEET_OFF-WHEEL_R+WHEEL_R*0.5)-BODY_H;
   return {x:p.x+SW/2+(p.fc?-1:1)*BODY_W*0.36, y:top+ca*(duckTop-top)+5};   // the back edge of the disc, where you can see it
 }
-const ROPE_END_R=48;                                         // body centre → where the rope pulls
+const ROPE_END_R=48, ROPE_END_R_RCA=56;                                         // body centre → where the rope pulls
 function ropePlayerEndWorld(){
   if(ITEM===1){
     const h=p.hook;
     if(h&&(h.st==='on'||h.st==='ext')){
       const pose=computeConnectorArmPose(p), P=(h.st==='on'&&h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.st==='on'?h.ax:h.ex,y:h.st==='on'?h.ay:h.ey};
+      if(h.st==='on'){
+        // Paulo's sketches (Oct 21): he hangs from the jack arm's shoulder, so reeled in the
+        // jack stands straight up beside his head with its magnet on the anchor
+        const S=_tiltPt(pose.connShX,pose.connShY,pose.tiltCX,pose.tiltCY,pose.tilt||0);
+        const dx=P.x-S.x, dy=P.y-S.y, d=Math.hypot(dx,dy)||1, r=Math.min(ROPE_END_R_RCA,d*0.5);
+        return {x:S.x+dx/d*r, y:S.y+dy/d*r};
+      }
       const dx=P.x-pose.tiltCX, dy=P.y-pose.tiltCY, d=Math.hypot(dx,dy)||1, r=Math.min(ROPE_END_R,d*0.5);
       return {x:pose.tiltCX+dx/d*r, y:pose.tiltCY+dy/d*r};
     }
@@ -723,10 +753,16 @@ function _detachPlayerRope(h){
 }
 
 // ── Fire item ─────────────────────────────────────────────────
+const TRS_SWEEP_FR=26;                                     // frames after a TRS shot during which the aim sweeps instead of snapping
 function fireItem(charged=false){
   if(ITEM<0||(!_itemUnlocked(ITEM)&&!p._aiCompanion)) return;
-  const ax=(p._hasAimInput&&p.tAimDX!=null)?p.tAimDX:p.aimDX;
-  const ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
+  let ax=(p._hasAimInput&&p.tAimDX!=null)?p.tAimDX:p.aimDX;
+  let ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
+  // Paulo (Oct 21): spamming the TRS while the aim swings (say from up to
+  // forward), each shot leaves along the arm as it sweeps — so the shots fan
+  // out across the angles in between instead of jumping straight to the new aim
+  if(ITEM===0&&fr-(p._trsLastFr==null?-99:p._trsLastFr)<TRS_SWEEP_FR){ const l=Math.hypot(p.aimDX,p.aimDY); if(l>0.2){ ax=p.aimDX/l; ay=p.aimDY/l; } }
+  if(ITEM===0) p._trsLastFr=fr;
   p.aimDX=ax; p.aimDY=ay;
   const a=Math.atan2(ay,ax);
   const shotA=(ITEM===0&&p.crouchAmt>0.18&&p.og&&!_itemDownAim(p))?connectorAimAngle():a;

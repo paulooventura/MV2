@@ -448,6 +448,18 @@
     for(const bw of list){
       if(bw.hitGlow>0) bw.hitGlow--;
       if(bw.shakeX) bw.shakeX=Math.abs(bw.shakeX)<0.5?0:-bw.shakeX*0.6;
+      if(bw._sq||bw._sqV){ bw._sqV=(bw._sqV||0)*0.72-(bw._sq||0)*0.35; bw._sq=(bw._sq||0)+bw._sqV; if(Math.abs(bw._sq)<0.004&&Math.abs(bw._sqV)<0.004){ bw._sq=0; bw._sqV=0; } }
+      if(busy(bw)&&bw._ease){                 // a push: fast off the blast, slowing as it arrives
+        const d=Math.hypot(bw._ox,bw._oy), s=Math.max(1.6,d*bw._ease);
+        if(d<=s){
+          bw._ox=0; bw._oy=0; bw._ease=0;
+          const pd=bw._pushDir||{dc:0,dr:0}; bw._sq=0.2; bw._sqV=0; bw._sqAx=pd.dc?'x':'y';
+          if(pd.dc){ for(let k=0;k<6;k++) PFXS.push({x:bw.x+T/2+pd.dc*T/2,y:bw.y+T-3,vx:pd.dc*(0.5+Math.random()*1.5),vy:-Math.random()*1.4,life:14+Math.random()*8|0,maxLife:22,r:2+Math.random()*2,col:'#c8b090'}); }
+          try{ sfx('omniblock_chip'); }catch(e){}
+        }else{ bw._ox-=bw._ox/d*s; bw._oy-=bw._oy/d*s;
+          if(bw._pushDir&&bw._pushDir.dc&&fr%2===0) PFXS.push({x:bw.x+(bw._ox||0)+T/2-bw._pushDir.dc*T/2,y:bw.y+T-2,vx:-bw._pushDir.dc*Math.random(),vy:-Math.random()*0.8,life:12,maxLife:12,r:1.5+Math.random()*1.5,col:'#b8a080'}); }
+        continue;
+      }
       if(busy(bw)){                           // ease the picture toward the cell
         const s=bw._spd||8;
         bw._ox=Math.abs(bw._ox)<=s?0:bw._ox-Math.sign(bw._ox)*s;
@@ -494,7 +506,7 @@
       spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
     }
   }
-  const ITEM_COST={XLR_BASE:17, XLR_CHARGE:27, MAG_BASE:13, MAG_CHARGE:20}, ITEM_REST=35;   // Paulo (Oct 21): drains a bit faster, refills sooner
+  const ITEM_COST={XLR_BASE:28, XLR_CHARGE:27, MAG_BASE:22, MAG_CHARGE:20}, ITEM_REST=35;   // Paulo (Oct 21): drains a bit faster, refills sooner
   B.ITEM_COST=ITEM_COST;
   function xlrTip(){ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null; return pose?{x:pose.noseX,y:pose.noseY}:{x:p.x+SW/2,y:p.y+FEET_OFF-50}; }
   const powNow=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
@@ -535,8 +547,16 @@
         if(ch.left===ch.cells){ for(const b of ch.list){ b.shakeX=ch.dc*2; b.hitGlow=10; } try{ sfx('omniblock_chip'); }catch(e){} }
         B_CHAINS.splice(i,1); continue;
       }
-      for(let k=ch.list.length-1;k>=0;k--) moveCube(ch.list[k],ch.dc,ch.dr,CUBE.SLIDE_FR);
-      ch.left--;
+      // Paulo (Oct 21): the push should read clearly — the whole line takes all its
+      // cells at once and glides there fast, slowing as it arrives, then squashes
+      // against the stop and wobbles (no stiff cell-by-cell steps)
+      let n=0;
+      while(ch.left>0&&cellFree(ch.list[ch.list.length-1].homeCol+ch.dc,ch.list[ch.list.length-1].homeRow+ch.dr)){
+        for(let k=ch.list.length-1;k>=0;k--) moveCube(ch.list[k],ch.dc,ch.dr,CUBE.SLIDE_FR);
+        ch.left--; n++;
+      }
+      for(const b of ch.list){ b._ease=0.15; b._pushDir={dc:ch.dc,dr:ch.dr}; b._spd=null; }
+      ch.left=0;
     }
   }
   function fireCube(mode, held){
@@ -561,12 +581,15 @@
     const charge=Math.min(1,held/CUBE.CHARGE_FULL)*(B.relPow==null?1:B.relPow);   // weaker on a low power bar
     if(charge<0.06){ best.shakeX=2; best.hitGlow=8; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, weak:true}; return; }
     const near=bd<=CUBE.NEAR?1:Math.max(0,1-(bd-CUBE.NEAR)/(CUBE.RANGE-CUBE.NEAR));
-    const cells=Math.max(1,Math.min(3,Math.round(1+2*charge*near)));
+    const cells=Math.max(1,Math.min(4,Math.round(1+3*charge*near)));
     const ax=aimAxis();
     const sgn=mode==='push'?1:-1, dc=ax.dc*sgn, dr=ax.dr*sgn;
     const list=mode==='push'?lineFrom(best,dc,dr,mode):[best];
     best.hitGlow=16;
-    if(!list){ best.shakeX=dc*2; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, blocked:true}; return; }
+    if(mode==='push'){ best._sq=-0.16; best._sqV=0; best._sqAx=dc?'x':'y';            // the blast hits it: it gives a little first
+      const hx=best.x+T/2-dc*T/2, hy=best.y+T/2-dr*T/2;
+      for(let k=0;k<8;k++){ const a2=Math.atan2(dr,dc)+Math.PI+(Math.random()-0.5)*1.6; PFXS.push({x:hx,y:hy,vx:Math.cos(a2)*(1+Math.random()*2.5),vy:Math.sin(a2)*(1+Math.random()*2.5),life:12+Math.random()*8|0,maxLife:20,r:2,col:'#9fd8ff'}); } }
+    if(!list){ best.shakeX=dc*5; best._sq=-0.22; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, blocked:true}; return; }
     for(const b of list) b.wedge=false;                 // once moved, a trapdoor block is just a cube
     // heavier lines travel less far: up to ~7 weight units go the full distance
     const lineW=list.reduce((w,b)=>w+weightOf('cube',b),0);
@@ -1021,7 +1044,7 @@
     const r=_mapRopePickup;
     const rR=r&&B.crateRect?B.crateRect(r):r;
     if(r&&rR&&!r.got&&!_ropePickupAnim&&!_itemUnlocked(1)&&ov(bx,by,bw,bh,rR.x,rR.y,rR.w,rR.h)){
-      r.got=true; _ropePickupAnim={t:0,sx:r.x+r.w*0.5,sy:r.y+r.h*0.5}; _grantPlayerItem(1);
+      r.got=true; _grantPlayerItem(1);                    // (no cable drawn back to where it lay — Paulo, Oct 21)
       for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=2+Math.random()*4;
         PFXS.push({x:r.x+r.w*0.5,y:r.y+r.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-2,life:20+Math.random()*12|0,maxLife:32,r:2.5+Math.random()*3,col:'#ff8866'}); }
     }
@@ -1239,8 +1262,13 @@
     if(B.on&&bw&&bw.cube){
       if(bw.hp<=0) return _origDrawBreakWall.apply(this, arguments);   // debris
       const x=bw.x+(bw._ox||0), y=bw.y+(bw._oy||0);
-      drawBetaBlock(bw.only||'omni', sx(x)+(bw.shakeX||0), sy(y)+(bw.shakeY||0), sw(bw.w), sw(bw.h),
+      const sq=bw._sq||0, X0=sx(x)+(bw.shakeX||0), Y0=sy(y)+(bw.shakeY||0), w0=sw(bw.w), h0=sw(bw.h);
+      if(sq){ ctx.save(); const cx=X0+w0/2, cy=Y0+h0;                       // squash/stretch about its base
+        if(bw._sqAx==='x') { ctx.translate(cx,cy); ctx.scale(1-sq,1+sq*0.7); ctx.translate(-cx,-cy); }
+        else { ctx.translate(cx,cy); ctx.scale(1+sq*0.7,1-sq); ctx.translate(-cx,-cy); } }
+      drawBetaBlock(bw.only||'omni', X0, Y0, w0, h0,
         bw.rot||0, bw.hp<bw.maxHp?1-bw.hp/bw.maxHp:0, bw.hitGlow||0);
+      if(sq) ctx.restore();
       if(bw.debris&&bw.debris.length){ const hp=bw.hp; bw.hp=0; try{ _origDrawBreakWall.apply(this, arguments); }catch(e){} bw.hp=hp; }
       return;
     }
@@ -1287,7 +1315,9 @@
     ctx.fillStyle=dim?'rgba(255,255,255,0.14)':'#e8e0ff'; ctx.beginPath(); ctx.arc(0,1,6.5,0,Math.PI*2); ctx.fill();
     if(!dim){ ctx.fillStyle='#3a2a6a'; ctx.beginPath(); ctx.arc(1,1,3.4,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(1,1,1.6,0,Math.PI*2); ctx.fill();
       ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(-2,-2,1.6,1.6); }
-    ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8);
+    // his hat: the logo (render.js drawLogoHat)
+    if(typeof drawLogoHat==='function') drawLogoHat(0,-10,32,1,dim?{col:'rgba(255,255,255,0.12)',inner:'rgba(255,255,255,0.05)',hi:'rgba(255,255,255,0.1)',noShadow:true,brimT:2.6,wall:2.2,crownH:8}:{col:'#000',inner:'#3a3150',hi:'#5a5070',noShadow:true,brimT:2.6,wall:2.2,crownH:8});
+    else { ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8); }
     ctx.restore();
   }
   const JACK_ORDER=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MAG'];
@@ -1304,10 +1334,24 @@
     const hx=118, low=p.hp<=PLAYER_HIT_DMG*2;
     drawText('HP',hx,y0+10,'#ffb0b8',2);
     uiBar(hx+36,y0+10,220,15,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
-    const pw=Math.max(0,Math.min(100,p.itemStamina||0)), pc=pw>50?'#5ac8ff':(pw>20?'#ffa040':'#ff4a5a');
-    drawText('PWR',hx,y0+36,pc,1);
-    uiBar(hx+36,y0+35,220,9,pw/100,pc,pw>50?'#c0f0ff':pc,10,{pulse:pw<20});
-    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',hx+262,y0+34,pc,1);
+    // Paulo (Oct 21): the power bar is green
+    const pw=Math.max(0,Math.min(100,p.itemStamina||0)), pc=pw>50?'#46e06a':(pw>20?'#ffa040':'#ff4a5a');
+    drawText('PWR',hx,y0+33,pc,1);
+    uiBar(hx+36,y0+32,220,9,pw/100,pc,pw>50?'#c8ffd0':pc,10,{pulse:pw<20});
+    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',hx+262,y0+31,pc,1);
+    // ...and a thin REEL bar under it: how much cord the RCA has paid out
+    // (full = the longest cord, empty = reeled all the way in). Purple for MIND, red for Venture.
+    if(_itemUnlocked(1)){
+      const h=p.hook, ven=p.hero==='venture', rc=ven?'#ff4a5a':'#b070ff', rcHi=ven?'#ffb0b8':'#e0c8ff';
+      const cmax=typeof CMAX==='number'?CMAX:400, rmin=typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28;
+      let f=0, live=false;
+      if(h&&h.st==='on'){ f=Math.max(0,Math.min(1,((h.rl||0)-rmin)/(cmax-rmin))); live=true; }
+      else if(h&&h.st==='ext'){ const a=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x,y:p.y}; f=Math.max(0,Math.min(1,Math.hypot(h.ex-a.x,h.ey-a.y)/cmax)); live=true; }
+      ctx.globalAlpha=live?1:0.45;
+      drawText('REEL',hx,y0+45,rc,1);
+      uiBar(hx+36,y0+45,220,5,f,rc,rcHi,3,{});
+      ctx.globalAlpha=1;
+    }
     // the jacks, drawn as their tips
     const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
     JACK_ORDER.forEach((i,k)=>{

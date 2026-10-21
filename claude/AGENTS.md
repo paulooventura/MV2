@@ -273,3 +273,14 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Vapor: a TRS shot into water electrifies the connected body (`EL`, flood fill), boils 10 cells (24 charged) at the hit and the live surface steams off (`ELEC_BOIL`/frame) — the way to bring the flooded corridor down. Thin films (< FILM) on ledges dry off slowly. New `water_boil` sfx.
 - API kept: `B.inWater(x,y)` (inside a body it reads the water beside the body), `B.enemySubmerged`, `B.mindWet`, `B.waters` (rect list: c0..r1, px0, base).
 - 1.2 builder paints every solid tile in cols 35+, rows 39+ BRICK (corridor, crystal chamber, flooded chamber walls). D (mirror) when shut down is drawn through `ctx.filter` grayscale and `window._mindOffNoLabel` hides OFF/BOOT/SHUTDOWN.
+
+### Build 213 — Paulo's Oct 21 notes: hats, meters, RCA coil arm, shorts, feel
+- Hat = Paulo's logo (`drawLogoHat` in render.js: slanted parallelogram brim, chamfered crown with a window, spike under the brim; `opt.front=false` = Venture's backwards cap). Used by MIND, Venture, D (`window._hatDirOverride`) and the HUD head (beta_level `hudHead`).
+- Top bar: PWR bar green; new thin REEL bar under it (purple MIND / red Venture) = RCA cord paid out (`(rl-ROPE_RL_MIN)/(CMAX-ROPE_RL_MIN)`, or the throw distance in flight; dim when not roped). The on-MIND POWER meter is gone (wall grip); the ROPE tension meter stays.
+- RCA (Paulo's sketches): the jack arm's forearm is a spring (`drawSpringCoil`, 5 turns that pull open as it stretches). Latched with the anchor within reach (`RCA_COIL_STRETCH`=3.6 x rest), the jack's magnet sits ON the surface and no cord is drawn (`p._jackOnSurface`, with hysteresis); farther, the coil stretches with `hook._tension`. Hooked with the RCA in hand the rope pulls from the jack shoulder (`ROPE_END_R_RCA`), so reeled in he hangs beside the jack. No spool in the jack's mouth (cord comes from inside the tip). No pickup cable from the RCA crate in the stage.
+- TRS: for `TRS_SWEEP_FR` frames after a shot the arm sweeps to a new aim (lerp 0.06) and shots leave along the arm, so spamming while swinging the aim fans the shots across the angles in between.
+- main.js: the duck charge on a drop platform no longer auto-launches (`_platLaunch` stays false) — the super jump needs a jump press.
+- MAG: no self-thrust while on the ground (beta_feel `magJet`). XLR/MAG per-tap costs raised (XLR_BASE 28, MAG_BASE 22) so spamming drains at least as fast as holding.
+- Enemies short-circuit in water like MIND (beta_water, `ENEMY_SHORT_FR`=40 frames of sparks + crackle, then off for good); `B.waterShortsEnemies` makes beta_enemies `shortIfWet` defer to it. The 1.2 pool-bottom Isolator enemy moved to the Isolator lip.
+- XLR pushes: the whole line takes its cells at once and glides with ease-out, dust trail, squash + wobble on arrival (`_ease`, `_sq` in beta_level); up to 4 cells at full charge.
+- 1.1: no "LAITU'S HOUSE" label.
