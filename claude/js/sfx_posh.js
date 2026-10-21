@@ -106,6 +106,19 @@
     hook(a){ hiss(a,{f:900,f1:3200,q:2,d:0.16,v:0.1}); tone(a,{f:900,f1:1700,d:0.12,v:0.04,type:'sawtooth',lp:2400}); },
     hook_charged(a){ R.hook(a); tone(a,{f:300,f1:900,d:0.18,v:0.07,type:'triangle'}); },
     // RCA cord (Paulo, Oct 20): reeling in is a tight ratchet, paying out a looser whirr
+    // electrical cage blocks (Paulo, Oct 21): a buzzing crackle, a big one nearly knocks MIND out
+    zap(a){ for(const det of [-14,0,14]) tone(a,{f:118,d:0.28,v:0.06,type:'sawtooth',det,lp:3800,vib:55,vibd:60}); for(let k=0;k<9;k++) hiss(a,{type:'highpass',f:rnd(3000,7000),dt:k*rnd(0.015,0.03),d:0.025,v:rnd(0.06,0.13)}); tone(a,{f:900,f1:200,d:0.12,v:0.06,type:'square',lp:2500}); },
+    zap_big(a){ R.zap(a); for(const det of [-20,0,20]) tone(a,{f:60,d:0.7,v:0.09,type:'sawtooth',det,lp:2200,sweep:300,vib:40,vibd:80,rev:0.3}); hiss(a,{type:'lowpass',f:5000,f1:300,d:0.6,v:0.18,rev:0.3}); for(let k=0;k<14;k++) hiss(a,{type:'highpass',f:rnd(2500,8000),dt:0.05+k*rnd(0.02,0.05),d:0.03,v:rnd(0.05,0.12)}); tone(a,{f:1600,f1:80,d:0.5,v:0.08,type:'square',lp:3000}); },
+    // the wooden item boxes
+    wood_hit(a){ tone(a,{f:rnd(180,220),f1:110,d:0.12,v:0.24,type:'triangle'}); tone(a,{f:rnd(420,520),d:0.06,v:0.08,type:'triangle',bp:500,q:3}); hiss(a,{f:1600,q:1.5,d:0.06,v:0.12}); },
+    wood_break(a){ tone(a,{f:150,f1:60,d:0.3,v:0.3}); hiss(a,{f:1200,q:0.9,d:0.35,v:0.22,rev:0.2});
+      for(let k=0;k<10;k++) hiss(a,{f:rnd(1800,4500),q:5,dt:k*rnd(0.01,0.03),d:0.04,v:rnd(0.06,0.14)});
+      for(let k=0;k<5;k++) tone(a,{f:rnd(260,520),f1:rnd(150,220),dt:0.12+k*rnd(0.05,0.1),d:0.07,v:rnd(0.06,0.12),type:'triangle'}); },
+    wood_tap(a){ tone(a,{f:rnd(300,380),d:0.05,v:0.07,type:'triangle'}); },
+    item_clink(a){ bell(a,{f:rnd(1300,1700),ratio:2.6,index:1.6,d:0.22,v:0.07,rev:0.2}); tone(a,{f:200,f1:120,d:0.06,v:0.06}); },
+    // enemies (Paulo, Oct 21): spotting MIND — a sharp rising blip; losing him — a puzzled falling one
+    enemy_alert(a){ tone(a,{f:N(76),f1:N(88),d:0.12,v:0.08,type:'square',lp:3000}); bell(a,{f:N(91),dt:0.06,ratio:2,index:1.5,d:0.25,v:0.06}); },
+    enemy_huh(a){ tone(a,{f:N(79),f1:N(74),d:0.14,v:0.06,type:'triangle'}); tone(a,{f:N(74),f1:N(81),dt:0.15,d:0.18,v:0.06,type:'triangle'}); },
     reel_in(a){ tone(a,{f:rnd(1700,1900),d:0.018,v:0.07,type:'triangle',hp:900}); hiss(a,{f:3200,q:5,d:0.02,v:0.06}); tone(a,{f:180,f1:150,d:0.05,v:0.05,type:'sawtooth',lp:900}); },
     reel_out(a){ tone(a,{f:rnd(900,1050),d:0.02,v:0.045,type:'triangle',hp:500}); hiss(a,{f:1400,q:2,d:0.06,v:0.05}); },
     hook_latch_mag(a){ tone(a,{f:95,f1:60,d:0.12,v:0.24}); bell(a,{f:620,ratio:1.41,index:2.5,d:0.25,v:0.08,rev:0.25}); tone(a,{f:110,d:0.4,v:0.05,vib:30,vibd:8,at:0.03}); },
@@ -136,6 +149,14 @@
       tone(a,{f:rnd(520,860),f1:180,d:0.12,v:0.06,type:'triangle'});
     },
     run_click(a){ tone(a,{f:148,f1:92,d:0.045,v:0.13,type:'square',lp:420}); tone(a,{f:74,d:0.05,v:0.08,type:'triangle'}); },
+    // Knowl crystal (Paulo, Oct 21): bright and glassy — a fast shimmering run up, a high ting
+    // and an airy sparkle tail; it climbs with each crystal like the seeds do
+    crystal_pickup(a,p){ p=p||1;
+      [N(88),N(91),N(95),N(100),N(103)].forEach((f,i)=>bell(a,{f:f*p,dt:i*0.035,ratio:3.99,index:1.1,d:1.1,v:0.075,rev:0.7}));
+      bell(a,{f:N(108)*p,dt:0.18,ratio:2.0,index:0.8,d:1.4,v:0.06,rev:0.8});
+      for(const det of [-7,7]) tone(a,{f:N(79)*p,dt:0.05,d:1.2,v:0.035,type:'triangle',det,at:0.05,rev:0.6});
+      for(let k=0;k<8;k++) hiss(a,{type:'highpass',f:rnd(6000,9500),dt:0.08+k*rnd(0.03,0.07),d:0.05,v:rnd(0.02,0.05),rev:0.5});
+    },
     knowl(a){ R.knowl_pickup(a); },
     chargeReady(a){ [N(91),N(95),N(98)].forEach((f,i)=>bell(a,{f,dt:i*0.04,ratio:2.0,index:1.2,d:0.35,v:0.06,rev:0.4})); },
     unlock(a){ [N(72),N(76),N(79),N(84)].forEach((f,i)=>tone(a,{f,dt:i*0.03,d:1.0,v:0.06,type:'triangle',at:0.04,rev:0.5})); bell(a,{f:N(96),dt:0.12,d:1.0,v:0.06}); },

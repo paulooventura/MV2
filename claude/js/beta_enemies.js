@@ -55,6 +55,9 @@
       tumble:null, ang:0, baseY:feet-s.h, phase:Math.random()*Math.PI*2, homeX:cx};
     e.og=false; e._falling=true; e.roll=0; e.travCd=60+Math.random()*90|0;
     e._iso=!!opts.iso;
+    // awareness (Paulo, Oct 21): '!' when it spots MIND, '?' when it loses him; it searches, but stays near home
+    e.aware=false; e.mark=null; e.look={x:e.dir*0.4,y:0}; e.lastSeen=null; e.searchT=0; e.lostT=0;
+    e.leash=Math.max(8*T,(opts.range||5*T)*2);
     // no patrol box: the floor is its range. (The engine clamps x into mn..mx
     // on a hit — with a box, an enemy that had travelled snapped back home.)
     e.mn=-1e7; e.mx=1e7;                                       // wears an Isolator: water can't short it
@@ -124,7 +127,7 @@
   }
   function onScreen(e){
     const Z=(typeof sw==='function'?sw(1000)/1000:1)||1, vx0=_rcamX!=null?_rcamX:camX, vy0=_rcamY!=null?_rcamY:camY;
-    const vw=W/Z, vh=H/Z;
+    const vw=typeof camViewW==='function'?camViewW():W/Z, vh=typeof camViewH==='function'?camViewH():H/Z;   // what the (zoomed) camera shows
     return e.x+e.w>vx0-T&&e.x<vx0+vw+T&&e.y+e.h>vy0-T&&e.y<vy0+vh+T;
   }
   function sees(e){
@@ -519,6 +522,28 @@
     // they notice MIND as soon as they're on screen together, and go for him
     const near=onScreen(e);
     const los=near&&sees(e);
+    // ── seeing MIND, losing him, looking for him ──
+    if(e.look==null){ e.look={x:0,y:0}; e.leash=e.leash||8*T; }
+    if(los){
+      e.lastSeen={x:m.x,y:m.y}; e.lostT=0; e.searchT=0;
+      if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfx('enemy_alert'); }catch(_e){} }
+    }else if(e.aware&&++e.lostT>(DIFF()===3?130:95)){
+      e.aware=false; e.mark={c:'?',t:0}; e.searchT=DIFF()===3?600:420; try{ sfx('enemy_huh'); }catch(_e){}
+    }
+    if(e.mark&&++e.mark.t>60) e.mark=null;
+    if(e.searchT>0) e.searchT--;
+    let goal=e.aware?m:(e.searchT>0?e.lastSeen:null);
+    // the eyes lock onto him; searching, they sweep around the last place he was seen
+    { let lx,ly;
+      if(e.aware){ const l=dist||1; lx=dx/l; ly=(m.y-c.y)/l; }
+      else if(goal){ const gx=goal.x-c.x, gy=goal.y-c.y, l=Math.hypot(gx,gy)||1, sw2=Math.sin(fr*0.07+(e.phase||0)); lx=gx/l*0.6+sw2*0.5; ly=gy/l*0.4-0.2; }
+      else{ lx=(e.dir||1)*0.45; ly=Math.sin(fr*0.02+(e.phase||0))*0.15; }
+      e.look.x+=(lx-e.look.x)*0.18; e.look.y+=(ly-e.look.y)*0.18; }
+    // home range: it hunts and searches, but never wanders far from where it spawned
+    const home=e.homeX!=null?e.homeX:c.x;
+    if(goal&&Math.abs(goal.x-home)>e.leash&&Math.abs(c.x-home)>=e.leash*0.9&&Math.sign(goal.x-c.x)===Math.sign(c.x-home)) goal=null;
+    if(!goal&&Math.abs(c.x-home)>e.leash) e.dir=c.x<home?1:-1;
+    const hunt=!!goal, gface=goal?(goal.x>=c.x?1:-1):e.dir;
     // heat: red as MIND gets close; one block away → fuse → boom
     const gap=gapTo(e);
     // cooling off after a blast: no heat, no fuse, no pushing or roping
@@ -557,18 +582,19 @@
     if(!floorUnder(e.x,e.w,e.y+e.h)){ e.og=false; e._falling=true; return; }
     if(cooling) return;
     slopeRest(e);
-    if(e._ai==='circle'){ rollTick(e,near,face); return; }
+    if(e._ai==='circle'){ rollTick(e,hunt,gface); return; }
     if(--e.stepCd<=0){
-      const dir=near?face:e.dir, below=m.y>e.y+e.h+T, above=m.y<e.y-T;
+      const dir=hunt?gface:e.dir, below=m.y>e.y+e.h+T, above=m.y<e.y-T;
       // C drops off its ledge on purpose when MIND is right below — to land on him
-      if(near&&e._ai==='square'&&below&&Math.abs(dx)<e.w*1.6&&sees(e)&&startTumble(e,dir,true)){}
-      else if(near&&Math.abs(dx)<e.w*0.5+T&&(above||below)&&ropeTravel(e,dir,m)){}   // he's over / under it: rope to his floor
+      if(e.aware&&e._ai==='square'&&below&&Math.abs(dx)<e.w*1.6&&sees(e)&&startTumble(e,dir,true)){}
+      else if(e.aware&&Math.abs(dx)<e.w*0.5+T&&(above||below)&&ropeTravel(e,dir,m)){}   // he's over / under it: rope to his floor
       else if(!startTumble(e,dir)){
         // the edge of its floor (or a wall): it ropes across toward him; idle, sometimes it explores
-        const wantGo=near?Math.abs(dx)>e.w*0.5+T||above||below:Math.random()<0.35;
-        if(!(wantGo&&ropeTravel(e,dir,near?m:null))&&!near) e.dir*=-1;
+        const gdx=goal?goal.x-c.x:0;
+        const wantGo=hunt?Math.abs(gdx)>e.w*0.5+T||(e.aware&&(above||below)):Math.random()<0.35;
+        if(!(wantGo&&ropeTravel(e,dir,goal))&&!hunt) e.dir*=-1;
       }
-      e.stepCd=(near?(DIFF()===3?14:DIFF()===2?22:32):46)+Math.random()*16|0;
+      e.stepCd=(hunt?(DIFF()===3?14:DIFF()===2?22:32):46)+Math.random()*16|0;
     }
   }
 
@@ -719,23 +745,28 @@
   // The look follows Paulo's drawing: red-ink outlines and faces on a pale
   // body; the body fills red as MIND gets close, and flashes white on the fuse.
   const INK='#c41a1a', INK_D='#5a0a0a';
-  function inkFace(g,s,ai,col,off){
+  // lx,ly: where it's looking (unit-ish, in the face's own frame) — the eyes shift that way
+  function inkFace(g,s,ai,col,off,lx,ly,rot){
     g.strokeStyle=col; g.fillStyle=col; g.lineCap='round'; g.lineJoin='round';
+    lx=lx||0; ly=ly||0; const ex=lx*s*0.08, ey=ly*s*0.06;
     if(ai==='square'){                               // ⌐ ¬ eyes, a box mouth low on the face
       g.lineWidth=Math.max(2,s*0.065);
+      g.save(); g.translate(ex,ey);
       g.beginPath(); g.moveTo(-s*0.3,-s*0.08); g.lineTo(-s*0.3,-s*0.24); g.lineTo(-s*0.1,-s*0.24); g.stroke();
       g.beginPath(); g.moveTo(s*0.08,-s*0.24); g.lineTo(s*0.28,-s*0.24); g.lineTo(s*0.28,-s*0.08); g.stroke();
+      if(!off){ g.beginPath(); g.arc(-s*0.2,-s*0.15,s*0.035,0,Math.PI*2); g.arc(s*0.18,-s*0.15,s*0.035,0,Math.PI*2); g.fill(); }   // pupils
+      g.restore();
       g.strokeRect(-s*0.3,s*0.08,s*0.3,s*0.2);
       if(off){ g.beginPath(); g.moveTo(-s*0.3,-s*0.16); g.lineTo(-s*0.1,-s*0.16); g.moveTo(s*0.08,-s*0.16); g.lineTo(s*0.28,-s*0.16); g.stroke(); }
     }else if(ai==='tri'){                             // slanted brows over dot eyes, a small ^ mouth
       g.lineWidth=Math.max(2,s*0.06);
       g.beginPath(); g.moveTo(-s*0.17,-s*0.02); g.lineTo(-s*0.04,s*0.06); g.moveTo(s*0.17,-s*0.02); g.lineTo(s*0.04,s*0.06); g.stroke();
-      if(!off){ g.beginPath(); g.arc(-s*0.09,s*0.12,s*0.03,0,Math.PI*2); g.arc(s*0.09,s*0.12,s*0.03,0,Math.PI*2); g.fill(); }
+      if(!off){ g.beginPath(); g.arc(-s*0.09+ex,s*0.12+ey,s*0.03,0,Math.PI*2); g.arc(s*0.09+ex,s*0.12+ey,s*0.03,0,Math.PI*2); g.fill(); }
       g.beginPath(); g.moveTo(-s*0.07,s*0.3); g.lineTo(0,s*0.24); g.lineTo(s*0.07,s*0.3); g.stroke();
     }else{                                            // Enemy A: a dot eye and a sine wave
       g.lineWidth=Math.max(2,s*0.07);
       g.beginPath(); for(let i=0;i<=24;i++){ const x=-s*0.34+s*0.68*i/24, y=s*0.08+Math.sin(i/24*Math.PI*2+(off?0:fr*0.15))*s*0.13; i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke();
-      if(!off){ g.beginPath(); g.arc(s*0.12,-s*0.18,s*0.06,0,Math.PI*2); g.fill(); }
+      if(!off){ g.beginPath(); g.arc(s*0.12+ex,-s*0.18+ey,s*0.06,0,Math.PI*2); g.fill(); }
     }
   }
   function drawAi(e){
@@ -769,7 +800,9 @@
     shape(); ctx.fill(); ctx.stroke();                        // dark edge for the 16-bit read
     ctx.strokeStyle=off?'#4a4450':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=lw*0.6; shape(); ctx.stroke();   // the red ink line
     ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
-    inkFace(ctx,s,e._ai,ink,off);
+    { const rot=(e._ai==='circle'?(e.roll||0):0)+(piv?e.ang:(!piv&&e.ang&&e._ai!=='circle'?e.ang:0))+(!piv&&e.og&&e._ai!=='circle'?(e.gAng||0):0);
+      const lk=e.look||{x:0,y:0}, cr=Math.cos(-rot), sr=Math.sin(-rot);
+      inkFace(ctx,s,e._ai,ink,off,off?0:lk.x*cr-lk.y*sr,off?0:lk.x*sr+lk.y*cr,rot); }
     if(e._iso){ ctx.strokeStyle='rgba(255,160,70,'+(0.55+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(3,s*0.07); ctx.save(); ctx.scale(1.12,1.12); shape(); ctx.stroke(); ctx.restore(); }
     ctx.restore();
   }
@@ -847,7 +880,20 @@
     }
   }
   const _origDrawEnemy=window.drawEnemy;
-  window.drawEnemy=function(e){ if(e&&e._ai) return drawAi(e); return _origDrawEnemy.apply(this, arguments); };
+  // '!' / '?' over its head: pops in, holds, fades out over a second
+  function drawMark(e){
+    const mk=e.mark; if(!mk||!e.alive) return;
+    const t=mk.t, a=t<45?1:Math.max(0,1-(t-45)/15), pop=t<8?0.5+0.7*Math.sin(t/8*Math.PI*0.75):1;
+    const x=sx(e.x+e.w/2), y=sy(e.y)-sw(18)-Math.min(6,t*0.6), r=sw(13)*pop;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.fillStyle=mk.c==='!'?'#ffe24a':'#bfe4ff'; ctx.strokeStyle='#1a0e08'; ctx.lineWidth=Math.max(2,sw(2.5));
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x-r*0.25,y+r*0.85); ctx.lineTo(x,y+r*1.45); ctx.lineTo(x+r*0.3,y+r*0.82); ctx.fill();
+    ctx.fillStyle='#1a0e08'; ctx.font='900 '+Math.round(r*1.5)+'px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(mk.c, x, y+r*0.06);
+    ctx.restore();
+  }
+  window.drawEnemy=function(e){ if(e&&e._ai){ const r=drawAi(e); drawMark(e); return r; } return _origDrawEnemy.apply(this, arguments); };
   B.drawEnemyFx=function(){ drawRopes(); drawFrags(); };
 
   // ── difficulty switch under the screen (next to the console buttons) ──
