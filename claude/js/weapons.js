@@ -1041,7 +1041,8 @@ let _ropePickupAnim=null;
 let _itemTutorial=null;
 
 function updateRopePickup(){
-  if(_mapRopePickup&&!_mapRopePickup.got&&!_ropePickupAnim&&!_itemUnlocked(1)){
+  // (story stages: the RCA is a crate you break; the loose jack is picked up in beta_level)
+  if(_mapRopePickup&&!_mapRopePickup.got&&!_ropePickupAnim&&!_itemUnlocked(1)&&!(window.MV_BETA&&MV_BETA.on)){
     const r=_mapRopePickup;
     const h=playerCoreHB(p);
     if(ov(h.x-4,h.y-4,h.w+8,h.h+8,r.x+2,r.y+2,r.w-4,r.h-4)){
@@ -1128,6 +1129,7 @@ function updateItemDrops(){
   for(const d of ITEM_DROPS){
     if(d.got) continue;
     d.bob=(d.bob||0)+0.08;
+    if(window.MV_BETA&&MV_BETA.on) continue;             // story stages: break the box, then reach the item itself (beta_crates)
     if(_shutdownTimer<=0&&!_gameOver&&p){
       const h=playerCoreHB(p);
       if(ov(h.x-4,h.y-4,h.w+8,h.h+8,d.x,d.y,d.w,d.h)){
