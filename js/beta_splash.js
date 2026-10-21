@@ -15,6 +15,7 @@
   ];
   SPLASHES.forEach(s=>{ const im=new Image(); im.onload=()=>{ s.ready=true; s.settled=true; }; im.onerror=()=>{ s.ready=false; s.settled=true; }; im.src=s.src; s.img=im; });
   let idx=0, t=0, waitF=0, mos=null;
+  window.MV_SPLASH={idx:()=>idx, t:()=>t, IN};
   function mosaic(m){
     if(m<=1) return;
     const c=document.getElementById('c'); if(!c) return;

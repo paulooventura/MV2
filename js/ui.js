@@ -153,9 +153,19 @@ function _titleMenuItems(){
   ];
 }
 function _titleMenuGeom(){
+  const menu=_titleMenuItems();
+  const map=_titleArtMap();
+  // The key art already paints START / OPTIONS. Hit boxes sit on those words.
+  if(map&&map.im.naturalWidth===1536){
+    const bands=[[745,808],[808,868]];
+    return menu.map((it,i)=>{
+      const b=bands[Math.min(i,bands.length-1)];
+      const x=map.dx+620*map.s, y=map.dy+b[0]*map.s, w=300*map.s, h=(b[1]-b[0])*map.s;
+      return {label:it.label, locked:!!it.locked, activate:it.activate, x, y, w, h, ty:y+h/2};
+    });
+  }
   const gw=1024, gh=768;
   const cx=gw/2, startY=Math.round(gh*0.50), lineH=40;
-  const menu=_titleMenuItems();
   return menu.map((it,i)=>{
     const ty=startY+i*lineH;
     const lw=textW(it.label,2);
@@ -253,8 +263,14 @@ const STORY_ART_Q=[];
 const TITLE_FRAME_N=12;
 let TITLE_FRAMES=null;
 let _titleAnimReady=false, _titleStaticReady=false;
-const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;_initTitleFrames();}; im.onerror=()=>{console.warn('title-key-art.png failed');}; im.src='assets/story/title-key-art.png'; return im; })();
-if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth){ _titleStaticReady=true; _initTitleFrames(); }
+const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/story/title-frame-00.png'; return im; })();
+if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth) _titleStaticReady=true;
+function _titleArtMap(){
+  const im=TITLE_STATIC;
+  if(!_titleStaticReady||!im.naturalWidth) return null;
+  const s=Math.max(W/im.naturalWidth,H/im.naturalHeight);
+  return {im,s,dx:(W-im.naturalWidth*s)/2,dy:(H-im.naturalHeight*s)/2};
+}
 function _initTitleFrames(){
   if(TITLE_FRAMES) return;
   TITLE_FRAMES=Array.from({length:TITLE_FRAME_N},(_,i)=>{
@@ -265,9 +281,7 @@ function _initTitleFrames(){
     return im;
   });
 }
-function _titleBgImage(frame){
-  if(!_titleAnimReady) _initTitleFrames();
-  if(_titleAnimReady){ const idx=((Math.floor(frame/5)%TITLE_FRAME_N)+TITLE_FRAME_N)%TITLE_FRAME_N; const frIm=TITLE_FRAMES[idx]; if(frIm&&frIm.complete&&frIm.naturalWidth) return frIm; }
+function _titleBgImage(){
   if(_titleStaticReady&&TITLE_STATIC.naturalWidth) return TITLE_STATIC;
   return null;
 }
@@ -625,8 +639,27 @@ function drawZoneCard(){
 function _drawSnesWindow(x,y,w,h,opts){ uiPanel(x,y,w,h,{sel:!!(opts&&opts.sel),locked:!!(opts&&opts.locked),r:Math.min(12,h/3)}); }
 let _titleT=0, _logoHalfW=0;
 function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='italic 900 84px "MV Title", sans-serif'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
+function _titleArtCursor(map,sx,sy){
+  const bob=Math.sin(fr*0.18)*1.5, s=map.s;
+  const x=map.dx+(sx+bob)*s, y=map.dy+sy*s;
+  ctx.fillStyle='#c6ff9a';
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+16*s); ctx.lineTo(x+22*s,y+8*s); ctx.closePath(); ctx.fill();
+}
 function drawTitle(){
   _titleT++;
+  const map=_titleArtMap();
+  if(map){
+    ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
+    ctx.drawImage(map.im,map.dx,map.dy,map.im.naturalWidth*map.s,map.im.naturalHeight*map.s);
+    if(_titleMenuIdx===1){
+      const s=map.s;
+      ctx.save(); ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(map.im,676,730,72,36, map.dx+676*s, map.dy+756*s, 72*s, 36*s);
+      ctx.restore();
+      _titleArtCursor(map,668,820);
+    }
+    return;
+  }
   ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
   _drawSnesStarfield();
   const im=_titleBgImage(fr), ar=_titleBgRect(im);
@@ -634,7 +667,7 @@ function drawTitle(){
     const z=1.04+0.02*Math.sin(fr*0.004);                 // slow push-in on the key art
     const w=ar.w*z, h=ar.h*z;
     ctx.globalAlpha=0.9; ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h); ctx.globalAlpha=1;
-  }else if(!_titleStaticReady){ if(!TITLE_STATIC.complete) _initTitleFrames(); }
+  }
   let g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(6,2,22,0.85)'); g.addColorStop(0.32,'rgba(6,2,22,0.15)'); g.addColorStop(0.6,'rgba(6,2,22,0.25)'); g.addColorStop(1,'rgba(6,2,22,0.92)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
