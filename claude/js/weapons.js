@@ -948,7 +948,8 @@ function updateEnemyShots(){
     const _pCoreS=playerCoreHB(p);
     if(_shutdownTimer<=0&&ov(s.x-6,s.y-6,12,12,_pCoreS.x,_pCoreS.y,_pCoreS.w,_pCoreS.h)){
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff4444',10);
-      applyPlayerHit(s.vx*0.7,-2.4,PLAYER_HIT_DMG);
+      window._hitShotSrc=s.src||null;                      // who fired it (beta_mirror: D knocks your jack loose)
+      try{ applyPlayerHit(s.vx*0.7,-2.4,PLAYER_HIT_DMG); } finally{ window._hitShotSrc=null; }
       ESHOTS.splice(i,1); continue;
     }
     // Wall ricochet
