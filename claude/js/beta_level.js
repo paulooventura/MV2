@@ -1040,6 +1040,7 @@
     enemyTick();
     if(B.enemyAITick) B.enemyAITick();
     if(B.impactTick) B.impactTick();
+    if(B.clipTick) B.clipTick();
     if(B.crateTick) B.crateTick();
     if(B.waterTick) B.waterTick();
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.hurtTick) MV_BETA_AUDIO.hurtTick();

@@ -214,13 +214,33 @@
   };
   // Switching items while hooked keeps the hook: the rope's player end moves from the
   // RCA nose to MIND's body (and back) and the rope length follows, so nothing snaps.
-  const ropeEnd=()=>{ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null;
-    return ITEM===1&&pose?{x:pose.noseX,y:pose.noseY}:hookAttachWorld(); };
+  const ropeEnd=()=>ropePlayerEndWorld();                 // physics end: the RCA's pull point, or the clip on the disc
+  // the drawn end of the rope: the jack in MIND's hand (RCA out) or the clip on his body
+  const visEnd=()=>{ if(ITEM===1){ const pose=computeConnectorArmPose(p); return pose.worldNose||{x:pose.noseX,y:pose.noseY}; } return hookAttachWorld(); };
+  // Paulo (Oct 21): switching items while hooked, MIND takes the rope and clips it onto his
+  // body (or unclips it back into his hand) — a short animation of the plug travelling
+  const CLIP_FR=26;
+  B.ropeClip=null;
+  B.ropeClipPoint=function(){
+    const c=B.ropeClip; if(!c) return null;
+    const k=Math.min(1,c.t/CLIP_FR), e=k*k*(3-2*k);
+    const A=c.toBody?c.from:hookAttachWorld(), Bp=c.toBody?hookAttachWorld():visEnd();
+    const lift=Math.sin(e*Math.PI)*22;                       // a little arc, like a hand carrying it
+    return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e};
+  };
+  function clipTick(){
+    const c=B.ropeClip; if(!c) return;
+    if(!(p.hook&&p.hook.st==='on')){ B.ropeClip=null; return; }
+    if(++c.t>=CLIP_FR){ B.ropeClip=null; try{ sfx('grap_attach'); }catch(e){}
+      const q=hookAttachWorld(); for(let k=0;k<6;k++) PFXS.push({x:q.x,y:q.y,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:10,maxLife:10,r:1.5,col:'#e0e0ff'}); }
+  }
+  B.clipTick=clipTick;
   const _origCycle=window._cycleItem;
   window._cycleItem=function(){
     const h=on()&&p.hook&&p.hook.st==='on'?p.hook:null;
-    const a=h?ropeEnd():null;
+    const a=h?ropeEnd():null, av=h?visEnd():null, wasRca=ITEM===1;
     const r=_origCycle.apply(this, arguments);
+    if(h&&h.st==='on'&&wasRca!==(ITEM===1)) B.ropeClip={t:0, toBody:wasRca, from:av};
     if(h&&h.st==='on'){
       const b=ropeEnd();
       const piv=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
@@ -236,7 +256,9 @@
     const who=pl||p;
     if(on()&&who===p&&ITEM!==1&&who.hook&&who.hook.st!=='idle'){
       const st0=who.hook.st; who.hook.st='idle';
-      try{ return _origPose.apply(this, arguments); } finally{ who.hook.st=st0; }
+      const q=B.ropeClip&&B.ropeClipPoint?B.ropeClipPoint():null, ax0=who.aimDX, ay0=who.aimDY;
+      if(q&&q.k<0.85){ const c=hookAttachWorld(); who.aimDX=q.x-c.x+(who.fc?14:-14); who.aimDY=q.y-c.y+18; }   // the hand goes with the plug
+      try{ return _origPose.apply(this, arguments); } finally{ who.hook.st=st0; who.aimDX=ax0; who.aimDY=ay0; }
     }
     return _origPose.apply(this, arguments);
   };

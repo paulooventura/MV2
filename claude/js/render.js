@@ -2408,7 +2408,11 @@ function drawFX(){
     const _ropeAnchorA=_isVenture?'#a03f54':'#8833cc';
     const _ropeAnchorB=_isVenture?'#e3a3ae':'#cc88ff';
     const _ap=p._armPose||computeConnectorArmPose(p);
-    const _wn=_ap.worldNose||{x:_ap.noseX,y:_ap.noseY};          // the jack's tip as drawn (MIND may be tilted)
+    // the rope's drawn end: the RCA in MIND's hand, the clip on his disc (another item out),
+    // or the plug on its way between them (beta_feel ropeClip animation)
+    const _clipQ=window.MV_BETA&&MV_BETA.ropeClipPoint?MV_BETA.ropeClipPoint():null;
+    const _onBody=p.hook.st==='on'&&ITEM!==1&&typeof hookAttachWorld==='function';
+    const _wn=_clipQ||(_onBody?hookAttachWorld():(_ap.worldNose||{x:_ap.noseX,y:_ap.noseY}));
     const bx=sx(_wn.x), by=sy(_wn.y);
     if(p.hook.st==='ext'){
       const ex=sx(p.hook.ex), ey=sy(p.hook.ey);
@@ -2444,6 +2448,16 @@ function drawFX(){
       const ax=wpts[0].x, ay=wpts[0].y, nb=wpts[Math.min(1,wpts.length-1)];
       _drawRopeMagnetTip(ax,ay,Math.atan2(nb.y-ay,nb.x-ax),true,_ropeGlow);
       const pe=wpts[Math.max(0,wpts.length-2)];
+      if(_onBody||_clipQ){                                    // the RCA plug itself, on the rope's end
+        const ang=Math.atan2(pe.y-by,pe.x-bx), L=RCA_NOSE_LEN*0.7;
+        ctx.save(); ctx.translate(bx-Math.cos(ang)*L,by-Math.sin(ang)*L); ctx.scale(0.7,0.7);
+        if(typeof drawConnectorTip==='function') drawConnectorTip(0,0,ang,0,1,false);
+        ctx.restore();
+        if(_onBody&&!_clipQ){                                 // the clip on the disc holding it
+          ctx.save(); ctx.strokeStyle='#c8ccd8'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(bx,by,4,6,0,0,Math.PI*2); ctx.stroke();
+          ctx.strokeStyle='#5a5e6a'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(bx-4,by); ctx.lineTo(bx+4,by); ctx.stroke(); ctx.restore();
+        }
+      }
       _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(pe.y-by,pe.x-bx));
     }
   }

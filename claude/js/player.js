@@ -655,8 +655,10 @@ function connectorAimAngle(){
   const duckAngle=p.fc?0:Math.PI;
   return rawAngle*(1-ca2*0.85)+duckAngle*(ca2*0.85);
 }
+// where the rope clips onto MIND while another item is in hand: the disc on top of the speaker
 function hookAttachWorld(){
-  return {x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.45};
+  const ca=p.crouchAmt||0, top=p.y+FEET_OFF-STAND_H-WHEEL_R+10, duckTop=(p.y+FEET_OFF-WHEEL_R+WHEEL_R*0.5)-BODY_H;
+  return {x:p.x+SW/2+(p.fc?-1:1)*BODY_W*0.36, y:top+ca*(duckTop-top)+5};   // the back edge of the disc, where you can see it
 }
 const ROPE_END_R=48;                                         // body centre → where the rope pulls
 function ropePlayerEndWorld(){
@@ -844,7 +846,7 @@ function updateHook(){
       }
     }
     p.wallGrip=0;
-    if(!p._hasAimInput) _aimHook(h.ax,h.ay);
+    if(!p._hasAimInput&&ITEM===1) _aimHook(h.ax,h.ay);       // only the RCA's own arm looks up the rope
     // Down + jump lets go (item button does the same when the rope is selected).
     // Jump alone stays a kick: off the ground a real jump, in the air a pump along the swing.
     if(isJumpJ()&&isDn()){
