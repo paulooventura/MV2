@@ -765,6 +765,63 @@
     bunting(x+190,y+80,x+500,y+160,30,10,2.2);
   }
 
+  // ── 1.2 (Oct 21 sheet): inside the roof-tile house, its porch, and the city building ──
+  // the house's back wall, seen behind the stairs: warm plaster, a timber frame,
+  // two shuttered windows, a picture, a hanging lamp
+  function houseInside(d){
+    if(!inView(d.x,d.y,d.w,d.h)) return;
+    const x=d.x, y=d.y, w=d.w, h=d.h;
+    const g=ctx.createLinearGradient(0,Y(y),0,Y(y+h)); g.addColorStop(0,'#5a3a34'); g.addColorStop(1,'#3a2228');
+    ctx.fillStyle=g; ctx.fillRect(X(x),Y(y),S(w)+1,S(h)+1);
+    for(let yy=y+18; yy<y+h; yy+=26) rect(x,yy,w,1.5,'rgba(30,14,18,0.35)');            // plaster courses
+    for(let xx=x+64; xx<x+w; xx+=128) rect(xx,y,8,h,'#4a2a1c');                            // timber posts
+    rect(x,y+150,w,8,'#4a2a1c');                                                          // beam
+    for(const [wx,ph] of [[x+90,0.3],[x+330,1.7]]){
+      litWindow(wx,y+40,46,60,ph,false);
+      rect(wx-16,y+36,12,68,'#2e5a46'); rect(wx+50,y+36,12,68,'#2e5a46');                // shutters
+    }
+    rect(x+200,y+50,54,40,'#2a1820'); rect(x+204,y+54,46,32,'#c88a5a'); rect(x+214,y+66,26,16,'#7aa0c0');   // a picture
+    hangingLamp(x+260,y,90);
+    glow(x+260,y+100,140,0.16);
+  }
+  // the porch at the door: wooden planks and a rail (the sketch's pink hatching)
+  function porch(d){
+    if(!inView(d.x,d.y,d.w,d.h)) return;
+    for(let xx=d.x; xx<d.x+d.w; xx+=12) rect(xx,d.y,10,d.h,(xx/12)%2?'#7a4a2a':'#8a5a32');
+    rect(d.x,d.y,d.w,6,'#a8703a'); rect(d.x,d.y+d.h*0.45,d.w,4,'#a8703a');
+  }
+  // the urban residential building over the street: brick, rows of windows (some
+  // lit, a few people), little balconies, a fire escape, AC units, a water tank
+  function building(d){
+    if(!inView(d.x-60,d.y-120,d.w+120,d.h+140)) return;
+    const x=d.x, y=d.y, w=d.w, h=d.h, F=y+h;
+    const brick='#5a2e2a', brickD='#45221f', trim='#8a6a5a';
+    rect(x,y,w,h,brick);
+    for(let yy=y+6; yy<F; yy+=12) rect(x,yy,w,1.2,brickD);                                // mortar courses
+    rect(x-6,y-10,w+12,12,trim); rect(x-10,y-16,w+20,6,'#6a4a3e');                       // cornice
+    // the rooftop: a water tank on legs and a couple of chimneys
+    rect(x+w-150,y-90,70,62,'#4a3a32'); rect(x+w-156,y-96,82,10,'#3a2a24');
+    for(const lx of [x+w-148,x+w-92]) rect(lx,y-28,6,28,'#2a1e1a');
+    rect(x+60,y-52,22,52,brickD); rect(x+120,y-40,18,40,brickD);
+    // windows: 5 floors x 6
+    const cols=6, floors=5, gx=(w-60)/cols, gy=(h-150)/floors;
+    for(let f=0; f<floors; f++) for(let c=0; c<cols; c++){
+      const wx=x+30+c*gx+gx*0.18, wy=y+30+f*gy, ww=gx*0.62, wh=gy*0.6, seed=(f*7+c*13)%10;
+      rect(wx-3,wy-3,ww+6,wh+6,trim);
+      if(seed<4) litWindow(wx,wy,ww,wh,f+c*0.7,seed===1);
+      else { rect(wx,wy,ww,wh,'#1a1622'); rect(wx,wy,ww,wh*0.35,'rgba(120,140,180,0.25)'); rect(wx+ww/2-1,wy,2,wh,'#2a2430'); }
+      rect(wx-5,wy+wh+3,ww+10,4,trim);                                                     // sill
+      if(seed===6){ rect(wx-8,wy+wh+7,ww+16,5,'#2a2a2e'); for(let k=0;k<5;k++) rect(wx-6+k*(ww+12)/4,wy+wh-10,2,17,'#2a2a2e'); }   // balcony
+      if(seed===8) rect(wx+ww+6,wy+wh*0.5,18,14,'#7a7e86');                                 // an AC unit
+    }
+    // the fire escape down the right side
+    const fx=x+w-60;
+    for(let f=0; f<floors; f++){ const fy=y+30+f*gy+gy*0.62+8; rect(fx-30,fy,56,4,'#1e1e24'); for(let k=0;k<4;k++) rect(fx-28+k*17,fy-16,2,16,'#1e1e24'); rect(fx-26,fy,3,gy,'rgba(30,30,36,0.9)'); }
+    // the ground floor: a shopfront with an awning, the street door is the exit gate
+    rect(x+20,F-110,w*0.42,90,'#1e1a24'); litWindow(x+30,F-100,w*0.42-20,60,0.5,true);
+    for(let k=0;k<8;k++) rect(x+14+k*(w*0.44)/8,F-126,(w*0.44)/8,18,k%2?'#c84a3a':'#f0e0c8');
+    rect(x,F-20,w,20,'#3a2a26');
+  }
   // ── World ─────────────────────────────────────────────────────────
   function world(B){
     Z=sw(1000)/1000; textures();
@@ -783,7 +840,7 @@
       if(s===4) blit(tex.stone[r%2],c,r); else if(s===5) blit(tex.cave[(c*7+r*3)&3],c,r);
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
-    for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); }
+    for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
     for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
     for(const d of B.decor) if(d.kind==='chimney') chimney(d.x+d.dx, d.y+d.dy, d.y+d.dy+d.len);
     const SOLID=1, ONEWAY=2, SL=4, SR=5;
@@ -795,8 +852,9 @@
         const x=X(c*T), y=Y(r*T), z=S(T)+1;
         ctx.save(); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); ctx.lineTo(x+z,y+z); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); ctx.lineTo(x,y+z); }
-        ctx.closePath(); ctx.clip(); ctx.drawImage(tex.dirt[(c*5+r)&7],x,y,z,z); ctx.restore();
-        ctx.strokeStyle=P.grass; ctx.lineWidth=S(5); ctx.beginPath();
+        const sTex=s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7];
+        ctx.closePath(); ctx.clip(); ctx.drawImage(sTex,x,y,z,z); ctx.restore();
+        ctx.strokeStyle=s===6?'#6e2a1e':s===3?P.woodH:P.grass; ctx.lineWidth=S(5); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); } ctx.stroke();
         continue;
       }

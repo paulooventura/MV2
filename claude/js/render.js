@@ -445,6 +445,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   for(let i=0;i<3;i++){ctx.fillStyle='#4e5660';ctx.fillRect(cx-12,baseY+1.5+i*1.5,24,0.8);}
   ctx.fillStyle='#5a6270';ctx.fillRect(cx-14,baseY+5,28,4);
   ctx.fillStyle='#6a7280';ctx.fillRect(cx-13,baseY+6,26,2.5);
+  if(hostile&&window._mirrorHat) _drawMindWideHat(cx,drawY,R,0,0);   // the mirror enemy wears MIND's own hat
   if(!hostile){
     const htx=unifiedHat?0:hatTX, hty=unifiedHat?0:hatTY;
     if(hero==='venture') _drawVentureCap(cx,drawY,R,htx,hty);
@@ -1626,7 +1627,7 @@ function drawMindEnemy(e){
   drawMindGloveArm(e,glovShX,shY,fc,flicker);
   if(flicker) return;
   drawHead(wcx,sy(bodyTop-18),e.pupilX,e.pupilY,0,'venture',0,null,0,0,0,false,true);
-  const _eh=p.hero; p.hero='venture';
+  const _eh=p.hero; p.hero=e.mirror?'mind':'venture';
   drawBody(wcx,bTopS,fc,0,{hp:e.hp,mhp:e.mhp,off:false});
   p.hero=_eh;
   const armDark=C.MAROON, armMain=C.RED_D;
