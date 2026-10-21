@@ -543,6 +543,7 @@ function _clampSegFrom(shX,shY,tx,ty){
   return {x:shX+(tx-shX)*pull, y:shY+(ty-shY)*pull};
 }
 
+function _tiltPt(x,y,cx,cy,t){ if(!t) return {x,y}; const c=Math.cos(t), s=Math.sin(t), dx=x-cx, dy=y-cy; return {x:cx+dx*c-dy*s, y:cy+dx*s+dy*c}; }
 function computeConnectorArmPose(pl=p){
   const ca2=pl.crouchAmt, fc=pl.fc;
   const px=pl.x, py=pl.y;
@@ -557,31 +558,31 @@ function computeConnectorArmPose(pl=p){
   // Paulo (Oct 21): both arms sit on a disc screwed to the top of the speaker. Hooked, the
   // disc turns so the jack arm's mount faces the rope (never an awkward angle across the
   // body); the glove arm rides round to the other side. s = -1 left edge … +1 right edge.
-  // Latched, the jack comes off the disc on the side facing the rope, in line with it
-  // (aimed at the rope's last bend, or the latch): the rope's end then sits on the rope's
-  // own line, so the swing keeps its length and its energy. Easing only when latching on
-  // or letting go.
+  // Paulo's sketch (Oct 21): hooked, MIND hangs tilted with the swing (the renderer
+  // rotates him round his body's centre by pl._tilt); the disc on top of the speaker turns
+  // the jack arm to the side of the box facing the rope, where it pokes out and the hand
+  // holds the jack pointing up the rope, beside the head. The glove rides the other side.
   const hookPt=hookOn?((pl.hook.st==='on'&&pl.hook.pivots&&pl.hook.pivots.length)?pl.hook.pivots[pl.hook.pivots.length-1]
     :{x:pl.hook.st==='on'?pl.hook.ax:pl.hook.ex, y:pl.hook.st==='on'?pl.hook.ay:pl.hook.ey}):null;
-  let rU=null;
-  if(hookPt){ const dx0=hookPt.x-bodyCX, dy0=hookPt.y-shoulderY, d0=Math.hypot(dx0,dy0)||1; rU={x:dx0/d0,y:dy0/d0}; }
-  { const back=fc?-1:1, tgt=rU?rU.x:back;
+  const tiltCX=bodyCX, tiltCY=bodyTop+BODY_H*0.5;
+  let rW=null, rL=null;                                            // rope direction: world, and in MIND's tilted frame
+  if(hookPt){ const dx0=hookPt.x-tiltCX, dy0=hookPt.y-tiltCY, d0=Math.hypot(dx0,dy0)||1; rW={x:dx0/d0,y:dy0/d0}; }
+  if(pl._discFr!==fr){
+    pl._discFr=fr;
+    const back=fc?-1:1;
+    const tgtTilt=(rW&&pl.hook.st==='on')?Math.max(-0.55,Math.min(0.55,Math.atan2(rW.x,-rW.y)*0.6)):0;
+    pl._tilt=(pl._tilt||0)+(tgtTilt-(pl._tilt||0))*0.15;
+    let side=pl._discSide==null?back:pl._discSide;
+    if(rW){ const th=pl._tilt, lx=rW.x*Math.cos(th)+rW.y*Math.sin(th); if(lx>0.18) side=1; else if(lx<-0.18) side=-1; }
+    else side=back;
+    pl._discSide=side;
     if(pl._discS==null) pl._discS=back;
-    if(pl._discFr!==fr){ pl._discFr=fr;
-      pl._discBlend=hookOn&&pl.hook.st==='on'?Math.min(1,(pl._discBlend||0)+0.1):0;
-      if(pl._discEase==null) pl._discEase=back;
-      pl._discEase+=(tgt-pl._discEase)*0.18;
-      pl._discS=pl._discBlend>0?pl._discEase+(tgt-pl._discEase)*pl._discBlend:pl._discEase;
-      if(pl._discBlend>=1) pl._discEase=tgt;
-    }
+    pl._discS+=(side-pl._discS)*0.2;                              // the disc turns (eased)
   }
-  const discS=pl._discS, discK=pl._discBlend||0;
-  let connShoulderX=bodyCX+discS*BODY_W/2, connShoulderYd=shoulderY;
-  if(rU&&discK>0){                                            // on the rope's line, round the disc's rim
-    const rim=BODY_W/2;
-    connShoulderX+= (bodyCX+rU.x*rim-connShoulderX)*discK;
-    connShoulderYd+=(shoulderY+rU.y*rim-shoulderY)*discK;
-  }
+  const tilt=pl._tilt||0;
+  if(rW){ const c=Math.cos(-tilt), sn=Math.sin(-tilt); rL={x:rW.x*c-rW.y*sn, y:rW.x*sn+rW.y*c}; }
+  const discS=pl._discS;
+  const connShoulderX=bodyCX+discS*BODY_W/2, connShoulderYd=shoulderY;
   const gloveShoulderX=bodyCX-discS*BODY_W/2;
   const cptY=pl.y+FEET_OFF-STAND_H*0.5;
   const rawAngle=hookOn
@@ -599,29 +600,16 @@ function computeConnectorArmPose(pl=p){
   const connShX=connShoulderX-Math.cos(ca)*_nudge*(fc?1:-1);
   const connShY=connShoulderYd-Math.sin(ca)*_nudge;
   let noseX,noseY,tipX,tipY,useElbow=false,elbowX=0,elbowY=0,armA0=ca,armA1=ca,armL0=aimLen,armL1=0;
-  if(hookOn){
-    const hx=hookPt.x, hy=hookPt.y;                     // toward the rope's last bend (or the latch)
-    let dx=hx-connShX, dy=hy-connShY, dd=Math.hypot(dx,dy)||1;
-    let ux=dx/dd, uy=dy/dd;
-    const pxn=-uy, pyn=ux;
-    const speed=Math.hypot(pl.vx||0,pl.vy||0);
-    // latched: the arm lies straight along the rope (the disc already faces it), so the
-    // rope's end doesn't shift sideways with speed; flying: a little elbow for life
-    const bend=pl.hook.st==='on'?0:7+Math.min(12,speed*0.7)+2;
-    const bendSign=(fc?1:-1)*((dy>=0)?1:-1);
-    elbowX=connShX+ux*aimLen*0.52+pxn*bend*bendSign;
-    elbowY=connShY+uy*aimLen*0.52+pyn*bend*bendSign;
-    armA0=Math.atan2(elbowY-connShY,elbowX-connShX);
-    armL0=Math.max(5,Math.hypot(elbowX-connShX,elbowY-connShY));
-    const fdx=hx-elbowX, fdy=hy-elbowY, fdd=Math.hypot(fdx,fdy)||1;
-    const foreReach=Math.min(fdd,Math.max(8,aimLen*0.58));
-    tipX=elbowX+fdx/fdd*foreReach; tipY=elbowY+fdy/fdd*foreReach;
-    armA1=Math.atan2(tipY-elbowY,tipX-elbowX);
-    armL1=Math.max(5,Math.hypot(tipX-elbowX,tipY-elbowY));
-    noseX=tipX+Math.cos(armA1)*RCA_NOSE_LEN;
-    noseY=tipY+Math.sin(armA1)*RCA_NOSE_LEN;
-    const noseClamped=_clampSegFrom(tipX,tipY,noseX,noseY);
-    noseX=noseClamped.x; noseY=noseClamped.y;
+  if(hookOn&&rL){
+    const side=discS>=0?1:-1, sideK=Math.min(1,Math.abs(discS));
+    // the upper arm pokes out sideways from the shoulder (a short coil), the forearm and
+    // the jack point along the rope
+    elbowX=connShX+side*(6+8*sideK); elbowY=connShY+3;
+    const reach=aimLen*0.55;
+    tipX=elbowX+rL.x*reach; tipY=elbowY+rL.y*reach;
+    noseX=tipX+rL.x*RCA_NOSE_LEN; noseY=tipY+rL.y*RCA_NOSE_LEN;
+    armA0=Math.atan2(elbowY-connShY,elbowX-connShX); armL0=Math.max(5,Math.hypot(elbowX-connShX,elbowY-connShY));
+    armA1=Math.atan2(rL.y,rL.x); armL1=reach;
     useElbow=true;
   }else{
     tipX=connShX+Math.cos(ca)*aimLen; tipY=connShY+Math.sin(ca)*aimLen;
@@ -643,9 +631,9 @@ function computeConnectorArmPose(pl=p){
     const ex=(connShX+jx)/2+side*4, ey=Math.min(connShY,jy)-12;  // elbow: up and between
     const a0=Math.atan2(ey-connShY,ex-connShX), a1=Math.PI/2;
     return {connShX,connShY,elbowX:ex,elbowY:ey,tipX:jx,tipY:jy,armA0:a0,armA1:a1,armL0:Math.hypot(ex-connShX,ey-connShY),armL1:Math.hypot(jx-ex,jy-ey),
-      useElbow:true,noseX:jx,noseY:jy+(ITEM===1?RCA_NOSE_LEN:0),aimAngle:a1,gloveShX:gloveShoulderX,discS};
+      useElbow:true,noseX:jx,noseY:jy+(ITEM===1?RCA_NOSE_LEN:0),aimAngle:a1,gloveShX:gloveShoulderX,discS,tilt,tiltCX,tiltCY,worldNose:_tiltPt(jx,jy+(ITEM===1?RCA_NOSE_LEN:0),tiltCX,tiltCY,tilt)};
   }
-  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca,gloveShX:gloveShoulderX,discS,behindHead:!!(rU&&discK>0.5&&rU.y<-0.35)};
+  return {connShX,connShY,elbowX,elbowY,tipX,tipY,armA0,armA1,armL0,armL1,useElbow,noseX,noseY,aimAngle:useElbow?armA1:ca,gloveShX:gloveShoulderX,discS,tilt,tiltCX,tiltCY,worldNose:_tiltPt(noseX,noseY,tiltCX,tiltCY,tilt)};
 }
 
 function connectorTipWorld(itemOverride=ITEM){
@@ -670,8 +658,17 @@ function connectorAimAngle(){
 function hookAttachWorld(){
   return {x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.45};
 }
+const ROPE_END_R=48;                                         // body centre → where the rope pulls
 function ropePlayerEndWorld(){
-  if(ITEM===1){ const pose=computeConnectorArmPose(p); return {x:pose.noseX,y:pose.noseY}; }
+  if(ITEM===1){
+    const h=p.hook;
+    if(h&&(h.st==='on'||h.st==='ext')){
+      const pose=computeConnectorArmPose(p), P=(h.st==='on'&&h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.st==='on'?h.ax:h.ex,y:h.st==='on'?h.ay:h.ey};
+      const dx=P.x-pose.tiltCX, dy=P.y-pose.tiltCY, d=Math.hypot(dx,dy)||1, r=Math.min(ROPE_END_R,d*0.5);
+      return {x:pose.tiltCX+dx/d*r, y:pose.tiltCY+dy/d*r};
+    }
+    const pose=computeConnectorArmPose(p); return {x:pose.noseX,y:pose.noseY};
+  }
   return hookAttachWorld();
 }
 // Voluntary let-go: keep the swing's speed and the current aim (a new throw
@@ -878,9 +875,13 @@ function updateHook(){
     // Paulo (Oct 20): a real pendulum runs down — air drag and the cord's own
     // give bleed the swing until MIND just hangs there (pumping keeps it going)
     const _spd=Math.hypot(p.vx,p.vy);
-    const _drag=_pump?0.998:_spd<1.6?0.96:0.993;        // the last little sway dies quickly, like a real rope settling
+    // the last little sway dies quickly, like a real rope settling — judged by how far he
+    // swings from hanging straight down, NOT by speed (speed is ~0 at the top of every swing)
+    const _piv=(h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+    const _off=Math.abs(p.x+SW/2-_piv.x), _small=_off<16&&_spd<1.4;
+    const _drag=_pump?0.999:_small?0.95:0.996;            // ~12% of the swing lost per half-swing
     p.vx*=_drag; if(p.vy<0||_pump) p.vy*=_drag;          // (gravity itself is never damped away)
-    if(!_pump&&_spd<0.25){ p.vx*=0.5; }
+    if(!_pump&&_small&&_spd<0.25){ p.vx*=0.5; }
     const _rSteps=Math.max(1,Math.ceil(Math.max(Math.abs(p.vx),Math.abs(p.vy))/3));
     const gridOn=typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function';
     const keepVx=p.vx, keepVy=p.vy;

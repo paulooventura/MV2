@@ -246,3 +246,8 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Rope look (render.js): magnet ball tip `_drawRopeMagnetTip`, braided cord `_drawRopeBraid`, coil showing in the jack's mouth `_drawRopeSpool` (more loops the more is wound in).
 - Rope wraps edges (physics.js): the latch face is only ignored while the rope pulls away from it (`_ropeIntoLatch`); grid hits grow to the whole face (`_ropeGridFace`) so it bends once at the slab's real corner.
 - Merged main's dc4ef22 (splash logos `beta_splash.js`, music slows only on hits, water shutdowns, platform full-charge launch).
+
+### Build 207 — hanging pose from Paulo's second sketch
+- Hooked, MIND tilts with the rope (`pl._tilt`, up to ±0.55 rad, rotated round the body centre in render.js drawCharacter); the disc puts the jack arm on the side of the box facing the rope (`_discSide` with hysteresis), upper arm pokes out sideways, forearm + jack point up the rope beside the head; glove on the other side. Rope is drawn to `pose.worldNose`.
+- Physics rope end (`ropePlayerEndWorld`, RCA latched/flying): fixed point `ROPE_END_R`=48 px from the body centre along the rope — independent of the drawn arm, so the swing keeps its energy.
+- Swing drag 0.996 (~12%/half-swing); the settle drag (0.95) now only when hanging nearly straight (offset < 16 px), not at every swing's peak.
