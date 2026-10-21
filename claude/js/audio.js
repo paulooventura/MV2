@@ -641,12 +641,20 @@ function sfx(t){
       o(880,140,.1,.08,0.18,'square');
       break;
     // Enemy: shorter, higher rival pop — not the player shutdown
-    case'enemy_shut':
-      nz(.12,.26,false,0.85);
-      nz(.1,.16,true,0.55,0.04);
-      o(980,180,.16,.2,0,'sawtooth');
-      o(640,90,.14,.14,0.03,'square');
-      o(160,50,.12,.12,0.06,'triangle');
+    case'enemy_shut':{
+      const sp=typeof arguments[1]==='number'?arguments[1]:1;
+      nz(.12,.26,false,0.85*sp);
+      nz(.1,.16,true,0.55*sp,0.04);
+      o(980*sp,180*sp,.16,.2,0,'sawtooth');
+      o(640*sp,90*sp,.14,.14,0.03,'square');
+      o(160*sp,50*sp,.12,.12,0.06,'triangle');
+      break;}
+    case'enemy_dead':
+      nz(.22,.2,true,0.22);
+      o(220,40,.7,.2,0,'sawtooth');
+      o(110,28,.85,.16,0.05,'triangle');
+      o(55,24,.9,.14,0.1,'sine');
+      o(70,70,.1,.12,0.72,'square');
       break;
   }
 }

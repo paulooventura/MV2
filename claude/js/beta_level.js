@@ -852,7 +852,7 @@
   const REVIVE_FR=120,          // Paulo: rebooting takes 2 s
     SHUT_LIMIT_BETA=3, TREE_R=300;
   function energize(e,why){
-    e._downs=0; e._permOff=false;
+    e._downs=0; e._permOff=false; e._pwrHits=0;
     if(!e.alive) revive(e); else e.hp=e.mhp;
     e._glowF=40;
     if(why==='knowl'){ try{ sfx('knowl_pickup'); }catch(_e){} }

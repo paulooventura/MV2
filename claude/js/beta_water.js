@@ -502,7 +502,7 @@
         if(e._iso) continue;                                   // wears an Isolator
         if(inside){
           // Paulo (Oct 20): an enemy that ends up in the water shorts out and dies
-          if(e.alive&&!e._shorted){ if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y); e._shorted=true; if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24); }
+          if(e.alive&&!e._shorted){ e._shorted=true; if(typeof _damageEnemy==='function') _damageEnemy(e,9999,e.x+e.w/2,e.y); if(B.stats) B.stats.shortedEnemies=(B.stats.shortedEnemies||0)+1; zap(0.7); for(let k=0;k<10;k++) spark(e.x+e.w/2,e.y+e.h/2,24); }
           if(!e._permOff){ e._permOff=true; e._downs=3; if(B.stats) B.stats.permOff=(B.stats.permOff||0)+1; }
           e._revT=0;                                           // no rebooting: it's dead
           if(!e.alive){ e.vy=Math.min((e.vy||0),1.2); e.vx=(e.vx||0)*0.9; if(fr%9===0) spark(e.x+e.w/2,e.y+e.h/3,16); }

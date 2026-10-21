@@ -143,7 +143,15 @@
     },
     debris(a,p){ const k=p||0.5; hiss(a,{f:rnd(2800,5600),q:6,d:0.035,v:0.03+0.05*k}); if(Math.random()<0.4) tone(a,{f:rnd(900,1500),d:0.04,v:0.015,type:'triangle'}); },
     shutdown(a){ tone(a,{f:520,f1:55,d:0.75,v:0.12,type:'sawtooth',lp:3000,sweep:200,rev:0.3}); tone(a,{f:260,f1:30,d:0.8,v:0.1,type:'triangle'}); hiss(a,{type:'lowpass',f:1500,f1:100,d:0.6,v:0.06}); },
-    enemy_shut(a){ tone(a,{f:420,f1:70,d:0.4,v:0.1,type:'sawtooth',lp:2600,sweep:300,rev:0.2}); bell(a,{f:300,ratio:1.41,index:2,d:0.3,v:0.04}); },
+    enemy_shut(a,p){ p=p||1; tone(a,{f:420*p,f1:70*p,d:0.4,v:0.1,type:'sawtooth',lp:2600,sweep:300,rev:0.2}); bell(a,{f:300*p,ratio:1.41,index:2,d:0.3,v:0.04}); },
+    // permanent shutdown: a long fall that lands and stays down — no chime back
+    enemy_dead(a){
+      tone(a,{f:240,f1:36,d:0.95,v:0.16,type:'sawtooth',lp:1600,sweep:120,rev:0.4});
+      tone(a,{f:120,f1:28,d:1.1,v:0.16,type:'triangle'});
+      tone(a,{f:62,f1:26,d:1.15,v:0.18});
+      hiss(a,{type:'lowpass',f:800,f1:70,d:0.85,v:0.1,rev:0.3});
+      tone(a,{f:78,d:0.12,v:0.14,dt:0.78,type:'square',lp:320});
+    },
     ropeSnap(a){ tone(a,{f:640,f1:110,d:0.32,v:0.13,type:'triangle'}); hiss(a,{type:'highpass',f:2500,d:0.06,v:0.12}); },
     ropeBreak(a){ R.ropeSnap(a); tone(a,{f:180,f1:70,d:0.2,v:0.1}); },
     ropeSlack(a){ hiss(a,{f:600,f1:300,q:1,d:0.18,v:0.05}); },
