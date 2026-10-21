@@ -480,7 +480,7 @@
       spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
     }
   }
-  const ITEM_COST={XLR_BASE:14, XLR_CHARGE:22, MAG_BASE:10, MAG_CHARGE:16}, ITEM_REST=45;
+  const ITEM_COST={XLR_BASE:17, XLR_CHARGE:27, MAG_BASE:13, MAG_CHARGE:20}, ITEM_REST=35;   // Paulo (Oct 21): drains a bit faster, refills sooner
   B.ITEM_COST=ITEM_COST;
   function xlrTip(){ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null; return pose?{x:pose.noseX,y:pose.noseY}:{x:p.x+SW/2,y:p.y+FEET_OFF-50}; }
   const powNow=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
@@ -673,7 +673,7 @@
   //   shrinks and the outer cubes slip off; the last thing held lets go only
   //   at 0%. Held things sit flush on the poles; letting go throws them with
   //   the swing of the arm — lighter things fly faster.
-  const MAG={LOCK:84, DRAIN:0.35, GAME_DRAIN:1.2, ENH_DRAIN:0.78, THROW:1.25, MAXV:20, GRIP:9};
+  const MAG={LOCK:84, DRAIN:0.45, GAME_DRAIN:1.55, ENH_DRAIN:1.0, THROW:1.25, MAXV:20, GRIP:9};
   const magCap=pw=>MAG.GRIP*Math.max(0,pw)/100;
   const heldWeight=()=>B.mag.held.reduce((s,h)=>s+weightOf(h.kind,h.ref),0);
   function magTip(){

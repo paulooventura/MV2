@@ -160,7 +160,19 @@
     ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
     if(j>0){ ctx.fillStyle='rgba(200,10,40,'+(0.35*j).toFixed(3)+')'; ctx.fillRect(0,0,W,H); }
     ctx.restore();
+    // Paulo (Oct 21): only the world glitches — this runs after the world and before the
+    // HUD, so the top and bottom bars stay readable; MIND is drawn again on top, clear
+    // (his eye and cracked bulb show the damage instead, render.js drawHead)
+    try{ crush(); }catch(e){}
+    try{ redrawMind(); }catch(e){}
   };
+  function redrawMind(){
+    if(typeof drawCharacter!=='function'||!p) return;
+    const B=window.MV_BETA;
+    if(B&&B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-50)) return;   // under water he stays under the water
+    if(typeof _worldZoomBegin==='function') _worldZoomBegin();
+    try{ drawCharacter(); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); }
+  }
   function crush(){
     let ph=hpPhase(); if(jolt>0) ph=Math.max(1,ph-2);   // a hit crushes two phases deeper for a moment
     if(ph>=5) return;
@@ -184,7 +196,7 @@
     baked=false; inFrame=(typeof _gameState!=='undefined'&&_gameState==='game');
     introTick();
     try{ return _draw.apply(this,arguments); }
-    finally{ inFrame=false; if(MODES[mode]) try{ finish(); }catch(e){ console.warn('MV console pass',e); } try{ hitWatch(); crush(); }catch(e){} }
+    finally{ inFrame=false; if(MODES[mode]) try{ finish(); }catch(e){ console.warn('MV console pass',e); } try{ hitWatch(); }catch(e){} }
   };
 
   // ── power-on / stage-start transition ──────────────────────────
