@@ -18,21 +18,41 @@
     results:'assets/bgm/crystal-memory-gate.mp3'
   };
   const els={};
-  let current=null, wantPlay=null;
+  let current=null, wantPlay=null, ensureN=0;
   const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75)); }catch(e){ return 0.75; } };
   function el(name){
     if(!els[name]){ const a=new Audio(encodeURI(TRACKS[name])); a.loop=true; a.preload='auto'; els[name]=a; }
     return els[name];
   }
   function play(name,{restart=false,volume=1}={}){
-    if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
-    for(const k in els) if(k!==name) try{ els[k].pause(); }catch(e){}
+    if(!TRACKS[name]) name='stage';
     const a=el(name);
     if(restart) try{ a.currentTime=0; }catch(e){}
     a._baseVol=volume; a.playbackRate=1;
     a.volume=vol()*volume;
     current=name; wantPlay=name;
-    const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{ wantPlay=name; });
+    try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
+    try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
+    const pr=a.play();
+    const started=()=>{
+      for(const k in els) if(k!==name) try{ els[k].pause(); }catch(e){}
+      if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
+    };
+    if(pr&&pr.then) pr.then(started).catch(()=>{ wantPlay=name; });
+    else started();
+  }
+  // the stage track is asked for after a level fetch, past the click that
+  // unlocked sound — keep trying until the browser actually lets it play
+  function ensure(){
+    if(!wantPlay||!els[wantPlay]) return;
+    const a=els[wantPlay];
+    if(!a.paused) return;
+    if(++ensureN%20) return;
+    a.volume=vol()*(a._baseVol||1);
+    try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
+    try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
+    const pr=a.play();
+    if(pr&&pr.then) pr.then(()=>{ if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){} }).catch(()=>{});
   }
   // Getting hit slows the music down (and dips it), then it recovers as MIND
   // heals — the same rule the original game used (_healFrac, audio.js).
@@ -169,5 +189,5 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, stopAll, hurtTick, boom, creak, twang, sizzle, fanfare, splash, magClank, magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, stopAll, ensure, hurtTick, boom, creak, twang, sizzle, fanfare, splash, magClank, magHum, current:()=>current, els};
 })();

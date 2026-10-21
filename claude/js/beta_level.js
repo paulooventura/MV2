@@ -45,8 +45,8 @@
     const PATH=LEVELS[id].path;
     if(typeof _unlockAudio==='function') _unlockAudio();
     _gameState='game';
-    if(typeof _stopAllBgm==='function') _stopAllBgm();
-    else if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); _stopBGM('game'); }
+    const guess=id==='1.2'?'stage2':'stage';
+    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(guess);   // still inside the click, before the level fetch
     const gen=B.loadGen=(B.loadGen||0)+1;             // a newer load wins (e.g. a stage button during boot)
     const res=await fetch(PATH+(PATH.indexOf('?')<0?'?v='+(window.MV_BUILD||'0'):''));
     if(!res.ok) throw new Error('beta level fetch failed '+res.status);
@@ -61,7 +61,10 @@
     applyLdtkLevel(level);
     applyBeta(raw, level);
     restoreStage(opts);
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(B.music,{restart:true});
+    if(window.MV_BETA_AUDIO){
+      if(B.music&&B.music!==guess) MV_BETA_AUDIO.play(B.music,{restart:true});
+      else if(MV_BETA_AUDIO.ensure) MV_BETA_AUDIO.ensure();
+    }
     else if(typeof _playBGM==='function'&&typeof OPT!=='undefined') _playBGM('game', OPT.musicVol);
   }
 
@@ -940,6 +943,13 @@
       PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:16+Math.random()*16|0,maxLife:32,r:2+Math.random()*3,col:i%3?'#ffd040':'#ff7020'}); }
   }
 
+  // octave up, then +0.5% for each percent of this level's seeds already gathered
+  function seedPitch(){
+    let total=0, got=0;
+    for(const k of KDROP){ if(k.kind!=='seed') continue; total++; if(k.got) got++; }
+    const pct=total?got/total*100:0;
+    return 2*(1+0.005*pct);
+  }
   // ── Seeds: picked up by the whole body (they sit on the floor, below MIND's core)
   function seedPickups(){
     if(!p) return;
@@ -949,7 +959,7 @@
       if(!ov(core.x-6,core.y,core.w+12,feet-core.y,k.x-11,k.y-11,22,22)) continue;
       k.got=true; kColl++;
       if(typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
-      try{ sfx('knowl_pickup'); }catch(e){}
+      try{ sfx('knowl_seed', seedPitch()); }catch(e){}
       for(let pi=0;pi<12;pi++){
         const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*3;
         PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.8,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*3,col:'#66ffaa'});
@@ -982,7 +992,7 @@
   // ── Per-frame rules (rides on updateKnowls, which runs every update) ──
   const _origUpdateKnowls=window.updateKnowls;
   window.updateKnowls=function(){
-    if(B.on&&_gameState==='game'){ seedPickups(); cratePickups(); }
+    if(B.on&&_gameState==='game'){ seedPickups(); cratePickups(); if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.ensure) MV_BETA_AUDIO.ensure(); }
     _origUpdateKnowls.apply(this, arguments);
     if(!B.on||_gameState!=='game') return;
     B.stats.frames++;

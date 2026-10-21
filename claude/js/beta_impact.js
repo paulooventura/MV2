@@ -127,6 +127,7 @@
       const ox=p.x+SW/2, oy=p.y+FEET_OFF-(typeof WHEEL_R!=='undefined'?WHEEL_R*2:28)-18;   // around the shoulder
       const R=(w.heavy?78:56)*(0.75+0.35*Math.min(1,k*2)), span=w.heavy?1.1:0.85, a0=w.ang-span, a1=w.ang+span;
       const al=(1-k)*(w.heavy?0.85:0.7);
+      ctx.save(); ctx.translate(sx(ox),sy(oy)); ctx.scale(1,0.52); ctx.translate(-sx(ox),-sy(oy));
       ctx.fillStyle='rgba(255,255,255,'+al.toFixed(3)+')';
       ctx.beginPath(); ctx.arc(sx(ox),sy(oy),sw(R),a0,a1); ctx.arc(sx(ox+ux*(w.heavy?14:10)),sy(oy+uy*(w.heavy?14:10)),sw(R*0.82),a1,a0,true); ctx.closePath(); ctx.fill();
       ctx.strokeStyle='rgba('+(w.heavy?'255,220,140':'210,200,255')+','+(al*0.9).toFixed(3)+')'; ctx.lineWidth=sw(2.5);
@@ -135,6 +136,7 @@
       for(let i=-1;i<=1;i++){ const nx=-uy*i*12, ny=ux*i*12, l=(w.heavy?60:40)*(1-k);
         ctx.strokeStyle='rgba(255,255,255,'+(al*0.7).toFixed(3)+')';
         ctx.beginPath(); ctx.moveTo(sx(ox+nx+ux*(R-8)),sy(oy+ny+uy*(R-8))); ctx.lineTo(sx(ox+nx+ux*(R-8-l)),sy(oy+ny+uy*(R-8-l))); ctx.stroke(); }
+      ctx.restore();
     }
     // impact stars: a white flash, spikes thrown along the punch, an expanding ring
     for(const f of B.impacts){

@@ -966,6 +966,9 @@ function update(){
   updateEnemyShots(); updateCrates(); updateKnowls(); updateRopePickup(); updateItemDrops(); updateParticles(); updateBgParticles();
 
   // ── Player movement + wall jump ───────────────────────────────
+  const _runNow=typeof isSprintHeld==='function'&&isSprintHeld();
+  if(_runNow&&!p._runWas){ try{ sfx('run_click'); }catch(e){} }
+  p._runWas=_runNow;
   const _pRollX0=p.x, _pRollY0=p.y;
   if(p.hook.st==='idle'){
     const _wall=_wallTouchInfo(p);
@@ -1000,8 +1003,12 @@ function update(){
     if(isJumpJ()&&p._jumpArmed&&_playerOnGround(p)){
       p._jumpArmed=false;
       if(measureHeadroom(p)<6) p._autoHeadTuck=1;
-      if(p.duckBoostReady){p.vy=JI*2.05;p.jf=JMH+10;p.duckBoostReady=false;p.duckCharge=0;p.flashF=Math.max(p.flashF,6);for(let i=0;i<10;i++){const a=Math.PI+(Math.random()-0.5)*1.9,sp=2+Math.random()*3.6;PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.2,life:14+Math.random()*8|0,maxLife:22,r:2+Math.random()*2.5,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'});}sfx('jump_spring');}
-      else{p.vy=JI;p.jf=JMH;sfx('jump_reg');}
+      const _ch=Math.max(0,Math.min(1,(p.duckCharge||0)/60));
+      p.vy=JI*(1+1.05*_ch); p.jf=Math.round(JMH+10*_ch);
+      p.duckBoostReady=false; p.duckCharge=0;
+      const _jp=1.32-_ch*0.74;
+      if(_ch>0.2){ p.flashF=Math.max(p.flashF,Math.round(2+4*_ch)); const n=Math.round(3+7*_ch); for(let i=0;i<n;i++){const a=Math.PI+(Math.random()-0.5)*1.9,sp=(1+Math.random()*2.2)*(0.5+_ch);PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.2,life:10+Math.random()*8|0,maxLife:22,r:2+Math.random()*2.5,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'});} }
+      try{ sfx(_ch>=0.92?'jump_spring':'jump_reg', _jp); }catch(e){}
       p.og=false;p._groundHold=0;p._groundSeg=null;p._peakVy=0;const takeVy=Math.abs(p.vy);p._jumpAmp=Math.min(1,Math.max(0.25,takeVy/7.2));p.jumpTiltF=Math.round(14+p._jumpAmp*16);const jhx=Math.abs(p.vx)>0.25?p.vx:(p.fc?1:-1)*0.55;const jhy=p.vy<-0.2?-1:(p.vy>0.5?0.35:-0.75);const jhl=Math.hypot(jhx,jhy)||1;p._jumpHatDX=jhx/jhl;p._jumpHatDY=jhy/jhl;
     }
     const _inJumpAir=!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0;

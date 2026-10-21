@@ -151,17 +151,18 @@
     if(ground){
       for(const [vx,vy] of FRAG_GROUND[e._ai]){
         const ox=Math.sign(vx)*e.w*(Math.abs(vx)>3.3?0.5:0.35), oy=vy<-6.5?-e.h*0.45:e.h*0.25;
-        B.frags.push({x:c.x+ox, y:Math.min(c.y+oy,e.y+e.h-6), vx:vx*(0.92+Math.random()*0.16), vy:vy*(0.92+Math.random()*0.16), t:0, settle:0, owner:e, bounce:0});
+        B.frags.push({x:c.x+ox, y:Math.min(c.y+oy,e.y+e.h-6), vx:vx*(0.92+Math.random()*0.16), vy:vy*(0.92+Math.random()*0.16), t:0, settle:0, owner:e, bounce:0, ai:e._ai, cold:false, smoked:0, hitCd:0});
       }
     }else{
       for(const [dx,dy] of FRAG_AIR[e._ai]){
         const sp=4.4+Math.random()*0.6, r=e._ai==='circle'?0.42:0.5;
-        B.frags.push({x:c.x+dx*e.w*r, y:c.y+dy*e.h*r, vx:dx*sp, vy:dy*sp-0.8, t:0, settle:0, owner:e, bounce:0});
+        B.frags.push({x:c.x+dx*e.w*r, y:c.y+dy*e.h*r, vx:dx*sp, vy:dy*sp-0.8, t:0, settle:0, owner:e, bounce:0, ai:e._ai, cold:false, smoked:0, hitCd:0});
       }
     }
     B.blasts.push({x:c.x, y:c.y, t:0, amp:1});
     B.shake=Math.max(B.shake||0,8);
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(1);
+    if(e._ai==='circle') try{ sfx('frag_fire'); }catch(_e){}
     // the blast itself shoves MIND
     const m=mindCenter(), d=Math.hypot(m.x-c.x,m.y-c.y)||1;
     if(d<3*T&&_shutdownTimer<=0){ const k=1-d/(3*T); applyPlayerHit((m.x-c.x)/d*8*k,-4*k-1,Math.round(6+8*k)); }
@@ -170,27 +171,50 @@
     // second (grey, steaming) and then carries on as before.
     e.fuse=0; e.heat=0; e.cool=COOL; e.vx=0; e.vy=0;
   }
+  const FRAG_HOT=90, FRAG_LINGER=30*60, FRAG_GLITCH=28*60;
+  function fragSmoke(f){
+    for(let s=0;s<5;s++) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y,vx:(Math.random()-0.5)*0.7,vy:-0.35-Math.random()*1.1,life:22+Math.random()*14|0,maxLife:36,r:2+Math.random()*2.5,col:Math.random()<0.5?'#d0d0d4':'#8a8a90'});
+  }
   function fragTick(){
     for(let i=B.frags.length-1;i>=0;i--){
       const f=B.frags[i]; f.t++;
-      if(f.settle>0){ if(++f.settle>90) B.frags.splice(i,1); continue; }
-      f.vy=Math.min(f.vy+GRAV*0.6,13);
-      const nx=f.x+f.vx, ny=f.y+f.vy;
-      if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
-      if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
-      else f.y=ny;
-      if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
-      if(f.t%3===0) PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#ff5500':'#ffcc33'});
-      if(f.t>240){ B.frags.splice(i,1); continue; }
-      if(f.settle) continue;
+      const circle=f.ai==='circle';
+      if(!circle&&f.settle>0){ if(++f.settle>90) B.frags.splice(i,1); continue; }
+      if(circle&&f.cold){
+        f.smoked++;
+        if(f.smoked===1||(f.smoked<22&&f.smoked%4===0)) fragSmoke(f);
+        if(f.smoked>FRAG_LINGER){ B.frags.splice(i,1); continue; }
+      }
+      if(!f.settle){
+        f.vy=Math.min(f.vy+GRAV*0.6,13);
+        const nx=f.x+f.vx, ny=f.y+f.vy;
+        if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
+        if(solidAt(f.x,ny)){ if(f.vy>0){ f.bounce++; if(f.bounce>=2||Math.abs(f.vy)<2){ f.settle=1; f.vx=0; f.vy=0; } else { f.vy*=-0.38; f.vx*=0.6; } } else f.vy*=-0.3; }
+        else f.y=ny;
+        if(B.inWater&&B.inWater(f.x,f.y)){ f.vx*=0.9; f.vy*=0.9; }
+      }
+      if(circle&&!f.cold&&f.t>=FRAG_HOT){ f.cold=true; f.smoked=0; fragSmoke(f); }
+      if(!circle&&f.t%3===0) PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#ff5500':'#ffcc33'});
+      else if(circle&&!f.cold&&f.t%3===0){
+        const col=f.t<24?'#fff6a0':f.t<50?'#ff9a20':'#e02810';
+        PFXS.push({x:f.x,y:f.y,vx:(Math.random()-0.5)*0.6,vy:-0.5-Math.random(),life:8+Math.random()*6|0,maxLife:14,r:1.5+Math.random()*1.5,col});
+      }
+      if(!circle&&f.t>240){ B.frags.splice(i,1); continue; }
+      if(f.settle&&!circle) continue;
+      if(circle&&f.cold) continue;
+      if((f.hitCd||0)>0){ f.hitCd--; continue; }
       const h=playerCoreHB(p);
       if(_shutdownTimer<=0&&ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
         applyPlayerHit((p.x+SW/2-f.x)*0.15,-3.2,12);
-        B.frags.splice(i,1); continue;
+        if(circle) f.hitCd=18; else { B.frags.splice(i,1); continue; }
       }
       for(const e of ENEMS){
         if(e===f.owner||!e.alive||!e._betaEnemy) continue;
-        if(ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){ _damageEnemy(e,14,f.x,f.y,0.5); B.frags.splice(i,1); break; }
+        if(ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){
+          _damageEnemy(e,14,f.x,f.y,0.5);
+          if(circle) f.hitCd=18; else B.frags.splice(i,1);
+          break;
+        }
       }
     }
   }
@@ -782,8 +806,32 @@
       ctx.restore();
     }
   }
+  function circleFragLook(t){
+    if(t<24) return {body:'#ffe14a', core:'#fffce8', glow:'255,246,160'};
+    if(t<50) return {body:'#ff8a18', core:'#ffe08a', glow:'255,150,40'};
+    if(t<FRAG_HOT) return {body:'#d02010', core:'#ffb0a0', glow:'220,40,20'};
+    return {body:'#2a2a2e', core:'#6a6a70', glow:'30,30,34'};
+  }
   function drawFrags(){
     for(const f of B.frags){
+      if(f.ai==='circle'){
+        const look=circleFragLook(f.t);
+        const glitch=f.cold&&f.smoked>FRAG_GLITCH;
+        if(glitch&&(f.smoked&2)===0) continue;
+        let x=sx(f.x), y=sy(f.y);
+        if(glitch){ x+=(Math.random()-0.5)*16; y+=(Math.random()-0.5)*10; }
+        ctx.save();
+        if(!f.cold){
+          const g=ctx.createRadialGradient(x,y,0,x,y,sw(12));
+          g.addColorStop(0,'rgba('+look.glow+',0.95)'); g.addColorStop(1,'rgba('+look.glow+',0)');
+          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,sw(12),0,Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle=look.body; ctx.beginPath(); ctx.arc(x,y,sw(5.5),0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=look.core; ctx.beginPath(); ctx.arc(x-sw(1.2),y-sw(1.4),sw(2.1),0,Math.PI*2); ctx.fill();
+        if(glitch){ ctx.fillStyle=(f.smoked&1)?'#fff6a0':'#ff3040'; ctx.fillRect(x-sw(9),y+(Math.random()-0.5)*8,sw(18),2); }
+        ctx.restore();
+        continue;
+      }
       const x=sx(f.x), y=sy(f.y), a=f.settle?Math.max(0,1-f.settle/90):1;
       ctx.save(); ctx.globalAlpha=a;
       const g=ctx.createRadialGradient(x,y,0,x,y,sw(10)); g.addColorStop(0,'rgba(255,220,120,0.9)'); g.addColorStop(1,'rgba(255,90,0,0)');

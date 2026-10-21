@@ -89,8 +89,8 @@
   const rnd=(a,b)=>a+Math.random()*(b-a);
 
   const R={
-    jump(a){ tone(a,{f:300,f1:620,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600,f1:1240,d:0.12,v:0.05}); hiss(a,{f:2200,q:0.8,d:0.08,v:0.05}); },
-    jump_spring(a){ tone(a,{f:220,f1:880,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84),d:0.4,v:0.05}); hiss(a,{f:3000,d:0.1,v:0.05}); },
+    jump(a,p){ p=p||1; tone(a,{f:300*p,f1:620*p,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600*p,f1:1240*p,d:0.12,v:0.05}); hiss(a,{f:2200*p,q:0.8,d:0.08,v:0.05}); },
+    jump_spring(a,p){ p=p||1; tone(a,{f:220*p,f1:880*p,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84)*p,d:0.4,v:0.05}); hiss(a,{f:3000*p,d:0.1,v:0.05}); },
     land(a){ tone(a,{f:130,f1:55,d:0.14,v:0.2}); hiss(a,{type:'lowpass',f:900,d:0.09,v:0.1}); },
     // punches (Paulo, Oct 20): the swing is a WHOOSH; landing it is a separate thump (beta_impact.js)
     punch(a){ hiss(a,{f:420,f1:1900,q:1.3,d:0.17,v:0.2,at:0.02}); hiss(a,{type:'lowpass',f:700,f1:300,d:0.14,v:0.08,at:0.015}); },
@@ -120,6 +120,22 @@
     mag(a){ tone(a,{f:220,f1:330,d:0.3,v:0.08,type:'triangle',vib:9,vibd:20}); tone(a,{f:330,f1:495,d:0.3,v:0.05,vib:7,vibd:16}); bell(a,{f:900,ratio:2.76,index:2,d:0.2,v:0.04}); },
     ping(a){ bell(a,{f:N(88),ratio:3.5,index:1.8,d:0.7,v:0.1}); },
     knowl_pickup(a){ [N(84),N(88),N(91),N(96)].forEach((f,i)=>bell(a,{f,dt:i*0.055,ratio:3.0,index:1.4,d:0.8,v:0.08,rev:0.6})); tone(a,{f:N(72),d:0.6,v:0.05,rev:0.4}); },
+    knowl_seed(a,p){
+      const k=typeof p==='number'?p:2;
+      const notes=[N(84),N(88),N(91),N(96)];
+      const tap=(dt,v)=>notes.forEach((f,i)=>bell(a,{f:f*k,dt:dt+i*0.055,ratio:3.0,index:1.4,d:0.7,v,rev:0.55}));
+      tap(0,0.08); tap(0.18,0.045); tap(0.36,0.024); tap(0.54,0.012);
+      tone(a,{f:N(72)*k,d:0.55,v:0.05,rev:0.45});
+      tone(a,{f:N(72)*k,dt:0.18,d:0.4,v:0.028,rev:0.5});
+    },
+    frag_fire(a){
+      hiss(a,{f:380,f1:2400,q:0.7,d:0.42,v:0.22,rev:0.28});
+      hiss(a,{type:'lowpass',f:2200,f1:280,d:0.36,v:0.16});
+      tone(a,{f:190,f1:55,d:0.4,v:0.14,type:'sawtooth',lp:900});
+      for(let n=0;n<7;n++) hiss(a,{f:rnd(1600,5200),q:4,dt:n*0.028,d:0.045,v:0.08});
+      tone(a,{f:rnd(520,860),f1:180,d:0.12,v:0.06,type:'triangle'});
+    },
+    run_click(a){ tone(a,{f:148,f1:92,d:0.045,v:0.13,type:'square',lp:420}); tone(a,{f:74,d:0.05,v:0.08,type:'triangle'}); },
     knowl(a){ R.knowl_pickup(a); },
     chargeReady(a){ [N(91),N(95),N(98)].forEach((f,i)=>bell(a,{f,dt:i*0.04,ratio:2.0,index:1.2,d:0.35,v:0.06,rev:0.4})); },
     unlock(a){ [N(72),N(76),N(79),N(84)].forEach((f,i)=>tone(a,{f,dt:i*0.03,d:1.0,v:0.06,type:'triangle',at:0.04,rev:0.5})); bell(a,{f:N(96),dt:0.12,d:1.0,v:0.06}); },
@@ -164,7 +180,7 @@
     menu(a){ tone(a,{f:N(81),d:0.06,v:0.05,type:'triangle'}); },
     confirm(a){ bell(a,{f:N(88),ratio:2,index:1.2,d:0.35,v:0.07}); tone(a,{f:N(76),d:0.25,v:0.05,type:'triangle'}); },
     gate(a){ [N(60),N(67),N(72),N(76)].forEach((f,i)=>tone(a,{f,dt:i*0.08,d:1.6,v:0.06,type:'triangle',at:0.08,rev:0.7})); },
-    jump_reg(a){ R.jump(a); }, jump_good(a){ R.jump_spring(a); }, hurt(a,p){ R.player_hit(a,p); }
+    jump_reg(a,p){ R.jump(a,p); }, jump_good(a,p){ R.jump_spring(a,p); }, hurt(a,p){ R.player_hit(a,p); }
   };
   let lastAt={};
   window.sfx=function(t){
