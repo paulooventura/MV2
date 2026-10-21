@@ -978,10 +978,10 @@ function drawCharacter(){
   ctx.save();
 
   // 1. SHADOW + WHEEL + FORK â€” behind everything
-  if(!flicker){
-    drawCharShadow(wcx,wcy);
-    drawWheel(wcx,wcy,p.wheelAngle,p);
-  }
+  if(!flicker) drawCharShadow(wcx,wcy);
+  // Paulo's sketch: hanging on the rope MIND tilts with the swing, round his body's centre
+  if(pose.tilt){ const tx=sx(pose.tiltCX), ty=sy(pose.tiltCY); ctx.translate(tx,ty); ctx.rotate(pose.tilt); ctx.translate(-tx,-ty); }
+  if(!flicker) drawWheel(wcx,wcy,p.wheelAngle,p);
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
   drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
@@ -1007,7 +1007,6 @@ function drawCharacter(){
     drawArmEnergyFlow(connShX,connShY,elbowX,elbowY,sx(tw.x),sy(tw.y),useElbow,coilFlow);
   }
   };
-  if(pose.behindHead) drawConnArm();
   // 3. HEAD â€” tucked in box when ducking; tiny peek when spring/wall charge ready
   const chargeInfo=_playerChargeInfo(p);
   const springReady=!!p.duckBoostReady;
@@ -1031,9 +1030,8 @@ function drawCharacter(){
   // 4. BODY BOX â€” in front of glove arm + head
   drawBody(wcx,bTopS,fc,0);
 
-  // 5. CONNECTOR ARM — in front of body (latched and reaching up: it comes off the disc
-  //    behind the bulb instead, drawn before the head — see drawConnArm above)
-  if(!pose.behindHead) drawConnArm();
+  // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
+  drawConnArm();
   ctx.restore();
 }
 function drawCharacterFor(pl){
@@ -2410,7 +2408,8 @@ function drawFX(){
     const _ropeAnchorA=_isVenture?'#a03f54':'#8833cc';
     const _ropeAnchorB=_isVenture?'#e3a3ae':'#cc88ff';
     const _ap=p._armPose||computeConnectorArmPose(p);
-    const bx=sx(_ap.noseX), by=sy(_ap.noseY);
+    const _wn=_ap.worldNose||{x:_ap.noseX,y:_ap.noseY};          // the jack's tip as drawn (MIND may be tilted)
+    const bx=sx(_wn.x), by=sy(_wn.y);
     if(p.hook.st==='ext'){
       const ex=sx(p.hook.ex), ey=sy(p.hook.ey);
       ctx.lineCap='round';
@@ -2426,6 +2425,7 @@ function drawFX(){
       const taut=p.hook._path||_ropePathPts(p.hook,end.x,end.y);
       const path=typeof _ropeSlackDrawPts==='function'?_ropeSlackDrawPts(taut,p.hook.rl):taut;
       const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
+      if(wpts.length) wpts[wpts.length-1]={x:bx,y:by};             // the cord ends in the jack you see
       ctx.lineCap='round';ctx.lineJoin='round';
       const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
       for(const L of layers){
