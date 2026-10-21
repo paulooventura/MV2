@@ -397,7 +397,26 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     irisDark=_mixHex(isVen?'#541018':'#18306a','#184820',g);
     if(lampReady){ irisCol='#38c868'; irisDark='#1a6838'; }
   }
+  // Paulo (Oct 21): hurt, the eye goes red and veiny — more the lower his HP
+  const hd=!hostile?Math.min(1,window._mindHeadDmg||0):0;
+  if(hd>0.02) scleraCol=_mixHex(scleraCol.charAt(0)==='#'?scleraCol:'#d0d4dc','#e86a6a',Math.min(1,hd*0.9));
   ctx.beginPath();ctx.ellipse(cx,drawY+2,10,9,0,0,Math.PI*2);ctx.fillStyle=scleraCol;ctx.fill();
+  if(hd>0.08){
+    const n=Math.round(2+hd*9);
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx,drawY+2,10,9,0,0,Math.PI*2); ctx.clip();
+    ctx.strokeStyle='rgba(150,10,20,'+(0.45+0.5*hd).toFixed(2)+')'; ctx.lineCap='round';
+    for(let i=0;i<n;i++){
+      const a=i/n*Math.PI*2+0.4, r0=9.5, r1=5.2+((i*37)%5)*0.3;
+      ctx.lineWidth=i%3===0?1.1:0.7;
+      ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*r0,drawY+2+Math.sin(a)*r0*0.9);
+      const mx=cx+Math.cos(a+0.25*((i%2)?1:-1))*(r0+r1)/2, my=drawY+2+Math.sin(a+0.25*((i%2)?1:-1))*(r0+r1)/2*0.9;
+      ctx.lineTo(mx,my); ctx.lineTo(cx+Math.cos(a)*r1,drawY+2+Math.sin(a)*r1*0.9);
+      if(i%3===0){ ctx.moveTo(mx,my); ctx.lineTo(mx+Math.cos(a+1.3)*1.8,my+Math.sin(a+1.3)*1.8); }   // a branch
+      ctx.stroke();
+    }
+    if(hd>0.6){ const g=ctx.createRadialGradient(cx,drawY+2,4,cx,drawY+2,10); g.addColorStop(0,'rgba(200,20,30,0)'); g.addColorStop(1,'rgba(200,20,30,'+(0.35*(hd-0.6)/0.4).toFixed(2)+')'); ctx.fillStyle=g; ctx.fillRect(cx-11,drawY-8,22,20); }
+    ctx.restore();
+  }
   ctx.beginPath();ctx.ellipse(cx,drawY+2,6,6,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5,5,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5.5,5.5,0,0,Math.PI*2);
@@ -406,6 +425,20 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
   ctx.beginPath();ctx.ellipse(cx-7,drawY-8,7,9,0,0,Math.PI*2);ctx.fillStyle='rgba(24,22,14,0.45)';ctx.fill();
+  // ...and the glass bulb cracks: more cracks for every bit of HP lost (fixed paths, no flicker)
+  if(hd>0.15){
+    const CR=[[[-0.9,-0.5],[-0.45,-0.2],[-0.55,0.15],[-0.2,0.35]],[[0.75,-0.75],[0.4,-0.35],[0.55,-0.05]],[[0.95,0.2],[0.55,0.3],[0.45,0.65],[0.15,0.8]],
+              [[-0.3,-1],[-0.15,-0.6],[0.1,-0.55],[0.05,-0.25]],[[-0.95,0.45],[-0.6,0.55],[-0.5,0.9]],[[0.2,1],[0.35,0.7],[0.7,0.6]],[[-0.6,-0.85],[-0.35,-0.75],[-0.4,-0.45]]];
+    const k=Math.min(CR.length,Math.ceil((hd-0.15)/0.85*CR.length));
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2); ctx.clip(); ctx.lineJoin='round'; ctx.lineCap='round';
+    for(let i=0;i<k;i++){
+      const pts=CR[i].map(q=>[cx+q[0]*R,drawY+q[1]*(R+2)]);
+      for(const [col,w,o] of [['rgba(0,0,0,0.55)',2,0.6],['rgba(225,235,255,0.85)',0.9,0]]){
+        ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(pts[0][0]+o,pts[0][1]+o); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0]+o,pts[j][1]+o); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
   const baseY=drawY+R+1;
   ctx.fillStyle='#7a8290';ctx.fillRect(cx-12,baseY,24,6);
   ctx.fillStyle='#8a929e';ctx.fillRect(cx-11,baseY+1,22,4);
@@ -970,7 +1003,9 @@ function drawCharacter(){
     headCY-=peekLift;
     peekAmt=0.22+Math.sin(fr*0.18)*0.05;
   }
+  window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
   drawHead(wcx,sy(headCY),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  window._mindHeadDmg=0;
 
   // 4. BODY BOX â€” in front of glove arm + head
   drawBody(wcx,bTopS,fc,0);

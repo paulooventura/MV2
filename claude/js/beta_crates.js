@@ -138,7 +138,11 @@
       if(b.broken&&b.item){ hx=b.item.x-20; hy=b.item.y-50; hw=40; hh=64; }
       else{ const R=rectOf(c); hx=R.x; hy=R.y-34; hw=R.w; hh=R.h+34; }
       if(!(wx+wr>hx&&wx-wr<hx+hw&&wy+wr>hy&&wy-wr<hy+hh)) continue;
-      if(typeof _punchReach==='function'&&shX!=null&&!_punchReach(shX,shY,Math.max(hx,Math.min(hx+hw,wx)),Math.max(hy,Math.min(hy+hh,wy)),{x:hx,y:hy,w:hw,h:hh})) continue;
+      // Paulo (Oct 21): never through a wall — the line from the shoulder must reach the REAL box
+      // (not the generous punch area), so a crate walled in by blocks can't be hit until they're gone
+      const real=b.broken&&b.item?{x:b.item.x-18,y:b.item.y-14,w:36,h:28}:rectOf(c);
+      const tx=Math.max(real.x,Math.min(real.x+real.w,wx)), ty=Math.max(real.y,Math.min(real.y+real.h,wy));
+      if(typeof _punchReach==='function'&&shX!=null&&!_punchReach(shX,shY,tx,ty,real)) continue;
       damage(c, charged?CR.PUNCH_LOADED:CR.PUNCH, ang, charged?CR.KNOCK_LOADED:CR.KNOCK, 'punch');
       return true;
     }

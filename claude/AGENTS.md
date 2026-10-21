@@ -225,3 +225,9 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - Seeds 10% quieter (`knowl_seed`); full sets play `seeds_all` / `crystals_all`; bottom-left bar draws real seed/crystal shapes + colours and glows when complete. Lives moved off the bottom-right.
 - Top bar (beta_level `drawTopBar`, replaces ui.js drawHUD in stages): MIND head + lives + continues, HP, power bar under HP, jack tips XLR > RCA > TRS > MAG.
 - XLR/MAG releases cost power (`ITEM_COST`: XLR 14+22×charge, MAG 10+16×charge) and refill waits 45 frames (`p._itemRest`, main.js); push/pull/launch strength × power at release (`B.relPow`); magnet field × (0.2+0.8×power).
+
+### Build 203 — damage stays out of the HUD and off MIND
+- console16: the bit-crush now runs at the end of `drawDamageOverlay` (after the world, before the HUD), then `redrawMind()` draws MIND again clean (skipped under water). HUD bars stay readable.
+- render.js `drawHead`: `window._mindHeadDmg` (HP lost, +1 while shut down) reddens the sclera, adds veins, and cracks the bulb glass (fixed crack paths, more per HP lost).
+- beta_crates: a punch must reach the crate's real box from the shoulder (`_punchReach`), so walled-in crates can't be hit.
+- Power: refill 0.8/frame (was 0.56) after a 35-frame rest; hold drain 1.55 (enh 1.0); release costs XLR 17+27×charge, MAG 13+20×charge; magnet carry drain 0.45.
