@@ -549,20 +549,54 @@
     ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(-W2*0.35,-sh*0.9,Math.max(1,S(1.3)),0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
+  // Knowl crystal (Paulo, Oct 21): one symmetrical hexagonal gem — see-through, green,
+  // with prism colours sliding through it and rainbow glints on its edges. Sits still.
   function crystal(k,style){
     const echo=style==='echo';
-    const x=k.x, base=k.y+12;
-    if(!inView(x-60,base-80,120,100)) return;
-    glow(x,base-14,echo?60:52,0.36+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,160,');
-    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(base+1),S(17),S(3),0,0,Math.PI*2); ctx.fill();
-    gemShard(x-10,base+1,10,20,-0.42,1.7,echo);                    // side shards behind
-    gemShard(x+11,base+1,9,17,0.46,3.1,echo);
-    gemShard(x,base+2,15,34,0,0,echo);                               // the main point
-    if(echo){ ctx.save(); ctx.strokeStyle='rgba(255,170,230,'+(0.5+0.4*Math.sin(fr*0.1))+')'; ctx.lineWidth=2; const rr=S(22)*(1.3+0.25*Math.sin(fr*0.07)); ctx.beginPath(); ctx.arc(X(x),Y(base-16),rr,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-    for(let i=0;i<3;i++){                                            // twinkling glints
+    const x=k.x, cy=k.y-10;
+    if(!inView(x-60,cy-60,120,110)) return;
+    const hw=S(13), hh=S(24), X0=X(x), Y0=Y(cy);
+    glow(x,cy,echo?60:54,0.34+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,170,');
+    ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(12),S(2.5),0,0,Math.PI*2); ctx.fill();
+    const O=[[0,-hh],[hw,-hh/2],[hw,hh/2],[0,hh],[-hw,hh/2],[-hw,-hh/2]];           // the outline
+    const I=O.map(([u,v])=>[u*0.42,v*0.42]);                                           // the table (inner hexagon)
+    const base=echo?320:145;
+    const path=P=>{ ctx.beginPath(); ctx.moveTo(X0+P[0][0],Y0+P[0][1]); for(let i=1;i<P.length;i++) ctx.lineTo(X0+P[i][0],Y0+P[i][1]); ctx.closePath(); };
+    ctx.save();
+    // facets: each one a slightly different shade, all partly see-through
+    const light=[78,64,46,36,50,70];
+    for(let i=0;i<6;i++){
+      const j=(i+1)%6;
+      path([O[i],O[j],I[j],I[i]]);
+      ctx.fillStyle='hsla('+(base+10*Math.sin(fr*0.02+i)).toFixed(0)+',80%,'+light[i]+'%,0.46)'; ctx.fill();
+    }
+    path(I); ctx.fillStyle='hsla('+base+',85%,82%,0.32)'; ctx.fill();
+    // prism: rainbow bands drifting through the body
+    path(O); ctx.clip();
+    for(let n=0;n<7;n++){
+      const t=((fr*0.006+n/7)%1), yy=Y0-hh*1.3+t*hh*2.6;
+      ctx.fillStyle='hsla('+((n*52+fr*0.6)%360).toFixed(0)+',100%,70%,0.16)';
+      ctx.beginPath(); ctx.moveTo(X0-hw*1.2,yy); ctx.lineTo(X0+hw*1.2,yy-hh*0.55); ctx.lineTo(X0+hw*1.2,yy-hh*0.55+S(4)); ctx.lineTo(X0-hw*1.2,yy+S(4)); ctx.fill();
+    }
+    ctx.restore();
+    // facet edges: thin bright lines, rainbow-tinted
+    ctx.save(); ctx.lineJoin='round';
+    ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=Math.max(1,S(0.8));
+    ctx.beginPath(); for(let i=0;i<6;i++){ ctx.moveTo(X0+I[i][0],Y0+I[i][1]); ctx.lineTo(X0+O[i][0],Y0+O[i][1]); } ctx.stroke();
+    path(I); ctx.stroke();
+    path(O); ctx.strokeStyle=echo?'#3a0c2c':'#073a24'; ctx.lineWidth=Math.max(1,S(1.6)); ctx.stroke();
+    path(O); ctx.strokeStyle='hsla('+((fr*1.2)%360).toFixed(0)+',100%,78%,0.55)'; ctx.lineWidth=Math.max(1,S(0.9)); ctx.stroke();
+    // gloss: a specular streak on the upper-left face, and a hot spot
+    const gl=(Math.sin(fr*0.035)+1)/2;
+    ctx.fillStyle='rgba(255,255,255,'+(0.35+0.35*gl).toFixed(2)+')';
+    ctx.beginPath(); ctx.moveTo(X0-hw*0.82,Y0-hh*0.42); ctx.lineTo(X0-hw*0.2,Y0-hh*0.82); ctx.lineTo(X0-hw*0.08,Y0-hh*0.7); ctx.lineTo(X0-hw*0.68,Y0-hh*0.3); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.beginPath(); ctx.arc(X0-hw*0.3,Y0-hh*0.62,Math.max(1,S(1.4)),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    if(echo){ ctx.save(); ctx.strokeStyle='rgba(255,170,230,'+(0.5+0.4*Math.sin(fr*0.1))+')'; ctx.lineWidth=2; const rr=S(24)*(1.3+0.25*Math.sin(fr*0.07)); ctx.beginPath(); ctx.arc(X0,Y0,rr,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+    for(let i=0;i<3;i++){                                            // twinkling glints, prism-coloured
       const t=((fr*0.02+i*0.37+(k.ox||0)*0.001)%1); if(t>0.3) continue;
-      const a=Math.sin(t/0.3*Math.PI), gx=x+[-6,5,1][i], gy=base-[14,8,30][i], r=S(2+4*a);
-      ctx.fillStyle='rgba(255,255,255,'+a.toFixed(3)+')';
+      const a=Math.sin(t/0.3*Math.PI), gx=x+[-9,8,2][i], gy=cy+[-12,4,-20][i], r=S(2+4*a);
+      ctx.fillStyle='hsla('+((i*120+fr*2)%360).toFixed(0)+',100%,90%,'+a.toFixed(2)+')';
       ctx.fillRect(X(gx)-r,Y(gy)-0.5,r*2,Math.max(1,S(1))); ctx.fillRect(X(gx)-0.5,Y(gy)-r,Math.max(1,S(1)),r*2);
     }
   }

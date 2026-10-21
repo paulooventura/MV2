@@ -203,6 +203,15 @@
       hiss(a,{type:'lowpass',f:800,f1:70,d:0.85,v:0.1,rev:0.3});
       tone(a,{f:78,d:0.12,v:0.14,dt:0.78,type:'square',lp:320});
     },
+    // rebooting (Paulo, Oct 21): the permanent-shutdown sound played backwards — every voice
+    // swells in and sweeps UP, timed so they all end together, the thunk at the start
+    enemy_boot(a){
+      tone(a,{f:78,d:0.12,v:0.14,dt:0.25,at:0.1,type:'square',lp:320});
+      hiss(a,{type:'lowpass',f:70,f1:800,dt:0.3,d:0.85,at:0.78,v:0.1,rev:0.15});
+      tone(a,{f:36,f1:240,glide:0.95,dt:0.2,d:0.95,at:0.88,v:0.16,type:'sawtooth',lp:200,sweep:1600,rev:0.15});
+      tone(a,{f:28,f1:120,glide:1.1,dt:0.05,d:1.1,at:1.02,v:0.16,type:'triangle'});
+      tone(a,{f:26,f1:62,glide:1.15,dt:0,d:1.15,at:1.08,v:0.18});
+    },
     ropeSnap(a){ tone(a,{f:640,f1:110,d:0.32,v:0.13,type:'triangle'}); hiss(a,{type:'highpass',f:2500,d:0.06,v:0.12}); },
     ropeBreak(a){ R.ropeSnap(a); tone(a,{f:180,f1:70,d:0.2,v:0.1}); },
     ropeSlack(a){ hiss(a,{f:600,f1:300,q:1,d:0.18,v:0.05}); },

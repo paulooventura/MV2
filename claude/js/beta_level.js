@@ -898,7 +898,6 @@
     e.alive=true; e.hp=e.mhp; e.shutF=0; e._shutSettled=false; e._mindOff=null; e._revT=0;
     e.hitF=8; e.vy=-3; e.og=false; e._glowF=40;
     if(e._reCenter||e.mn<-1e5){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
-    try{ sfx('chargeReady'); }catch(_e){}
   }
   function enemyTick(){
     const tree=B.decor.find(d=>d.kind==='tree');
@@ -914,6 +913,7 @@
       if(!e.alive&&!e._permOff&&!e._betaHeld){
         e._revT=(e._revT||0)+1;
         e.hp=Math.min(e.mhp,Math.ceil(e.mhp*e._revT/REVIVE_FR));     // the bar fills back up
+        if(e._revT===REVIVE_FR-66) try{ sfx('enemy_boot'); }catch(_e){}   // the boot sound swells up to the moment it comes back on
         if(e._revT>=REVIVE_FR) revive(e);
       }
       // patrol range follows a thrown enemy once it settles
@@ -1352,15 +1352,17 @@
     if(C&&C.MODES&&C.MODES[C.mode]&&_gameState==='game') B.textQ.push([fn,args]); else fn(...args);
   };
   // little HUD versions of the pickups (beta_decor draws the real ones)
-  function hudCrystal(x,y,on,all,i){
-    ctx.save(); ctx.translate(x,y);
-    if(!on){ ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(4,-3); ctx.lineTo(3,5); ctx.lineTo(-3,5); ctx.lineTo(-4,-3); ctx.closePath(); ctx.fill(); ctx.restore(); return; }
+  function hudCrystal(x,y,on,all,i){                       // the hexagonal Knowl crystal, small
+    ctx.save(); ctx.translate(x,y-1);
+    const hex=()=>{ ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(4.5,-4); ctx.lineTo(4.5,4); ctx.lineTo(0,8); ctx.lineTo(-4.5,4); ctx.lineTo(-4.5,-4); ctx.closePath(); };
+    hex();
+    if(!on){ ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.fill(); ctx.restore(); return; }
     if(all){ ctx.shadowColor='#5dffa0'; ctx.shadowBlur=10+4*Math.sin(fr*0.12+i); }
-    const h=t=>'hsl('+(138+22*Math.sin(fr*0.03+t)).toFixed(0)+',85%,';
-    ctx.fillStyle=h(0)+'30%)'; ctx.beginPath(); ctx.moveTo(-4,-3); ctx.lineTo(0,-8); ctx.lineTo(0,5); ctx.lineTo(-3,5); ctx.closePath(); ctx.fill();
-    ctx.shadowBlur=0;
-    ctx.fillStyle=h(1.5)+'62%)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(4,-3); ctx.lineTo(3,5); ctx.lineTo(0,5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fillRect(-2,-4,1.5,4);
+    const g=ctx.createLinearGradient(-4.5,-8,4.5,8);
+    g.addColorStop(0,'hsla(150,85%,80%,0.9)'); g.addColorStop(0.5,'hsla('+((fr*1.5+i*60)%360).toFixed(0)+',90%,72%,0.75)'); g.addColorStop(1,'hsla(140,80%,40%,0.9)');
+    ctx.fillStyle=g; ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#073a24'; ctx.lineWidth=1; ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(0,8); ctx.moveTo(-4.5,-4); ctx.lineTo(4.5,4); ctx.stroke();
     ctx.restore();
   }
   function hudSeed(x,y,on,all,i){
