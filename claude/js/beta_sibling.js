@@ -254,10 +254,10 @@
   }
   function npcTick(){
     if(!npc||npc.level!==B.level||npc.s.hero===p.hero){ npc=npcSpawn(); if(!npc) return; }
-    const s2=npc.s; s2.hp=s2.maxHp; const x0=s2.x;
+    const s2=npc.s; if(s2.sibHp==null) s2.sibHp=100; s2.hp=s2.maxHp*s2.sibHp/100; const x0=s2.x;
     if(s2.flashF>0) s2.flashF--;
     if(typeof _updateBattleEye==='function') _updateBattleEye(s2);
-    interact(s2);
+    interact(s2); envTick(s2);
     if(s2._madT>0){ madTick(s2); return; }
     if(s2._downT>0){ s2._downT--; s2.crouchAmt=Math.min(1,(s2.crouchAmt||0)+0.1); if(s2.free>0) bodyPhysics(s2); if(s2._downT===0) s2.crouchAmt=0; return; }
     if(s2.free>0){ bodyPhysics(s2); npc.tx=null; npc.wait=40; return; }
@@ -282,6 +282,36 @@
   // ── its body has mass (Paulo, Oct 22): you can punch it, blow it away with the XLR, pull it
   //    with the MAG, shove it with your weight or land on it. Friendly fire ON also hurts it
   //    (it can be knocked out for a few seconds); OFF it just gets moved.
+  // Paulo (Oct 22): friendly fire is only about what YOU and IT do to each other — the world hurts
+  // it like it hurts you: the live yellow cage blocks, live water, lightning, a block chain going off
+  function envHurt(b,dmg,kx,ky,kind){
+    if(!b||b._downT>0||dmg<=0) return;
+    b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=16; b._hurtFr=fr;
+    b.vx=kx; b.vy=ky; b.og=false; b.free=Math.max(b.free||0,40); b._prevLandFeet=b.y+FEET_OFF;
+    try{ sfx('player_hit',1.35); }catch(e){}
+    const c=centre(b); for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*4; PFXS.push({x:c.x,y:c.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:10+Math.random()*10|0,maxLife:20,r:1.6,col:k%3?'#fff6a0':'#80d8ff'}); }
+    if(b.sibHp<=0){ b._downT=240; b.sibHp=100; try{ sfx('enemy_shut',1.2); }catch(e){} }
+  }
+  B.sibHurtAt=function(x,y,R,dmg){ const b=S&&active()?S:(npc&&npc.s); if(!b) return; const c=centre(b), d=Math.hypot(c.x-x,(c.y-y)*0.7); if(d<R) envHurt(b,Math.round(dmg*(1-0.5*d/R)),(Math.sign(c.x-x)||1)*6,-6,'blast'); };
+  let envCd=0;
+  function envTick(b){
+    if(envCd>0) envCd--;
+    const c=centre(b), hw=26, top=b.y+FEET_OFF-STAND_H-WHEEL_R, bot=b.y+FEET_OFF;
+    // the live yellow cage blocks: touching one shocks it, harder the faster it hits
+    if(envCd<=0) for(const w of (typeof BWALLS!=='undefined'?BWALLS:[])){
+      if(!w||w.only!=='laser'||w.hp<=0) continue;
+      if(c.x+hw<w.x-3||c.x-hw>w.x+(w.w||32)+3||bot<w.y-3||top>w.y+(w.h||32)+3) continue;
+      const spd=Math.hypot(b.vx||0,b.vy||0), dmg=Math.min(55,Math.max(6,Math.round(spd*4.2)));
+      const bx=w.x+(w.w||32)/2, by=w.y+(w.h||32)/2, d=Math.hypot(c.x-bx,c.y-by)||1;
+      envHurt(b,dmg,(c.x-bx)/d*Math.min(8,3+dmg/8),Math.min(-3,(c.y-by)/d*5-2),'zap'); envCd=40;
+      w.hitGlow=16; try{ sfx(dmg>30?'zap_big':'zap'); }catch(e){}
+      break;
+    }
+    // live water
+    if(envCd<=0&&B.elecAt&&B.elecAt(c.x,c.y)){ envHurt(b,8,(b.vx||0)*0.5,-3,'water'); envCd=20; }
+    // it heals slowly when it's been left alone for a few seconds
+    if(b.sibHp<100&&fr-(b._hurtFr||-999)>180) b.sibHp=Math.min(100,b.sibHp+0.12);
+  }
   function knock(b,vx,vy,kind,dmg){
     b.vx=vx; b.vy=vy; b.og=false; b.free=Math.max(b.free||0,46); b._prevLandFeet=b.y+FEET_OFF;
     if(ff&&dmg>0&&!(b._downT>0)){
@@ -378,13 +408,14 @@
       npc=null;
       if(!active()) return r;
       if(!S||p.hero===S.hero) spawn();
-      S.hp=S.maxHp;
+      if(S.sibHp==null) S.sibHp=100; S.hp=S.maxHp*S.sibHp/100;   // its Knowl tank shows its own energy
       if(S._blink>0) S._blink--;
       if(S.fireRecoil>0) S.fireRecoil--;
       if(S.flashF>0) S.flashF--;
       if(S._shootT>0) S._shootT--;
       if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
+      envTick(S);
       if(S._madT>0){ madTick(S); boltsTick(); return r; }
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
       watchBlocks();

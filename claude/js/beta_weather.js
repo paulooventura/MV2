@@ -170,6 +170,7 @@
         }
       }
     }
+    if(B.sibHurtAt) B.sibHurtAt(x,y,110,58);                      // your sibling isn't immune to the sky either
     // enemies near it get fried too
     for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(!e||!e.alive) continue; const d=Math.hypot(e.x+e.w/2-x,(e.y+e.h/2-y)*0.7); if(d<100&&typeof _damageEnemy==='function') try{ _damageEnemy(e,40,x,y,1.4); }catch(er){} }
   }
