@@ -12,7 +12,7 @@
 class MVEngine extends AudioWorkletProcessor{
   constructor(){
     super();
-    this.rpm=1100; this.tRpm=1100; this.thr=0; this.tThr=0; this.load=0; this.tLoad=0;
+    this.rpm=620; this.tRpm=620; this.thr=0; this.tThr=0; this.load=0; this.tLoad=0;
     this.rev=0;                                     // crank position in revolutions (a 4-stroke cycle is 2)
     this.exc=[0,0]; this.bang=0; this.bx=[0,0];
     const mk=(n)=>({buf:new Float32Array(4096), i:0, lp:0, n});
@@ -37,14 +37,14 @@ class MVEngine extends AudioWorkletProcessor{
     const out=outs[0], L=out[0], R=out[1]||out[0], N=L.length, sr=sampleRate;
     // per block: smooth controls, tune pipes and the tailpipe
     this.rpm+=(this.tRpm-this.rpm)*0.18; this.thr+=(this.tThr-this.thr)*0.2; this.load+=(this.tLoad-this.load)*0.2;
-    const rpm=this.rpm, thr=this.thr, red=13500, r=Math.max(0,Math.min(1,(rpm-1100)/(red-1100)));
+    const rpm=this.rpm, thr=this.thr, red=13500, r=Math.max(0,Math.min(1,(rpm-620)/(red-620)));
     const v12=Math.max(0,Math.min(1,(rpm-3800)/3800)); const w12=v12*v12*(3-2*v12);
-    const pipeHz=[118+r*90, 126+r*96];             // primaries "shorten" as it climbs (tuned length)
+    const pipeHz=[68+r*150, 73+r*160];             // primaries "shorten" as it climbs; long and deep at idle (the purr)
     this.pipe[0].n=Math.max(16,Math.round(sr/pipeHz[0])); this.pipe[1].n=Math.max(16,Math.round(sr/pipeHz[1]));
-    const fb=0.5+0.28*thr-0.12*r;                    // how hard the pipe rings
+    const fb=0.5+0.28*thr-0.12*r+0.14*(1-r)*(1-thr);   // how hard the pipe rings (a warm ring at idle)
     const loopLP=0.32+0.5*r+0.15*thr;                 // the brightness inside the pipe
-    this.setLP(1000+thr*(2400+6500*r)+r*1800, 0.9);
-    const decay=Math.exp(-1/(sr*(0.0012+0.0022*(1-thr))));   // a firing's pulse length (fatter at idle)
+    this.setLP(420+thr*(1800+6500*r)+r*2400, 0.9);
+    const decay=Math.exp(-1/(sr*(0.0012+0.0022*(1-thr)+0.0035*(1-r)*(1-thr))));   // a firing's pulse length (fatter at idle)
     const bdecay=Math.exp(-1/(sr*0.012));
     const dRev=rpm/60/sr;
     for(let s=0;s<N;s++){
