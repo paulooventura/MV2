@@ -851,7 +851,7 @@
   //   shrinks and the outer cubes slip off; the last thing held lets go only
   //   at 0%. Held things sit flush on the poles; letting go throws them with
   //   the swing of the arm — lighter things fly faster.
-  const MAG={LOCK:84, DRAIN:0.45, GAME_DRAIN:1.55, ENH_DRAIN:1.0, THROW:1.25, MAXV:20, GRIP:9};
+  const MAG={LOCK:104, DRAIN:0.45, GAME_DRAIN:1.55, ENH_DRAIN:1.0, THROW:1.25, MAXV:20, GRIP:9};
   const magCap=pw=>MAG.GRIP*Math.max(0,pw)/100;
   const heldWeight=()=>B.mag.held.reduce((s,h)=>s+weightOf(h.kind,h.ref),0);
   function magTip(){
@@ -941,10 +941,15 @@
       return {fx:-f.ux*s, fy:-f.uy*s, s};
     };
     if(B.forceFrags) B.forceFrags(tip.x,tip.y,a,-1,0.9*(0.2+0.8*powNow()),range);   // enemy frags are drawn in too
+    // Paulo (Oct 22): enemies answer the magnet right away — their velocity is steered straight
+    // toward the poles (not nudged a little each frame and eaten by their walk)
     for(const e of ENEMS){
       if(!e._ai||e._betaHeld) continue;
       const f=force(e.x+e.w/2,e.y+e.h/2);
-      if(f&&typeof _applyItemForceToEnemy==='function') _applyItemForceToEnemy(e,f.fx,f.fy);
+      if(!f||typeof _applyItemForceToEnemy!=='function') continue;
+      if(e.alive){ const k=Math.min(1,f.s*3), sp=(4+10*k)*(0.3+0.7*powNow()), n=Math.hypot(f.fx,f.fy)||1, tvx=f.fx/n*sp, tvy=f.fy/n*sp-0.6*k;
+        _applyItemForceToEnemy(e,(tvx-(e.vx||0))*0.6*Math.max(0.35,k),(tvy-(e.vy||0))*0.6*Math.max(0.35,k)); }
+      else _applyItemForceToEnemy(e,f.fx*2.2,f.fy*2.2);
     }
     for(const bw of BWALLS){
       if(bw.hp<=0||bw._carried||bw.only==='push') continue;

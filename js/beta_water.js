@@ -45,7 +45,7 @@
   function stable(t){ if(t<=1) return 1; if(t<2+MAXC) return (1+t*MAXC)/(1+MAXC); return (t+MAXC)/2; }
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.wRings=[];
+  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.magCore=null; B.wRings=[];
     B.drops=[]; B.steam=[]; F.ready=false; F.rects=[]; F.M=null; };
   B.onEntities=function(ents, Fd, cell){
     for(const e of ents){
@@ -534,7 +534,9 @@
         if(uy<-0.3) wave(t.x,0.25*pw,2); else if(uy>0.3) wave(t.x,-0.25*pw,2);
         let b=B.xBub;
         if(!b||b.free){ b=B.xBub={x:t.x,y:t.y,r:6,free:false,vx:0,vy:0}; }
-        const goal=10+38*ch; b.r+=(goal-b.r)*0.22; b.held=fr;
+        // Paulo (Oct 22): a full bar blows a round bubble 3x3 blocks wide (r 48) right off the tip;
+        // the less power on the bar, the smaller it is
+        const bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), goal=Math.max(10,48*bar); b.r+=(goal-b.r)*0.35; b.held=fr;
         b.x=t.x+ux*b.r*0.9; b.y=t.y+uy*b.r*0.9; b.ux=ux; b.uy=uy;
         if(fr%10===0){ ring(b.x,b.y,'air',0.7+1.6*ch); if(ch>0.8) B.shake=Math.max(B.shake||0,2.5); }
         const nb=1+Math.round(ch*4);
@@ -564,11 +566,29 @@
         for(let k=-8;k<=8;k++) F.WV[Math.max(0,Math.min(F.NX-1,cX(t.x)+k))]-=(0.25+0.45*pw)*reach*(1-Math.abs(k)/9)*(0.8+0.2*Math.sin(fr*0.3));
         for(let k=1;k<=8;k++){ shove(t.x-k*16,t.y,1,(0.015+0.03*pw)*(1-k/9)); shove(t.x+k*16,t.y,-1,(0.015+0.03*pw)*(1-k/9)); }
         if(fr%12===0){ ring(t.x,t.y,'mag',0.5+1.3*pw); if(pw>0.8) B.shake=Math.max(B.shake||0,1.5); }
+        // Paulo (Oct 22): the tip sets up a rotating water CORE — 3x3 blocks wide on a full bar,
+        // smaller as the bar drops — that spins the water and swirls whatever's in it toward the tip
+        const bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), goal=Math.max(12,48*bar);
+        let C=B.magCore; if(!C) C=B.magCore={x:t.x,y:t.y,r:6,ang:0,spin:0};
+        C.r+=(goal-C.r)*0.3; C.spin+=(0.08+0.16*bar-C.spin)*0.15; C.ang+=C.spin; C.held=fr;
+        C.x+=(t.x+(t.ux||0)*C.r*0.7-C.x)*0.5; C.y+=(t.y+(t.uy||0)*C.r*0.7-C.y)*0.5;
+        for(let yy=-C.r;yy<=C.r;yy+=F.CS){ const w=Math.sqrt(Math.max(0,C.r*C.r-yy*yy)); if(w<4) continue;   // the water turns: over the eye one way, under it the other
+          shove(C.x,C.y+yy,yy<0?1:-1,(0.02+0.05*bar)*(1-Math.abs(yy)/C.r)); }
+        const swirl=(o,cx,cy,k)=>{ const dx=cx-C.x, dy=cy-C.y, d=Math.hypot(dx,dy)||1, R=C.r*1.6; if(d>R) return null; const f=(1-d/R)*k*(0.4+0.6*bar);
+          return {fx:(-dy/d)*f*1.4-dx/d*f, fy:(dx/d)*f*1.4-dy/d*f}; };
+        for(const e of ENEMS){ if(!e||e._betaHeld||!waterAt(e.x+e.w/2,e.y+e.h/2)) continue; const f=swirl(e,e.x+e.w/2,e.y+e.h/2,1.1); if(f&&typeof _applyItemForceToEnemy==='function') _applyItemForceToEnemy(e,f.fx,f.fy); }
+        const Sib=window.MV_SIBLING&&MV_SIBLING.state&&MV_SIBLING.state();
+        if(Sib&&waterAt(Sib.x+SW/2,Sib.y+FEET_OFF-50)){ const f=swirl(Sib,Sib.x+SW/2,Sib.y+FEET_OFF-50,0.9); if(f){ Sib.vx=(Sib.vx||0)+f.fx; Sib.vy=(Sib.vy||0)+f.fy; Sib.free=Math.max(Sib.free||0,10); } }
+        for(const bb of B.bubbles){ if(bb.to) continue; const dx=bb.x-C.x, dy=bb.y-C.y, d=Math.hypot(dx,dy)||1; if(d<C.r*1.8){ bb.vx=(bb.vx||0)*0.9-dy/d*1.2; bb.vy=bb.vy*0.9+dx/d*1.2; } }
         const nb=1+Math.round(pw*3);
         for(let k=0;k<nb;k++){ const ang=fr*0.21+k*2.1, r=30+Math.random()*(40+50*pw);
           B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*(2+3*pw),vy:0,vx:0,to:{x:t.x,y:t.y},ang,rad:r}); }
       }
     }
+  }
+  function magCoreTick(){
+    const C=B.magCore; if(!C) return;
+    if(C.held!==fr&&C.held!==fr-1){ C.r*=0.82; C.spin*=0.9; C.ang+=C.spin; if(!C.gone){ C.gone=true; ring(C.x,C.y,'mag',1.2); } if(C.r<4) B.magCore=null; }
   }
   function airBubbleTick(){
     const b=B.xBub; if(!b) return;
@@ -707,7 +727,7 @@
     if(!F.ready&&!(F.rects.length&&fluidInit())) return;
     terrain();
     occupy();
-    hookWaterTick(); magnetWater(); magWaterTick(); itemWater(); airBubbleTick(); ringsTick();
+    hookWaterTick(); magnetWater(); magWaterTick(); itemWater(); magCoreTick(); airBubbleTick(); ringsTick();
     for(let s=0;s<SUB;s++) step(!(s&1));
     displace();
     dropsTick(); wavesTick(); elecTick(); filmTick(); steamTick(); plugTick(); pourFx();
@@ -1009,6 +1029,19 @@
           ctx.strokeStyle=g2.kind==='mag'?'rgba(255,170,200,'+(a*0.5)+')':'rgba(200,228,240,'+(a*0.35)+')';
           ctx.lineWidth=Math.max(1,sw(2)*(0.5+g2.life/60));
           ctx.beginPath(); ctx.arc(sx(g2.x),sy(g2.y),sw(g2.r),0,Math.PI*2); ctx.stroke(); }
+        ctx.restore(); }
+      // the magnet's water core: a turning eye with spiral arms, inside the water only
+      const MC=B.magCore;
+      if(MC&&MC.r>3){ ctx.save(); ctx.clip(pool);
+        const cx=sx(MC.x), cy=sy(MC.y), R=sw(MC.r);
+        const g3=ctx.createRadialGradient(cx,cy,1,cx,cy,R*1.25); g3.addColorStop(0,'rgba(10,30,70,0.55)'); g3.addColorStop(0.55,'rgba(60,120,200,0.28)'); g3.addColorStop(1,'rgba(120,180,240,0)');
+        ctx.fillStyle=g3; ctx.beginPath(); ctx.arc(cx,cy,R*1.25,0,Math.PI*2); ctx.fill();
+        ctx.lineCap='round';
+        for(let arm=0;arm<3;arm++){ ctx.beginPath();
+          for(let k=0;k<=24;k++){ const t2=k/24, a=MC.ang+arm*Math.PI*2/3+t2*3.2, r=R*(0.12+0.95*t2); const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r; if(k) ctx.lineTo(x,y); else ctx.moveTo(x,y); }
+          ctx.strokeStyle=arm%2?'rgba(255,170,210,0.45)':'rgba(200,235,255,0.55)'; ctx.lineWidth=Math.max(1.5,sw(3)); ctx.stroke(); }
+        ctx.strokeStyle='rgba(225,245,255,0.6)'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.beginPath(); ctx.arc(cx,cy,R,MC.ang,MC.ang+Math.PI*1.4); ctx.stroke();
+        ctx.fillStyle='rgba(235,250,255,0.75)'; ctx.beginPath(); ctx.arc(cx,cy,Math.max(2,R*0.1),0,Math.PI*2); ctx.fill();
         ctx.restore(); }
       // caustics: soft light drifting through the water
       ctx.save(); ctx.clip(pool); ctx.globalCompositeOperation='lighter';
