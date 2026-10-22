@@ -21,7 +21,7 @@
     venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE BOLD SIBLING', tag:'BACKWARD CAP  ·  NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
-    {id:0, name:'1 PLAYER', sub:'YOUR SIBLING RIDES WITH YOU', icon:'one', col:'#9ef58a'},
+    {id:0, name:'1 PLAYER', sub:'SOLO, OR WITH YOUR SIBLING AS BACKUP', icon:'one', col:'#9ef58a'},
     {id:1, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
     {id:2, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
   ];
@@ -124,7 +124,7 @@
     drawTextC(H0.tag,cx-4,ny+86,sel?H0.col:'#7a8088',1);
     ctx.restore();
     // badge: LEAD / ALLY (or P1 in local co-op)
-    const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':'ALLY';
+    const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
     const bt=sel?lead:ally, bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=y-16;
     ctx.save(); ctx.translate(bx+bw/2,by+15); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+15));
     ctx.fillStyle='#020a04'; uiRound(bx+2,by+3,bw,30,4); ctx.fill();
@@ -138,7 +138,8 @@
     const mSel=_heroChoice==='mind';
     if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
-    title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS  ·  PLAYER 2 RIDES THE OTHER':'THE OTHER SIBLING RIDES WITH YOU AS YOUR ALLY');
+    const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
+    title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS  ·  PLAYER 2 RIDES THE OTHER':(sib?'THE OTHER SIBLING SHADOWS YOU AND HAS YOUR BACK':'YOU RIDE ALONE  ·  THE OTHER SIBLING WAITS AT HOME'));
     // draw the dimmed card first, the lead on top
     const order=mSel?['venture','mind']:['mind','venture'];
     for(const k of order) heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k]);
@@ -146,8 +147,37 @@
     const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
     sparkTick();
-    hints([['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
+    if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
+    hints(_playerCount!==2&&window.MV_SIBLING?[['<  >','SWITCH','#d8ffc8'],['^  v','SOLO / SIBLING','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
   }
+  // Paulo (Oct 22): SOLO, or the other sibling shadowing you as backup (beta_sibling.js)
+  let sibRects=[];
+  function sibToggle(){
+    if(Kj['ArrowUp']||Kj['ArrowDown']||Kj['KeyW']||Kj['KeyS']){ delete Kj['ArrowUp']; delete Kj['ArrowDown']; delete Kj['KeyW']; delete Kj['KeyS']; MV_SIBLING.toggle(); try{ sfx('menu'); }catch(e){} }
+    const on=MV_SIBLING.on, other=_heroChoice==='mind'?'venture':'mind', y=H-112, h=34;
+    const opts=[{k:false,label:'SOLO'},{k:true,label:HERO[other].name+' SHADOWS YOU'}];
+    ctx.save(); ctx.font='22px "MV Pixel", monospace';
+    const ws=opts.map(o=>Math.max(160,ctx.measureText(o.label).width+70)); ctx.restore();
+    let x=W/2-(ws[0]+ws[1]+14)/2; sibRects=[];
+    opts.forEach((o,i)=>{
+      const sel=o.k===on, w=ws[i], col=o.k?HERO[other].col:'#d8ffc8';
+      ctx.fillStyle='#020a04'; uiRound(x+2,y+3,w,h,h/2); ctx.fill();
+      ctx.fillStyle=sel?(o.k?'rgba('+HERO[other].glow+',0.35)':'rgba(120,200,140,0.3)'):'rgba(10,20,14,0.85)'; uiRound(x,y,w,h,h/2); ctx.fill();
+      ctx.save(); if(sel){ ctx.shadowColor=col; ctx.shadowBlur=12; } ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
+      drawTextC(o.label,x+w/2+8,y+9,sel?'#ffffff':'#7a8a80',2);
+      if(sel&&typeof uiCursor==='function') uiCursor(x+14,y+h/2,7);
+      sibRects.push({x,y,w,h,k:o.k}); x+=w+14;
+    });
+  }
+  document.addEventListener('click',e=>{
+    if(_gameState!=='select'||_selectStep!==1||!sibRects.length||!window.MV_SIBLING) return;
+    const c=document.getElementById('c'); if(!c) return; const r=c.getBoundingClientRect(), mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
+    for(const b of sibRects) if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){ if(MV_SIBLING.on!==b.k){ MV_SIBLING.on=b.k; try{ sfx('menu'); }catch(e2){} } e.stopImmediatePropagation(); return; }
+  },true);
+  window.addEventListener('keydown',e=>{
+    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
+    if(['ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code)){ MV_SIBLING.toggle(); try{ sfx('menu'); }catch(e2){} e.preventDefault(); e.stopImmediatePropagation(); }
+  },true);
 
   // ── step 1: the mode ──
   function icon(kind,cx,cy,col,s){

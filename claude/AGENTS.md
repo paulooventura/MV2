@@ -202,6 +202,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 256 — the sibling shadows you (optional), title without the Awdjoo line (Oct 22, Claude)
+- Character select (hero step, 1 player): **SOLO / <SIBLING> SHADOWS YOU** pills (↑↓ / W S / pad up-down / click), saved in `localStorage mv2.sibling` (default on); the other card's badge reads SHADOW / AT HOME.
+- New `js/beta_sibling.js` (`MV_SIBLING`): the other hero follows your own path a beat behind (a trail of your positions, 24 steps back, ≥62 px gap, never in front of you; no path yet → beside you on your back side), blinks back to you when lost (respawn / stage / teleport > 560 px). A ghost: no collisions, no pickups, no triggers, can't be hurt. Assists: picks the enemy that matters to you (≤300 px from you, closing in counts double, clear line of sight), its eye follows it, fires homing bolts (8 dmg, cd 48 / 26 when urgent), never across you; it only softens enemies (leaves 1 HP) unless the enemy is within 110 px of you or your HP < 40%. Drawn in the world behind MIND. Story mode only; labs with `?sib=1`.
+
 ### Build 254 — front door, final order (Oct 22, Claude)
 - Splash: any button / click skips ALL the logos smoothly (`skipAll`: the one on screen fades out in 18 frames, then the title fades in from black — `MV_TITLE_FADE`, also after the logos end naturally; title music starts on the skip).
 - Story Mode: title → STORY MODE → **TIMELINE** first. Empty file → storyline pages → character select → 1.1. Saved file → character select (on its hero) → on from its save, no storyline. B on the timeline → title; B on the select's first step → timeline for a saved file, last story page for a new one.
