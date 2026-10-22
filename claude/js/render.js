@@ -171,73 +171,56 @@ function drawWheel(cx,cy,angle,plRef){
   const tilt=pl.suspTilt||0;
   ctx.save();ctx.translate(cx,cy);ctx.rotate(tilt);
   ctx.translate(-cx,-cy);
-  // rubber: the tire squashes about its contact patch (flat under load, bulging on landings)
-  const tsq=Math.max(-1.2,Math.min(8,pl._tireSq||0));
-  if(Math.abs(tsq)>0.05){ ctx.translate(cx,cy+R); ctx.scale(1+tsq*0.55/R,1-tsq/R); ctx.translate(-cx,-(cy+R)); }
-  const tsx=Math.max(-1.2,Math.min(8,pl._tireSx||0)), tdir=pl._tireSxDir||1;
-  if(Math.abs(tsx)>0.05){ ctx.translate(cx+tdir*R,cy); ctx.scale(1-tsx/R,1+tsx*0.55/R); ctx.translate(-(cx+tdir*R),-cy); }
-  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
-  ctx.fillStyle='#14101c';ctx.fill();
-  // Knobby off-road tread blocks (rotate with wheel)
+  // ── build 227: a dirt-bike wheel kit (Paulo: "badass dirtbike tire/wheel kit… cool/techy, hype") ──
+  // knobby tire (rigid knobs; only the contact knobs flatten a hair), anodized rim, crossed
+  // spokes, a drilled disc brake and a glowing motor hub with an LED ring
+  const isVen=pl.hero==='venture'&&!pl._wheelHostile, hostile=!!pl._wheelHostile;
+  const ano=hostile?'#8a1420':isVen?'#b0242e':'#7a2cc8', anoHi=hostile?'#e04050':isVen?'#ff5a5a':'#b884ff';
+  const led=pal.tread?pal.b3:(hostile?'#ff4050':isVen?'#ff6a5a':'#5cffa0');
+  const flat=Math.max(0,Math.min(2,(pl._tireSq||0)*0.35));       // contact patch: a hair, not jelly
+  const rimR=R-6;
+  // tire carcass
+  ctx.beginPath();ctx.arc(cx,cy,R-1,0,Math.PI*2);ctx.fillStyle='#0d0c10';ctx.fill();
+  // knobs: big square blocks standing proud of the carcass, staggered rows, turning with the wheel
   ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
-  const nTread=12;
-  for(let i=0;i<nTread;i++){
-    const a=i*(Math.PI*2/nTread);
-    const tx=Math.cos(a)*R*0.82, ty=Math.sin(a)*R*0.82;
-    if(pal.tread){
-      ctx.fillStyle=i%2?'#143820':'#1a5030';
-      ctx.fillRect(tx-2.5,ty-3.5,5,7);
-      ctx.fillStyle='#0a2818';
-      ctx.fillRect(tx-1.5,ty-2.5,3,5);
-    }else{
-      ctx.fillStyle=i%2?'#1c1824':'#242030';
-      ctx.fillRect(tx-2.5,ty-3.5,5,7);
-      ctx.fillStyle='#0a0810';
-      ctx.fillRect(tx-1.5,ty-2.5,3,5);
-    }
-  }
-  ctx.restore();
-  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
-  ctx.strokeStyle='#0a0810';ctx.lineWidth=4;ctx.stroke();
-  // pass 4: rubber sheen on the tire's upper-left (light from the sky), dark under
-  ctx.beginPath();ctx.arc(cx,cy,R-1,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle='rgba(150,160,190,0.38)';ctx.lineWidth=2;ctx.stroke();
-  ctx.beginPath();ctx.arc(cx,cy,R+0.5,Math.PI*0.15,Math.PI*0.85);ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=2;ctx.stroke();
-  for(let b=0;b<3;b++){
-    const bAngle=angle+b*(Math.PI*2/3);
-    ctx.save();ctx.translate(cx,cy);ctx.rotate(bAngle);
-    ctx.beginPath();
-    ctx.moveTo(2,-2);
-    ctx.bezierCurveTo(spR*0.3,-spR*0.5,spR*0.7,-spR*0.9,spR*0.88,-spR*0.25);
-    ctx.bezierCurveTo(spR*0.9,0,spR*0.6,spR*0.3,2,2);
-    ctx.closePath();ctx.fillStyle=pal.b1;ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(3,-3);
-    ctx.bezierCurveTo(spR*0.25,-spR*0.4,spR*0.55,-spR*0.75,spR*0.72,-spR*0.2);
-    ctx.bezierCurveTo(spR*0.75,-spR*0.05,spR*0.5,spR*0.18,3,1);
-    ctx.closePath();ctx.fillStyle=pal.b2;ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(4,-4);
-    ctx.bezierCurveTo(spR*0.2,-spR*0.35,spR*0.45,-spR*0.6,spR*0.6,-spR*0.18);
-    ctx.strokeStyle=pal.b3;ctx.lineWidth=1.5;ctx.stroke();
+  const nK=14;
+  for(let i=0;i<nK;i++){
+    const a=i*(Math.PI*2/nK);
+    ctx.save();ctx.rotate(a);
+    const off=(i&1)?-1.2:1.2, kw=5.2, kh=3.6;
+    ctx.fillStyle='#2a2830';ctx.fillRect(R-kh-0.5,off-kw/2,kh+1.5,kw);
+    ctx.fillStyle='#4a4856';ctx.fillRect(R-kh+0.5,off-kw/2,1.2,kw);           // lit leading edge
     ctx.restore();
   }
-  ctx.beginPath();ctx.arc(cx,cy,spR*0.28,0,Math.PI*2);
-  ctx.fillStyle='#080612';ctx.fill();
-  if(!isFinite(cx)||!isFinite(cy)) return;
-  const g=ctx.createRadialGradient(cx-2,cy-2,0,cx,cy,spR*0.28);
-  g.addColorStop(0,'#d0d4dc');g.addColorStop(0.5,'#9098a8');g.addColorStop(1,'#505060');
-  ctx.beginPath();ctx.arc(cx,cy,spR*0.28,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
-  ctx.strokeStyle=pal.spin;ctx.lineWidth=1.5;
-  for(let i=0;i<4;i++){
-    const a=i*Math.PI/2;
-    ctx.beginPath();ctx.moveTo(Math.cos(a)*spR*0.3,Math.sin(a)*spR*0.3);
-    ctx.lineTo(Math.cos(a)*spR*0.88,Math.sin(a)*spR*0.88);ctx.stroke();
-  }
   ctx.restore();
-  ctx.beginPath(); ctx.arc(cx,cy,Math.max(2.2,spR*0.1),0,Math.PI*2);
-  ctx.fillStyle=(pl===p&&typeof isSprintHeld==='function'&&isSprintHeld())?'#3dff7a':'#080612';
-  ctx.fill();
+  // contact flat: shave the knobs at the ground under load
+  if(flat>0.15&&pl.og){ ctx.fillStyle='rgba(0,0,0,0)'; ctx.save(); ctx.globalCompositeOperation='destination-out'; ctx.fillRect(cx-R-3,cy+R+1.2-flat,2*R+6,4); ctx.restore(); }
+  // sidewall + sheen
+  ctx.beginPath();ctx.arc(cx,cy,R-2.5,0,Math.PI*2);ctx.strokeStyle='#18171d';ctx.lineWidth=3;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,R-2.5,Math.PI*1.08,Math.PI*1.55);ctx.strokeStyle='rgba(170,175,200,0.32)';ctx.lineWidth=1.5;ctx.stroke();
+  // anodized rim
+  ctx.beginPath();ctx.arc(cx,cy,rimR,0,Math.PI*2);ctx.strokeStyle=ano;ctx.lineWidth=2.6;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,rimR,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle=anoHi;ctx.lineWidth=1.2;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,rimR-1.6,0,Math.PI*2);ctx.fillStyle='#07060b';ctx.fill();
+  // crossed spokes
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
+  ctx.strokeStyle='rgba(190,196,214,0.85)';ctx.lineWidth=0.8;
+  for(let i=0;i<16;i++){
+    const a=i*Math.PI/8, h=(i&1)?0.5:-0.5;
+    ctx.beginPath();ctx.moveTo(Math.cos(a+h)*4.5,Math.sin(a+h)*4.5);ctx.lineTo(Math.cos(a)*(rimR-1.6),Math.sin(a)*(rimR-1.6));ctx.stroke();
+  }
+  // drilled disc brake
+  ctx.beginPath();ctx.arc(0,0,7.5,0,Math.PI*2);ctx.fillStyle='#9aa0ae';ctx.fill();
+  ctx.beginPath();ctx.arc(0,0,7.5,0,Math.PI*2);ctx.strokeStyle='#5a6070';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle='#3a3e4a';
+  for(let i=0;i<6;i++){ const a=i*Math.PI/3+0.3; ctx.fillRect(Math.cos(a)*5.4-0.8,Math.sin(a)*5.4-0.8,1.6,1.6); }
+  ctx.restore();
+  // motor hub + LED ring (pulses with speed, spins its light)
+  const spd=Math.min(1,Math.abs(pl.vx||0)/8);
+  ctx.beginPath();ctx.arc(cx,cy,4.2,0,Math.PI*2);ctx.fillStyle='#14121c';ctx.fill();
+  ctx.save();ctx.globalAlpha=0.45+0.45*spd;ctx.strokeStyle=led;ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.arc(cx,cy,3.4,angle*1.5,angle*1.5+Math.PI*1.3);ctx.stroke();ctx.restore();
+  ctx.beginPath();ctx.arc(cx,cy,1.4,0,Math.PI*2);ctx.fillStyle=(pl===p&&typeof isSprintHeld==='function'&&isSprintHeld())?'#3dff7a':'#c8ccd8';ctx.fill();
   if(!pl.xlrOn&&!pl.magOn&&Math.abs(pl.vx||0)>2){
     ctx.beginPath();ctx.arc(cx,cy,R+2,0,Math.PI*2);
     ctx.strokeStyle=pal.b3;ctx.globalAlpha=0.35;ctx.lineWidth=3;ctx.stroke();ctx.globalAlpha=1;
@@ -278,8 +261,43 @@ function drawWheel(cx,cy,angle,plRef){
     ctx.strokeStyle=`rgba(48,255,112,${pulse})`;
     ctx.lineWidth=3+Math.sin(fr*0.18);ctx.stroke();
   }
-  ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fillStyle='#1a1428';ctx.fill();
-  ctx.beginPath();ctx.arc(cx-0.7,cy-0.7,1,0,Math.PI*2);ctx.fillStyle='#a0a4b0';ctx.fill();
+  ctx.restore();
+}
+// the suspension kit between the speaker and the wheel (build 227): an upside-down fork leg
+// over the axle, a coil-over shock behind it, and the speaker's cable plugged into the hub
+function drawWheelKit(cx,cy,bodyBot,fc,pl){
+  const gap=cy-bodyBot; if(!(gap>5)) return;                     // crouched: the kit folds away under the box
+  const isVen=pl.hero==='venture', back=fc?-1:1;
+  const ano=isVen?'#b0242e':'#7a2cc8', anoHi=isVen?'#ff5a5a':'#b884ff', spring=isVen?'#ff8a3a':'#d8ff5a';
+  const comp=Math.max(0,Math.min(1,(pl.suspComp||0)));
+  ctx.save(); ctx.lineCap='round';
+  // coil-over shock: from the box's back corner down to the axle
+  const sx0=cx+back*15, sy0=bodyBot-2, ex=cx+back*2, ey=cy-1;
+  const L=Math.hypot(ex-sx0,ey-sy0), ang=Math.atan2(ey-sy0,ex-sx0);
+  ctx.translate(sx0,sy0); ctx.rotate(ang);
+  ctx.fillStyle='#2a2a34'; ctx.fillRect(0,-3,L*0.45,6);                                   // body
+  ctx.fillStyle='#d8dce6'; ctx.fillRect(L*0.45,-1.2,L*0.55,2.4);                          // chrome shaft
+  ctx.strokeStyle=spring; ctx.lineWidth=1.6;                                              // the spring, tighter as it compresses
+  const coils=6, cl=L*(0.86-comp*0.18);
+  ctx.beginPath(); for(let i=0;i<=coils*8;i++){ const t=i/(coils*8), x=2+t*cl, y=Math.sin(t*coils*Math.PI*2)*3.6; i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+  ctx.fillStyle=ano; ctx.fillRect(-2,-4,4,8); ctx.fillRect(L-2,-3,4,6);                    // clevises
+  ctx.restore(); ctx.save(); ctx.lineCap='round';
+  // the fork leg: fat anodized upper tube out of the box, chrome stanchion into the axle
+  const fx=cx+(fc?3:-3), upLen=Math.max(4,gap*0.55);
+  ctx.fillStyle=ano; ctx.fillRect(fx-3.5,bodyBot-3,7,upLen+3);
+  ctx.fillStyle=anoHi; ctx.fillRect(fx-3.5,bodyBot-3,1.5,upLen+3);
+  ctx.fillStyle='#1a1a22'; ctx.fillRect(fx-4,bodyBot+upLen-1,8,2);                          // seal
+  ctx.fillStyle='#e2e6ee'; ctx.fillRect(fx-2.2,bodyBot+upLen,4.4,gap-upLen);               // chrome
+  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fillRect(fx-1.6,bodyBot+upLen,1,gap-upLen);
+  ctx.fillStyle='#2a2a34'; ctx.beginPath(); ctx.arc(fx,cy,3.2,0,Math.PI*2); ctx.fill();      // axle clamp
+  ctx.fillStyle='#c8ccd8'; ctx.beginPath(); ctx.arc(fx,cy,1.3,0,Math.PI*2); ctx.fill();
+  // the speaker's cable into the hub motor, with a live glow
+  const jx=cx-back*20, jy=bodyBot-3, sag=6+Math.sin(fr*0.08)*1.2;
+  ctx.strokeStyle='#0a0a10'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(jx,jy); ctx.bezierCurveTo(jx-back*4,jy+sag+6,cx-back*8,cy+2,cx-back*3,cy); ctx.stroke();
+  ctx.strokeStyle=isVen?'rgba(255,90,90,0.65)':'rgba(120,255,160,0.6)'; ctx.lineWidth=1;
+  ctx.setLineDash([2,3]); ctx.lineDashOffset=-fr*0.4*(Math.abs(pl.vx||0)>0.3?Math.sign(pl.vx):0.3);
+  ctx.beginPath(); ctx.moveTo(jx,jy); ctx.bezierCurveTo(jx-back*4,jy+sag+6,cx-back*8,cy+2,cx-back*3,cy); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#c8a040'; ctx.fillRect(jx-2,jy-3,4,4);                                     // gold jack on the cabinet
   ctx.restore();
 }
 function drawHostileWheel(cx,cy,angle){
@@ -1025,7 +1043,9 @@ function drawCharacter(){
   const walkBob=(!onRope&&p.og&&!p._onSlope&&Math.abs(p.vx)>0.5&&p.landF<=0)?Math.sin(fr*0.28+p.x*0.015)*0.45:0;
   const idleSway=0;
   const suspDrop=onRope?0:(p.landF>0?suspC*SUSP_TRAVEL*0.55:0);
-  const bodyCompress=onRope?0:landEase*(0.32+landAmp*0.68)*11-walkBob-idleSway+suspDrop;
+  // build 227: the box rides the fork — the suspension spring (physics.js TIRE_*) dips it and rebounds once
+  const forkDip=onRope?0:Math.max(-1.5,Math.min(9,((p._tireSq||0)-TIRE_LOAD_SQ)*1.3));
+  const bodyCompress=onRope?0:landEase*(0.32+landAmp*0.68)*11-walkBob-idleSway+suspDrop+forkDip;
   const landHeadTuck=onRope?0:landEase;
   let hatTX=0, hatTY=0;
   if(!onRope&&p.jumpTiltF>0){
@@ -1042,12 +1062,7 @@ function drawCharacter(){
   const standBodyCY=p.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wWcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
-  // Super jump loaded: sit the cabinet up out of the full tuck and let it
-  // ride a slow sine. The wheel stays on the ground. Hitbox is unchanged.
-  const duckDrop=Math.max(0,duckBodyCY-standBodyCY);
-  const bob=Math.sin(fr*0.046)*3.2;
-  const floatY=(p._springFloat||0)*(duckDrop*0.32+6+bob);
-  const bodyCY=standBodyCY+visualCa2*(duckBodyCY-standBodyCY)+bodyCompress-floatY;
+  const bodyCY=standBodyCY+visualCa2*(duckBodyCY-standBodyCY)+bodyCompress;
   const bodyTop=bodyCY;
   const shoulderY=bodyTop+BODY_H*0.22;
   const bodyLeft=wWcx-BODY_W/2, bodyRight=wWcx+BODY_W/2;
@@ -1065,9 +1080,9 @@ function drawCharacter(){
   const bTopS=sy(bodyTop);
   const shY=sy(shoulderY);
   const glovShX=sx(glovShoulderWX);
-  const connShX=sx(pose.connShX), connShY=sy(pose.connShY-floatY);
-  const tipX=sx(pose.tipX), tipY=sy(pose.tipY-floatY);
-  const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY-floatY);
+  const connShX=sx(pose.connShX), connShY=sy(pose.connShY);
+  const tipX=sx(pose.tipX), tipY=sy(pose.tipY);
+  const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY);
   ctx.save();
 
   // 1. SHADOW + WHEEL + FORK â€” behind everything
@@ -1075,6 +1090,7 @@ function drawCharacter(){
   // Paulo's sketch: hanging on the rope MIND tilts with the swing, round his body's centre
   if(pose.tilt){ const tx=sx(pose.tiltCX), ty=sy(pose.tiltCY); ctx.translate(tx,ty); ctx.rotate(pose.tilt); ctx.translate(-tx,-ty); }
   if(!flicker) drawWheel(wcx,wcy,p.wheelAngle,p);
+  if(!flicker) drawWheelKit(wcx,wcy,sy(bodyTop+BODY_H),fc,p);
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
   drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
@@ -1107,7 +1123,6 @@ function drawCharacter(){
   const wallReady=p.wallGrip>0&&!!p._wallChargeReady;
   const headPop=springReady||wallReady;
   let headTuckVis=onRope?visualCa2:Math.max(visualCa2,p._autoHeadTuck||0);
-  if((p._springFloat||0)>0) headTuckVis*=1-(p._springFloat||0)*0.28;
   const headR=Math.round(14-headTuckVis*3);
   const standHeadCY=bodyTop-18;
   const shellHeadCY=bodyTop+headR*1.05;

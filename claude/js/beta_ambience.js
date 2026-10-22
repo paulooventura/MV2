@@ -182,7 +182,7 @@
     const g=A.createGain(); env(g,t,0.12,0.001,0.05); src.connect(hp); hp.connect(g); g.connect(d0); src.start(t,Math.random()); src.stop(t+0.08);
     const o=A.createOscillator(), og=A.createGain(); o.type='square'; o.frequency.setValueAtTime(900+Math.random()*900,t); env(og,t,0.025,0.001,0.04); o.connect(og); og.connect(d0); o.start(t); o.stop(t+0.06);
   }
-  let musicSet=false;
+  let musicSet=false, waterWas=null;
   function musicFree(){ if(!musicSet) return; const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null; if(fx){ set(fx.lp.frequency,20000,0.3); set(fx.g.gain,1,0.3); set(fx.pan.pan,0,0.3); } musicSet=false; }
   function things(B,S,E){
     const SP=MV_SPATIAL;
@@ -211,6 +211,27 @@
       placeLoop(L,0.22*P.g,P.lp,P.pan,P.wet);
       if(P.g>0.03&&Math.random()<0.35) crackle(st.x+(Math.random()-0.5)*30,st.y,0.9);
     });
+    // ── moving water (build 227): the "ffff" of water on the move — rushing flow, falling water,
+    //    sloshing waves — from where it's moving; MIND wading through it; splashes in and out ──
+    const L0=SP.listener(), wm=typeof B.waterMotion==='function'?B.waterMotion(L0.x,L0.y,14):null;
+    const Lw=mkLoop('water',inp=>{
+      const hi=A.createBiquadFilter(); hi.type='bandpass'; hi.frequency.value=3200; hi.Q.value=0.6; const g1=A.createGain(); g1.gain.value=0.7; loopNoise(A,hi); hi.connect(g1); g1.connect(inp);
+      const lo=A.createBiquadFilter(); lo.type='bandpass'; lo.frequency.value=650; lo.Q.value=0.7; const g2=A.createGain(); g2.gain.value=0.55; loopNoise(A,lo); lo.connect(g2); g2.connect(inp);
+      // a slow random churn so it never sounds like a static hiss
+      const lfo=A.createOscillator(), lg=A.createGain(); lfo.frequency.value=1.7; lg.gain.value=0.25; lfo.connect(lg); lg.connect(g1.gain); lfo.start();
+    });
+    if(wm){
+      const act=wm.flow*0.6+wm.fall*0.12+wm.wave*0.05, P=SP.params(wm.x,wm.y);
+      const level=0.16*(1-Math.exp(-act));
+      if(P) placeLoop(Lw,level*Math.max(P.g,0.25*Math.exp(-wm.near/6)),P.lp,P.pan,P.wet,0.15); else placeLoop(Lw,0,200,0);
+    } else placeLoop(Lw,0,200,0);
+    // MIND in the water: a swish that follows his speed, and a splash going in / coming out
+    const inW=typeof B.inWater==='function'&&B.inWater(p.x+SW/2,p.y+FEET_OFF-14);
+    const Lwd=mkLoop('wade',inp=>{ const bp=A.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1500; bp.Q.value=0.8; loopNoise(A,bp); bp.connect(inp); });
+    const sp=Math.hypot(p.vx||0,p.vy||0);
+    placeLoop(Lwd,inW?Math.min(0.12,sp*0.02):0,inW?3500+sp*600:200,0,0.2,0.08);
+    if(inW!==waterWas&&waterWas!==null&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x:p.x+SW/2,y:p.y+FEET_OFF-14}); MV_BETA_AUDIO.splash(Math.min(1,0.35+Math.abs(p.vy||0)/9)); }
+    waterWas=inW;
     // ── the yellow blocks ──
     let sum=0, lpW=0, panW=0, wetW=0; const near=[];
     for(const b of yellows()){ const x=b.x+(b.w||32)/2, y=b.y+(b.h||32)/2, P=SP.params(x,y); if(!P||P.g<0.01) continue; sum+=P.g; lpW+=P.lp*P.g; panW+=P.pan*P.g; wetW+=P.wet*P.g; near.push([x,y,P.g]); }

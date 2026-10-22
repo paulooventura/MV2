@@ -161,6 +161,10 @@
     const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(380+Math.random()*120,t+0.03); o.frequency.exponentialRampToValueAtTime(900,t+0.12);
     og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
     o.connect(og); og.connect(D(a)); o.start(t+0.03); o.stop(t+0.18);
+    // build 227: the spray — a bright "ffff" of droplets that hangs a moment after the hit
+    const sp=a.createBufferSource(); sp.buffer=noise(a); const hp=a.createBiquadFilter(); hp.type='highpass'; hp.frequency.setValueAtTime(2600,t); hp.frequency.linearRampToValueAtTime(4200,t+0.45);
+    const sg=a.createGain(); sg.gain.setValueAtTime(0.0001,t); sg.gain.exponentialRampToValueAtTime(0.09*sv()*(0.35+k),t+0.03); sg.gain.exponentialRampToValueAtTime(0.0001,t+0.35+0.3*k);
+    sp.connect(hp); hp.connect(sg); sg.connect(D(a)); sp.start(t,Math.random()*0.5); sp.stop(t+0.7+0.3*k);
   }
   // the magnet locking onto the floor: a heavy metal CLANK, then a low hum
   // (two detuned square waves through a low-pass, wobbling) while it holds
