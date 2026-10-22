@@ -295,6 +295,12 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 229 — Story Mode select screens redone (Oct 22)
+- New `js/ui_select.js` (index.html, after `ui.js`) replaces `drawSelect` (input handlers unchanged in `ui.js`).
+- Look: the stage sky (`MV_SKY.draw`) behind a dark grade; tilted parallelogram cards; light rays + rising sparks + bob on the pick; dimmed/greyed other card; logo-style names (`uiLogo`) in each hero's colour; LEAD/ALLY (or PLAYER 1/2) badges; a pulsing "&" seam; keycap hints at the bottom. Cards ease bigger/smaller on a switch, with a spark burst.
+- Hero art: `assets/ui/hero-mind.png`, `hero-venture.png`, cut from `assets/story/title-frame-00.png` (stray title letters painted out). Drawn whole (fit to card height, feathered sides, cached) over a blurred, darkened copy.
+- Mode step: 1 PLAYER / 2P LOCAL / 2P ONLINE (locked) cards with little pixel icons.
+
 ### Build 228 — XLR burnout (Oct 22)
 - `beta_feel.js` `xlrJet`: on the ground, aim mostly sideways, holding the direction INTO the aim → the tire fights the shove: a stand-off where the shove slowly wins (`creep = thrust·(1−XLR_GRIP)·2.2`, `FEEL.XLR_GRIP` 0.78), no lift-off, the wheel spins against the slide, `p._tireHeat` builds (cools when not fighting), smoke grows with heat (≤26 puffs), `tire_squeal` every 14 frames.
 - `player.js` `_updatePlayerMoveX`: enforces that creep after the drive (`pl._xlrResistV`/`_xlrResistFr`).
