@@ -486,7 +486,9 @@
     const xlrNow=!!(p&&p.xlrOn&&ITEM===2), magNow=!!(p&&p.magOn&&ITEM===3);
     // Paulo: aimed down while standing, a TAP launches him at once — as hard as
     // the power he has (100% = a full launch); the power is spent
-    if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease){
+    // …unless there are blocks right under him (a trapdoor): then the blast is for THEM — it
+    // pushes them down the hole (Paulo, Oct 22: no more launching off the trapdoor and getting stuck)
+    if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease&&!blastCandidates().length){
       const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
       B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};   // an almost empty bar barely lifts him B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
     }
@@ -513,7 +515,7 @@
       spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
     }
   }
-  const ITEM_COST={XLR_BASE:28, XLR_CHARGE:27, MAG_BASE:22, MAG_CHARGE:20}, ITEM_REST=35;   // Paulo (Oct 21): drains a bit faster, refills sooner
+  const ITEM_COST={XLR_BASE:28, XLR_CHARGE:27, MAG_BASE:22, MAG_CHARGE:20}, ITEM_REST=20;   // Oct 22: the bar waits less before refilling (was 35)   // Paulo (Oct 21): drains a bit faster, refills sooner
   B.ITEM_COST=ITEM_COST;
   function xlrTip(){ const pose=typeof computeConnectorArmPose==='function'?computeConnectorArmPose(p):null; return pose?{x:pose.noseX,y:pose.noseY}:{x:p.x+SW/2,y:p.y+FEET_OFF-50}; }
   const powNow=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
@@ -537,7 +539,9 @@
     for(let guard=0;guard<40;guard++){
       const nb=cubeAt(c,r);
       if(!nb) break;
-      if(nb.only==='laser'||(mode==='push'&&nb.only==='pull')||(mode==='pull'&&nb.only==='push')) return null;
+      // a pushed block shoves whatever block is behind it (a pull block too — it's the push block
+      // doing the shoving); only the TRS cage blocks stop a line
+      if(nb.only==='laser'||(mode==='pull'&&nb.only==='push')) return null;
       list.push(nb); c+=dc; r+=dr;
     }
     return list;
@@ -614,6 +618,17 @@
       let dc=straight?ax.dc:(ax.dc||pdc), dr=straight?ax.dr:(ax.dr||pdr);
       if(inShaft){ dc=ax.dc; dr=ax.dr; }                         // down the hole, not sideways into the lip
       hits.push({bw,along,dc,dr,straight:straight||inShaft});
+    }
+    // Paulo (Oct 22): the blocks he's STANDING on, aimed straight down, always count — the
+    // cone used to skip the block right under the wheel, so on a trapdoor the edges went
+    // and the middle never moved (stuck at the basement entrance / under Laitu's house)
+    if(ax.dr>0&&!ax.dc){
+      const wx=p.x+SW/2, feetRow=Math.floor((p.y+FEET_OFF+4)/T);
+      for(const bw of cubes()){
+        if(bw.only==='laser'||bw.only==='pull'||hits.some(h=>h.bw===bw)) continue;
+        if(bw.homeRow!==feetRow||Math.abs(bw.x+T/2-wx)>T*1.05) continue;
+        hits.push({bw,along:T*0.5,dc:0,dr:1,straight:true});
+      }
     }
     return hits;
   }
