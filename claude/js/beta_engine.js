@@ -110,6 +110,13 @@
       else if(S.gear>0&&spd<g[0]-0.05&&!(S.shiftT>0)){ S.gear--; S.shiftT=24; S.blip=8; }                                                // downshift: blip to match
       if(spd<0.03&&thr===0) S.gear=0;
     }
+    // Paulo (Oct 22): kicking into sprint revs it — a throttle blip up the band (with a pop at the
+    // top) — and while you sprint the engine is unmuffled (the full exhaust, highs and all)
+    if(sprint) S.sprintOff=0; else S.sprintOff=(S.sprintOff==null?99:S.sprintOff)+1;
+    const sprinting=!!sprint||S.sprintOff<12;                       // a bump or a hop doesn't drop it (no re-rev)
+    if(sprinting&&!S.wasSprint&&grounded) S.rev=20;
+    S.wasSprint=sprinting&&(S.wasSprint||grounded);
+    if(S.rev>0){ S.rev--; target=Math.max(target,S.rpm+5200*(S.rev/20)+1800); thr=1; if(S.rev===6) bang(0.45); }
     if(S.cut>0){ S.cut--; thr=0; target*=0.9; }
     if(S.blip>0){ S.blip--; target+=2600; thr=Math.max(thr,0.55); }
     if(S.lim>0){ S.lim--; if(S.lim<=2){ target=LIMIT-1400; thr=0; } }
@@ -131,12 +138,12 @@
     set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.04*S.boost,0.08);
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.022*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    if(N_muffle) set(N_muffle.frequency,900+2800*Math.min(1,spd)*Math.min(1,spd),0.15);   // the highs open up only as you get really fast
+    if(N_muffle) set(N_muffle.frequency,(S.wasSprint||S.rev>0)?14000:900+2800*Math.min(1,spd)*Math.min(1,spd),S.wasSprint?0.06:0.15);   // the highs open up as you get really fast — or all the way while sprinting
     const fire=S.rpm/60*4;                                          // V8 firing rate
     set(N.pu1.frequency,fire/2,0.05); set(N.pu2.frequency,fire,0.05); set(N.ru.frequency,18+fire*0.15,0.2);
     set(N.puG.gain,0.55*Math.pow(1-r,2)*(1-0.4*S.thr),0.12);
     // the low end is the most present; the higher it revs, the further back it sits
-    const lvl=S.on?(0.16+0.05*S.thr-0.06*r):0;
+    const lvl=S.on?(0.16+0.05*S.thr-0.06*r+(S.wasSprint?0.04:0)):0;
     set(N.out.gain,lvl*sv(),S.on?0.04:0.4);
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};
