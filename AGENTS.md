@@ -295,6 +295,8 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 232 — merged Cursor's main builds 230/231 (down punch hits the floor block, XLR down shoves Laitu's push blocks down the shaft) + Claude's build 231 (story intro + hero pick, The Knowl Tree)
+
 ### Build 231 — every story opens with its intro + hero pick; "The Knowl Tree" storyline theme (Oct 22)
 - Paulo: Story Mode went straight into the stage. Cause: picking a slot that already had a save (made automatically when a stage loads) continued it with no intro and no hero pick.
 - `beta_story.js`: saves now carry `hero` and `intro:true`. A slot with `intro` continues straight from its save (hero restored). A slot saved before this rule (no `intro`) sets `B.pendingSave`, runs the story pages + mode/hero select, then `ui.js` `startGame` plays that save (`B.storyPlay`). An empty slot: story → select → new 1.1.
