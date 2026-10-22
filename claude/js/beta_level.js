@@ -1777,7 +1777,7 @@
   window.update=function(){
     if(B.trans){ transTick(); return; }
     if(B.on&&B.contScreen){ contInput(); return; }
-    if(B.on&&B.overT>0){ B.overT++; if(B.overT>200||(B.overT>60&&padOk())){ B.overT=0; B.newRun(); quitToTitle(); } return; }
+    if(B.on&&B.overT>0){ B.overT++; if(B.overT>200||(B.overT>60&&padOk())){ B.overT=0; if(!(B.storyGameOver&&B.storyGameOver())){ B.newRun(); quitToTitle(); } } return; }   // story: back to the slot's last save
     if(B.ending){ B.ending.t++; if((padOk()&&B.ending.t>90)||B._endReq){ B._endReq=false; quitToTitle(); } return; }
     if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
