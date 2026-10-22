@@ -333,12 +333,15 @@
     kTotal=KDROP.length; kColl=0; goalOpen=false;
     if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
     B.cubeCellsEver=new Set(BWALLS.filter(b=>b.cube&&b.homeCol!=null).map(b=>b.homeCol+','+b.homeRow));   // for the ghost-cell sweep
+    for(const bw of BWALLS) if(bw.cube&&bw.spawnC==null&&bw.homeCol!=null){ bw.spawnC=bw.homeCol; bw.spawnR=bw.homeRow; }
+    installLaituShaft();
     cubeSettleNow();
     // The referee and main.js read the exit from GOALPL; goalOpen stays false so
     // main.js never zone-hops — the arch is handled here.
     if(B.gate) GOALPL={x:B.gate.x, y:B.gate.y, w:B.gate.w, h:B.gate.h};
 
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
+    B.safe={x:p.x,y:p.y};
     p2=null; _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
@@ -392,6 +395,7 @@
   }
   function cellFree(c,r,ignorePlayer){
     if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return false;
+    if(B.rungs&&B.rungs.has(c+','+r)) return ignorePlayer||!playerIn(c,r);   // climb rungs: the player stands, cubes fall through
     if(gridSolid(c,r)||gridIsSlope(c,r)||gridCell(c,r)===MV_GRID_ONEWAY) return false;
     if(crateAt(c,r)) return false;
     return ignorePlayer||!playerIn(c,r);
@@ -401,12 +405,14 @@
     gridSmashCell(bw.homeCol,bw.homeRow);
     bw.homeCol+=dc; bw.homeRow+=dr;
     bw.x=bw.homeX=bw.homeCol*T; bw.y=bw.homeY=bw.homeRow*T;
-    gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT); B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
+    bw.lipPass=bw.homeCol>=64&&bw.homeCol<=65&&bw.homeRow>=26&&bw.homeRow<=27;
+    gridSet(bw.homeCol,bw.homeRow,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT); B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
     bw._ox-=dc*T; bw._oy-=dr*T; bw._spd=T/Math.max(1,frames);
   }
   function placeCube(bw,c,r,fromX,fromY){
-    bw.homeCol=c; bw.homeRow=r; bw.x=bw.homeX=c*T; bw.y=bw.homeY=r*T;
-    gridSet(c,r,MV_GRID_DESTRUCT); B.cubeCellsEver.add(c+','+r);
+    bw.homeCol=c; bw.homeRow=r;     bw.x=bw.homeX=c*T; bw.y=bw.homeY=r*T;
+    bw.lipPass=c>=64&&c<=65&&r>=26&&r<=27;
+    gridSet(c,r,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT); B.cubeCellsEver.add(c+','+r);
     bw._ox=fromX-bw.x; bw._oy=fromY-bw.y; bw._spd=6; bw._fallN=0;
   }
   const busy=bw=>Math.abs(bw._ox)>0.01||Math.abs(bw._oy)>0.01;
@@ -534,6 +540,50 @@
   // it moves only if the cell past the far end is free. A pull-only or laser
   // block in the line stops an XLR push; push-only blocks stop a MAG pull.
   const B_CHAINS=[];
+  // The shaft under Laitu's house is two tiles wide and about twenty deep, with the
+  // only way out being back up. Rungs every two rows are floors for MIND and air
+  // to a falling cube. The lip cubes he stands on stay one-way, so a jump from
+  // the rung underneath passes up through them.
+  function installLaituShaft(){
+    B.rungs=new Set();
+    if(typeof gridCell!=='function'||typeof gridSet!=='function') return;
+    for(let r=29;r<=43;r+=2) for(const c of [64,65]){
+      const t=gridCell(c,r);
+      if(t===MV_GRID_SOLID||t===MV_GRID_DESTRUCT) continue;
+      if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)) continue;
+      gridSet(c,r,MV_GRID_ONEWAY);
+      B.rungs.add(c+','+r);
+    }
+    for(const bw of BWALLS) if(bw.cube&&bw.homeCol!=null){
+      bw.lipPass=bw.homeCol>=64&&bw.homeCol<=65&&bw.homeRow>=26&&bw.homeRow<=27;
+      if(bw.lipPass) gridSet(bw.homeCol,bw.homeRow,MV_GRID_ONEWAY);
+    }
+  }
+  function inLaituPit(){
+    if(!p) return false;
+    const c=Math.floor((p.x+SW/2)/T), r=Math.floor((p.y+FEET_OFF)/T);
+    return c>=62&&c<=67&&r>=27&&r<=44;
+  }
+  function unstick(){
+    B_CHAINS.length=0;
+    for(const bw of BWALLS){
+      if(!bw.cube||bw.spawnC==null) continue;
+      if(bw.homeCol!=null){ try{ gridSmashCell(bw.homeCol,bw.homeRow); }catch(e){} }
+      bw.hp=bw.maxHp||bw.hp||1; bw.homeCol=bw.spawnC; bw.homeRow=bw.spawnR;
+      bw.x=bw.homeX=bw.spawnC*T; bw.y=bw.homeY=bw.spawnR*T;
+      bw._ox=bw._oy=0; bw._carried=false; bw._fly=false; bw.vx=0; bw.vy=0;
+      bw.lipPass=bw.spawnC>=64&&bw.spawnC<=65&&bw.spawnR>=26&&bw.spawnR<=27;
+      gridSet(bw.homeCol,bw.homeRow,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT);
+    }
+    installLaituShaft();
+    const s=B.safe||{x:_spawnX,y:_spawnY};
+    if(p){ p.x=s.x; p.y=s.y; p.vx=0; p.vy=0; p.og=true; p.fc=true; }
+    try{ if(typeof _shutdownTimer!=='undefined') _shutdownTimer=0; }catch(e){}
+    _paused=false;
+    if(typeof _snapCameraToPlayer==='function'&&p) try{ _snapCameraToPlayer(p); }catch(e){}
+    if(typeof uiShowToast==='function') uiShowToast('BACK ON SOLID GROUND');
+  }
+  B.unstick=unstick; B.inLaituPit=inLaituPit;
   function lineFrom(bw,dc,dr,mode){
     const list=[bw];
     let c=bw.homeCol+dc, r=bw.homeRow+dr;
@@ -2015,6 +2065,7 @@
     }
     const r=_origUpdate.apply(this, arguments);
     if(B.on&&_gameState==='game') livesTick();
+    if(B.on&&_gameState==='game'&&p&&p.og&&!inLaituPit()) B.safe={x:p.x,y:p.y};
     return r;
   };
   const _origDraw=window.draw;

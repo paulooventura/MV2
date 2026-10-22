@@ -32,6 +32,7 @@ let _pauseIdx=0, _optFromPause=false, _optBackFr=-99;
 function _pauseItems(){
   const items=['RESUME','OPTIONS'];
   if(window.MV_SIGNAL) items.push('LEAVE A NOTE');
+  if(window.MV_BETA&&MV_BETA.unstick) items.push('UNSTICK ME');
   items.push('EXIT');
   return items;
 }
@@ -229,6 +230,7 @@ function _pauseInput(){
     if(it==='RESUME') _togglePause();
     else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
     else if(it==='LEAVE A NOTE'){ if(window.MV_SIGNAL) MV_SIGNAL.open(); }
+    else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
     else if(it==='EXIT'){
       _paused=false;
       if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
