@@ -182,6 +182,28 @@
     const g=A.createGain(); env(g,t,0.12,0.001,0.05); src.connect(hp); hp.connect(g); g.connect(d0); src.start(t,Math.random()); src.stop(t+0.08);
     const o=A.createOscillator(), og=A.createGain(); o.type='square'; o.frequency.setValueAtTime(900+Math.random()*900,t); env(og,t,0.025,0.001,0.04); o.connect(og); og.connect(d0); o.start(t); o.stop(t+0.06);
   }
+  // air distance (in tiles) from a sound source to every open cell: a BFS through empty
+  // cells, cached per stage and refreshed every 2 s (doors, broken blocks)
+  let airF=null;
+  function airPath(B,sxw,syw,lx,ly){
+    const lv=B.level; if(!lv||!lv.cells) return null;
+    const T=32, now=typeof fr==='number'?fr:0;
+    if(!airF||airF.lv!==lv||airF.sx!==sxw||now-airF.at>120){
+      const cols=lv.cols, rows=lv.rows, D=new Int16Array(cols*rows).fill(-1), q=new Int32Array(cols*rows);
+      const open=(c,r)=>{ if(c<0||r<0||c>=cols||r>=rows) return false; const t=lv.cells[r][c]; return !t||t===2; };
+      let c0=Math.floor(sxw/T), r0=Math.floor(syw/T);
+      if(!open(c0,r0)){ for(const [dc,dr] of [[0,-1],[1,0],[-1,0],[0,1],[0,-2]]) if(open(c0+dc,r0+dr)){ c0+=dc; r0+=dr; break; } }
+      let h=0,tl=0; if(open(c0,r0)){ D[r0*cols+c0]=0; q[tl++]=r0*cols+c0; }
+      while(h<tl){ const i=q[h++], c=i%cols, r=(i/cols)|0, dd=D[i]+1;
+        for(const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]){ const cc=c+dc, rr=r+dr; if(!open(cc,rr)) continue; const k=rr*cols+cc; if(D[k]>=0) continue; D[k]=dd; q[tl++]=k; } }
+      airF={lv, sx:sxw, at:now, D, cols, rows};
+    }
+    const c=Math.floor(lx/T), r=Math.floor(ly/T);
+    let best=-1;
+    for(const [dc,dr] of [[0,0],[0,-1],[1,0],[-1,0],[0,1]]){ const cc=c+dc, rr=r+dr; if(cc<0||rr<0||cc>=airF.cols||rr>=airF.rows) continue; const v=airF.D[rr*airF.cols+cc]; if(v>=0&&(best<0||v<best)) best=v; }
+    return best<0?null:best*0.85;            // 4-neighbour steps overcount diagonals a little
+  }
+  window.MV_AIRPATH=airPath;
   let musicSet=false, waterWas=null;
   function musicFree(){ if(!musicSet) return; const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null; if(fx){ set(fx.lp.frequency,20000,0.3); set(fx.g.gain,1,0.3); set(fx.pan.pan,0,0.3); } musicSet=false; }
   function things(B,S,E){
@@ -195,10 +217,20 @@
       if(onStage){
         const vx=24*32+30, vy=home.y+home.h-50, L=SP.listener();
         const d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
-        // farther = a smooth shave of the highs (12 dB/oct), walls shave more; it stays audible, just muffled
-        lp=Math.max(200,18000/Math.pow(1+d/6,1.6)*Math.pow(0.55,ot));
-        g=Math.max(0.42,1/(1+Math.pow(d/18,1.3)))*Math.max(0.6,Math.pow(0.85,ot));
-        pan=Math.max(-0.45,Math.min(0.45,(vx-L.x)/(14*32)))*(ot>0?0.5:1);
+        // Paulo (Oct 22): right outside the door or down in the tunnel it went unrealistically
+        // muffled. Sound doesn't only go through the rock — it travels round it, through the
+        // door and along the air. Two paths, and the clearer one wins:
+        //   · through the mass: distance + walls (walls shave the highs, gently)
+        //   · around it: the shortest way through the air (flood-filled from the gramophone),
+        //     a little duller the more it has to bend round corners
+        const lpDirect=18000/Math.pow(1+d/8,1.3)*Math.pow(0.78,ot);
+        const gDirect=1/(1+Math.pow(d/20,1.2))*Math.pow(0.9,ot);
+        const air=airPath(B,vx,vy,L.x,L.y);
+        let lpAir=0, gAir=0;
+        if(air!=null){ const bend=Math.max(0,air-d); lpAir=18000/Math.pow(1+air/10,1.1)/(1+bend/25); gAir=1/(1+Math.pow(air/24,1.2))/(1+bend/40); }
+        lp=Math.max(900,lpDirect,lpAir);
+        g=Math.max(0.5,gDirect,gAir);
+        pan=Math.max(-0.45,Math.min(0.45,(vx-L.x)/(14*32)))*(air!=null&&air-d<3?1:0.6);
       }
       if(onStage||musicSet){ set(fx.lp.frequency,lp,0.5); set(fx.g.gain,g,0.5); set(fx.pan.pan,pan,0.5); }
       musicSet=onStage;
