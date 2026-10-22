@@ -139,7 +139,12 @@
       if(ac){
         try{
           const src=ac.createMediaElementSource(this); SKIP.add(src);
-          const b=busFor(ac); known.add(ac); origConnect.call(src,b.musicPost||b.music); routed.add(this);
+          const b=busFor(ac); known.add(ac);
+          // build 224: the music has a place in the world (beta_ambience.js moves these):
+          // a 12 dB/oct high-cut, a level and a pan, shared by every track
+          if(!b.mfx){ const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.707; const g=ac.createGain(); const pn=ac.createStereoPanner();
+            SKIP.add(lp); SKIP.add(g); SKIP.add(pn); origConnect.call(lp,pn); origConnect.call(pn,g); origConnect.call(g,b.musicPost||b.music); b.mfx={lp,g,pan:pn}; }
+          origConnect.call(src,b.mfx.lp); routed.add(this);
         }catch(e){ routed.add(this); }
       }
     }
@@ -156,5 +161,5 @@
   },60);
   const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
   hook();
-  window.MV_SOUND16={ get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
+  window.MV_SOUND16={ musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
 })();
