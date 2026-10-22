@@ -12,7 +12,7 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 - Feel knobs = top of `js/physics.js` + `_updatePlayerMoveX` in `js/player.js`.
 - QA = `npm run selftest` (or `selftest:quick`). Do not ask for F12 pastes.
 - Do **not** open Simple Browser / extra play tabs on `:8765` (BGM stacks).
-- Venture’s hat is **black like Mind’s**, back brim only (laid-down P) — not red.
+- The look follows Paulo’s key art (`assets/ui/title-key.jpg`, Oct 22): black box, thick record on top with chrome-orb shoulders, clear bulb with a purple (Mind) / red (Venture) eye, Mind’s flat wide-brim hat, **Venture’s red backwards cap**, purple / red gloves, Knowl tank in the back.
 - After substantive game work: commit and push `main` (GitHub Pages).
 
 ## First files to open for a typical ask
