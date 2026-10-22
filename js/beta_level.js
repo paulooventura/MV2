@@ -1006,10 +1006,18 @@
     if(fr%5===0) PFXS.push({x:P.cx-P.ux*2+(Math.random()-0.5)*26*Math.abs(P.uy),y:P.cy-P.uy*2+(Math.random()-0.5)*26*Math.abs(P.ux),vx:(Math.random()-0.5),vy:-0.3-Math.random(),life:10,maxLife:10,r:1.5,col:Math.random()<0.5?'#ff5050':'#5080ff'});
     return true;
   }
-  B.parkInput=function(){                                  // before the game's own jump: DOWN + JUMP lets go; nothing else jumps
-    const P=B.magPark; if(!P||typeof isJumpJ!=='function') return;
-    if(!isJumpJ()) return;
-    if(P.st==='parked'&&typeof isDn==='function'&&isDn()) parkRelease();
+  // Paulo (Oct 22): DOWN + JUMP lets go of the surface — parked, mid plug-in, or still
+  // holding the MAG against it. Any other jump while stuck is swallowed.
+  function lockRelease(){
+    const L=B.magLock; if(!L) return; B.magLock=null; B.mag.noRelock=true;      // no re-grab until the button is let go
+    try{ MV_BETA_AUDIO.magHum(false); sfx('omniblock_chip'); }catch(e){}
+    p.og=false; p.vx=-L.ux*2.5; p.vy=L.uy>0.3?-5:(L.uy<-0.3?1.5:-2.5);
+    for(let k=0;k<10;k++) PFXS.push({x:L.cx,y:L.cy,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:12,maxLife:12,r:1.6,col:k%2?'#ff5050':'#5080ff'});
+  }
+  B.parkInput=function(){                                  // runs before the game's own jump
+    if(!(B.magPark||B.magLock)||typeof isJumpJ!=='function'||!isJumpJ()) return;
+    const dn=typeof isDn==='function'&&isDn();
+    if(dn){ if(B.magPark) parkRelease(); else lockRelease(); }
     OPT.binds.jump.forEach(c=>delete Kj[c]);
   };
   // the parked magnet and its cord (drawn in the world, behind MIND)
@@ -1043,7 +1051,7 @@
       M.power=Math.max(0,M.power-MAG.DRAIN*(M.held.length?Math.max(0.6,heldWeight()/6):0.6));
       p.itemStamina=M.power;
     }
-    M.wasOn=on;
+    M.wasOn=on; if(!on) M.noRelock=false;
     if(!on||p.itemStamina<=0){ if(B.magLock){ B.magLock=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} } while(M.held.length) dropHeld(M.held.pop()); return; }
     pullAround();
     // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
@@ -1053,6 +1061,7 @@
     // …and the same in any of the 8 directions: whenever the magnet's poles meet
     // rock (a wall, a ceiling, the floor — on the ground or in the air) it locks
     // there until the button is let go. Cubes still get grabbed instead.
+    if(M.noRelock&&!B.magLock) return;                       // let go with DOWN + JUMP: free until the button is released
     const hit=!B.magLock&&!M.held.length?(rockAtTip()||((typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())?{x:p.x+SW/2,y:p.y+FEET_OFF,ux:0,uy:1}:null)):null;
     if(B.magLock||hit){
       if(!B.magLock){
@@ -1964,7 +1973,6 @@
       if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();
       return;
     }
-    if(B.on&&_gameState==='game'&&B.parkInput) B.parkInput();
     const r=_origUpdate.apply(this, arguments);
     if(B.on&&_gameState==='game') livesTick();
     return r;
