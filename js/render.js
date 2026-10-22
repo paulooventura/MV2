@@ -171,6 +171,11 @@ function drawWheel(cx,cy,angle,plRef){
   const tilt=pl.suspTilt||0;
   ctx.save();ctx.translate(cx,cy);ctx.rotate(tilt);
   ctx.translate(-cx,-cy);
+  // rubber: the tire squashes about its contact patch (flat under load, bulging on landings)
+  const tsq=Math.max(-1.2,Math.min(8,pl._tireSq||0));
+  if(Math.abs(tsq)>0.05){ ctx.translate(cx,cy+R); ctx.scale(1+tsq*0.55/R,1-tsq/R); ctx.translate(-cx,-(cy+R)); }
+  const tsx=Math.max(-1.2,Math.min(8,pl._tireSx||0)), tdir=pl._tireSxDir||1;
+  if(Math.abs(tsx)>0.05){ ctx.translate(cx+tdir*R,cy); ctx.scale(1-tsx/R,1+tsx*0.55/R); ctx.translate(-(cx+tdir*R),-cy); }
   ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
   ctx.fillStyle='#14101c';ctx.fill();
   // Knobby off-road tread blocks (rotate with wheel)

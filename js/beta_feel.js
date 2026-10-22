@@ -113,6 +113,7 @@
         pl.vx=-vx0*FEEL.WALL_REST*Math.sqrt(9.5/WT());
         if(pl.og) pl.vy=Math.min(pl.vy,-Math.min(3,Math.abs(vx0)*0.18));   // a little hop off the rubber
         st.wallCd=FEEL.WALL_CD; pl.suspComp=Math.max(pl.suspComp||0,6);
+        pl._tireSxV=(pl._tireSxV||0)+Math.min(6,Math.abs(vx0)*0.6); pl._tireSxDir=dir;   // the rubber flattens against the wall
         try{ sfx('hit'); }catch(e){}
         for(let i=0;i<6;i++) PFXS.push({x:fx,y:midY+(Math.random()-0.5)*30,vx:-dir*(1+Math.random()*2),vy:(Math.random()-0.5)*2,life:12+Math.random()*8|0,maxLife:20,r:1.5+Math.random()*1.5,col:'#c8b8a0'});
       }
@@ -123,6 +124,7 @@
       if(up>0.9){
         pl.vy=-up; pl.og=false; pl._groundHold=0; st.bounceT=14;
         pl.suspComp=Math.max(pl.suspComp||0,Math.min(14,vy0*1.1));
+        pl._tireSqV=(pl._tireSqV||0)+Math.min(7,vy0*0.6);                            // …and squashes flat on the floor first
       }
     }
   };

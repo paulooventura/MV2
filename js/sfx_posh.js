@@ -93,7 +93,9 @@
   const R={
     jump(a,p){ p=p||1; tone(a,{f:300*p,f1:620*p,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600*p,f1:1240*p,d:0.12,v:0.05}); hiss(a,{f:2200*p,q:0.8,d:0.08,v:0.05}); },
     jump_spring(a,p){ p=p||1; tone(a,{f:220*p,f1:880*p,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84)*p,d:0.4,v:0.05}); hiss(a,{f:3000*p,d:0.1,v:0.05}); },
-    land(a){ tone(a,{f:130,f1:55,d:0.14,v:0.2}); hiss(a,{type:'lowpass',f:900,d:0.09,v:0.1}); },
+    // rubber tire landing: a soft low thump with a short rubbery bounce in the pitch (build 226)
+    land(a){ tone(a,{f:120,f1:52,d:0.14,v:0.2}); tone(a,{f:190,f1:150,dt:0.03,d:0.07,v:0.05,type:'triangle',lp:900}); hiss(a,{type:'lowpass',f:700,d:0.07,v:0.07}); },
+    tire_squeal(a,p){ p=p||0.6; tone(a,{f:1150,f1:980,d:0.22+0.12*p,v:0.035*(0.5+p),type:'sawtooth',bp:2300,q:6,vib:28,vibd:35}); hiss(a,{f:2600,q:3,d:0.18+0.1*p,v:0.03*(0.5+p)}); hiss(a,{type:'lowpass',f:500,d:0.1,v:0.05}); },
     // punches (Paulo, Oct 20): the swing is a WHOOSH; landing it is a separate thump (beta_impact.js)
     punch(a){ hiss(a,{f:420,f1:1900,q:1.3,d:0.17,v:0.2,at:0.02}); hiss(a,{type:'lowpass',f:700,f1:300,d:0.14,v:0.08,at:0.015}); },
     punch_heavy(a){ hiss(a,{f:260,f1:1500,q:1.1,d:0.3,v:0.26,at:0.035,rev:0.12}); hiss(a,{type:'lowpass',f:500,f1:160,d:0.28,v:0.14,at:0.03}); tone(a,{f:90,f1:150,d:0.25,v:0.06,type:'triangle',at:0.05}); },

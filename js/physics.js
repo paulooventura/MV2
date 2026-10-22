@@ -42,6 +42,16 @@ const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
 const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
+// Rubber tire (Paulo, Oct 22: "make the edge of the wheel look and feel like tire rubber")
+const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
+const TIRE_MAX_SQ=7;         // px it can squash on a hard landing
+const TIRE_HIT=5.2;          // squash kick per landing (× landing strength)
+const TIRE_K=0.32;           // rubber spring (fast) …
+const TIRE_DAMP=0.70;        // … with a little jiggle after it
+const TIRE_REBOUND=0.16;     // landings rebound off the rubber (× landing speed) …
+const TIRE_REBOUND_MAX=2.1;  // … capped, so it's a bounce, not a hop
+const TIRE_SKID_BRAKE=0.42;  // decel per frame against the roll that makes the tire squeal
+const TIRE_GRIP_TURN=1.06;   // rubber bites: turning around on the ground digs in a little harder
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
@@ -1284,10 +1294,11 @@ function resolvePlatY(pl,prevFeet){
         pl.jumpTiltF=0;
         pl.suspComp=Math.min(1,Math.max(pl.suspComp||0,landAmp*0.82));
         pl.suspVel=Math.max(pl.suspVel||0,landAmp*0.14);
+        pl._tireSqV=(pl._tireSqV||0)+landAmp*TIRE_HIT;
         if(pl===p&&!(pl.hook&&pl.hook.st==='on')) sfx('land');
       }
       pl._groundHold=10;
-      if(!wasOg&&landVy>5.5) pl.vy=-Math.min(0.9,landVy*0.08);
+      if(!wasOg&&landVy>5.5) pl.vy=-Math.min(TIRE_REBOUND_MAX,landVy*TIRE_REBOUND);   // rubber gives some of it back (was 0.08 / 0.9)
       return;
     }
     if(!wasOg) pl.og=false;
@@ -2272,6 +2283,27 @@ function _updateWheelSuspension(pl,prevVx){
     pl.suspVel=0;
   }
   const accel=(pl.vx||0)-(prevVx||0);
+  // the tire: flattens under load, squashes on landings and jiggles back like rubber
+  const tBase=pl.og?TIRE_LOAD_SQ*(1+Math.min(0.6,Math.abs(pl.vx||0)*0.04)):0;
+  pl._tireSqV=((pl._tireSqV||0)+(tBase-(pl._tireSq||0))*TIRE_K)*TIRE_DAMP;
+  pl._tireSq=Math.max(-1.2,Math.min(TIRE_MAX_SQ,(pl._tireSq||0)+pl._tireSqV));
+  pl._tireSxV=((pl._tireSxV||0)-(pl._tireSx||0)*TIRE_K)*TIRE_DAMP;            // sideways, off a wall
+  pl._tireSx=Math.max(-1.2,Math.min(TIRE_MAX_SQ,(pl._tireSx||0)+pl._tireSxV));
+  // braking hard against the roll on the ground: the rubber grips, flexes and squeals
+  const tv0=pl._tireVx==null?(pl.vx||0):pl._tireVx, tAcc=(pl.vx||0)-tv0; pl._tireVx=pl.vx||0;   // own last-frame speed (prevVx is already this frame's)
+  const against=pl===p&&typeof isLf==='function'&&((tv0>0&&isLf())||(tv0<0&&isRt()));   // only when he's steering against the roll (coasting doesn't squeal)
+  if(against&&pl.og&&Math.abs(tv0)>2.6&&Math.sign(tAcc)===-Math.sign(tv0)&&Math.abs(tAcc)>TIRE_SKID_BRAKE){
+    if(!(pl._skidT>0)&&pl===p&&typeof sfx==='function') sfx('tire_squeal',Math.min(1,Math.abs(tv0)/RUN));
+    pl._skidT=10; pl._tireSqV+=0.35;
+    if(Math.sign(pl.vx||0)!==Math.sign(tv0)) pl.vx*=TIRE_GRIP_TURN;
+  }
+  if(pl._skidT>0){
+    pl._skidT--;
+    if(typeof PFXS!=='undefined'&&(pl._skidT&1)){                       // rubber smudge + dust off the contact patch
+      const cx=pl.x+SW/2, gy=pl.y+FEET_OFF;
+      PFXS.push({x:cx-Math.sign(pl.vx||1)*6,y:gy-2,vx:-(pl.vx||0)*0.2+(Math.random()-0.5),vy:-Math.random()*0.8,life:16,maxLife:16,r:2+Math.random()*2,col:Math.random()<0.5?'#2a2626':'#8a7a6a'});
+    }
+  }
   const onSlope=!!(pl.og&&Math.abs(pl._slopeAngle||0)>0.08);
   const tiltTgt=pl.og&&!onSlope?Math.sign(pl.vx||0)*Math.min(0.38,Math.abs(pl.vx)/RUN*0.34)+accel*0.04:0;
   pl.suspTilt=((pl.suspTilt||0)+(tiltTgt-(pl.suspTilt||0))*0.22);
