@@ -201,88 +201,51 @@ function isJumpJ(){ return _bindJ('jump'); }
 function isPunch(){ return _bindDown('punch'); }
 
 let _punchHoldF=0, _punchHoldFr=-1;
+// The item button is also Run. A fast tap arms it; holding it again with a
+// direction is the sprint. Shift still runs on its own. A plain hold is the item.
+const _SPRINT_TAP=12, _SPRINT_ARM=40;
+function _itemBtnDown(){
+  return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
+}
 function isSprintHeld(){
-  if(typeof _bindDown==='function'&&_bindDown('sprint')) return true;
-  if(K.Sprint_gp||K.Sprint_t) return true;              // X on a pad / the touch X button
   if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
-  // Paulo (Oct 20): holding PUNCH charges the punch only — it doesn't make him run
+  if(p&&p._sprintMode&&_itemBtnDown()&&_moveInputX()!==0) return true;
   return false;
 }
-// Stand still, tap forward, let go, then forward + run. That second press is a
-// run: he gains speed, and the item stays quiet. Run is the same button as
-// Use Item, so without this the press would drain the selected jack's bar.
-// Paulo (Oct 22): the other way in — TAP the item/run button, then press it again and HOLD it
-// with a direction. That locks run mode: no item fires, no power is spent, for as long as
-// the button stays held (direction changes are fine; standing still a moment ends it).
-const RUN_TAP_MAX=12, RUN_TAP_GAP=18, RUN_PEND=10, RUN_IDLE_END=12;
 function _updateRunEntry(pl){
   if(!pl||pl!==p) return;
-  const dir=typeof _moveInputX==='function'?_moveInputX():0;
-  const run=isSprintHeld();
-  const item=typeof _bindDown==='function'&&_bindDown('swap');
-  // tap detection on the item button
-  if(item&&!pl._qWas){ pl._qDownFr=fr; if(pl._qTapEnd!=null&&fr-pl._qTapEnd<=RUN_TAP_GAP&&(pl._runPhase||0)!==3){ pl._runPhase=4; pl._runPend=RUN_PEND; } }
-  if(!item&&pl._qWas){ pl._qTapEnd=(fr-(pl._qDownFr||fr)<=RUN_TAP_MAX)?fr:null; }
-  pl._qWas=item;
-  let phase=pl._runPhase||0;
-  if(phase===4){                                          // tap, press again: waiting for a direction
-    if(!item){ pl._runPhase=0; return; }
-    if(dir){ phase=pl._runPhase=3; pl._runDir=dir; pl._runIdle=0; pl.movePower=Math.max(pl.movePower||0,0.55); pl.runRamp=Math.max(pl.runRamp||0,0.22); pl._runLocked=true; return; }
-    if(--pl._runPend<=0) pl._runPhase=0;                  // held with no direction: it's the item after all
+  const btn=_itemBtnDown();
+  const dir=_moveInputX();
+  const was=!!pl._itemWas;
+  const up=!btn&&was;
+  if(up){
+    const held=pl._itemHold||0;
+    if(!pl._sprintMode&&held>0&&held<=_SPRINT_TAP) pl._sprintArm=_SPRINT_ARM;
+    pl._itemHold=0;
+    pl._sprintMode=false;
+  }
+  if(btn) pl._itemHold=(pl._itemHold||0)+1;
+  pl._itemWas=btn;
+  if(pl._sprintMode){
+    if(!btn) pl._sprintMode=false;
+    else pl._sprintArm=0;
     return;
   }
-  if(phase===3){
-    if(pl._runLocked){                                     // the tap-hold lock: only letting go (or stopping) ends it
-      if(run&&dir){ pl._runDir=dir; pl._runIdle=0; return; }
-      if(run&&(pl._runIdle=(pl._runIdle||0)+1)<=RUN_IDLE_END) return;
-      pl._runPhase=0; pl._runLocked=false; pl._runIdle=0; return;
-    }
-    if(dir&&run&&dir===(pl._runDir||dir)) return;
-    pl._runPhase=0; pl._runGap=0; pl._runLed=0; pl._runArm=0; return;
-  }
-  const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(pl):!!pl.og;
-  if(!grounded||(pl.wallGrip||0)>0){ pl._runPhase=0; pl._runGap=0; return; }
-  if(phase===1){
-    if(run){ pl._runPhase=0; return; }
-    if(!dir){ pl._runPhase=2; pl._runGap=72; }
-    return;
-  }
-  if(phase===2){
-    pl._runGap=(pl._runGap||0)-1;
-    // The two keys rarely land on the same frame. Forward may lead run by a
-    // few frames, or run may lead forward. Either way it is still this run.
-    // A lone run press only stays quiet for a moment — holding it with no
-    // direction after that uses the item, the way a stop-and-fire does.
-    if(run&&!dir){
-      if(!pl._runLed){ pl._runLed=1; pl._runArm=10; }
-      else if((pl._runArm||0)>0) pl._runArm--;
-    }else{
-      if(!run) pl._runLed=0;
-      if((pl._runArm||0)>0) pl._runArm--;
-    }
-    if(dir&&run){
-      pl._runPhase=3; pl._runDir=dir; pl._runArm=0; pl._runJoin=0; pl._runLed=0;
+  if((pl._sprintArm||0)>0){
+    if(!btn) pl._sprintArm--;
+    else if(dir){
+      pl._sprintMode=true; pl._sprintArm=0;
       pl.movePower=Math.max(pl.movePower||0,0.55);
       pl.runRamp=Math.max(pl.runRamp||0,0.22);
-      return;
-    }
-    if(dir&&!run){
-      pl._runJoin=(pl._runJoin||0)+1;
-      if(pl._runJoin>14){ pl._runPhase=1; pl._runJoin=0; pl._runArm=0; }
-      return;
-    }
-    pl._runJoin=0;
-    if(pl._runGap<=0){ pl._runPhase=0; pl._runArm=0; }
-    return;
+    }else if((pl._itemHold||0)>_SPRINT_TAP) pl._sprintArm=0;
   }
-  const still=Math.abs(pl.vx||0)<1.15&&(pl.movePower||0)<0.28;
-  if(still&&dir&&!run) pl._runPhase=1;
 }
 function _runItemQuiet(pl){
-  if(!pl||typeof _bindDown!=='function'||!_bindDown('swap')) return false;
-  const phase=pl._runPhase||0;
-  if(phase===3||phase===4) return true;                   // locked run (or about to lock): the item stays quiet
-  return phase===2&&(pl._runArm||0)>0;
+  if(!pl||!_itemBtnDown()) return false;
+  if(pl._sprintMode) return true;
+  if((pl._itemHold||0)>0&&(pl._itemHold||0)<=_SPRINT_TAP) return true;
+  if((pl._sprintArm||0)>0&&_moveInputX()!==0) return true;
+  return false;
 }
 function _moveInputX(){
   if(_bindDown('right')&&!_bindDown('left')) return 1;
@@ -790,6 +753,7 @@ function connectorTipWorld(itemOverride=ITEM){
 // ground under his wheel, XLR launches him, TRS bounces off the floor upward)
 function _itemDownAim(pl){
   if(pl!==p||!pl.og||typeof isDn!=='function'||!isDn()||ITEM<0) return false;
+  if(pl._sprintMode) return false;
   return _bindDown('swap')||(typeof _bindJ==='function'&&_bindJ('swap'))||!!pl.laserCharging||!!pl.xlrOn||!!pl.magOn||!!(pl.hook&&pl.hook.st==='ext');
 }
 function connectorAimAngle(){

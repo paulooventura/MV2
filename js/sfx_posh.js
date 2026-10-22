@@ -94,10 +94,29 @@
     jump(a,p){ p=p||1; tone(a,{f:300*p,f1:620*p,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600*p,f1:1240*p,d:0.12,v:0.05}); hiss(a,{f:2200*p,q:0.8,d:0.08,v:0.05}); },
     jump_spring(a,p){ p=p||1; tone(a,{f:220*p,f1:880*p,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84)*p,d:0.4,v:0.05}); hiss(a,{f:3000*p,d:0.1,v:0.05}); },
     // rubber tire landing: a soft low thump with a short rubbery bounce in the pitch (build 226)
-    land(a){ tone(a,{f:120,f1:52,d:0.14,v:0.2}); tone(a,{f:190,f1:150,dt:0.03,d:0.07,v:0.05,type:'triangle',lp:900}); hiss(a,{type:'lowpass',f:700,d:0.07,v:0.07}); },
+    land(a,drive){
+      const d=Math.max(0,Math.min(1,typeof drive==='number'?drive:0.35));
+      tone(a,{f:98-d*46,f1:32,d:0.1+d*0.16,v:0.14+d*0.28,at:0.002});
+      tone(a,{f:170-d*50,f1:46,d:0.07+d*0.08,v:0.05+d*0.18,type:'triangle',lp:800-d*300,at:0.002});
+      hiss(a,{type:'lowpass',f:1100-d*500,f1:90,d:0.05+d*0.12,v:0.07+d*0.2,at:0.001});
+      if(d>0.4) hiss(a,{f:220+d*180,q:0.7,d:0.045+d*0.03,v:0.05+d*0.12,at:0.001});
+      if(d>0.62) tone(a,{f:46,f1:24,d:0.2+d*0.08,v:0.12+d*0.14,type:'sine'});
+    },
     // the woofer kicks the air: a sub thump, a pressure whoomp and a rising chirp (double jump)
     double_jump(a){ tone(a,{f:70,f1:120,d:0.18,v:0.28}); hiss(a,{type:'lowpass',f:300,f1:1400,d:0.16,v:0.12}); tone(a,{f:420,f1:980,dt:0.02,d:0.16,v:0.07,type:'triangle',rev:0.3}); },
     tire_squeal(a,p){ p=p||0.6; tone(a,{f:1150,f1:980,d:0.22+0.12*p,v:0.035*(0.5+p),type:'sawtooth',bp:2300,q:6,vib:28,vibd:35}); hiss(a,{f:2600,q:3,d:0.18+0.1*p,v:0.03*(0.5+p)}); hiss(a,{type:'lowpass',f:500,d:0.1,v:0.05}); },
+    // the wheel's engine: one tiny explosion. drive 0 is the idle putter (low, soft);
+    // drive 1 is a faster, higher, sharper pop. The game schedules how often.
+    engine_pop(a,drive){
+      const d=Math.max(0,Math.min(1,typeof drive==='number'?drive:0));
+      const f=58+d*168;
+      const at=0.022-d*0.018;
+      const v=0.04+d*0.1;
+      const dur=0.08-d*0.035;
+      tone(a,{f,f1:Math.max(36,f*0.42),d:dur+0.05,v:v*0.85,type:'sine',at,lp:320+d*1100});
+      hiss(a,{type:'lowpass',f:220+d*980,f1:90+d*180,d:dur,v,at:Math.max(0.001,at*0.35),q:0.6});
+      hiss(a,{f:700+d*1800,q:2.4,d:0.018+d*0.012,v:0.018+d*0.055,at:0.001});
+    },
     // punches (Paulo, Oct 20): the swing is a WHOOSH; landing it is a separate thump (beta_impact.js)
     punch(a){ hiss(a,{f:420,f1:1900,q:1.3,d:0.17,v:0.2,at:0.02}); hiss(a,{type:'lowpass',f:700,f1:300,d:0.14,v:0.08,at:0.015}); },
     punch_heavy(a){ hiss(a,{f:260,f1:1500,q:1.1,d:0.3,v:0.26,at:0.035,rev:0.12}); hiss(a,{type:'lowpass',f:500,f1:160,d:0.28,v:0.14,at:0.03}); tone(a,{f:90,f1:150,d:0.25,v:0.06,type:'triangle',at:0.05}); },
@@ -247,6 +266,35 @@
     try{ r(a,p); }catch(e){ return orig.apply(this,arguments); }
   };
   window.MV_SFX_POSH={names:Object.keys(R), bus:realBus};
+
+  // Wheel engine. Idle is 5 soft low pops a second. Speed and torque make them
+  // faster, higher, and sharper. Three seconds standing still shuts it off;
+  // a tap forward starts the cycle again.
+  let _engAcc=0, _engOn=true, _engIdle=0;
+  function _engineTick(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return;
+    if(typeof _paused!=='undefined'&&_paused) return;
+    if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0) return;
+    const dir=typeof _moveInputX==='function'?_moveInputX():0;
+    const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+    const spd=Math.max(0,Math.min(1,Math.abs(p.vx||0)/top));
+    const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
+    if(dir){ _engOn=true; _engIdle=0; }
+    else if(grounded&&spd<0.06){
+      if(++_engIdle>=180) _engOn=false;
+    }else _engIdle=0;
+    if(!_engOn){ _engAcc=0; return; }
+    const sprint=typeof isSprintHeld==='function'&&isSprintHeld()&&dir;
+    const torque=dir?Math.min(1,0.28+(sprint?0.42:0.12)+((p.runRamp||0)*0.3)):0;
+    const drive=Math.max(0,Math.min(1,Math.max(spd,torque)));
+    const hz=5+11*drive;
+    _engAcc+=1/60;
+    const step=1/hz;
+    if(_engAcc<step) return;
+    _engAcc=Math.min(_engAcc-step,step*0.5);
+    try{ sfx('engine_pop',drive); }catch(e){}
+  }
+  window.MV_ENGINE={tick:_engineTick};
 
   // a few more moments that deserve a sound
   window.addEventListener('load',()=>{

@@ -17,7 +17,7 @@
   const FEEL={
     XLR_GRIP:0.78,                                       // share of the XLR shove the tire soaks up when driving into it
     WALL_MIN:5.2,  WALL_REST:0.42, WALL_CD:16,          // wall bounce
-    LAND_MIN:7.0,  LAND_REST:0.42, LAND_MAX:6.0,        // wheel bounce
+    LAND_MIN:4.4,  LAND_REST:0.42, LAND_MAX:6.0,        // wheel bounce
     TUCK_SLIDE:14,                                       // px of corner forgiveness on a head bump
     XLR_FULL:45,   SUPER_H:395,                          // frames to full power; loaded-jump height (px)
     HOVER_R:200,   HOVER_R_ENH:280, LAUNCH_REACH:3*T
@@ -113,7 +113,7 @@
       if(solidCellAt(fx,midY)||solidCellAt(fx,body.feetY-70)){
         pl.vx=-vx0*FEEL.WALL_REST*Math.sqrt(9.5/WT());
         if(pl.og) pl.vy=Math.min(pl.vy,-Math.min(3,Math.abs(vx0)*0.18));   // a little hop off the rubber
-        st.wallCd=FEEL.WALL_CD; pl.suspComp=Math.max(pl.suspComp||0,6);
+        st.wallCd=FEEL.WALL_CD; pl.suspVel=(pl.suspVel||0)+Math.min(0.7,Math.abs(vx0)*0.05);
         pl._tireSxV=(pl._tireSxV||0)+Math.min(6,Math.abs(vx0)*0.6); pl._tireSxDir=dir;   // the rubber flattens against the wall
         try{ sfx('hit'); }catch(e){}
         for(let i=0;i<6;i++) PFXS.push({x:fx,y:midY+(Math.random()-0.5)*30,vx:-dir*(1+Math.random()*2),vy:(Math.random()-0.5)*2,life:12+Math.random()*8|0,maxLife:20,r:1.5+Math.random()*1.5,col:'#c8b8a0'});
@@ -124,8 +124,7 @@
       const up=Math.min(FEEL.LAND_MAX,(vy0-FEEL.LAND_MIN*0.55)*FEEL.LAND_REST*Math.sqrt(9.5/WT()));
       if(up>0.9){
         pl.vy=-up; pl.og=false; pl._groundHold=0; st.bounceT=14;
-        pl.suspComp=Math.max(pl.suspComp||0,Math.min(14,vy0*1.1));
-        pl._tireSqV=(pl._tireSqV||0)+Math.min(7,vy0*0.6);                            // …and squashes flat on the floor first
+        pl.suspVel=(pl.suspVel||0)+Math.min(0.9,vy0*0.06);
       }
     }
   };

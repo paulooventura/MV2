@@ -231,7 +231,7 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-const OPT_FIXED_ROWS=5;   // music style, music vol, sfx vol, console, CRT TV
+const OPT_FIXED_ROWS=6;   // music style, music vol, sfx vol, console, CRT TV, enemies
 function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS; }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
@@ -246,6 +246,14 @@ function _optionsInput(ev){
   if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
   if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
   if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optRow===5&&(dec||inc||ev.confirm)){
+    const B=window.MV_BETA;
+    if(B&&typeof B.setDifficulty==='function'){
+      const cur=B.difficulty||2;
+      B.setDifficulty(dec?(cur<=1?3:cur-1):(cur>=3?1:cur+1));
+    }
+    return true;
+  }
   if(_optRow>=OPT_FIXED_ROWS&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
   return true;
 }
@@ -299,7 +307,7 @@ function startStoryMode(){
   else { _stopBGM('title'); _playBGM('story',OPT.musicVol*0.85); }   // the storyline theme, up front
 }
 function _ensureTitleMusic(){
-  if(_gameState!=='title') return;
+  if(_gameState!=='title'&&_gameState!=='splash') return;
   if(_titleMusicPlaying&&_openingAudioEl&&!_openingAudioEl.paused) return;
   _unlockAudio(); _playBGM('title',OPT.musicVol);
 }
@@ -533,7 +541,8 @@ function drawOptions(){
   const padX=80, panelW=W-padX*2, rowH=34, scl=2;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
-    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
+    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
+    {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()}];
   BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
   const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));
   uiPanel(padX,panelY,panelW,panelH,{r:16});
@@ -851,7 +860,7 @@ function updateVersionBar(){
   if(mvVer){
     if(_gameState==='game'&&_battleTestMode){ mvVer.style.fontSize='16px';mvVer.textContent='BATTLE PRACTICE — stats in panel above canvas';mvVer.style.color='#6f6'; }
     else if(_gameState==='game'){ mvVer.style.fontSize='16px';mvVer.style.fontWeight='bold'; const spd=Math.round(Math.abs(p.vx||0)); const b=window.MV_BUILD||'?'; const ed=(typeof _mapEdActive!=='undefined'&&_mapEdActive)?'  |  EDIT AWDJOO':''; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+'  |  speed '+spd+' / '+(typeof MOVE_WALK_TOP!=='undefined'?MOVE_WALK_TOP:MOVE_WALK)+ed; mvVer.style.color=ed?'#8cf':(spd>=6?'#6f6':(spd>=2?'#ff6':'#f66')); }
-    else{ mvVer.style.fontSize='16px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/(?:new music|bgm)\//,''):''; const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+(track?'  |  '+track:'')+' — click to start'; mvVer.style.color='#6f6'; }
+    else{ mvVer.style.fontSize='16px';mvVer.style.fontWeight='bold'; const track=_titleMusicPath?_titleMusicPath.replace(/^assets\/(?:new music|bgm)\//,''):''; const b=window.MV_BUILD||'?'; mvVer.textContent='build '+b+'  |  MOVE v'+MOVE_BUILD+(track?'  |  '+track:''); mvVer.style.color='#6f6'; }
   }
   if(inf){
     if(!(_battleTestMode&&_gameState==='game')){

@@ -921,13 +921,24 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     // â”€â”€ PUNCH â€” extends in AIM direction (8-way like items) â”€â”€
     let armLen = guardFwd + snapFrac*(punchFwd - guardFwd);
     let punchAngle = Math.atan2(p.aimDY, p.aimDX);
-    const _downPunch=Math.sin(punchAngle)>0.45&&(p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p)));
+    const _grounded=p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p));
+    const _straightDown=_grounded&&p.aimDY>0.75&&Math.abs(p.aimDX)<0.35;
+    const _diagDown=_grounded&&!_straightDown&&p.aimDY>0.4&&Math.abs(p.aimDX)>=0.35;
+    const _downPunch=_straightDown;
+    if(_diagDown) armLen=Math.max(armLen, guardFwd+snapFrac*((isChargedHook?84:68)-guardFwd));
     if(_downPunch){
       const _fx=p.x+SW/2, _fy=p.y+FEET_OFF+6;
       punchAngle=Math.atan2(_fy-shWY,_fx-shWX);
       armLen=Math.max(armLen,Math.hypot(_fx-shWX,_fy-shWY));
     }else if(typeof _armSolid==='function'){                       // the fist stops at the wall's face
-      for(let d=6; d<=armLen+10; d+=3){ if(_armSolid(shWX+Math.cos(punchAngle)*d, shWY+Math.sin(punchAngle)*d)){ armLen=Math.max(4,Math.min(armLen,d-10)); break; } }
+      const _wx0=p.x+SW/2, _feet=p.y+FEET_OFF;
+      for(let d=6; d<=armLen+10; d+=3){
+        const _hx=shWX+Math.cos(punchAngle)*d, _hy=shWY+Math.sin(punchAngle)*d;
+        if(!_armSolid(_hx,_hy)) continue;
+        // the floor under the wheel is what he is standing on, not a wall in the way
+        if(_diagDown&&Math.abs(_hx-_wx0)<22&&_hy>_feet-10) continue;
+        armLen=Math.max(12,Math.min(armLen,d-8)); break;
+      }
     }
     if(!hidden) drawCoil(sxp, syp, punchAngle, armLen/SMS_SCALE, armCol1, armCol2, armShine);
     // Fist pos in WORLD units = shoulder + arm in punch direction
@@ -1126,10 +1137,10 @@ function drawCharacter(){
   const suspC=p.suspComp||0;
   const walkBob=(!onRope&&p.og&&!p._onSlope&&Math.abs(p.vx)>0.5&&p.landF<=0)?Math.sin(fr*0.28+p.x*0.015)*0.45:0;
   const idleSway=0;
-  const suspDrop=onRope?0:(p.landF>0?suspC*SUSP_TRAVEL*0.55:0);
-  // build 227: the box rides the fork — the suspension spring (physics.js TIRE_*) dips it and rebounds once
-  const forkDip=onRope?0:Math.max(-1.5,Math.min(9,((p._tireSq||0)-TIRE_LOAD_SQ)*1.3));
-  const bodyCompress=onRope?0:landEase*(0.32+landAmp*0.68)*11-walkBob-idleSway+suspDrop+forkDip;
+  const suspDrop=onRope?0:suspC*SUSP_TRAVEL;
+  // the cabinet rides the fork. suspComp dips it on a landing and lifts it on the rebound; the wheel stays put
+  const forkDip=onRope?0:Math.max(-2,Math.min(10,((p._tireSq||0)-TIRE_LOAD_SQ)*1.6));
+  const bodyCompress=onRope?0:suspDrop+forkDip-walkBob-idleSway;
   const landHeadTuck=onRope?0:landEase;
   let hatTX=0, hatTY=0;
   if(!onRope&&p.jumpTiltF>0){

@@ -56,7 +56,7 @@ const TIRE_GRIP_TURN=1.06;   // rubber bites: turning around on the ground digs 
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
-const LIFE_REGEN_FRAMES=360;
+const LIFE_REGEN_FRAMES=120;   // one pip (20 HP) every 2 s; a hit still resets the wait
 const KNOWL_TREE_BOOST=2;
 let _knowlTreeZone=null;
 
@@ -72,7 +72,7 @@ const WHEEL_MIN_SUPPORT=0.42;
 const WHEEL_GROUND_EXIT=0.30;
 const WHEEL_SETTLE_TOL=1.25;
 const WHEEL_EDGE_ROLL=0.54;
-const SUSP_TRAVEL=14, SUSP_STIFF=0.44, SUSP_DAMP=0.7, SUSP_ROLL_MAX=11;
+const SUSP_TRAVEL=22, SUSP_STIFF=0.28, SUSP_DAMP=0.86, SUSP_ROLL_MAX=11;
 function _tileCampaignActive(){
   return typeof _mapApplied!=='undefined'&&!!_mapApplied&&typeof _zoneIdx!=='undefined'&&_zoneIdx===0
     &&typeof _battleTestMode!=='undefined'&&!_battleTestMode&&typeof _runTestMode!=='undefined'&&!_runTestMode;
@@ -190,15 +190,53 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // The world is drawn scaled by camZoom (main.js draw: _worldZoomBegin/_worldZoomEnd);
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
-let _camSpdS=0, _zoomSaved=false;
+const CAM_THREAT_ZOOM=0.09;   // a little closer once a threat is in the frame — present, not a smash
+let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0;
+// Same sense as the battle eye: nearby threats lean the frame in, and a mutual
+// notice (they have seen MIND) pulls a small zoom onto him and that zone.
+function _readThreatCam(){
+  const none={z:0,x:0,y:0};
+  if(!p||typeof ENEMS==='undefined') return none;
+  const ox=p.x+SW/2, oy=p.y+FEET_OFF-34;
+  let presence=0, focus=0, bx=0, by=0, bw=0;
+  for(const e of ENEMS){
+    if(!e||e.alive===false||e._aiCompanion) continue;
+    const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.4:20);
+    const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
+    if(d>540) continue;
+    const prox=1-d/540, prox2=prox*prox;
+    presence+=prox2*((e.mind||e._betaEnemy||e._ai)?1.15:0.65);
+    if(e.hitF>0||(e.shotCd!=null&&e.shotCd<28)) presence+=0.25*prox;
+    if(!e.aware||d>460) continue;
+    const w=prox2*(e.hitF>0?1.35:1);
+    focus+=w; bx+=dx*w; by+=dy*w; bw+=w;
+  }
+  const near=Math.max(0,Math.min(1,presence/1.5));
+  const locked=Math.max(0,Math.min(1,focus/0.85));
+  const z=Math.max(0,Math.min(1,near*0.4+locked*0.75));
+  if(bw<0.04) return {z,x:0,y:0};
+  return {
+    z,
+    x:Math.max(-72,Math.min(72,(bx/bw)*0.26)),
+    y:Math.max(-44,Math.min(44,(by/bw)*0.2))
+  };
+}
 function _updateCamZoom(){
   if(camZoom==null) _initCamZoom();
   const ed=typeof _mapEdActive!=='undefined'&&_mapEdActive;
-  if(ed||_playerCount===2||!p){ camZoomTgt=1; camZoom+=(1-camZoom)*0.2; return; }
+  if(ed||_playerCount===2||!p){
+    camZoomTgt=1; camZoom+=(1-camZoom)*0.2;
+    _threatZoomS*=0.85; _threatLookX*=0.85; _threatLookY*=0.85;
+    return;
+  }
   const spd=Math.hypot(p.vx||0,(p.vy||0)*0.55);
   _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?0.05:0.02);         // speeds up the pull-back faster than it settles in
   const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
-  camZoomTgt=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e;
+  const th=_readThreatCam();
+  _threatZoomS+=(th.z-_threatZoomS)*0.04;
+  _threatLookX+=(th.x-_threatLookX)*0.035;
+  _threatLookY+=(th.y-_threatLookY)*0.035;
+  camZoomTgt=Math.min(1.3, CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e+CAM_THREAT_ZOOM*_threatZoomS);
   camZoom+=(camZoomTgt-camZoom)*CAM_ZOOM_EASE;
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
@@ -217,7 +255,7 @@ function _syncGameCamera(){
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
-  const tx=camClampX(t.x+_camLookX), ty=camClampY(t.y);
+  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY);
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;
@@ -1580,10 +1618,15 @@ function _rideMovingPlats(pl, prevFeet){
 function _movePlayerWithColl(pl,vx,vy){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function'){
     const prevFeet=pl._prevLandFeet!=null?pl._prevLandFeet:pl.y+FEET_OFF;
+    const wasOg=!!pl.og;
+    const impactVy=Math.max(pl.vy||0, pl._peakVy||0);
     gridResolvePlayer(pl,vx,vy, pl===p?{}:{noCrest:true});
     if(pl.x<0){pl.x=0;pl.vx=0;}
     if(typeof WW!=='undefined'&&typeof SW!=='undefined'&&pl.x>WW-SW){pl.x=WW-SW;pl.vx=0;}
     _rideMovingPlats(pl, prevFeet);
+    if(!wasOg&&pl.og) _kickWheelLand(pl, impactVy);
+    if(pl.og) pl._peakVy=0;
+    else if((pl.vy||0)>0) pl._peakVy=Math.max(pl._peakVy||0, pl.vy);
     pl._prevLandFeet=pl.y+FEET_OFF;
     return;
   }
@@ -2283,29 +2326,39 @@ function _groundYAtWheel(pl,ahead){
 function _applyWheelGroundContact(pl){
   _wheelSettle(pl,{maxUp:28,maxDrop:SUSP_ROLL_MAX+12});
 }
+function _kickWheelLand(pl,impactVy){
+  if(!pl||(pl.hook&&pl.hook.st==='on')) return;
+  const amp=Math.max(0,Math.min(1,(impactVy-1.8)/12));
+  if(amp<0.05) return;
+  pl._landAmp=amp;
+  pl.landF=Math.round(8+amp*20);
+  pl.jumpTiltF=0;
+  pl.suspVel=(pl.suspVel||0)+0.16+amp*0.78;
+  pl._tireSqV=(pl._tireSqV||0)+amp*(typeof TIRE_HIT!=='undefined'?TIRE_HIT:5);
+  if(pl!==p) return;
+  try{ sfx('land',0.18+amp*0.82); }catch(e){}
+  if(window.MV_BETA) MV_BETA.shake=Math.max(MV_BETA.shake||0, amp*11);
+  if(typeof PFXS!=='undefined'&&amp>0.28){
+    const n=3+Math.round(amp*9), cx=pl.x+(typeof SW!=='undefined'?SW:64)/2, gy=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+    for(let i=0;i<n;i++) PFXS.push({x:cx+(Math.random()-0.5)*18,y:gy-2,vx:(Math.random()-0.5)*(2+amp*5),vy:-Math.random()*(1.2+amp*2.4),life:12+Math.random()*12|0,maxLife:24,r:1.6+amp*2.2,col:'#c8b8a0'});
+  }
+}
 function _updateWheelSuspension(pl,prevVx){
   if(!pl) return;
-  let target=0.05;
-  if(pl.hook&&pl.hook.st==='on') target=0.5;
-  else if(!pl.og&&!pl._onSlope) target=0.68+Math.min(0.3,Math.abs(pl.vy)*0.035);
+  let target=pl.og?0.04:0;
+  if(pl.hook&&pl.hook.st==='on') target=0.42;
   else if(pl.og){
-    if(pl.landF>0) target=0.26+Math.min(0.48,(pl._landAmp||0.45)*0.75);
-    else target=0.05;
     const dir=Math.sign(pl.vx||0)||1;
     const gNow=_groundYAtWheel(pl,0), gAhead=_groundYAtWheel(pl,dir*WHEEL_R*0.85);
     if(gNow!==null&&gAhead!==null){
       const bump=Math.max(0,gAhead-gNow);
-      if(bump>2) target=Math.min(0.55,0.05+bump/SUSP_ROLL_MAX*0.5);
+      if(bump>2) target=Math.min(0.4,0.04+bump/SUSP_ROLL_MAX*0.45);
     }
   }
-  const stiff=pl.og?SUSP_STIFF*0.85:SUSP_STIFF*0.65;
+  const stiff=pl.og?SUSP_STIFF:SUSP_STIFF*0.7;
   pl.suspVel=(pl.suspVel||0)+((target-(pl.suspComp||0))*stiff);
-  pl.suspVel*=(pl.og?SUSP_DAMP:0.76);
-  pl.suspComp=Math.max(0,Math.min(1,(pl.suspComp||0)+pl.suspVel));
-  if(pl.og&&pl.landF<=0&&Math.abs(pl.vx||0)<0.25&&pl.suspComp<0.12){
-    pl.suspComp=0;
-    pl.suspVel=0;
-  }
+  pl.suspVel*=(pl.og?SUSP_DAMP:0.74);
+  pl.suspComp=Math.max(-0.32,Math.min(1,(pl.suspComp||0)+pl.suspVel));
   const accel=(pl.vx||0)-(prevVx||0);
   // the tire: flattens under load, squashes on landings and jiggles back like rubber
   const tBase=pl.og?TIRE_LOAD_SQ*(1+Math.min(0.6,Math.abs(pl.vx||0)*0.04)):0;

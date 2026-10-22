@@ -146,6 +146,12 @@ function _loadBgmElement(type,path){
   const el=new Audio();
   el.preload='auto';
   el.src=_musicUrl(path);
+  if(type==='title'){
+    el.autoplay=true;
+    el.volume=(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75;
+    const pr=el.play();
+    if(pr&&typeof pr.catch==='function') pr.catch(()=>{});
+  }
   _wireBgmElement(type,el);
   el.addEventListener('error',()=>_onBgmTrackError(type,path),{once:true});
   el.load();
@@ -343,6 +349,27 @@ function _startProcBgm(type,vol){
   if(isGame)_gameSrc=node; else _titleSrc=node;
 }
 let _bgmPlayGen=0;
+let _bgmKickTimer=0, _bgmKickN=0;
+function _kickBgmSoon(){
+  if(_bgmKickTimer) return;
+  _bgmKickTimer=setTimeout(()=>{
+    _bgmKickTimer=0;
+    const gs=typeof _gameState!=='undefined'?_gameState:'';
+    if(gs!=='title'&&gs!=='splash') return;
+    const ac=_bgmAC;
+    if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
+    const type=_activeBgmType;
+    if(!type||!_audioUnlocked) return;
+    const el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
+    const proc=type==='game'?_gameSrc:_titleSrc;
+    if(el&&!el.paused) return;
+    if(proc&&ac&&ac.state==='running') return;
+    if(!proc) _playBGM(type,_bgmVolFor(type));
+    else _kickBgmSoon();
+  }, 400);
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') _kickBgmSoon(); });
+window.addEventListener('pageshow',()=>{ _kickBgmSoon(); });
 function _playBGM(type,vol=0.7){
   _unlockAudio();
   const playGen=++_bgmPlayGen;
@@ -368,7 +395,13 @@ function _playBGM(type,vol=0.7){
       if(type==='game'&&_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
       else if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
       if(type==='title') _titleMusicPlaying=true;
-    }).catch(()=>{
+    }).catch((err)=>{
+      const blocked=err&&(err.name==='NotAllowedError'||err.name==='AbortError');
+      if(blocked){
+        if(type==='title') _titleMusicPlaying=false;
+        _kickBgmSoon();
+        return;
+      }
       if(el.readyState>=2){
         if(type==='title') _titleMusicPlaying=false;
         return;

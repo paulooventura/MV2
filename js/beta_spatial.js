@@ -174,8 +174,8 @@
     const along=(dx*face)/T;                                 // + tiles in front of him, − behind
     // Stereo is his, not the map's. Facing right, a block on his right is the right ear.
     // Turn to face left and that same block is behind him, so it swaps to the other ear.
-    let pan=Math.tanh((dx/T)*face/1.25);
-    pan=Math.max(-0.92,Math.min(0.92,pan));
+    let pan=Math.tanh((dx/T)*face/0.42);
+    pan=Math.max(-0.98,Math.min(0.98,pan));
     // clear against his body, faint and dull across the room
     let g=Math.pow(1/(1+d/4.2),1.7);
     let lp=Math.max(480,16800*Math.pow(1/(1+d/5.5),1.25));
@@ -189,7 +189,7 @@
     if(ot>0){
       g*=Math.max(0.04,Math.pow(0.48,Math.min(ot,5)));
       lp=Math.max(140,lp*Math.pow(0.36,Math.min(ot,4)));
-      pan*=Math.max(0.28,1-ot*0.18);                        // through a wall it loses its sharp side
+      pan*=Math.max(0.62,1-ot*0.06);                        // a wall dulls it; it stays on its side
     }
     const wet=Math.min(1,0.06+env.encl*0.35+d/22+ot*0.16+(along<0?0.14:0));
     return {g, lp, pan, wet, d, ot, along};
@@ -202,8 +202,8 @@
     const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=P.lp; lp.Q.value=0.5;
     const pan=a.createStereoPanner(); pan.pan.value=P.pan;
     inp.connect(lp); lp.connect(pan); pan.connect(dest);
-    const w=a.createGain(); w.gain.value=P.wet; lp.connect(w); w.connect(g0.roomIn);
-    if(P.d>6){ const w2=a.createGain(); w2.gain.value=Math.min(0.5,P.d/40); lp.connect(w2); w2.connect(g0.echoIn); }
+    const w=a.createGain(); w.gain.value=P.wet*0.72; pan.connect(w); w.connect(g0.roomIn);
+    if(P.d>6){ const w2=a.createGain(); w2.gain.value=Math.min(0.35,P.d/48); pan.connect(w2); w2.connect(g0.echoIn); }
     inp._p=P; return inp;
   }
   function pending(){

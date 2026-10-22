@@ -215,7 +215,8 @@
     }
   }
 
-  // ── A/B switch under the screen (beta pages have no title menu) ─
+  // Labs keep the A/B/C strip under the picture. The live game sets those
+  // in Options, so the strip is not drawn there.
   let bar=null;
   function syncUi(){
     if(!bar) return;
@@ -223,6 +224,7 @@
   }
   function buildUi(){
     if(document.documentElement.classList.contains('phone-play')) return;
+    if(document.querySelector('.mv-controls')||window.MV_BETA_START) return;
     const anchor=document.querySelector('.mv-room')||document.getElementById('gameWrap')||document.getElementById('c');
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';
