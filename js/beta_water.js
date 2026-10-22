@@ -387,7 +387,7 @@
     const {NX,WH,WV}=F, b=F.bb; if(b.x1<b.x0) return;
     const x0=Math.max(1,b.x0-1), x1=Math.min(NX-2,b.x1+1);
     for(let x=x0;x<=x1;x++){ const a=0.22*(WH[x-1]+WH[x+1]-2*WH[x])-0.015*WH[x]; WV[x]=(WV[x]+a)*0.972; }
-    for(let x=x0;x<=x1;x++){ WH[x]+=WV[x]; if(WH[x]>18) WH[x]=18; else if(WH[x]<-18) WH[x]=-18; }
+    for(let x=x0;x<=x1;x++){ WH[x]+=WV[x]; if(WH[x]>34) WH[x]=34; else if(WH[x]<-34) WH[x]=-34; }   // (Paulo, Oct 22: room for real swells)
   }
   // take up to `amt` of water from the surface around a column (for spray, the MAG, steam)
   function takeSurface(sf,amt){
@@ -441,8 +441,9 @@
   B.underRoof=underRoof;
   function landed(d){
     if(d.m<0.5) return;
-    wave(d.x,-Math.min(6,d.m*2.5),2);
-    for(let k=0;k<Math.min(18,6+d.m*6);k++){ const a=-Math.PI*Math.random(); PFXS.push({x:d.x,y:d.y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.8,life:18,maxLife:18,r:2+Math.random()*2,col:k%2?'#a8c8d8':'#e4eef2'}); }
+    wave(d.x,-Math.min(16,d.m*2.5),d.m>3?4:2);
+    if(d.m>=2){ const sf=surfaceNear(d.x,d.y); if(sf){ const m=takeSurface(sf,Math.min(6,d.m*0.35)); spray(d.x,sf.top-3,m,Math.min(16,6+d.m),5+Math.min(9,d.m*0.8),0); ring(d.x,sf.top+8,'air',Math.min(3,0.6+d.m*0.15)); B.shake=Math.max(B.shake||0,Math.min(6,d.m*0.4)); } }   // a big lump of water lands with a crown
+    for(let k=0;k<Math.min(30,6+d.m*6);k++){ const a=-Math.PI*Math.random(); PFXS.push({x:d.x,y:d.y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.8,life:18,maxLife:18,r:2+Math.random()*2,col:k%2?'#a8c8d8':'#e4eef2'}); }
     try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(Math.min(1,0.25+d.m*0.2)); }catch(e){}
   }
   // an impact throws water out of the hit point (real drops) and rings the surface;
@@ -477,23 +478,36 @@
   // pool) and costs extra power to hold. Let go and it falls as one big drop —
   // into the water, or onto the floor, where it runs off like any water.
   B.magWater={area:0, x:0, y:0, drops:[]};
+  // Paulo (Oct 22): above the water the MAG pulls it up like FERROFLUID — the surface under the
+  // poles rises in glossy spikes toward them, and once it's close enough a tapering column of water
+  // climbs to the tip and winds itself into the core there (the same spinning core as under water,
+  // which you can then carry). Reach and pull grow with the bar.
+  B.ferro=null;
   function magnetWater(){
-    const M=B.magWater, held=!!(p&&p.magOn&&ITEM===3&&B.magTip);
-    if(!held||!F.ready) return;
-    if(B.magCore&&!B.magCore.free&&B.magCore.mass>0.05) return;   // carrying a core of water already
-    const t=B.magTip(), pw=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), cap=2600*pw, reach=150;
-    if(waterAt(t.x,t.y)) return;                                  // under water: the whirlpool instead
-    const {NX,NY,BLK,CS}=F, Mm=F.M, tc=cX(t.x), tr=Math.max(0,cY(t.y));
-    for(let k=-6;k<=6;k++){ const x=tc+k; if(x<0||x>=NX) continue;
-      for(let y=tr;y<Math.min(NY,tr+Math.ceil(reach/CS)+1);y++){ const i=y*NX+x; if(BLK[i]===1) break; if(BLK[i]||Mm[i]<0.05) continue;
-        const top=topOf(i,y), gap=top-t.y, kk=(1-Math.abs(k)/7)*(1-Math.max(0,gap)/reach);
-        if(kk>0) F.WV[x]+=0.5*kk*kk*pw;                           // the surface rises toward the tip
-        if(gap<18&&Math.abs(k)<=1&&M.area<cap){
-          const take=Math.min(Mm[i]*0.5,0.05*pw+0.015); Mm[i]-=take; M.area+=take*CS*CS;
-          if(fr%2===0) M.drops.push({x:(x+0.5)*CS+(Math.random()-0.5)*10,y:top,vy:-2-Math.random()*2});
-        }
-        break;
-      } }
+    const held=!!(p&&p.magOn&&ITEM===3&&B.magTip);
+    if(!held||!F.ready){ B.ferro=null; return; }
+    const t=B.magTip();
+    if(waterAt(t.x,t.y)){ B.ferro=null; return; }                  // under water: the core forms right there instead
+    const bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), reach=130+170*bar;
+    const ray=(ux,uy)=>{ for(let d=8;d<=reach;d+=8){ const x=t.x+ux*d, y=t.y+uy*d; if(waterAt(x,y)) return {x,y}; if(gridWorldSolid(x,y)) return null; } return null; };
+    let hit=ray(t.ux||0,t.uy||1);
+    if(!hit&&(t.uy||0)>0.5) hit=ray(0,1);                          // roughly downward: straight down counts
+    if(!hit){ B.ferro=null; return; }
+    const sf=surfaceNear(hit.x,hit.y); if(!sf){ B.ferro=null; return; }
+    const top=sf.top, dist=Math.hypot(hit.x-t.x,top-t.y), k=Math.max(0,1-dist/reach)*(0.35+0.65*bar);
+    const cx=cX(hit.x);
+    for(let d=-5;d<=5;d++){ const j=cx+d; if(j>=0&&j<F.NX) F.WV[j]+=1.2*k*(1-Math.abs(d)/6); }   // the surface lifts toward the poles
+    const fz=B.ferro={sx:hit.x, sy:top, tx:t.x, ty:t.y, k, t:fr, flow:false};
+    if(k<0.18) return;
+    // the core at the tip, filling from the column
+    let C=B.magCore; if(C&&C.free){ if(C.mass>0.01) coreRelease(C,C.mass); C=null; }
+    if(!C) C=B.magCore={x:t.x,y:t.y,r:12,ang:0,spin:0,mass:0,t0:fr};
+    C.held=fr; C.r+=(Math.max(12,48*bar)-C.r)*0.3; C.spin+=(0.08+0.16*bar-C.spin)*0.12; C.ang+=C.spin;
+    placeDisc(C,t,t.ux||0,t.uy||0,C.r,0.8,0.55);
+    const cap=coreCap(C);
+    if(C.mass<cap){ const got=takeSurface(sf,Math.min(cap-C.mass,0.05+0.2*k)); C.mass+=got; fz.flow=got>0; }
+    if(fz.flow&&fr%10===0){ ring(hit.x,top+6,'mag',0.6+k); const m=takeSurface(sf,0.04*k); spray(hit.x,top-3,m,2,4+4*k,0); }
+    if(fz.flow) PFXS.push({x:hit.x+(Math.random()-0.5)*20,y:top-2,vx:(Math.random()-0.5)*1.2,vy:-1-Math.random()*2*k,life:12,maxLife:12,r:1.6,col:'#bfe6ff'});
   }
   function magWaterTick(){
     const M=B.magWater, held=!!(p&&p.magOn&&ITEM===3&&B.magTip);
@@ -531,8 +545,8 @@
       if(waterAt(t.x,t.y)){
         B._xlrInW=true;
         const pulse=0.75+0.25*Math.sin(fr*0.35);
-        for(let k=0;k<12;k++){ const x=t.x+ux*k*16, y=t.y+uy*k*16; if(Math.abs(ux)>0.2) shove(x,y,ux>0?1:-1,Math.abs(ux)*0.05*pw*pulse*(1-k/13)); }
-        if(uy<-0.3) wave(t.x,0.25*pw,2); else if(uy>0.3) wave(t.x,-0.25*pw,2);
+        for(let k=0;k<12;k++){ const x=t.x+ux*k*16, y=t.y+uy*k*16; if(Math.abs(ux)>0.2) shove(x,y,ux>0?1:-1,Math.abs(ux)*0.1*pw*pulse*(1-k/13)); }
+        if(uy<-0.3) wave(t.x,0.6*pw,3); else if(uy>0.3) wave(t.x,-0.6*pw,3);
         let b=B.xBub;
         const fresh=!b||b.free;
         if(fresh){ b=B.xBub={x:t.x,y:t.y,r:6,free:false,vx:0,vy:0,t0:fr}; }
@@ -545,10 +559,11 @@
         // Paulo (Oct 22): a full bar blows a round bubble 3x3 blocks wide (r 48) right off the tip;
         // the less power on the bar, the smaller it is
         const bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), goal=Math.max(10,48*bar); b.r+=(goal-b.r)*0.35; b.held=fr;
-        b.x=t.x+ux*b.r*0.9; b.y=t.y+uy*b.r*0.9; b.ux=ux; b.uy=uy;
+        placeDisc(b,t,ux,uy,b.r,0.9,1); b.ux=ux; b.uy=uy;
         if(fr%10===0){ ring(b.x,b.y,'air',0.7+1.6*ch); if(ch>0.8) B.shake=Math.max(B.shake||0,2.5); }
         const nb=1+Math.round(ch*4);
         for(let k=0;k<nb;k++){ const a2=Math.random()*Math.PI*2, rr=b.r*(0.9+Math.random()*0.3);
+          if(solidPt(b.x+Math.cos(a2)*rr,b.y+Math.sin(a2)*rr)) continue;
           B.bubbles.push({x:b.x+Math.cos(a2)*rr,y:b.y+Math.sin(a2)*rr,r:2+Math.random()*(3+6*ch),vy:-0.6-Math.random()*1.5+uy*2,vx:ux*(2+3*ch)+Math.cos(a2)*1.2}); }
         const sf=surfaceNear(b.x,b.y-b.r-8);
         if(sf&&ch>0.5&&b.y-b.r-sf.top<90&&fr%2===0) for(let k=0;k<2;k++) PFXS.push({x:b.x+(Math.random()-0.5)*b.r*2,y:sf.top-2,vx:(Math.random()-0.5)*2.5,vy:-1.5-Math.random()*3*ch,life:16+Math.random()*10|0,maxLife:26,r:1.5+Math.random()*2.5,col:k?'#ffffff':'#bfe6ff'});
@@ -559,9 +574,9 @@
         if(hx!=null){
           B._xlrTip={x:hx,y:hy,ux,uy}; B._xlrInW=true;
           const d=Math.hypot(hx-t.x,hy-t.y), k0=(1-d/170)*pw, sf=surfaceNear(hx,hy);
-          wave(hx,-0.9*k0,3);
+          wave(hx,-2.2*k0,4);
           shove(hx,hy,ux>=0?1:-1,0.04*k0*(0.3+Math.abs(ux)));
-          if(sf&&fr%3===0){ const m=takeSurface(sf,0.035*k0); spray(hx,sf.top-3,m,2,3+4*k0,ux); }
+          if(sf&&fr%2===0){ const m=takeSurface(sf,0.09*k0); spray(hx,sf.top-3,m,3,5+7*k0,ux); }
           if(fr%2===0&&sf){ for(let k=0;k<3;k++){ const a2=-Math.PI*(0.2+Math.random()*0.6)+ux*0.4; PFXS.push({x:hx+(Math.random()-0.5)*20,y:sf.top-2,vx:Math.cos(a2)*(1.5+Math.random()*2.5*k0),vy:Math.sin(a2)*(2+Math.random()*3*k0),life:18+Math.random()*10|0,maxLife:28,r:1.5+Math.random()*2,col:k%2?'#bfe6ff':'#ffffff'}); } }
         }
       }
@@ -569,7 +584,7 @@
     if(mag&&B.magCore&&!B.magCore.free&&B.magCore.mass>0.05&&!waterAt(B.magTip().x,B.magTip().y)){
       const t=B.magTip(), C=B.magCore, bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
       C.r+=(Math.max(12,48*bar)-C.r)*0.3; C.spin+=(0.1+0.16*bar-C.spin)*0.15; C.ang+=C.spin; C.held=fr;
-      C.x+=(t.x+(t.ux||0)*C.r*0.8-C.x)*0.55; C.y+=(t.y+(t.uy||0)*C.r*0.8-C.y)*0.55;
+      placeDisc(C,t,t.ux||0,t.uy||0,C.r,0.8,0.55);
       coreSpill(C);
       if(fr%4===0) PFXS.push({x:C.x+(Math.random()-0.5)*C.r*1.6,y:C.y+C.r*0.6,vx:(Math.random()-0.5)*0.8,vy:1+Math.random(),life:14,maxLife:14,r:1.8,col:'#9ad8ff'});
     }
@@ -578,7 +593,7 @@
       if(waterAt(t.x,t.y)){
         const pw=Math.max(0.2,Math.min(1,(p.itemStamina||0)/100));
         const sf=surfaceNear(t.x,t.y), depth=sf?Math.max(0,t.y-sf.top):0, reach=Math.max(0.2,1-depth/320);
-        for(let k=-8;k<=8;k++) F.WV[Math.max(0,Math.min(F.NX-1,cX(t.x)+k))]-=(0.25+0.45*pw)*reach*(1-Math.abs(k)/9)*(0.8+0.2*Math.sin(fr*0.3));
+        for(let k=-8;k<=8;k++) F.WV[Math.max(0,Math.min(F.NX-1,cX(t.x)+k))]-=(0.5+1.0*pw)*reach*(1-Math.abs(k)/9)*(0.8+0.2*Math.sin(fr*0.3));
         for(let k=1;k<=8;k++){ shove(t.x-k*16,t.y,1,(0.015+0.03*pw)*(1-k/9)); shove(t.x+k*16,t.y,-1,(0.015+0.03*pw)*(1-k/9)); }
         if(fr%12===0){ ring(t.x,t.y,'mag',0.5+1.3*pw); if(pw>0.8) B.shake=Math.max(B.shake||0,1.5); }
         // Paulo (Oct 22): the tip sets up a rotating water CORE — 3x3 blocks wide on a full bar,
@@ -586,7 +601,7 @@
         const bar=Math.max(0,Math.min(1,(p.itemStamina||0)/100)), goal=Math.max(12,48*bar);
         let C=B.magCore; if(C&&C.free){ if(C.mass>0.01) coreRelease(C,C.mass); C=null; } if(!C) C=B.magCore={x:t.x,y:t.y,r:6,ang:0,spin:0,mass:0,t0:fr};
         C.r+=(goal-C.r)*0.3; C.spin+=(0.08+0.16*bar-C.spin)*0.15; C.ang+=C.spin; C.held=fr;
-        C.x+=(t.x+(t.ux||0)*C.r*0.7-C.x)*0.5; C.y+=(t.y+(t.uy||0)*C.r*0.7-C.y)*0.5;
+        placeDisc(C,t,t.ux||0,t.uy||0,C.r,0.7,0.5);
         coreAbsorb(C);
         for(let yy=-C.r;yy<=C.r;yy+=F.CS){ const w=Math.sqrt(Math.max(0,C.r*C.r-yy*yy)); if(w<4) continue;   // the water turns: over the eye one way, under it the other
           shove(C.x,C.y+yy,yy<0?1:-1,(0.02+0.05*bar)*(1-Math.abs(yy)/C.r)); }
@@ -598,12 +613,28 @@
         for(const bb of B.bubbles){ if(bb.to) continue; const dx=bb.x-C.x, dy=bb.y-C.y, d=Math.hypot(dx,dy)||1; if(d<C.r*1.8){ bb.vx=(bb.vx||0)*0.9-dy/d*1.2; bb.vy=bb.vy*0.9+dx/d*1.2; } }
         const nb=1+Math.round(pw*3);
         for(let k=0;k<nb;k++){ const ang=fr*0.21+k*2.1, r=30+Math.random()*(40+50*pw);
+          if(solidPt(t.x+Math.cos(ang)*r,t.y+Math.sin(ang)*r)) continue;
           B.bubbles.push({x:t.x+Math.cos(ang)*r,y:t.y+Math.sin(ang)*r,r:1.5+Math.random()*(2+3*pw),vy:0,vx:0,to:{x:t.x,y:t.y},ang,rad:r}); }
       }
     }
   }
-  // the core's capacity: a disc of radius r, in fluid cells
-  const coreCap=C=>Math.PI*C.r*C.r/(F.CS*F.CS)*0.85;
+  // Paulo (Oct 22): bubbles and cores respect the rock — aimed into a floor/wall, they sit on its
+  // surface as a half-disc (a dome), never inside it
+  function wallAlong(x,y,ux,uy,max){ for(let d=0;d<=max;d+=4){ if(gridWorldSolid(x+ux*d,y+uy*d)) return d; } return null; }
+  function placeDisc(o,t,ux,uy,r,off,k){
+    const dw=wallAlong(t.x,t.y,ux,uy,r*(off+1));
+    let tx,ty;
+    if(dw!=null&&dw<r*(off+1)){ tx=t.x+ux*Math.max(0,dw-1); ty=t.y+uy*Math.max(0,dw-1); o.cut={ux,uy}; }
+    else { tx=t.x+ux*r*off; ty=t.y+uy*r*off; o.cut=null; }
+    o.x+=(tx-o.x)*k; o.y+=(ty-o.y)*k;
+  }
+  // a half-plane clip: everything on the open side of a cut disc (behind its wall normal)
+  function clipCut(o,R){ if(!o.cut) return; const cx=sx(o.x), cy=sy(o.y), ux=o.cut.ux, uy=o.cut.uy, px=-uy, py=ux, L=R*3+40;
+    const path=new Path2D(); path.moveTo(cx+px*L,cy+py*L); path.lineTo(cx-px*L,cy-py*L); path.lineTo(cx-px*L-ux*L,cy-py*L-uy*L); path.lineTo(cx+px*L-ux*L,cy+py*L-uy*L); path.closePath(); ctx.clip(path); }
+  const discWet=o=>waterAt(o.x-(o.cut?o.cut.ux*10:0),o.y-(o.cut?o.cut.uy*10:0));
+  const solidPt=(x,y)=>gridWorldSolid(x,y);
+  // the core's capacity: a disc of radius r, in fluid cells (half of it against a wall)
+  const coreCap=C=>Math.PI*C.r*C.r/(F.CS*F.CS)*0.85*(C.cut?0.5:1);
   function coreAbsorb(C){
     const cap=coreCap(C); if(C.mass>=cap) return;
     const {NX,NY,M,BLK,CS}=F, r=C.r, x0=Math.max(0,cX(C.x-r)), x1=Math.min(NX-1,cX(C.x+r)), y0=Math.max(0,cY(C.y-r)), y1=Math.min(NY-1,cY(C.y+r));
@@ -631,16 +662,17 @@
     const C=B.magCore; if(!C) return;
     // held: the magnet keeps its water at a cost (heavier = more power)
     if(C.held===fr||C.held===fr-1){
-      if(C.mass>0.05&&B.mag){ const d=0.04+0.16*Math.min(1,C.mass/30); B.mag.power=Math.max(0,(B.mag.power||0)-d); p.itemStamina=Math.max(0,(p.itemStamina||0)-d); }
+      if(C.mass>0.05&&B.mag){ const d=0.02+0.08*Math.min(1,C.mass/30); B.mag.power=Math.max(0,(B.mag.power||0)-d); p.itemStamina=Math.max(0,(p.itemStamina||0)-d); }
       return;
     }
     // let go
-    const inW=waterAt(C.x,C.y);
+    const inW=discWet(C);
     if(!C.free){
       C.free=true; C.life=C.t0!=null&&fr-C.t0<18?150:90;     // a tap leaves a swirl turning in the water for a while
       ring(C.x,C.y,'mag',1.4);
       if(!inW&&C.mass>0.05){                                 // out of the water: the ball of water drops as one
         B.drops.push({x:C.x,y:C.y,vx:(p.vx||0)*0.6,vy:(p.vy||0)*0.6,m:C.mass,big:true}); C.mass=0;
+        for(let n=0;n<18;n++){ const a=Math.random()*Math.PI*2; PFXS.push({x:C.x+Math.cos(a)*C.r*0.7,y:C.y+Math.sin(a)*C.r*0.7,vx:Math.cos(a)*3,vy:Math.sin(a)*3,life:16,maxLife:16,r:2,col:n%2?'#bfe6ff':'#ffffff'}); }
         try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(0.5); }catch(e){}
         B.magCore=null; return;
       }
@@ -675,11 +707,11 @@
     const sf=surfaceNear(x,y), depth=sf?Math.max(0,y-sf.top):0, reach=Math.max(0.35,1-depth/420);
     // the surface heaves up over the source and the hump runs out both ways (the wave field carries it)
     const cx=cX(x);
-    for(let d=-3;d<=3;d++){ const j=cx+d; if(j>=0&&j<F.NX) F.WV[j]+=(big?6:1.6)*k*reach*(1-Math.abs(d)/4); }
-    for(const s2 of [-1,1]) for(let d=4;d<=9;d++){ const j=cx+s2*d; if(j>=0&&j<F.NX) F.WV[j]-=(big?2:0.5)*k*reach*(1-(d-4)/6); }   // the trough ahead of it
+    for(let d=-3;d<=3;d++){ const j=cx+d; if(j>=0&&j<F.NX) F.WV[j]+=(big?11:2.6)*k*reach*(1-Math.abs(d)/4); }
+    for(const s2 of [-1,1]) for(let d=4;d<=9;d++){ const j=cx+s2*d; if(j>=0&&j<F.NX) F.WV[j]-=(big?3.5:0.8)*k*reach*(1-(d-4)/6); }   // the trough ahead of it
     // the water itself is driven outward from the source, through the whole depth around it
     for(let dy=-64;dy<=64;dy+=F.CS) for(let d=1;d<=10;d++){ const fall=(1-d/11)*(1-Math.abs(dy)/80);
-      shove(x-d*16,y+dy,-1,(big?0.55:0.18)*k*fall); shove(x+d*16,y+dy,1,(big?0.55:0.18)*k*fall); }
+      shove(x-d*16,y+dy,-1,(big?0.9:0.28)*k*fall); shove(x+d*16,y+dy,1,(big?0.9:0.28)*k*fall); }
     ring(x,y,'air',big?2.6*k+0.6:1.2*k);
     if(big){ ring(x,y,'air',1.6*k); B.shake=Math.max(B.shake||0,2+4*k); }
     // bodies in the water get shoved away from it
@@ -688,7 +720,9 @@
     const Sib=window.MV_SIBLING&&MV_SIBLING.state&&MV_SIBLING.state();
     if(Sib){ const f=push(Sib,Sib.x+SW/2,Sib.y+FEET_OFF-50,1.3); if(f){ Sib.vx=(Sib.vx||0)+f.fx; Sib.vy=(Sib.vy||0)+f.fy; Sib.free=Math.max(Sib.free||0,20); } }
     for(let n=0;n<(big?26:8);n++){ const a=Math.random()*Math.PI*2, sp=(big?3:1.5)+Math.random()*3*k; B.bubbles.push({x:x+Math.cos(a)*14,y:y+Math.sin(a)*14,r:1.5+Math.random()*(big?5:3),vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.8}); }
-    if(big&&sf){ for(let n=0;n<Math.round(8+14*k*reach);n++){ const a=-Math.PI*(0.15+Math.random()*0.7); PFXS.push({x:x+(Math.random()-0.5)*90,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(2+Math.random()*4*k*reach),life:20+Math.random()*12|0,maxLife:32,r:1.5+Math.random()*2.5,col:n%3?'#bfe6ff':'#ffffff'}); } }
+    if(sf){ const m=takeSurface(sf,(big?1.4:0.35)*k*reach); spray((sf.x+0.5)*F.CS,sf.top-3,m,big?14:5,(big?9:5)+6*k,0);   // real water heaved out of the pool
+      if(big) for(const s2 of [-1,1]){ const sf2=surfaceNear(x+s2*90,sf.top+4); if(sf2){ const m2=takeSurface(sf2,0.5*k*reach); spray((sf2.x+0.5)*F.CS,sf2.top-3,m2,6,6+4*k,s2*0.8); } } }
+    if(big&&sf){ for(let n=0;n<Math.round(16+26*k*reach);n++){ const a=-Math.PI*(0.15+Math.random()*0.7); PFXS.push({x:x+(Math.random()-0.5)*90,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(2+Math.random()*4*k*reach),life:20+Math.random()*12|0,maxLife:32,r:1.5+Math.random()*2.5,col:n%3?'#bfe6ff':'#ffffff'}); } }
     try{ if(big&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.splash(Math.min(1,0.35+0.6*k)); }catch(e){}
   }
   function surge(tip,ch){
@@ -899,7 +933,7 @@
     // bubbles
     for(let i=B.bubbles.length-1;i>=0;i--){
       const b=B.bubbles[i];
-      if(b.to){ b.ang+=0.18; b.rad*=0.9; b.x=b.to.x+Math.cos(b.ang)*b.rad; b.y=b.to.y+Math.sin(b.ang)*b.rad; if(b.rad<4) B.bubbles.splice(i,1); continue; }
+      if(b.to){ b.ang+=0.18; b.rad*=0.9; b.x=b.to.x+Math.cos(b.ang)*b.rad; b.y=b.to.y+Math.sin(b.ang)*b.rad; if(b.rad<4||gridWorldSolid(b.x,b.y)) B.bubbles.splice(i,1); continue; }
       b.y+=b.vy; b.x+=(b.vx||0)+Math.sin(fr*0.1+i)*0.3; if(b.vx) b.vx*=0.95;
       if(!waterAt(b.x,b.y)&&!(B.xBub&&Math.hypot(b.x-B.xBub.x,b.y-B.xBub.y)<B.xBub.r+8)) B.bubbles.splice(i,1);
     }
@@ -1118,7 +1152,7 @@
       // the magnet's water core: a turning eye with spiral arms, inside the water only
       const MC=B.magCore;
       if(MC&&MC.r>3){ ctx.save(); ctx.clip(pool);
-        const cx=sx(MC.x), cy=sy(MC.y), R=sw(MC.r);
+        const cx=sx(MC.x), cy=sy(MC.y), R=sw(MC.r); clipCut(MC,R);
         const g3=ctx.createRadialGradient(cx,cy,1,cx,cy,R*1.25); g3.addColorStop(0,'rgba(10,30,70,0.55)'); g3.addColorStop(0.55,'rgba(60,120,200,0.28)'); g3.addColorStop(1,'rgba(120,180,240,0)');
         ctx.fillStyle=g3; ctx.beginPath(); ctx.arc(cx,cy,R*1.25,0,Math.PI*2); ctx.fill();
         ctx.lineCap='round';
@@ -1181,11 +1215,29 @@
       ctx.strokeStyle='rgba(220,240,250,0.5)'; ctx.lineWidth=Math.max(1,sw(1.2)); ctx.stroke();
       ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.arc(x-r*0.35,y-r*0.4,Math.max(1,r*0.2),0,Math.PI*2); ctx.fill();
     }
+    // ferrofluid: glossy spikes rising toward the poles, and the column climbing to the core
+    const FZ=B.ferro;
+    if(FZ&&fr-FZ.t<=1&&FZ.k>0.02){
+      const k=FZ.k, bx=sx(FZ.sx), by=sy(FZ.sy), lean=Math.max(-0.6,Math.min(0.6,(FZ.tx-FZ.sx)/Math.max(40,FZ.sy-FZ.ty)));
+      const n=7, span=sw(16+34*k);
+      for(let i=0;i<n;i++){ const o=(i/(n-1))*2-1, base=bx+o*span, h=sw(6+60*k)*(1-Math.abs(o)*0.75)*(0.75+0.25*Math.sin(fr*0.35+i*1.7)), w=sw(5+4*k)*(1-Math.abs(o)*0.4);
+        const tipX=base+lean*h-o*h*0.12, tipY=by-h;
+        ctx.fillStyle='rgba(14,30,52,0.88)'; ctx.beginPath(); ctx.moveTo(base-w,by+1); ctx.quadraticCurveTo(base-w*0.3,by-h*0.45,tipX,tipY); ctx.quadraticCurveTo(base+w*0.3,by-h*0.45,base+w,by+1); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(170,215,240,0.55)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(base-w*0.5,by-1); ctx.quadraticCurveTo(base-w*0.2,by-h*0.5,tipX,tipY); ctx.stroke(); }
+      if(FZ.flow||k>0.35){
+        const C3=B.magCore, ex=sx(C3?C3.x:FZ.tx), ey=sy(C3?C3.y:FZ.ty), L=Math.hypot(ex-bx,ey-by)||1, nx=-(ey-by)/L, ny=(ex-bx)/L, w0=sw(10+12*k), w1=sw(3), seg=16;
+        const P=(t2,side)=>{ const wob=Math.sin(fr*0.3+t2*9)*sw(3)*(1-t2), w=(w0+(w1-w0)*t2)*side; return [bx+(ex-bx)*t2+nx*(w+wob), by+(ey-by)*t2+ny*(w+wob)]; };
+        ctx.beginPath(); for(let i=0;i<=seg;i++){ const q=P(i/seg,1); if(i) ctx.lineTo(q[0],q[1]); else ctx.moveTo(q[0],q[1]); } for(let i=seg;i>=0;i--){ const q=P(i/seg,-1); ctx.lineTo(q[0],q[1]); } ctx.closePath();
+        const gs=ctx.createLinearGradient(bx,by,ex,ey); gs.addColorStop(0,'rgba(30,70,120,0.85)'); gs.addColorStop(1,'rgba(120,190,245,0.8)');
+        ctx.fillStyle=gs; ctx.fill(); ctx.strokeStyle='rgba(220,240,255,0.5)'; ctx.lineWidth=1; ctx.stroke();
+        for(let i=0;i<6;i++){ const t2=((fr*0.045+i/6)%1), q=P(t2,0); ctx.fillStyle='rgba(235,250,255,0.85)'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(1.2,sw(2.2)*(1-t2*0.5)),0,Math.PI*2); ctx.fill(); }   // water climbing the column
+      }
+    }
     // the magnet's core carried out of the water: a spinning ball of water at the tip
     const MC2=B.magCore;
-    if(MC2&&MC2.mass>0.05&&!waterAt(MC2.x,MC2.y)){
+    if(MC2&&MC2.mass>0.05&&!discWet(MC2)){
       const R=sw(Math.min(MC2.r,Math.sqrt(MC2.mass*F.CS*F.CS/Math.PI)/0.92)), cx=sx(MC2.x), cy=sy(MC2.y), wob=Math.sin(fr*0.4)*0.06;
-      ctx.save(); ctx.translate(cx,cy); ctx.scale(1+wob,1-wob);
+      ctx.save(); clipCut(MC2,R); ctx.translate(cx,cy); ctx.scale(1+wob,1-wob);
       const g4=ctx.createRadialGradient(-R*0.3,-R*0.3,1,0,0,R); g4.addColorStop(0,'rgba(210,240,255,0.92)'); g4.addColorStop(0.45,'rgba(80,160,230,0.78)'); g4.addColorStop(1,'rgba(20,70,160,0.75)');
       ctx.fillStyle=g4; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
       ctx.save(); ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.clip(); ctx.lineCap='round';

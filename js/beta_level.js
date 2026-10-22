@@ -984,6 +984,8 @@
       }
     }
     if(!best) return;
+    // Paulo (Oct 22): a jump wins — the pull toward the floor below doesn't drag a fresh jump back down
+    if(best.uy>0.4&&((p._jumpFr!=null&&fr-p._jumpFr<45)||(typeof isJump==='function'&&isJump()&&p.vy<0))) return;
     const arc=Math.sin(Math.PI/2*Math.max(0,1-best.d/SUCK.R));          // the amplitude arc: strong close, gone at the edge
     const s=arc*SUCK.K*(0.35+0.65*powNow());
     p.vx+=best.ux*s; p.vy+=best.uy*s;

@@ -218,6 +218,8 @@
     // MIND anywhere — the pull only carries him once he's in the air
     if(typeof _playerOnGround==='function'&&_playerOnGround(p)) return;
     const a=aimUnit();
+    // Paulo (Oct 22): aimed down, the pull doesn't fight a jump (or drag him down while it's drawing water up)
+    if(a.y>0.4&&((p._jumpFr!=null&&fr-p._jumpFr<45)||(typeof isJump==='function'&&isJump()&&p.vy<0)||(B.ferro&&fr-B.ferro.t<=1))) return;
     const charge=Math.min(1,(p.magHeld||0)/FEEL.XLR_FULL);
     const thrust=(0.5+charge*1.05)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[3]?1.25:1);
     p.vx+=a.x*thrust; p.vy+=a.y*thrust;            // along the aim (the pull)
