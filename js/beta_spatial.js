@@ -5,11 +5,11 @@
 //
 //  The listener is MIND. Every sound that knows where it comes from
 //  (sfxAt / MV_SPATIAL_from, see audio.js) goes through its own little chain:
-//   - distance: quieter and duller the farther it is, gone past ~40 tiles;
-//   - walls: the line from the sound to MIND is walked through the collision
-//     grid — every tile of rock / brick / cube in the way muffles it (low-pass)
-//     and lowers it, the way sound comes through a wall;
-//   - side: panned left / right by where it is on screen;
+//   - distance: clear at his ear, fainter and duller the farther, gone past ~26 tiles;
+//   - facing: the stereo field is MIND's, not the map's. Turn around and it swaps.
+//     What is in front stays bright; what is behind him goes dull and quiet;
+//   - obstacles: the line to MIND is walked through rock, slopes, blocks and
+//     crates. Anything solid in the way muffles it (low-pass) and lowers it;
 //   - the room: more of it goes to the room echo the farther it is.
 //  The room itself is measured around MIND (rays through the grid, every few
 //  frames): how enclosed he is, how big the space is, how much open sky is
@@ -22,10 +22,39 @@
   const T=32, MAXR=14;                                      // ray length in tiles
   const env={open:1, sky:1, size:MAXR, encl:0, elev:0.5, floor:0, wind:0.5, under:0, inside:0, V:0, room:null, t:-99};
   function solid(x,y){
-    try{ if(typeof gridWorldSolid==='function') return !!gridWorldSolid(x,y); }catch(e){}
+    try{
+      const gridOn=typeof _gridReady==='function'&&_gridReady();
+      if(gridOn&&typeof gridWorldSolid==='function'){
+        if(gridWorldSolid(x,y)) return true;
+        if(typeof gridIsSlope==='function'){
+          const c=Math.floor(x/T), r=Math.floor(y/T);
+          if(gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); if(sy!=null&&y>=sy-2) return true; }
+        }
+        return false;
+      }
+      if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)) return true;
+    }catch(e){}
     const B=window.MV_BETA, lv=B&&B.level; if(!lv) return false;
     const c=Math.floor(x/T), r=Math.floor(y/T); if(r<0||c<0||r>=lv.rows||c>=lv.cols) return r>=0;
     return !!lv.cells[r][c];
+  }
+  function _inBox(b,x,y){ return !!(b&&b.hp!==0&&x>=b.x&&x<b.x+(b.w||T)&&y>=b.y&&y<b.y+(b.h||T)); }
+  // A block, crate or moving platform standing between the ear and the source.
+  // The object the sound comes FROM does not count — punching it should stay clear.
+  function objectBlock(x,y,sx,sy){
+    const lists=[];
+    if(typeof BWALLS!=='undefined') lists.push(BWALLS);
+    if(typeof CRATES!=='undefined') lists.push(CRATES);
+    const bp=window.MV_BETA&&MV_BETA.platforms;
+    if(bp) lists.push(bp);
+    for(const list of lists){
+      for(const b of list){
+        if(!_inBox(b,x,y)) continue;
+        if(_inBox(b,sx,sy)) continue;
+        return (b.h!=null&&b.h<20)?0.55:1;
+      }
+    }
+    return 0;
   }
   // ── chambers (Paulo, Oct 22: "an algorithm identifying chambers from open spaces") ──
   // A house (B.rooms rects) is a chamber: its outline counts as a wall for sound even
@@ -57,13 +86,27 @@
   function ray(x,y,dx,dy,max){ const st=12; for(let d=st;d<=max;d+=st){ if(solid(x+dx*d,y+dy*d)) return d; } return max; }
   // tiles of solid matter on the straight line between two points
   function occlusion(x0,y0,x1,y1){
-    const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy); if(L<20) return 0;
-    const n=Math.min(160,Math.ceil(L/12)); let k=0;
-    for(let i=1;i<n;i++){ if(solid(x0+dx*i/n,y0+dy*i/n)) k++; }
+    const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy); if(L<28) return 0;
+    const n=Math.min(48,Math.max(4,Math.ceil(L/16))); let k=0;
+    for(let i=1;i<n;i++){
+      const t=i/n; if(t<0.1||t>0.86) continue;          // skip his body and the source's own body
+      const x=x0+dx*t, y=y0+dy*t;
+      if(solid(x,y)) k++;
+      else {
+        const plank=(()=>{ try{
+          if(typeof gridCell!=='function'||typeof MV_GRID_ONEWAY==='undefined') return 0;
+          const c=Math.floor(x/T), r=Math.floor(y/T);
+          if(gridCell(c,r)===MV_GRID_ONEWAY&&(y-r*T)<10) return 0.45;
+        }catch(e){} return 0; })();
+        k+=Math.max(plank, objectBlock(x,y,x1,y1));
+      }
+    }
     let walls=0; const B=window.MV_BETA;
     for(const r of (B&&B.rooms)||[]){ const i0=x0>=r.x&&x0<r.x+r.w&&y0>=r.y&&y0<r.y+r.h, i1=x1>=r.x&&x1<r.x+r.w&&y1>=r.y&&y1<r.y+r.h; if(i0!==i1) walls+=2; }
     return k*(L/n)/T+walls;
   }
+  // +1 facing screen-right. The ear follows this: turn around and left/right swap.
+  function faceSign(){ return (typeof p!=='undefined'&&p&&p.fc)?1:-1; }
   function measure(){
     const B=window.MV_BETA; if(!B||!B.on||typeof p==='undefined'||!p) return;
     const L=listener(), max=MAXR*T; let sum=0, skyS=0, skyN=0;
@@ -125,14 +168,31 @@
   }
   // how a sound at (x,y) reaches MIND
   function params(x,y){
-    const L=listener(), dx=x-L.x, dy=y-L.y, d=Math.hypot(dx,dy)/T;
-    if(d>40) return null;
-    let g=1/(1+Math.pow(d/7,1.6)), lp=Math.max(700,17000/Math.pow(1+d/9,1.3));
+    const L=listener(), dx=x-L.x, dy=y-L.y, dist=Math.hypot(dx,dy), d=dist/T;
+    if(d>26) return null;
+    const face=faceSign();
+    const along=(dx*face)/T;                                 // + tiles in front of him, − behind
+    // Stereo is his, not the map's. Facing right, a block on his right is the right ear.
+    // Turn to face left and that same block is behind him, so it swaps to the other ear.
+    let pan=Math.tanh((dx/T)*face/1.25);
+    pan=Math.max(-0.92,Math.min(0.92,pan));
+    // clear against his body, faint and dull across the room
+    let g=Math.pow(1/(1+d/4.2),1.7);
+    let lp=Math.max(480,16800*Math.pow(1/(1+d/5.5),1.25));
+    if(along<0){                                            // behind: duller, quieter
+      const back=Math.min(1,-along/3.5);
+      g*=1-0.5*back; lp=Math.max(280,lp*(1-0.7*back));
+    }else if(d<2.2){                                        // in front and close: stays bright
+      lp=Math.min(18000,lp*(1+0.12*Math.min(1,along)));
+    }
     const ot=occlusion(L.x,L.y,x,y);
-    if(ot>0){ g*=Math.max(0.05,Math.pow(0.55,ot)); lp=Math.max(160,lp*Math.pow(0.32,ot)); }
-    const pan=Math.max(-0.9,Math.min(0.9,dx/(10*T)))*(ot>0?0.6:1);
-    const wet=Math.min(1,0.08+env.encl*0.35+d/28+ot*0.12);
-    return {g, lp, pan, wet, d, ot};
+    if(ot>0){
+      g*=Math.max(0.04,Math.pow(0.48,Math.min(ot,5)));
+      lp=Math.max(140,lp*Math.pow(0.36,Math.min(ot,4)));
+      pan*=Math.max(0.28,1-ot*0.18);                        // through a wall it loses its sharp side
+    }
+    const wet=Math.min(1,0.06+env.encl*0.35+d/22+ot*0.16+(along<0?0.14:0));
+    return {g, lp, pan, wet, d, ot, along};
   }
   // a fresh chain for one positioned sound; returns its input node
   function chainAt(a,x,y,opt){

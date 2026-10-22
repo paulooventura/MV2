@@ -792,6 +792,41 @@ function startNgPlusRun(){ _ngPlusRun=true; _ngSeed=Date.now()^(Math.random()*0x
 const _ngCheckInterval=setInterval(()=>{ if(win&&_gameState==='game'){_winCount++;if(_winCount>=2&&!_ngPlusRun)setTimeout(startNgPlusRun,2000);}},500);
 
 // ── Main update loop ──────────────────────────────────────────
+// The eye slides toward the nearest living enemy. Distance raises the bottom
+// lid; how much threat sits in the radius closes the top lid and slants both.
+function _updateBattleEye(pl){
+  if(!pl) return;
+  const LOOK=520, LID_R=230, DANGER_R=360;
+  const ox=pl.x+(typeof SW!=='undefined'?SW:64)/2;
+  const oy=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-(typeof STAND_H!=='undefined'?STAND_H*0.55:40);
+  let best=null, bestD=1e9, danger=0;
+  if(typeof ENEMS!=='undefined'){
+    for(const e of ENEMS){
+      if(!e||e.alive===false||e._aiCompanion) continue;
+      const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.35:18);
+      const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
+      if(d<bestD&&d<LOOK){ bestD=d; best={dx,dy,d}; }
+      if(d>=DANGER_R) continue;
+      const prox=1-d/DANGER_R;
+      let w=prox*prox;
+      if(e.hitF>0||(e.shotCd!=null&&e.shotCd<28)||e._thrownF>0) w+=0.4*prox;
+      if(e.mind||e._betaEnemy||e._ai) w*=1.2;
+      danger+=w;
+    }
+  }
+  const dangerN=Math.max(0,Math.min(1,danger/1.35));
+  const near=best?Math.max(0,Math.min(1,1-Math.max(0,best.d-32)/LID_R)):0;
+  let tx, ty;
+  if(best){ const reach=4.5; tx=best.dx/best.d*reach; ty=best.dy/best.d*reach*0.8; }
+  else { tx=(pl.tAimDX||0)*4; ty=(pl.tAimDY||0)*4; }
+  const k=best?0.3:(pl.og?0.18:0.07);
+  pl.pupilX+=(tx-pl.pupilX)*k; pl.pupilY+=(ty-pl.pupilY)*k;
+  pl._eyeBot=(pl._eyeBot||0)+(near-(pl._eyeBot||0))*0.16;
+  pl._eyeTop=(pl._eyeTop||0)+(dangerN-(pl._eyeTop||0))*0.11;
+  const side=best?(Math.sign(best.dx)||(pl.fc?1:-1)):0;
+  const slantT=side*(dangerN*0.95+near*0.3);
+  pl._eyeSlant=(pl._eyeSlant||0)+(slantT-(pl._eyeSlant||0))*0.14;
+}
 function update(){
   readGamepad();
   if(typeof _driveMenusFromPads==='function') _driveMenusFromPads();
@@ -856,24 +891,27 @@ function update(){
   const _aimLerp=_trsSweep?0.06:p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
-  p.pupilX+=(p.tAimDX*4-p.pupilX)*(p.og?0.18:0.07); p.pupilY+=(p.tAimDY*4-p.pupilY)*(p.og?0.18:0.07);
+  _updateBattleEye(p);
 
   if(_bindJ('use')) _cycleItem();
+  if(typeof _updateRunEntry==='function') _updateRunEntry(p);
+  const _runQuiet=typeof _runItemQuiet==='function'&&_runItemQuiet(p);
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){
     const _enhTrs=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
     const _cMax=_enhTrs?22:40;
     const _cReady=_enhTrs?10:18;
-    if(_bindDown('swap')&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
+    if(_runQuiet&&p.laserCharging){p.laserCharging=false;p.laserCharge=0;}
+    else if(_bindDown('swap')&&!_runQuiet&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
     if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=0;}
     if(p.laserCd>0)p.laserCd--;
-  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap'))fireItem();p.laserCharging=false;p.laserCharge=0;}
+  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap')&&!_runQuiet)fireItem();p.laserCharging=false;p.laserCharge=0;}
   else{p.laserCharging=false;p.laserCharge=0;}
 
   // ── XLR / MAG hold ────────────────────────────────────────────
-  const _fireHeld=_bindDown('swap');
+  const _fireHeld=_bindDown('swap')&&!_runQuiet;
   const _treeBoost=_knowlTreeBoostMul(p);
   const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
@@ -991,6 +1029,9 @@ function update(){
     if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
+    const _springOn=_grounded&&!!p.duckBoostReady;
+    p._springFloat=(p._springFloat||0)+((_springOn?1:0)-(p._springFloat||0))*(_springOn?0.055:0.12);
+    if(p._springFloat<0.01) p._springFloat=0;
     p._ux0=p.x;
     if(!p._magWorldStick) _updatePlayerMoveX(p);
     if(_playerOnGround(p)) p.momentum=Math.min(1,Math.abs(p.vx)/MOVE_RUN*0.55+(p.runRamp||0)*0.45);
@@ -1007,7 +1048,7 @@ function update(){
       OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     if(_platLaunch||(isJumpJ()&&p._jumpArmed&&_playerOnGround(p))){
-      p._jumpArmed=false;
+      p._jumpArmed=false; p._jumpFr=fr;
       if(measureHeadroom(p)<6) p._autoHeadTuck=1;
       const _ch=_platLaunch?1:Math.max(0,Math.min(1,(p.duckCharge||0)/60));
       p.vy=JI*(1+1.05*_ch); p.jf=Math.round(JMH+10*_ch);
@@ -1018,6 +1059,20 @@ function update(){
       try{ sfx(_ch>=0.92?'jump_spring':'jump_reg', _jp); }catch(e){}
       p.og=false;p._groundHold=0;p._groundSeg=null;p._peakVy=0;const takeVy=Math.abs(p.vy);p._jumpAmp=Math.min(1,Math.max(0.25,takeVy/7.2));p.jumpTiltF=Math.round(14+p._jumpAmp*16);const jhx=Math.abs(p.vx)>0.25?p.vx:(p.fc?1:-1)*0.55;const jhy=p.vy<-0.2?-1:(p.vy>0.5?0.35:-0.75);const jhl=Math.hypot(jhx,jhy)||1;p._jumpHatDX=jhx/jhl;p._jumpHatDY=jhy/jhl;
     }
+    // Double jump (Paulo, Oct 22): once per airtime, the woofer kicks the air below him
+    if(_playerOnGround(p)||p.hook.st==='on'||p.wallGrip>0) p._airJumps=0;
+    else if(isJumpJ()&&!(p._airJumps>0)&&p._jumpFr!==fr&&!(typeof MV_FEEL_BOUNCING==='function'&&MV_FEEL_BOUNCING())
+            &&!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(p.x+SW/2,p.y+FEET_OFF-30))){
+      p._airJumps=1;
+      p.vy=Math.min(p.vy,0)*0.25+JI*DOUBLE_JUMP_K; p.jf=Math.round(JMH*0.6);
+      p._tireSqV=(p._tireSqV||0)-2.5; p.suspComp=Math.max(p.suspComp||0,0.5);
+      const cx=p.x+SW/2, fy=p.y+FEET_OFF;
+      for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; PFXS.push({x:cx+Math.cos(a)*10,y:fy+Math.sin(a)*3,vx:Math.cos(a)*3.2,vy:Math.sin(a)*0.9+0.6,life:16,maxLife:16,r:2,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'}); }
+      if(typeof MV_SPATIAL_from==='function'){} try{ sfx('double_jump'); }catch(e){}
+      p.jumpTiltF=Math.max(p.jumpTiltF||0,18); p._dblJumpFx=14;
+      OPT.binds.jump.forEach(c=>delete Kj[c]);
+    }
+    if(p._dblJumpFx>0) p._dblJumpFx--;
     const _inJumpAir=!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0;
     if(_inJumpAir&&p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-0.55);else if(p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-2.5);
     const _holdJump=isJump()||(p._autoJump||0)>0;

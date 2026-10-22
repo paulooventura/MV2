@@ -54,14 +54,16 @@
     const pr=a.play();
     if(pr&&pr.then) pr.then(()=>{ if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){} }).catch(()=>{});
   }
-  // Getting hit slows the music down (and dips it), then it recovers as MIND
-  // heals — the same rule the original game used (_healFrac, audio.js).
+  // A hit slows the theme. It does not duck it: while MIND is hurt the
+  // track sits a little further forward (about 14% at the deepest dip),
+  // then eases back to the slider as he recovers.
   function hurtTick(){
     if(!current||!els[current]||current==='item'||current==='results') return;
     const a=els[current], f=Math.max(0.3,typeof _healFrac!=='undefined'?_healFrac:1);
     const r=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);   // HP phase → slower music
     if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
-    a.volume=Math.max(0.05,vol()*(a._baseVol||1)*f);
+    const presence=1+0.2*Math.max(0,1-f);
+    a.volume=Math.min(1,Math.max(0.05,vol()*(a._baseVol||1)*presence));
   }
   function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
   // browsers only allow sound after a click / key: retry then
