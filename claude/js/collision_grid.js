@@ -232,8 +232,10 @@ function gridRayHit(x1,y1,x2,y2,opts){
   let c=Math.floor(x1/tile), r=Math.floor(y1/tile);
   const startC=c, startR=r;
   const startType=gridCell(startC,startR);
+  const rope=!!opts.rope;
+  const slopeBlocks=(c,r)=>rope?gridIsSlope(c,r):gridSlopeLive(c,r);
   const startBlocked=startType===MV_GRID_SOLID||startType===MV_GRID_DESTRUCT
-    ||gridSlopeLive(startC,startR);
+    ||slopeBlocks(startC,startR);
   const stepC=ux<0?-1:ux>0?1:0;
   const stepR=uy<0?-1:uy>0?1:0;
   const inf=1e12;
@@ -249,8 +251,18 @@ function gridRayHit(x1,y1,x2,y2,opts){
     const t=Math.max(0,tEnter);
     const tx=x1+ux*t, ty=y1+uy*t;
     if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT) return {tx,ty,nx,ny};
+    if(type===MV_GRID_ONEWAY){
+      if(!rope||uy<=0) return null;
+      const top=r*tile;
+      const tLip=(top-y1)/uy;
+      if(tLip<0||tLip>dist+0.01) return null;
+      const lx=x1+ux*tLip;
+      if(lx<c*tile-0.5||lx>(c+1)*tile+0.5) return null;
+      if(y1>=top-0.5) return null;
+      return {tx:lx, ty:top, nx:0, ny:-1};
+    }
     if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
-      if(!gridSlopeLive(c,r)) return null;
+      if(!slopeBlocks(c,r)) return null;
       const sy=gridSlopeY(c,r,tx);
       if(sy==null) return null;
       const s=gridSlopeAt(c,r);
