@@ -155,11 +155,11 @@
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       B.ropeClip=null; B.magPark=null; ITEM=0;
-      S._armPose=computeConnectorArmPose(S);
-      ctx.save(); ctx.globalAlpha=S._blink>0?0.4+0.05*(12-S._blink):0.92;
-      drawCharacterFor(S);
-      ctx.restore();
-      B.ropeClip=keep.rc; B.magPark=keep.mp; ITEM=keep.it;
+      try{
+        S._armPose=computeConnectorArmPose(S);
+        ctx.save(); ctx.globalAlpha=S._blink>0?0.4+0.05*(12-S._blink):0.92;
+        try{ drawCharacterFor(S); } finally{ ctx.restore(); }
+      } finally{ B.ropeClip=keep.rc; B.magPark=keep.mp; ITEM=keep.it; }   // your item, rope and magnet are always handed back
     }catch(e){ console.warn('sibling draw',e); }
     return r;
   };
