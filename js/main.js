@@ -910,27 +910,30 @@ function update(){
   if(_bindJ('use')) _cycleItem();
   if(typeof _updateRunEntry==='function') _updateRunEntry(p);
   const _runQuiet=typeof _runItemQuiet==='function'&&_runItemQuiet(p);
+  // the item button as the items see it: held (and not the start of a sprint), or a quick tap played back as a 3-frame press
+  const _tapNow=(p._tapPulse||0)>0; if(_tapNow) p._tapPulse--;
+  const _itemHeld=(_bindDown('swap')&&!_runQuiet)||_tapNow;
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){
     const _enhTrs=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
     const _cMax=_enhTrs?22:40;
     const _cReady=_enhTrs?10:18;
-    if(_runQuiet&&p.laserCharging){p.laserCharging=false;p.laserCharge=0;}
-    else if(_bindDown('swap')&&!_runQuiet&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
+    if(_runQuiet&&!_tapNow&&p.laserCharging){p.laserCharging=false;p.laserCharge=0;}
+    else if(_itemHeld&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
-    if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=0;}
+    if(!_itemHeld&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=0;}
     if(p.laserCd>0)p.laserCd--;
   }else if(ITEM===1&&_itemUnlocked(1)){
-    const _rcaHeld=_bindDown('swap');
-    if(_runQuiet||!_rcaHeld){ if(!_rcaHeld) p._rcaArmed=false; }
+    const _rcaHeld=_itemHeld;
+    if(!_rcaHeld){ if(!_rcaHeld) p._rcaArmed=false; }
     else if(!p._rcaArmed){ fireItem(); p._rcaArmed=true; }
     p.laserCharging=false;p.laserCharge=0;
   }
   else{p.laserCharging=false;p.laserCharge=0;}
 
   // ── XLR / MAG hold ────────────────────────────────────────────
-  const _fireHeld=_bindDown('swap')&&!_runQuiet;
+  const _fireHeld=_itemHeld;
   const _treeBoost=_knowlTreeBoostMul(p);
   const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
