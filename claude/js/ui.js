@@ -293,7 +293,10 @@ function startStoryMode(){
   _battleTestMode=false; _syncBattleHud();
   _runTestMode=false; _stageDesignerMode=false;
   _gameState='story'; _storyPage=0; _storyFr=0;
-  _stopBGM('title'); _playBGM('story',OPT.musicVol*0.55);
+  // the title and the story share the opening theme: it carries on, a little softer, under the story
+  const _same=typeof _titleMusicPath!=='undefined'&&_titleMusicPath&&_titleMusicPath===_storyMusicPath&&_openingAudioEl&&!_openingAudioEl.paused;
+  if(_same){ try{ _openingAudioEl.volume=Math.max(0,Math.min(1,OPT.musicVol*0.55)); }catch(e){} }
+  else { _stopBGM('title'); _playBGM('story',OPT.musicVol*0.85); }   // the storyline theme, up front
 }
 function _ensureTitleMusic(){
   if(_gameState!=='title') return;
@@ -316,6 +319,7 @@ function startGame(){
       if(_playerCount===2){ uiShowToast('2 PLAYERS - COMING SOON TO THE NEW AWDJOO'); _selectStep=0; return; }
       _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
       if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
+      if(window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv); return; }   // a saved run that hadn't seen the intro
       startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
       return;
     }

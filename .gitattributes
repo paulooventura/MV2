@@ -4,3 +4,6 @@
 
 # GitHub Pages cannot serve LFS. Web BGM must be regular blobs.
 assets/bgm/*.mp3 filter= diff= merge= -text
+
+# The deployed copy under claude/ is served by Pages too: its BGM must be regular blobs as well.
+claude/assets/bgm/*.mp3 filter= diff= merge= -text

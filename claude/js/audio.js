@@ -82,7 +82,10 @@ function _pickFromPool(pool,except){
 }
 function _pickRandomNewMusic(except){ return _pickFromPool(NEW_MUSIC_TRACKS,except); }
 function _pickTitleMusic(except){ return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
-function _pickStoryMusic(except){ return _pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except); }
+// The storyline theme (Paulo, Oct 22): "The Knowl Tree" opens every story — the intro pages
+// and the hero pick — always this song, never a random pick.
+const STORY_THEME='assets/bgm/the-knowl-tree.mp3';
+function _pickStoryMusic(except){ return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
 function _zoneMusicPath(idx){
   const i=Math.max(0,Math.min(ZONE_MUSIC_TRACKS.length-1,(idx!=null?idx:_zoneIdx)|0));
   return ZONE_MUSIC_TRACKS[i]||ZONE_MUSIC_TRACKS[0];
@@ -99,7 +102,7 @@ function _pickBgmPath(type,except){
 }
 function _bgmVolFor(type){
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
-  return type==='story'?mv*0.55:type==='game'?mv:mv;
+  return type==='story'?mv*0.85:type==='game'?mv:mv;
 }
 function _bgmPathFor(type){
   return type==='game'?_gameMusicPath:type==='story'?_storyMusicPath:_titleMusicPath;
@@ -182,7 +185,7 @@ function ga(){return _ensureAC();}
 
 function _preloadMp3Tracks(){
   if(!_titleMusicPath) _loadBgmElement('title',_pickTitleMusic());
-  if(!_storyMusicPath) _loadBgmElement('story',_pickStoryMusic(_titleMusicPath));
+  if(!_storyMusicPath) _loadBgmElement('story',_pickStoryMusic());   // the storyline theme
   if(!_gameMusicPath)  _loadBgmElement('game', _pickGameMusic(_storyMusicPath));
 }
 function _unlockAudio(){
