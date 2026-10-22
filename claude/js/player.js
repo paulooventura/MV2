@@ -559,6 +559,10 @@ function _armPathClear(pts,cx,cy,t){
   return true;
 }
 function _tiltPt(x,y,cx,cy,t){ if(!t) return {x,y}; const c=Math.cos(t), s=Math.sin(t), dx=x-cx, dy=y-cy; return {x:cx+dx*c-dy*s, y:cy+dx*s+dy*c}; }
+// Rope swing feel (Paulo, Oct 22: "less recoil when we release the directional buttons")
+const ROPE_FREE_DRAG=0.99;          // per-frame drag on a swing nobody is pumping (was 0.996)
+const ROPE_RELEASE_BRAKE_FR=22;     // frames of extra braking right after letting go of left/right
+const ROPE_RELEASE_DRAG=0.93;       // drag during that brake
 const RCA_COIL_STRETCH=3.6;                                  // how far the jack arm's coil can stretch (x its rest length)
 function computeConnectorArmPose(pl=p){
   pl._jackOnSurface=false;
@@ -944,6 +948,10 @@ function updateHook(){
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
     if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%4===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
     const _pump=isLf()||isRt();
+    // Paulo (Oct 22): letting go of left/right settles the swing instead of recoiling on the
+    // cord's stretch — a short brake after release, and a calmer free swing overall
+    if(!_pump&&h._wasPump) h._relBrake=ROPE_RELEASE_BRAKE_FR;
+    h._wasPump=_pump;
     if(isLf()){p.vx-=1.2;p.fc=false;}
     else if(isRt()){p.vx+=1.2;p.fc=true;}
     p.vy+=GRAV; p.vy=Math.min(p.vy,14);
@@ -955,7 +963,8 @@ function updateHook(){
     // swings from hanging straight down, NOT by speed (speed is ~0 at the top of every swing)
     const _piv=(h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
     const _off=Math.abs(p.x+SW/2-_piv.x), _small=_off<16&&_spd<1.4;
-    const _drag=_pump?0.999:_small?0.95:0.996;            // ~12% of the swing lost per half-swing
+    let _drag=_pump?0.999:_small?0.95:ROPE_FREE_DRAG;     // free swing bleeds out faster (was 0.996)
+    if(!_pump&&h._relBrake>0){ h._relBrake--; _drag=Math.min(_drag,ROPE_RELEASE_DRAG); }
     p.vx*=_drag; if(p.vy<0||_pump) p.vy*=_drag;          // (gravity itself is never damped away)
     if(!_pump&&_small&&_spd<0.25){ p.vx*=0.5; }
     const _rSteps=Math.max(1,Math.ceil(Math.max(Math.abs(p.vx),Math.abs(p.vy))/3));
