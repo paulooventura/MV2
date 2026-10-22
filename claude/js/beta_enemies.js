@@ -983,8 +983,13 @@
   B.drawEnemyFx=function(){ drawRopes(); drawFrags(); };
 
   // ── difficulty switch under the screen (next to the console buttons) ──
-  function diffUi(){
-    const bar=document.querySelector('.mv-console-bar'); if(!bar){ setTimeout(diffUi,300); return; }
+  function diffUi(tries){
+    const bar=document.querySelector('.mv-console-bar');
+    if(!bar){
+      if(document.querySelector('.mv-controls')||window.MV_BETA_START) return;
+      if((tries||0)<8) setTimeout(()=>diffUi((tries||0)+1),300);
+      return;
+    }
     if(bar.querySelector('[data-d]')) return;
     bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><span>ENEMIES</span>'+[[1,'EASY'],[2,'NORMAL'],[3,'HARD']].map(([d,l])=>'<button type="button" data-d="'+d+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join(''));
     const sync=()=>bar.querySelectorAll('[data-d]').forEach(b=>{ const on=+b.dataset.d===B.difficulty; b.setAttribute('aria-pressed',on); b.style.background=on?'#2a1650':'#120a22'; b.style.color=on?'#ffe39a':'#9c8cc8'; b.style.borderColor=on?'#f0d070':'#3a2878'; });
