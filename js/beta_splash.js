@@ -14,7 +14,8 @@
     {src:'assets/splash/paulo-ventura-logo.png', bg:'#18003e', pad:1, extend:true, word:'PAULO VENTURA', sub:'A GAME BY', subTop:true, pal:['#e8f6ff','#9fd4ff','#ffffff','#7b4fd8','#c58cff','#ffe39a'], rim:'#f6c94a', glow:'rgba(160,120,255,0.75)'}
   ];
   SPLASHES.forEach(s=>{ const im=new Image(); im.onload=()=>{ s.ready=true; s.settled=true; }; im.onerror=()=>{ s.ready=false; s.settled=true; }; im.src=s.src; s.img=im; });
-  let idx=0, t=0, waitF=0, mos=null;
+  let idx=0, t=0, waitF=0, mos=null, skipping=false;
+  const OUT_SKIP=18;
   window.MV_SPLASH={idx:()=>idx, t:()=>t, IN};
   function mosaic(m){
     if(m<=1) return;
@@ -49,14 +50,27 @@
     }
     let m=1, dark=0;
     if(t<IN){ const k=t/IN; m=Math.max(1,Math.round(1+(1-k)*31)); dark=Math.ceil((1-k)*15)/15; }
-    else if(t>=IN+HOLD){ const k=(t-IN-HOLD)/OUT; dark=Math.ceil(Math.min(1,k)*15)/15; }
+    else if(t>=IN+HOLD){ const k=(t-IN-HOLD)/(skipping?OUT_SKIP:OUT); dark=Math.ceil(Math.min(1,k)*15)/15; }
     mosaic(m);
     if(dark>0){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=dark; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); ctx.restore(); }
   }
+  // Paulo (Oct 22): any button skips the logos — smoothly: the one on screen fades out
+  // quickly and the title fades in (the remaining logo is skipped too)
+  function skipAll(){
+    if(skipping) return; skipping=true;
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    if(t<IN){ t=IN+HOLD+Math.round(OUT_SKIP*(1-t/IN)); } else if(t<IN+HOLD) t=IN+HOLD;   // straight into the fade
+  }
+  function toTitle(){
+    idx=SPLASHES.length; _gameState='title'; if(typeof _titleMenuIdx!=='undefined') _titleMenuIdx=0;
+    if(typeof _titleT!=='undefined') _titleT=0; window.MV_TITLE_FADE=24;
+    if(typeof _ensureTitleMusic==='function') try{ _ensureTitleMusic(); }catch(e){}
+  }
   function nextSplash(){
+    if(skipping){ toTitle(); return; }
     idx++; t=0;
     if(idx===1&&typeof _ensureTitleMusic==='function') try{ _ensureTitleMusic(); }catch(e){}   // the title theme starts with the 2nd logo
-    if(idx>=SPLASHES.length){ _gameState='title'; if(typeof _titleMenuIdx!=='undefined') _titleMenuIdx=0; }
+    if(idx>=SPLASHES.length){ _gameState='title'; if(typeof _titleMenuIdx!=='undefined') _titleMenuIdx=0; window.MV_TITLE_FADE=24; }
   }
   function skipKey(){ for(const k in Kj){ if(Kj[k]) return true; } return false; }
   const _update=window.update, _draw=window.draw;
@@ -65,9 +79,9 @@
       const s=SPLASHES[idx];
       if(!s.settled&&++waitF<240){ clkj(); fr++; return; }
       s.settled=true; waitF=0;
-      if(skipKey()&&t>IN*0.5){ if(typeof _unlockAudio==='function') _unlockAudio(); nextSplash(); }
+      if(skipKey()) skipAll();
       fr++; t++;
-      if(t>=LEN) nextSplash();
+      if(t>=(skipping?IN+HOLD+OUT_SKIP:LEN)) nextSplash();
       clkj(); if(typeof Kj2!=='undefined') Object.keys(Kj2).forEach(k=>delete Kj2[k]);
       return;
     }
@@ -82,7 +96,7 @@
     return _draw.apply(this,arguments);
   };
   document.addEventListener('click',function(e){
-    if(_gameState==='splash'&&t>IN*0.5){ if(typeof _unlockAudio==='function') _unlockAudio(); nextSplash(); e.stopPropagation(); }
+    if(_gameState==='splash'){ skipAll(); e.stopPropagation(); }
   },true);
   _gameState='splash';
 })();
