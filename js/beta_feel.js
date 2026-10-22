@@ -365,12 +365,15 @@
   //   floors (it lies on them, with friction), a little stretchy like rubber.
   //   Drawing only — the rope's pull on MIND is the game's own rope physics.
   const _origSlack=window._ropeSlackDrawPts;
+  const CORD_TAUT_SLACK=16;
   function solidPt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
   function cordPts(path,rl){
     const h=p&&p.hook; if(!h||!path||path.length<2) return path||[];
     let plen=0; for(let i=1;i<path.length;i++) plen+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
-    const L=Math.max(plen,rl||plen);
-    if(L-plen<3){ h._cord=null; return path; }                 // taut: straight along its path (round corners)
+    // Paulo (Oct 22): the cord reads taut while it carries MIND — the first CORD_TAUT_SLACK px of
+    // slack (the little give of a swing) are drawn straight; only real slack droops
+    const slack=Math.max(0,(rl||plen)-plen-CORD_TAUT_SLACK), L=plen+slack;
+    if(slack<3){ h._cord=null; return path; }                  // taut: straight along its path (round corners)
     const n=Math.max(10,Math.min(64,Math.round(L/8)));
     const A=path[0], E=path[path.length-1];
     let c=h._cord;

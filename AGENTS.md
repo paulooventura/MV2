@@ -295,6 +295,11 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 219 — the rope reads taut (Oct 22)
+- `js/beta_feel.js` `cordPts`: `CORD_TAUT_SLACK=16` — the first 16 px of slack draw straight; only real slack droops.
+- `js/physics.js` `_vropeStep`: `VROPE_TAUT_FROM=18`, pull up to 0.97 (non-beta cord).
+- `js/render.js`: a straight cord draws thinner (6/4/2) with a white strain line.
+
 ### Build 218 — calmer rope swing (Oct 22)
 - Paulo: "less recoil on the rope when we release the directional buttons… more control of flight/float".
 - `js/player.js` knobs: `ROPE_FREE_DRAG=0.99` (was 0.996), `ROPE_RELEASE_BRAKE_FR=22` + `ROPE_RELEASE_DRAG=0.93` (brake right after letting go of left/right).

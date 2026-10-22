@@ -93,6 +93,7 @@ const VROPE_N=22;       // particles along cord
 const VROPE_ITER=8;     // constraint passes per frame
 const VROPE_GRAV=0.3;   // sag gravity for slack cord
 const VROPE_DRAG=0.96;  // air drag on cord wiggle
+const VROPE_TAUT_FROM=18;  // px of slack at which the drawn cord starts pulling straight
 
 // ── Collision system ──────────────────────────────────────────
 const COLL_SEAM=8;
@@ -2599,8 +2600,10 @@ function _vropeStep(h){
       if(i+1<n-1){b.x-=ox;b.y-=oy;}
     }
   }
-  const taut=Math.min(1,Math.max(0,(plen-rl+4)/10));
-  const pull=Math.min(0.85,Math.max(taut*0.85,path.length>2?0.35:0));
+  // Paulo (Oct 22): with the recoil tamed, a cord carrying MIND's weight should read taut —
+  // it straightens from well before full length, and only real slack droops
+  const taut=Math.min(1,Math.max(0,(plen-rl+VROPE_TAUT_FROM)/VROPE_TAUT_FROM));
+  const pull=Math.min(0.97,Math.max(taut*0.97,path.length>2?0.35:0));
   if(pull>0){for(let i=1;i<n-1;i++){const q=vr[i];const tp=_pathPointAt(path,plen,plen*i/(n-1));q.x+=(tp.x-q.x)*pull;q.y+=(tp.y-q.y)*pull;}}
   const cols=_ropeColliders();
   for(let i=1;i<n-1;i++){
