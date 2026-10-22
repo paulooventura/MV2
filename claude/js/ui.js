@@ -721,6 +721,7 @@ function drawTitle(){
     _drawTitleMenuOverArt(Object.assign({},map,{s:0.75}));
     _drawUiToast();
     drawTextC('© 1993 SONNATA GAMES',W-96,H-14,'rgba(200,184,255,0.6)',1);
+    if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }   // in from the skipped logos
     return;
   }
   if(map){

@@ -8,9 +8,9 @@
 //  GAME OVER (no continues left) sends you back to your slot's last save with
 //  fresh lives and continues.
 //  STORY MODE (Paulo, Oct 22 — the order is the game's front door):
-//    splash logos → title → STORY MODE → the storyline pages → TIMELINE (pick
-//    one of five: a saved one carries on from its save, an empty one starts a
-//    new story there) → character select → the stage.
+//    splash logos → title → STORY MODE → TIMELINE (pick one of five files)
+//      · an empty one (a new file): the storyline pages → character select → 1.1
+//      · a saved one: straight to character select → on from its save (no storyline)
 //  Y (F / Delete) on a saved timeline erases it (press twice).
 //  Kept in the browser (localStorage), so it survives closing the page.
 // ============================================================
@@ -128,10 +128,11 @@
     if(!pick) return;
     const i=pick.idx;
     try{ sfx('confirm'); }catch(e){}
-    if(i>=N){ close(); window.MV_TIMELINE_BACK_TO_STORY(); return; }
+    if(i>=N){ close(); window.MV_TIMELINE_BACK_TO_STORY(); return; }   // BACK: to the title
     const s=slots()[i]; close();
-    B.storySlot=i; B.pendingSave=s||null;                    // saved: carry on from it · empty: a new story here (1.1)
-    if(s&&s.hero&&typeof _heroChoice!=='undefined') _heroChoice=s.hero;   // the select opens on this timeline's hero
+    B.storySlot=i; B.pendingSave=s||null;
+    if(!s){ _storyNew(); return; }                           // a new file: the storyline first, then the select
+    if(s.hero&&typeof _heroChoice!=='undefined') _heroChoice=s.hero;   // a saved file: the select (on its hero), no storyline
     _gameState='select'; if(typeof _selectStep!=='undefined') _selectStep=0; if(typeof _playModeIdx!=='undefined') _playModeIdx=0;
   }
   function eraseKey(){
@@ -147,19 +148,13 @@
   const live=()=>window.MV_STORY_STAGES&&!/[?&]selftest=1/.test(location.search);
   window.startStoryMode=function(){
     if(!live()) return _story.apply(this,arguments);
-    B.pendingSave=null; B.storySlot=null; pick=null;
-    return _story.apply(this,arguments);                     // the storyline first, always
+    B.pendingSave=null; B.storySlot=null;
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    _gameState='timeline'; open();                           // the file screen first
   };
-  // the last story page → the TIMELINE screen (instead of straight to the select)
-  const _sg=window.startGame;
-  if(typeof _sg==='function') window.startGame=function(){
-    const was=_gameState, r=_sg.apply(this,arguments);
-    if(live()&&was==='story'&&_gameState==='select'){ _gameState='timeline'; open(); }
-    return r;
-  };
-  window.MV_TIMELINE_BACK_TO_STORY=function(){ pick=null; _gameState='story'; if(typeof STORY_PAGES!=='undefined') _storyPage=STORY_PAGES.length-1; };
-  // B on the select (first step) goes back to the timeline
-  window.MV_TIMELINE_BACK=function(){ if(!live()) return false; _gameState='timeline'; open(); return true; };
+  window.MV_TIMELINE_BACK_TO_STORY=function(){ pick=null; _gameState='title'; };   // B on the timeline: back to the title
+  // B on the select's first step: a saved file goes back to the timeline (a new one to its storyline, as before)
+  window.MV_TIMELINE_BACK=function(){ if(!live()||!B.pendingSave) return false; _gameState='timeline'; open(); return true; };
   const _act=window._titleMenuActivate;
   if(typeof _act==='function') window._titleMenuActivate=function(){ if(pick){ choose(); return; } return _act.apply(this,arguments); };
   window.addEventListener('keydown',e=>{
