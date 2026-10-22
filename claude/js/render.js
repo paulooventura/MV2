@@ -2483,7 +2483,10 @@ function drawFX(){
       const path=typeof _ropeSlackDrawPts==='function'?_ropeSlackDrawPts(taut,p.hook.rl):taut;
       const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
       ctx.lineCap='round';ctx.lineJoin='round';
-      const layers=[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
+      // pulled straight under MIND's weight the cord draws thinner, with a bright strain line (Oct 22)
+      const _taut=path===taut;
+      const layers=_taut?[{c:_ropeDark,w:6},{c:_ropeMain,w:4},{c:_ropeHigh,w:2},{c:'rgba(255,255,255,0.55)',w:1}]
+                        :[{c:_ropeDark,w:7},{c:_ropeMain,w:5},{c:_ropeHigh,w:2}];
       for(const L of layers){
         ctx.strokeStyle=L.c;ctx.lineWidth=L.w;
         ctx.beginPath();ctx.moveTo(wpts[0].x,wpts[0].y);
