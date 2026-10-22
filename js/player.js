@@ -525,6 +525,8 @@ function _updatePlayerMoveX(pl){
     if(dir>0) pl.vx=Math.min(pl.vx,0);
     else pl.vx=Math.max(pl.vx,0);
   }
+  // XLR stand-off (beta_feel.js): driving into his own XLR shove, the tire holds and slowly loses ground
+  if(pl._xlrResistFr!=null&&fr-pl._xlrResistFr<=1) pl.vx+=(pl._xlrResistV-pl.vx)*0.7;
 }
 
 // ── Connector arm pose ────────────────────────────────────────

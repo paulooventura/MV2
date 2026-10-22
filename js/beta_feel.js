@@ -15,6 +15,7 @@
   const B=window.MV_BETA; if(!B) return;
   const T=32;
   const FEEL={
+    XLR_GRIP:0.78,                                       // share of the XLR shove the tire soaks up when driving into it
     WALL_MIN:5.2,  WALL_REST:0.42, WALL_CD:16,          // wall bounce
     LAND_MIN:7.0,  LAND_REST:0.42, LAND_MAX:6.0,        // wheel bounce
     TUCK_SLIDE:14,                                       // px of corner forgiveness on a head bump
@@ -151,8 +152,26 @@
     const a=aimUnit();
     const charge=Math.min(1,(p.xlrHeld||0)/FEEL.XLR_FULL);
     const thrust=(0.55+charge*1.15)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[2]?1.25:1);
-    p.vx-=a.x*thrust; p.vy-=a.y*thrust;            // opposite the aim
-    if((p.xlrHeld||0)>3){ p.og=false; p._groundHold=0; }
+    // Paulo (Oct 22): on the ground, pushing with the XLR while driving INTO the push, the
+    // tire fights it — it grips (most of the shove is soaked up), spins, heats up and smokes
+    const inDir=(typeof isRt==='function'&&isRt())?1:(typeof isLf==='function'&&isLf())?-1:0;
+    const grounded=typeof _playerOnGround==='function'&&_playerOnGround(p);
+    const resist=grounded&&Math.abs(a.x)>0.45&&a.y>-0.6&&inDir!==0&&inDir===Math.sign(a.x);
+    if(resist){
+      // a stand-off: the drive and the shove cancel, and the shove slowly wins (more with charge)
+      const creep=-Math.sign(a.x)*thrust*(1-FEEL.XLR_GRIP)*2.2;
+      p.vx+=(creep-p.vx)*0.35; p._xlrResistV=creep; p._xlrResistFr=fr; if(a.y>0.2) p.vy-=a.y*thrust*0.3;           // no lift off the ground
+      const slip=Math.abs(a.x)*thrust;
+      p._tireHeat=Math.min(1,(p._tireHeat||0)+0.006*slip*(0.6+charge));
+      p.wheelAngle=(p.wheelAngle||0)+inDir*0.55;   // spinning against the slide
+      p._burnout=6;
+      const n=Math.random()<0.25+0.45*p._tireHeat?1:0;   // smoke grows with the heat, never a fog
+      if(n&&p.smoke&&p.smoke.length<26) p.smoke.push({x:p.x+SW/2-inDir*10+(Math.random()-0.5)*8,y:p.y+FEET_OFF-3,vx:-inDir*(0.6+Math.random())+(Math.random()-0.5)*0.6,vy:-0.5-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*3});
+      if(fr%14===0) try{ sfx('tire_squeal',0.35+0.65*p._tireHeat); }catch(e){}
+    }else{
+      p.vx-=a.x*thrust; p.vy-=a.y*thrust;            // opposite the aim
+      if((p.xlrHeld||0)>3){ p.og=false; p._groundHold=0; }
+    }
     capSpeed(7+charge*6);
     if(fr%4===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
   }
@@ -170,6 +189,8 @@
     capSpeed(7+charge*5.5);
     if(fr%4===0) PFXS.push({x:p.x+SW/2-a.x*16,y:p.y+FEET_OFF-36-a.y*16,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#e0c070'});
   }
+  // the tire cools when it isn't fighting (called from feelTick)
+  function tireCool(){ if(p._burnout>0) p._burnout--; else if(p._tireHeat>0) p._tireHeat=Math.max(0,p._tireHeat*0.985-0.0008); }
   B.onXlrRelease=function(held){
     const la=B.xlrAim, a=unitAim(la);
     const charge=Math.min(1,held/FEEL.XLR_FULL);
@@ -412,6 +433,7 @@
 
   B.feelTick=function(){
     if(!on()) return;
+    tireCool();
     if(p.hook&&p.hook.st!=='on'&&p.hook._cord) p.hook._cord=null;
     // still ducks with DOWN while roped to the ground
     if(p.hook&&p.hook.st==='on'&&typeof isDn==='function'&&isDn()&&_playerOnGround(p)){ p.crouchAmt=(p.crouchAmt||0)+(1-(p.crouchAmt||0))*0.28; }

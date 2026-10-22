@@ -198,6 +198,14 @@ function drawWheel(cx,cy,angle,plRef){
   // sidewall + sheen
   ctx.beginPath();ctx.arc(cx,cy,R-2.5,0,Math.PI*2);ctx.strokeStyle='#18171d';ctx.lineWidth=3;ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,R-2.5,Math.PI*1.08,Math.PI*1.55);ctx.strokeStyle='rgba(170,175,200,0.32)';ctx.lineWidth=1.5;ctx.stroke();
+  // a hot tire (XLR burnout, beta_feel.js): the rubber glows orange from the tread in
+  const heat=Math.max(0,Math.min(1,pl._tireHeat||0));
+  if(heat>0.04){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.beginPath();ctx.arc(cx,cy,R-1.5,0,Math.PI*2);ctx.strokeStyle=`rgba(255,${Math.round(120-60*heat)},30,${(0.15+0.5*heat).toFixed(2)})`;ctx.lineWidth=3+2*heat;ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy+R*0.55,R*0.9,Math.PI*0.2,Math.PI*0.8);ctx.strokeStyle=`rgba(255,200,90,${(0.35*heat).toFixed(2)})`;ctx.lineWidth=2;ctx.stroke();   // hottest at the contact
+    ctx.restore();
+  }
   // anodized rim
   ctx.beginPath();ctx.arc(cx,cy,rimR,0,Math.PI*2);ctx.strokeStyle=ano;ctx.lineWidth=2.6;ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,rimR,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle=anoHi;ctx.lineWidth=1.2;ctx.stroke();
