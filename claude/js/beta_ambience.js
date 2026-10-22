@@ -291,7 +291,9 @@
     // wind lives where it's high and open (beta_spatial measures it); gusts, and it
     // whistles higher the higher he is
     if(t>gustT){ gust=0.4+Math.random()*0.8; gustT=t+2+Math.random()*4; set(N.wBP.frequency,(300+gust*500)*(1+E.elev*0.8),1.2); }
-    set(N.wG.gain,0.16*S.wind*gust*E.wind,1.2);
+    // the weather (beta_weather.js): the wind picks up with the storm, the crickets go quiet in the rain
+    const WX=window.MV_WEATHER&&MV_WEATHER.state, storm=WX?Math.max(WX.storm||0,(WX.cloud||0)*0.6):0, hush=WX?Math.min(1,Math.max(storm,(WX.haze||0)*0.4)):0;
+    set(N.wG.gain,0.16*S.wind*Math.max(gust,storm*1.1)*E.wind*(1+1.8*storm),1.2);
     // indoors the night comes through the walls: dull and low (wind, crickets and hum are also
     // walled off one by one through beta_spatial's occlusion)
     set(N.amb.frequency, 16000-15200*(E.inside||0), 0.4);
@@ -306,9 +308,9 @@
     set(N.lG.gain,0.2*lap,0.6); set(N.lLP.frequency,Math.max(150,llp),0.4);
     // the creatures and the drips, each from a real spot
     if(SP){
-      if(Math.random()<0.12*S.crickets){ const g=grassSpot(B); if(g) cricket(0,g.x,g.y); }
-      if(S.owl&&E.wind>0.2&&Math.random()<0.0016) owl();
-      if(S.frogs&&Math.random()<0.02){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
+      if(Math.random()<0.12*S.crickets*(1-0.95*hush)){ const g=grassSpot(B); if(g) cricket(0,g.x,g.y); }
+      if(S.owl&&E.wind>0.2&&Math.random()<0.0016*(1-hush)) owl();
+      if(S.frogs&&Math.random()<0.02*(1+storm)){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
       if(!E.room&&Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
       things(B,S,E);
     }

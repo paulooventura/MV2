@@ -38,6 +38,7 @@
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return ff; }, set ff(v){ ff=!!v; try{ localStorage.setItem(KEY+'.ff',ff?'1':'0'); }catch(e){} },   // friendly fire
     state:()=>S, npc:()=>npc&&npc.s };
+  B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
   const DELAY=24, KEEP=220, MIN_GAP=62, LOST=560;
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
@@ -122,6 +123,8 @@
     S._flying=false;
     let tx=cov?cov.x:p.x+S._side*70;
     if(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60)) tx=p.x+S._side*34;   // a wall there: tuck in closer
+    const pm=B.ridePlat;                                              // you're on a moving platform: its spot is on it too
+    if(pm&&!cov){ const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
     const dx=tx-S.x, adx=Math.abs(dx), dead=16, dir=Math.sign(dx);
     const maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
     if(adx>dead){
@@ -129,14 +132,19 @@
       const vStop=Math.sqrt(2*0.32*(adx-dead))+0.4;                   // brake in time: eases to a stop on its mark
       if(Math.sign(S.vx)===dir&&Math.abs(S.vx)>vStop) S.vx=dir*vStop;
       if(Math.sign(S.vx)!==dir) S.vx*=0.8;
-    }else S.vx=(S.vx||0)*0.75;
-    S.vx=Math.max(-maxV,Math.min(maxV,S.vx));
+    }else S.vx=(S.vx||0)*(S.og?0.75:0.97);
+    S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
     const feet=S.y+FEET_OFF;
     if(S.og){
       const ax=S.x+SW/2+dir*(SW/2+10);
       const wall=adx>dead&&(solid(ax,feet-24)||solid(ax,feet-52));
       const ledge=dyP<-48&&Math.abs(dxP)<150&&p.og;                    // you're up a step: hop up after you
-      if(wall||ledge){ S.vy=-10.8; S.og=false; }
+      // a gap ahead (no floor under the next stretch) with somewhere to land at about this height: leap it
+      let gap=false;
+      if(adx>40&&Math.abs(S.vx)>1.2){ const fx=S.x+SW/2+dir*(SW/2+18); let floorAhead=false; for(let yy=feet+4;yy<feet+90;yy+=12) if(solid(fx,yy)){ floorAhead=true; break; }
+        if(!floorAhead&&dyP<40) gap=true; }
+      const ontoPlat=pm&&S._ridePlat!==pm&&dyP<-20&&Math.abs(dxP)<170;   // hop onto the platform you're riding
+      if(wall||ledge||gap||ontoPlat){ S.vy=-10.8; S.og=false; if(gap||ontoPlat) S.vx=dir*Math.max(Math.abs(S.vx),3.2); }
     }
     S.vy=Math.min((S.vy||0)+GRAV,13);
     if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S.vx,S.vy); else { S.x+=S.vx; S.y+=S.vy; }

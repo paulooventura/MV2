@@ -45,7 +45,7 @@
   function stable(t){ if(t<=1) return 1; if(t<2+MAXC) return (1+t*MAXC)/(1+MAXC); return (t+MAXC)/2; }
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.wRings=[];
+  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.wRings=[];
     B.drops=[]; B.steam=[]; F.ready=false; F.rects=[]; F.M=null; };
   B.onEntities=function(ents, Fd, cell){
     for(const e of ents){
@@ -301,6 +301,10 @@
     }
     const m=ridingPlat(p);
     if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
+    // other bodies (the sibling, the NPC at home) ride them too (Paulo, Oct 22)
+    for(const o of B.platRiders?B.platRiders():[]){ const q=o._ridePlat; if(!q) continue;
+      const cx=o.x+SW/2, feet=o.y+FEET_OFF;
+      if(cx>=q.x-8&&cx<=q.x+q.w+8&&Math.abs(feet-q.y)<=4&&(o.vy||0)>=-0.01){ o.x+=q.dx; o.y=q.y-FEET_OFF; } else o._ridePlat=null; }
     // the hook rides the platform it bit
     const h=p.hook;
     if(h&&h.st==='on'&&!h.tgt){
@@ -329,7 +333,17 @@
   // ── Movement wrapper: water drag + landing on platforms ─────────
   const _origMove=window._movePlayerWithColl;
   window._movePlayerWithColl=function(pl,vx,vy){
-    if(!on()||pl!==p) return _origMove.apply(this, arguments);
+    if(!on()) return _origMove.apply(this, arguments);
+    if(pl!==p){                                              // the sibling / NPC: land on and stay on the moving platforms
+      const y0=pl.y, riding=pl._ridePlat;
+      _origMove.apply(this, arguments);
+      const feet0=y0+FEET_OFF, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
+      for(const m of B.platforms){
+        if(cx<m.x-8||cx>m.x+m.w+8) continue;
+        if(((vy>=0)&&feet0<=m.y+3&&feet>=m.y-1)||(riding===m&&vy>=0&&Math.abs(feet-m.y)<=8)){ pl.y=m.y-FEET_OFF; if(pl.vy>0) pl.vy=0; pl.og=true; pl._ridePlat=m; return; }
+      }
+      pl._ridePlat=null; return;
+    }
     const dpt=mindDepth();
     if(dpt.f>0.25){
       // underwater: gravity mostly cancelled by buoyancy, a gentle sink, heavy drag
@@ -797,37 +811,73 @@
   }
 
   // ── The Isolator pickup ───────────────────────────────────────
-  // Paulo, Oct 2026: the Isolator works for 30 seconds, then it wears off.
-  // The crate grows back 30 seconds after it's taken.
-  const ISO_TIME=1800, ISO_RESPAWN=1800;                   // frames (60 fps)
-  B.ISO_TIME=ISO_TIME;
+  // Paulo, Oct 22 (build 265): the Isolator doesn't wear off any more — but a hit knocks it off
+  // (an enemy, a blast, a lightning bolt it takes for you). It pops off and bounces away; grab it
+  // again. The crate still grows back 30 s after you first take it.
+  const ISO_RESPAWN=1800;                                  // frames (60 fps)
+  B.ISO_TIME=0;
+  B.isoLoose=null;
+  function isoBurst(x,y,n,col){ for(let k=0;k<n;k++){ const a=Math.random()*Math.PI*2, s=1.2+Math.random()*3; PFXS.push({x:x+Math.cos(a)*14,y:y+Math.sin(a)*18,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,life:18+Math.random()*12|0,maxLife:30,r:2+Math.random()*2,col:col||'#ffa040'}); } }
+  B.knockIsolator=function(dir,why){
+    if(!B.hasIsolator||!p) return;
+    B.hasIsolator=false; B.isoT=0;
+    const x=p.x+SW/2, y=p.y+FEET_OFF-60;
+    B.isoLoose={x, y, vx:(dir||(p.fc?-1:1))*(3+Math.random()*1.5), vy:-6.5, t:0, spin:0};
+    isoBurst(x,y,16,'#c86a30'); try{ zap(0.6); sfx('hit',0.7); }catch(e){}
+    if(typeof uiShowToast==='function') uiShowToast(why==='bolt'?'THE ISOLATOR TOOK THE BOLT - AND FLEW OFF! GRAB IT':'THE ISOLATOR GOT KNOCKED OFF! GRAB IT');
+  };
+  // any hit that hurts knocks it off
+  const _origHit=window.applyPlayerHit;
+  if(_origHit) window.applyPlayerHit=function(kx,ky,dmg){
+    const had=on()&&B.hasIsolator&&(dmg==null||dmg>0)&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(p.inv>0);
+    const r=_origHit.apply(this, arguments);
+    if(had) B.knockIsolator(Math.sign(kx||0)||null,'hit');
+    return r;
+  };
+  function looseTick(){
+    const L=B.isoLoose; if(!L) return;
+    L.t++; L.vy=Math.min(L.vy+GRAV*0.9,12);
+    const nx=L.x+L.vx; if(gridWorldSolid(nx,L.y-6)){ L.vx*=-0.5; } else L.x=nx;
+    const ny=L.y+L.vy;
+    if(L.vy>0&&(gridWorldSolid(L.x,ny+2)||B.platforms.some(m=>L.x>=m.x&&L.x<=m.x+m.w&&L.y<=m.y+2&&ny+2>=m.y))){
+      const m=B.platforms.find(m=>L.x>=m.x&&L.x<=m.x+m.w&&L.y<=m.y+2&&ny+2>=m.y);
+      if(m){ L.y=m.y-2; L.x+=m.dx; } else { let yy=ny+2; while(yy>L.y-16&&gridWorldSolid(L.x,yy)) yy--; L.y=yy-1; }
+      L.vy=Math.abs(L.vy)>2.5?-L.vy*0.35:0; L.vx*=0.7;
+    }else if(L.vy<0&&gridWorldSolid(L.x,ny-12)){ L.vy=0; }
+    else L.y=ny;
+    if(waterAt(L.x,L.y-4)){ L.vy=Math.max(-1.2,L.vy-GRAV*1.4); L.vx*=0.95; }   // rubber floats
+    L.spin+=L.vx*0.08;
+    if(typeof WH==='number'&&L.y>WH+200){ B.isoLoose=null; return; }
+    if(L.t>30&&p){ const core=playerCoreHB(p), feet=p.y+FEET_OFF;
+      if(ov(core.x-6,core.y,core.w+12,feet+6-core.y,L.x-14,L.y-26,28,26)){
+        B.isoLoose=null; B.hasIsolator=true; isoBurst(L.x,L.y-12,14); try{ sfx('menu'); }catch(e){}
+      } }
+  }
   function isolatorTick(){
     const iso=B.isoPickup;
-    if(B.hasIsolator){                                     // wearing off
-      B.isoT=(B.isoT||0)-1;
-      if(B.isoT===300||B.isoT===120) try{ zap(0.3); }catch(e){}
-      if(B.isoT<=0){
-        B.hasIsolator=false; B.isoT=0;
-        if(p) for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, s=1+Math.random()*2.5; PFXS.push({x:p.x+SW/2+Math.cos(a)*24,y:p.y+FEET_OFF-50+Math.sin(a)*30,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*10|0,maxLife:30,r:2+Math.random()*2,col:'#c86a30'}); }
-        if(typeof uiShowToast==='function') uiShowToast('THE ISOLATOR WORE OFF - A NEW ONE GROWS BACK SOON');
-      }
-    }
+    looseTick();
     if(iso&&iso.got&&iso.re>0){                            // the crate grows back
       iso.re--;
       if(iso.re<=0){ iso.got=false; iso.pop=20;
         for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*2,vy:Math.sin(a)*2-1,life:18,maxLife:18,r:2,col:'#ffa040'}); } }
     }
-    if(!iso||iso.got||!p) return;
+    if(!iso||iso.got||!p||B.hasIsolator) return;
     const core=playerCoreHB(p), feet=p.y+FEET_OFF;
     const iR=B.crateRect?B.crateRect(iso):{x:iso.x-23,y:iso.y-40,w:46,h:40};   // boxed: break it open first
     if(iR&&ov(core.x-4,core.y,core.w+8,feet+6-core.y,iR.x,iR.y,iR.w,iR.h)){
-      iso.got=true; iso.re=ISO_RESPAWN; B.hasIsolator=true; B.isoT=ISO_TIME;
+      iso.got=true; iso.re=ISO_RESPAWN; B.hasIsolator=true; B.isoT=0;
       if(!B.isoEver){ B.isoEver=true; B.stats.items++; }
       for(let k=0;k<16;k++){ const a=Math.random()*Math.PI*2, s=1.6+Math.random()*3; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,life:16+Math.random()*12|0,maxLife:28,r:2+Math.random()*2,col:'#ffa040'}); }
       if(B.openPopup) B.openPopup(4);
     }
   }
-  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT -','EVEN WHEN THE WATER IS ELECTRIFIED.','IT LASTS 30 SECONDS - A NEW ONE GROWS BACK 30 SECONDS LATER.','IN WATER: A KICKS, HOLD X WITH THE XLR: A CURRENT.']};
+  // a lightning bolt into the water: the whole body goes live (beta_weather.js)
+  B.strikeWater=function(x,y){
+    if(!F.ready) return false;
+    for(let yy=y-8;yy<y+48;yy+=8){ const i=cellFor(x,yy); if(wetCell(i,yy)){ electrify(i,150); boil(i,6); zap(1); return true; } }
+    return false;
+  };
+  if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT,','KEEPS THE STORM\'S STATIC OFF AND TAKES A BOLT.','IT DOESN\'T WEAR OFF - BUT A HIT KNOCKS IT OFF. GRAB IT AGAIN!','IN WATER: A KICKS, HOLD X WITH THE XLR: A CURRENT.']};
   B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.isoEver) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
 
   // ── Drawing ───────────────────────────────────────────────────
@@ -847,6 +897,16 @@
       ctx.fillStyle='rgba(120,230,255,'+(0.4+0.4*pulse)+')'; ctx.fillRect(m.dir>0?x+w-sw(4):x,y,sw(4),sw(4));
     }
     const iso=B.isoPickup;
+    const L=B.isoLoose;
+    if(L){                                                 // knocked off: a loose rubber wrap, bouncing / floating
+      const x=sx(L.x), y=sy(L.y), r=sw(13);
+      if(D&&D.glow) D.glow(L.x,L.y-12,44,0.3+0.15*Math.sin(fr*0.15),'rgba(255,150,60,');
+      ctx.save(); ctx.translate(x,y-r); ctx.rotate(L.spin);
+      ctx.fillStyle='#c8641e'; ctx.strokeStyle='#ffc070'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(-r*1.1,-r,r*2.2,r*2,r*0.7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#3a1a08'; ctx.beginPath(); ctx.roundRect(-r*0.55,-r*0.5,r*1.1,r,r*0.4); ctx.fill();
+      ctx.strokeStyle='rgba(255,240,210,0.7)'; ctx.beginPath(); ctx.arc(-r*0.4,-r*0.3,r*0.5,Math.PI*1.1,Math.PI*1.6); ctx.stroke();
+      ctx.restore();
+    }
     if(iso&&!iso.got&&D){ D.glow&&D.glow(iso.x,iso.y-20,50,0.25+0.1*Math.sin(fr*0.08),'rgba(255,150,60,'); if(B.drawCrate) B.drawCrate(iso); else D.itemCrate(4,iso.x,iso.y,false); }
   };  // water goes over the characters (they look submerged), under the HUD
   const _origFg=window.drawTmjForeground;
@@ -1013,14 +1073,9 @@
     const r=_origDrawChar.apply(this, arguments);
     if(on()&&B.hasIsolator){
       const cx=sx(p.x+SW/2), feet=sy(p.y+FEET_OFF), top=feet-sw(STAND_H+WHEEL_R)+sw((p.crouchAmt||0)*30)-4;
-      const wet=B.mindWet||0, left=B.isoT||0;
-      const blink=left<300&&((fr>>(left<120?2:3))&1);           // running out: it flickers
-      const a=(0.28+0.25*wet+0.06*Math.sin(fr*0.12))*(blink?0.25:1);
+      const wet=B.mindWet||0;
+      const a=0.28+0.25*wet+0.06*Math.sin(fr*0.12);
       ctx.save();
-      // time left: a ring that empties over MIND's head
-      const k=Math.max(0,left/ISO_TIME), rx=cx+sw(30), ry=top-sw(6), rr=Math.max(5,sw(9));
-      ctx.lineWidth=Math.max(2,sw(3)); ctx.strokeStyle='rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(rx,ry,rr,0,Math.PI*2); ctx.stroke();
-      ctx.strokeStyle=left<300?'#ff5a3a':'#ffa040'; ctx.beginPath(); ctx.arc(rx,ry,rr,-Math.PI/2,-Math.PI/2+Math.PI*2*k); ctx.stroke();
       ctx.fillStyle='rgba(255,150,60,'+(a*0.45)+')'; ctx.strokeStyle='rgba(255,180,100,'+(a+0.2)+')'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.roundRect(cx-sw(32),top,sw(64),feet-top+2,sw(18)); ctx.fill(); ctx.stroke();
       ctx.strokeStyle='rgba(255,240,210,'+(0.35+0.3*wet)+')'; ctx.lineWidth=2;
