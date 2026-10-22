@@ -94,7 +94,14 @@
     jump(a,p){ p=p||1; tone(a,{f:300*p,f1:620*p,d:0.16,v:0.14,type:'triangle',lp:2600}); tone(a,{f:600*p,f1:1240*p,d:0.12,v:0.05}); hiss(a,{f:2200*p,q:0.8,d:0.08,v:0.05}); },
     jump_spring(a,p){ p=p||1; tone(a,{f:220*p,f1:880*p,d:0.32,v:0.16,type:'triangle',vib:14,vibd:30,rev:0.25}); bell(a,{f:N(84)*p,d:0.4,v:0.05}); hiss(a,{f:3000*p,d:0.1,v:0.05}); },
     // rubber tire landing: a soft low thump with a short rubbery bounce in the pitch (build 226)
-    land(a){ tone(a,{f:120,f1:52,d:0.14,v:0.2}); tone(a,{f:190,f1:150,dt:0.03,d:0.07,v:0.05,type:'triangle',lp:900}); hiss(a,{type:'lowpass',f:700,d:0.07,v:0.07}); },
+    land(a,drive){
+      const d=Math.max(0,Math.min(1,typeof drive==='number'?drive:0.35));
+      tone(a,{f:98-d*46,f1:32,d:0.1+d*0.16,v:0.14+d*0.28,at:0.002});
+      tone(a,{f:170-d*50,f1:46,d:0.07+d*0.08,v:0.05+d*0.18,type:'triangle',lp:800-d*300,at:0.002});
+      hiss(a,{type:'lowpass',f:1100-d*500,f1:90,d:0.05+d*0.12,v:0.07+d*0.2,at:0.001});
+      if(d>0.4) hiss(a,{f:220+d*180,q:0.7,d:0.045+d*0.03,v:0.05+d*0.12,at:0.001});
+      if(d>0.62) tone(a,{f:46,f1:24,d:0.2+d*0.08,v:0.12+d*0.14,type:'sine'});
+    },
     // the woofer kicks the air: a sub thump, a pressure whoomp and a rising chirp (double jump)
     double_jump(a){ tone(a,{f:70,f1:120,d:0.18,v:0.28}); hiss(a,{type:'lowpass',f:300,f1:1400,d:0.16,v:0.12}); tone(a,{f:420,f1:980,dt:0.02,d:0.16,v:0.07,type:'triangle',rev:0.3}); },
     tire_squeal(a,p){ p=p||0.6; tone(a,{f:1150,f1:980,d:0.22+0.12*p,v:0.035*(0.5+p),type:'sawtooth',bp:2300,q:6,vib:28,vibd:35}); hiss(a,{f:2600,q:3,d:0.18+0.1*p,v:0.03*(0.5+p)}); hiss(a,{type:'lowpass',f:500,d:0.1,v:0.05}); },

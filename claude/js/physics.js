@@ -72,7 +72,7 @@ const WHEEL_MIN_SUPPORT=0.42;
 const WHEEL_GROUND_EXIT=0.30;
 const WHEEL_SETTLE_TOL=1.25;
 const WHEEL_EDGE_ROLL=0.54;
-const SUSP_TRAVEL=14, SUSP_STIFF=0.44, SUSP_DAMP=0.7, SUSP_ROLL_MAX=11;
+const SUSP_TRAVEL=22, SUSP_STIFF=0.28, SUSP_DAMP=0.86, SUSP_ROLL_MAX=11;
 function _tileCampaignActive(){
   return typeof _mapApplied!=='undefined'&&!!_mapApplied&&typeof _zoneIdx!=='undefined'&&_zoneIdx===0
     &&typeof _battleTestMode!=='undefined'&&!_battleTestMode&&typeof _runTestMode!=='undefined'&&!_runTestMode;
@@ -1618,10 +1618,15 @@ function _rideMovingPlats(pl, prevFeet){
 function _movePlayerWithColl(pl,vx,vy){
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridResolvePlayer==='function'){
     const prevFeet=pl._prevLandFeet!=null?pl._prevLandFeet:pl.y+FEET_OFF;
+    const wasOg=!!pl.og;
+    const impactVy=Math.max(pl.vy||0, pl._peakVy||0);
     gridResolvePlayer(pl,vx,vy, pl===p?{}:{noCrest:true});
     if(pl.x<0){pl.x=0;pl.vx=0;}
     if(typeof WW!=='undefined'&&typeof SW!=='undefined'&&pl.x>WW-SW){pl.x=WW-SW;pl.vx=0;}
     _rideMovingPlats(pl, prevFeet);
+    if(!wasOg&&pl.og) _kickWheelLand(pl, impactVy);
+    if(pl.og) pl._peakVy=0;
+    else if((pl.vy||0)>0) pl._peakVy=Math.max(pl._peakVy||0, pl.vy);
     pl._prevLandFeet=pl.y+FEET_OFF;
     return;
   }
@@ -2321,29 +2326,39 @@ function _groundYAtWheel(pl,ahead){
 function _applyWheelGroundContact(pl){
   _wheelSettle(pl,{maxUp:28,maxDrop:SUSP_ROLL_MAX+12});
 }
+function _kickWheelLand(pl,impactVy){
+  if(!pl||(pl.hook&&pl.hook.st==='on')) return;
+  const amp=Math.max(0,Math.min(1,(impactVy-1.8)/12));
+  if(amp<0.05) return;
+  pl._landAmp=amp;
+  pl.landF=Math.round(8+amp*20);
+  pl.jumpTiltF=0;
+  pl.suspVel=(pl.suspVel||0)+0.16+amp*0.78;
+  pl._tireSqV=(pl._tireSqV||0)+amp*(typeof TIRE_HIT!=='undefined'?TIRE_HIT:5);
+  if(pl!==p) return;
+  try{ sfx('land',0.18+amp*0.82); }catch(e){}
+  if(window.MV_BETA) MV_BETA.shake=Math.max(MV_BETA.shake||0, amp*11);
+  if(typeof PFXS!=='undefined'&&amp>0.28){
+    const n=3+Math.round(amp*9), cx=pl.x+(typeof SW!=='undefined'?SW:64)/2, gy=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+    for(let i=0;i<n;i++) PFXS.push({x:cx+(Math.random()-0.5)*18,y:gy-2,vx:(Math.random()-0.5)*(2+amp*5),vy:-Math.random()*(1.2+amp*2.4),life:12+Math.random()*12|0,maxLife:24,r:1.6+amp*2.2,col:'#c8b8a0'});
+  }
+}
 function _updateWheelSuspension(pl,prevVx){
   if(!pl) return;
-  let target=0.05;
-  if(pl.hook&&pl.hook.st==='on') target=0.5;
-  else if(!pl.og&&!pl._onSlope) target=0.68+Math.min(0.3,Math.abs(pl.vy)*0.035);
+  let target=pl.og?0.04:0;
+  if(pl.hook&&pl.hook.st==='on') target=0.42;
   else if(pl.og){
-    if(pl.landF>0) target=0.26+Math.min(0.48,(pl._landAmp||0.45)*0.75);
-    else target=0.05;
     const dir=Math.sign(pl.vx||0)||1;
     const gNow=_groundYAtWheel(pl,0), gAhead=_groundYAtWheel(pl,dir*WHEEL_R*0.85);
     if(gNow!==null&&gAhead!==null){
       const bump=Math.max(0,gAhead-gNow);
-      if(bump>2) target=Math.min(0.55,0.05+bump/SUSP_ROLL_MAX*0.5);
+      if(bump>2) target=Math.min(0.4,0.04+bump/SUSP_ROLL_MAX*0.45);
     }
   }
-  const stiff=pl.og?SUSP_STIFF*0.85:SUSP_STIFF*0.65;
+  const stiff=pl.og?SUSP_STIFF:SUSP_STIFF*0.7;
   pl.suspVel=(pl.suspVel||0)+((target-(pl.suspComp||0))*stiff);
-  pl.suspVel*=(pl.og?SUSP_DAMP:0.76);
-  pl.suspComp=Math.max(0,Math.min(1,(pl.suspComp||0)+pl.suspVel));
-  if(pl.og&&pl.landF<=0&&Math.abs(pl.vx||0)<0.25&&pl.suspComp<0.12){
-    pl.suspComp=0;
-    pl.suspVel=0;
-  }
+  pl.suspVel*=(pl.og?SUSP_DAMP:0.74);
+  pl.suspComp=Math.max(-0.32,Math.min(1,(pl.suspComp||0)+pl.suspVel));
   const accel=(pl.vx||0)-(prevVx||0);
   // the tire: flattens under load, squashes on landings and jiggles back like rubber
   const tBase=pl.og?TIRE_LOAD_SQ*(1+Math.min(0.6,Math.abs(pl.vx||0)*0.04)):0;

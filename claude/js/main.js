@@ -898,7 +898,12 @@ function update(){
   const _aimLerp=_trsSweep?0.06:p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
-  if(dn&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
+  // A punch goes where the stick is this frame. Straight down only when Down
+  // is held alone — Down + sideways stays a diagonal.
+  if(_punchingNow&&(adx||ady)){
+    const _pl=Math.hypot(adx,ady);
+    p.tAimDX=p.aimDX=adx/_pl; p.tAimDY=p.aimDY=ady/_pl; p._hasAimInput=true;
+  }else if(dn&&!adx&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
   if(dn&&!adx&&!p._sprintMode&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
   _updateBattleEye(p);
 
