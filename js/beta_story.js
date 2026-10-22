@@ -133,7 +133,7 @@
     B.storySlot=i; B.pendingSave=s||null;
     if(!s){ _storyNew(); return; }                           // a new file: the storyline first, then the select
     if(s.hero&&typeof _heroChoice!=='undefined') _heroChoice=s.hero;   // a saved file: the select (on its hero), no storyline
-    _gameState='select'; if(typeof _selectStep!=='undefined') _selectStep=0; if(typeof _playModeIdx!=='undefined') _playModeIdx=0;
+    _gameState='select'; if(typeof _selectStep!=='undefined') _selectStep=0; if(typeof _playModeIdx!=='undefined') _playModeIdx=window.MV_SIBLING&&!MV_SIBLING.on?0:1;
   }
   function eraseKey(){
     if(!pick||pick.idx>=N) return;
