@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 269 — XLR mini tsunami; the MAG core holds water (tap = a swirl, hold = a water "hadouken") (Oct 22, Claude)
+
+- `beta_water.js` `tsunami(x,y,k,big)`: on the XLR push under water (a fresh bubble) the surface heaves over the source (wave field +6·k, trough ahead), the water is driven outward through ±64 px of depth for 10 cells each way, rings, shake, bubbles, spray, and enemies / the sibling in the water are shoved away; weaker pulses every 26 f while held. k = 0.35 + 0.65 × bar.
+- MAG core: soaks water up into itself (`coreAbsorb`, capacity = disc of radius r = 48 × bar), the pool level drops by that much. Tap (< 18 f) and let go → a free swirl that keeps turning ~2.5 s, swirling the water and enemies, and gives its water back as it winds down. Hold → it rides the tip; out of the water it's a spinning ball of water (drawn over the world) that costs power with its weight; the bar falling shrinks it and the extra rains off (`coreSpill`); let go out of the water → it falls as one big drop. Water is conserved (`fluidTotal().core`).
+
 ### Build 268 — snappier magnet on enemies; XLR bubble + MAG water core sized by the power bar (Oct 22, Claude)
 
 - `beta_level.js` `pullAround`: live enemies in the field get their velocity steered toward the poles (target 4–14 px/f by proximity × power, 60% of the gap closed per frame) instead of a small additive nudge their walk ate; `MAG.LOCK` 84 → 104. Test: enemy 190 px out — grabbed in 49 f (old: never, in 4 s).
