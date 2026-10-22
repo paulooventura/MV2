@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 263 — COMPANION + FRIENDLY FIRE switches on the hero screen; sprint engine up front (Oct 22, Claude)
+
+- `ui_select.js`: under the hero cards two switches, COMPANION (SOLO / WITH SIBLING → `MV_SIBLING.on`, `_playModeIdx` 0/1) and FRIENDLY FIRE (OFF / ON). ^ v moves between the hero row and the switches, < > changes the focused one; tap / click works too. `MV_SELECT_NAV(dx,dy)` is the shared entry (keyboard, pad in `player.js`, touch pad via `_driveMenusFromPads` in `ui.js`).
+- `beta_engine.js`: a second, dry path — summed to mono, -3 dB @160, +5 dB @2.6k, +6 dB shelf @7k — straight to the spatial main bus (no room / echo). Sprint crossfades to it (room path down to 15%).
+
 ### Build 262 — select screen works by mouse / touch / stick; faster HP regen, per hero (Oct 22, Claude)
 
 - `ui_select.js`: a click or tap on a mode card picks it (again = NEXT), on a hero card picks the lead (again = RIDE OUT), on the FRIENDLY FIRE pills switches it. Taps elsewhere no longer skip the screen. `MV_SELECT_FF_TOGGLE()` for the pad.
