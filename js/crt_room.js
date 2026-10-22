@@ -53,6 +53,7 @@
   const FS=`precision highp float;
   uniform sampler2D t; uniform vec2 src; uniform float time; uniform float on;
   uniform float crt; uniform float pal; uniform vec2 grid; uniform float fade;
+  uniform sampler2D w; uniform float wok; uniform vec2 lres;     // the world alone, at the console's resolution
   varying vec2 uv;
   vec2 curve(vec2 p){ p=p*2.-1.; vec2 o=abs(p.yx)/vec2(5.2,4.2); p+=p*o*o; return p*.5+.5; }
   float bayer2(vec2 a){ a=floor(a); return fract(dot(a,vec2(.5,a.y*.75))); }
@@ -63,11 +64,31 @@
     return r/255.;
   }
   vec3 pix(vec2 q){
-    vec2 g=(floor(q*grid)+.5)/grid;
-    vec3 c=texture2D(t,g).rgb*(1.-fade);
+    vec3 c;
+    if(wok>.5) c=texture2D(w,(floor(q*lres)+.5)/lres).rgb*(1.-fade);   // the world layer only: text never smears into it
+    else c=texture2D(t,(floor(q*grid)+.5)/grid).rgb*(1.-fade);
     if(pal<1.5) return floor(c*31.+.5)/31.;                       // SNES: 15-bit colour
     vec3 x=c*255.+(bayer4(floor(q*grid*.5))-.47)*24.;              // MD: dither on console pixels
     return vec3(dac(x.r),dac(x.g),dac(x.b));
+  }
+  // the text layer (Paulo, Oct 22: "I can't read anything"): HUD, menus and words stay
+  // crisp — the console's own colours (SNES 15-bit, MD 9-bit solid, no dither), no composite smear
+  vec3 txt(vec2 q){
+    vec3 c=texture2D(t,(floor(q*src)+.5)/src).rgb*(1.-fade);
+    if(pal<1.5) return floor(c*31.+.5)/31.;
+    vec3 x=c*255.+(bayer4(floor(q*grid*.5))-.47)*24.;           // the MD dither (dark overlays would band hard without it)
+    return vec3(dac(x.r),dac(x.g),dac(x.b));
+  }
+  // how much of this pixel is text / UI: wherever the frame differs from the world layer
+  float textMask(vec2 q){
+    if(wok<.5) return 1.;
+    vec2 ts=(floor(q*src)+.5)/src;
+    vec3 a=texture2D(t,ts).rgb;
+    vec2 lp=1./lres;
+    float d0=dot(abs(a-texture2D(w,(floor(ts*lres)+.5)*lp).rgb),vec3(1.));
+    float d1=dot(abs(a-texture2D(w,(floor(ts*lres+vec2(0.,.5))+.5)*lp).rgb),vec3(1.));
+    float d2=dot(abs(a-texture2D(w,(floor(ts*lres-vec2(0.,.5))+.5)*lp).rgb),vec3(1.));
+    return smoothstep(.03,.09,min(d0,min(d1,d2)));
   }
   vec3 toYIQ(vec3 c){ return vec3(dot(c,vec3(.299,.587,.114)), dot(c,vec3(.596,-.274,-.322)), dot(c,vec3(.211,-.523,.312))); }
   vec3 toRGB(vec3 y){ return vec3(y.x+.956*y.y+.621*y.z, y.x-.272*y.y-.647*y.z, y.x-1.106*y.y+1.703*y.z); }
@@ -83,19 +104,25 @@
         // which bleeds across several pixels; fine luma detail leaks into the
         // colour carrier as rainbow / dot crawl (strong on the Mega Drive,
         // whose dithering the TV melts into new colours).
-        float cp=2./grid.x;                                        // one console pixel
+        float cp=wok>.5?1./lres.x:2./grid.x;                       // one console pixel
         bool md=pal>1.5;
         vec3 s0=toYIQ(pix(q)), sl=toYIQ(pix(q-vec2(cp,0.))), sr=toYIQ(pix(q+vec2(cp,0.)));
         vec3 sl2=toYIQ(pix(q-vec2(2.*cp,0.))), sr2=toYIQ(pix(q+vec2(2.*cp,0.)));
         float Y=md? s0.x*.5+(sl.x+sr.x)*.25 : s0.x*.72+(sl.x+sr.x)*.14;   // MD's faster pixel clock blurs more
         vec2 IQ=(s0.yz*3.+(sl.yz+sr.yz)*2.+(sl2.yz+sr2.yz))/9.;
         if(md){ vec3 l3=toYIQ(pix(q-vec2(3.*cp,0.))), r3=toYIQ(pix(q+vec2(3.*cp,0.))); IQ=(IQ*9.+(l3.yz+r3.yz)*1.5)/12.; }
-        float hf=(sr.x-sl.x);                                       // luma edges / dither
-        float ph=floor(q.x*grid.x*.5)*1.5708+floor(time*60.)*3.14159;
-        float art=(md?.42:.12)*hf;
+        // dot crawl / the Mega Drive "waterfall" rainbow: only where a single pixel stands out
+        // from both neighbours (the dither checkerboards), not on clean edges
+        float hf=s0.x-.5*(sl.x+sr.x);
+        float ph=floor(q.x*(wok>.5?lres.x:grid.x*.5))*1.5708+floor(time*60.)*3.14159;
+        float art=(md?.55:.14)*hf;
         IQ+=vec2(cos(ph),sin(ph))*art;
         c=clamp(toRGB(vec3(Y,IQ)),0.,1.);
       }else c=pix(q);
+      float tm=textMask(q);
+      if(tm>0.){ vec3 tc=txt(q);
+        if(crt>.5){ vec2 tp=vec2(1./src.x,0.); tc=tc*.8+(txt(q-tp)+txt(q+tp))*.1; }   // just the tube's own softness
+        c=mix(c,tc,tm); }
     }else{
       vec2 d=q-.5; float ca=crt>.5?.0064*dot(d,d):0.;
       c=vec3(texture2D(t,q+vec2(ca,0.)).r, texture2D(t,q).g, texture2D(t,q-vec2(ca,0.)).b)*(1.-fade);
@@ -111,7 +138,8 @@
       float lines=pal>.5?224.:384.;
       float lum=dot(c,vec3(.3,.59,.11));
       float sl=sin(q.y*lines*3.14159); sl*=sl;
-      c*=mix(1.-.42*(1.-lum*.55),1.06,sl);
+      float tmk=pal>.5?textMask(q):0.;
+      c*=mix(1.-(.42-.2*tmk)*(1.-lum*.55),1.06,sl);              // lines stay, a little shallower over text
       if(pal>1.5) c*=1.+.022*sin(q.x*320.*1.5708);                 // Model 1 jailbars
       float m=mod(gl_FragCoord.x,3.);
       vec3 mask=vec3(.9); if(m<1.) mask.r=1.06; else if(m<2.) mask.g=1.06; else mask.b=1.06;
@@ -140,7 +168,12 @@
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
     const U=n=>gl.getUniformLocation(pr,n);
-    return {gl, u:{src:U('src'), time:U('time'), on:U('on'), crt:U('crt'), pal:U('pal'), grid:U('grid'), fade:U('fade')}};
+    const wtex=gl.createTexture(); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,wtex);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4));
+    gl.uniform1i(U('t'),0); gl.uniform1i(U('w'),1); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tex);
+    return {gl, tex, wtex, u:{src:U('src'), time:U('time'), on:U('on'), crt:U('crt'), pal:U('pal'), grid:U('grid'), fade:U('fade'), wok:U('wok'), lres:U('lres')}};
   }
 
   let S=null;
@@ -178,7 +211,10 @@
         const w=Math.max(2,Math.round(r.width*dpr)), h=Math.max(2,Math.round(r.height*dpr));
         if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; }
         const gl=G.gl; gl.viewport(0,0,w,h);
-        try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,game); }catch(e){ return; }
+        try{ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,G.tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,game); }catch(e){ return; }
+        const wl=C&&C.worldLayer&&C.worldLayer();                      // console16: this frame's world at console res
+        if(wl){ try{ gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,G.wtex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,wl); }catch(e){} gl.activeTexture(gl.TEXTURE0); }
+        gl.uniform1f(G.u.wok,wl?1:0); gl.uniform2f(G.u.lres,wl?wl.width:1,wl?wl.height:1);
         const t=(now-S.t0)/1000, M=cm!=='off'?C.MODES[cm]:null;
         gl.uniform2f(G.u.src,game.width,game.height); gl.uniform1f(G.u.time,t);
         gl.uniform1f(G.u.on,crtOn?Math.min(1,Math.max(0,(t-0.15)/0.7)):1);

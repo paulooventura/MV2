@@ -901,6 +901,16 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   const isChargedHook = (p.pCharge||0)>20 || (punching && p.pCd>4);
   const punchFwd = isChargedHook ? 58 : 28;
   const armShine=isVenture?'rgba(200,80,80,0.15)':'rgba(120,80,200,0.15)';
+  // Paulo (Oct 22): switching items while hooked, this hand pulls the RCA off the other arm
+  // and plugs it into the top back of the box, elbow arched up over the head (beta_feel.js)
+  const GR=(!punching&&!hidden&&window.MV_BETA&&MV_BETA.gloveReach)?MV_BETA.gloveReach(shWX,shWY):null;
+  if(GR){
+    const exs=sx(GR.ex), eys=sy(GR.ey), hxs=sx(GR.hx), hys=sy(GR.hy);
+    drawCoil(sxp,syp,Math.atan2(eys-syp,exs-sxp),Math.hypot(exs-sxp,eys-syp),armCol1,armCol2,armShine);
+    drawCoil(exs,eys,Math.atan2(hys-eys,hxs-exs),Math.hypot(hxs-exs,hys-eys),armCol1,armCol2,armShine);
+    drawFist(hxs,hys,hxs>=sxp,false,0,false,0);
+    return;
+  }
 
   if(!punching){
     // â”€â”€ GUARD POSE â€” hard L shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1202,7 +1212,7 @@ function drawCharacter(){
   const _armMain=isVenture?C.RED_D:C.INDIGO;
   const _armGlow=isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
-  const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
+  const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);

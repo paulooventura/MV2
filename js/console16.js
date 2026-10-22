@@ -84,11 +84,13 @@
   }
   // World layer: the frame so far, at the console's real resolution
   let baked=false, inFrame=false;
+  let worldFr=-1, drawFr=0;
+  api.worldLayer=()=>(worldFr===drawFr&&lo&&MODES[mode]&&!(api.mosaic>1))?lo:null;   // the display shader keeps text off the world (crt_room.js)
   function bake(){
     if(baked||!inFrame) return; baked=true;
     const M=MODES[mode]; if(!M) return;
     surfaces(M);
-    resample(lo,/[?&]px=soft/.test(location.search));   // nearest: crisp console pixels, like real pixel art; palette: the display shader (or ?palette=cpu on machines without one)
+    resample(lo,/[?&]px=soft/.test(location.search)); worldFr=drawFr;   // nearest: crisp console pixels, like real pixel art; palette: the display shader (or ?palette=cpu on machines without one)
     if(!gpu()&&cpuPalette){ palettize(lo,mode==='md'); ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false; ctx.drawImage(lo,0,0,W,H); ctx.restore(); }
   }
   // Whole frame: mosaic, then (fallback only) the text-layer grid + stepped fade
@@ -193,7 +195,7 @@
   }
   const _draw=window.draw;
   window.draw=function(){
-    baked=false; inFrame=(typeof _gameState!=='undefined'&&_gameState==='game');
+    baked=false; drawFr++; inFrame=(typeof _gameState!=='undefined'&&_gameState==='game');
     introTick();
     try{ return _draw.apply(this,arguments); }
     finally{ inFrame=false; if(MODES[mode]) try{ finish(); }catch(e){ console.warn('MV console pass',e); } try{ hitWatch(); }catch(e){} }
