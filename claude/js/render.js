@@ -920,8 +920,13 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   } else {
     // â”€â”€ PUNCH â€” extends in AIM direction (8-way like items) â”€â”€
     let armLen = guardFwd + snapFrac*(punchFwd - guardFwd);
-    const punchAngle = Math.atan2(p.aimDY, p.aimDX);
-    if(typeof _armSolid==='function'){                       // the fist stops at the wall's face
+    let punchAngle = Math.atan2(p.aimDY, p.aimDX);
+    const _downPunch=Math.sin(punchAngle)>0.45&&(p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p)));
+    if(_downPunch){
+      const _fx=p.x+SW/2, _fy=p.y+FEET_OFF+6;
+      punchAngle=Math.atan2(_fy-shWY,_fx-shWX);
+      armLen=Math.max(armLen,Math.hypot(_fx-shWX,_fy-shWY));
+    }else if(typeof _armSolid==='function'){                       // the fist stops at the wall's face
       for(let d=6; d<=armLen+10; d+=3){ if(_armSolid(shWX+Math.cos(punchAngle)*d, shWY+Math.sin(punchAngle)*d)){ armLen=Math.max(4,Math.min(armLen,d-10)); break; } }
     }
     if(!hidden) drawCoil(sxp, syp, punchAngle, armLen/SMS_SCALE, armCol1, armCol2, armShine);
@@ -937,8 +942,56 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       const _charged=(p.pCharge||0)>20;
       let _hit=false, _hitKind='';
 
+      // Down, on the ground: the fist lands on the omniblock under the wheel, or on the floor.
+      if(_downPunch){
+        const _cx=p.x+SW/2, _feet=p.y+FEET_OFF;
+        let _stood=null;
+        for(const bw of BWALLS){
+          if(!bw||bw.hp<=0) continue;
+          if(_cx>bw.x-6&&_cx<bw.x+bw.w+6&&_feet>=bw.y-12&&_feet<=bw.y+16){ _stood=bw; break; }
+        }
+        if(_stood){
+          p._hitDone=true;_hit=true;_hitKind='block';
+          if(_stood.only==='laser'&&typeof _shockFromBlock==='function'){
+            _hitKind='zap'; _shockFromBlock(_stood,_charged?'punchLoaded':'punch',Math.PI/2);
+            p._pRecoil=12;
+          }else if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(_stood)&&!_stood.only){
+            const cx0=_stood.x+_stood.w/2, cy0=_stood.y+_stood.h/2;
+            for(const o of BWALLS){
+              if(o===_stood||o.hp<=0||o.only) continue;
+              if(Math.abs(o.x+o.w/2-cx0)<=_stood.w*1.5&&Math.abs(o.y+o.h/2-cy0)<=_stood.h*1.5)
+                _damageBwall(o,'punch',{shakeX:Math.sign(o.x-_stood.x)*3,shakeY:3});
+            }
+            _damageBwall(_stood,(_stood.hp||1)+1,{shakeX:0,shakeY:6});
+          }else{
+            _damageBwall(_stood,_charged?'punchCharged':'punch',{shakeX:0,shakeY:_charged?6:4,vy:_stood.movable?(_charged?4:2.2):0});
+          }
+          if(_hitKind==='block'){ spawnDebris(_stood,10); p._pRecoil=10; }
+          p.vy=-(_charged?4.2:2.6); p.og=false; p._groundHold=0;
+        }else if(typeof _punchCrates==='function'&&_punchCrates(_cx,_feet+4,12,Math.PI/2,_charged,shWX,shWY)){
+          p._hitDone=true;_hit=true;_hitKind='crate'; p._pRecoil=8;
+          p.vy=-(_charged?3.6:2.2); p.og=false; p._groundHold=0;
+        }else{
+          let _floor=typeof gridWorldSolid==='function'&&(gridWorldSolid(_cx,_feet+4)||gridWorldSolid(_cx,_feet+12));
+          if(!_floor&&typeof gridIsSlope==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID){
+            const _t=MV_GRID.tile||32, _c=Math.floor(_cx/_t), _r=Math.floor((_feet+4)/_t);
+            if(gridIsSlope(_c,_r)){
+              const _sy=typeof gridSlopeY==='function'?gridSlopeY(_c,_r,_cx):null;
+              _floor=_sy!=null&&_feet+6>=_sy;
+            }
+          }
+          if(_floor){
+            p._hitDone=true;_hit=true;_hitKind='wall';
+            p.vy=-(_charged?3.6:2.2); p.og=false; p._groundHold=0;
+            p._pRecoil=8;
+            try{ sfx('hit'); }catch(e){}
+            if(typeof spawnHitBurst==='function') spawnHitBurst(_cx,_feet,0,1,'#c8b8a0',7);
+          }
+        }
+      }
+
       // Item boxes first (beta_crates.js): wood breaks, the loose item gets knocked around
-      if(typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
+      if(!_hit&&typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
         p._hitDone=true;_hit=true;_hitKind='crate';p._pRecoil=8;
       }
       // Breakable walls
