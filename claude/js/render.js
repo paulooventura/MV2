@@ -1042,7 +1042,12 @@ function drawCharacter(){
   const standBodyCY=p.y+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wWcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
-  const bodyCY=standBodyCY+visualCa2*(duckBodyCY-standBodyCY)+bodyCompress;
+  // Super jump loaded: sit the cabinet up out of the full tuck and let it
+  // ride a slow sine. The wheel stays on the ground. Hitbox is unchanged.
+  const duckDrop=Math.max(0,duckBodyCY-standBodyCY);
+  const bob=Math.sin(fr*0.046)*3.2;
+  const floatY=(p._springFloat||0)*(duckDrop*0.32+6+bob);
+  const bodyCY=standBodyCY+visualCa2*(duckBodyCY-standBodyCY)+bodyCompress-floatY;
   const bodyTop=bodyCY;
   const shoulderY=bodyTop+BODY_H*0.22;
   const bodyLeft=wWcx-BODY_W/2, bodyRight=wWcx+BODY_W/2;
@@ -1060,9 +1065,9 @@ function drawCharacter(){
   const bTopS=sy(bodyTop);
   const shY=sy(shoulderY);
   const glovShX=sx(glovShoulderWX);
-  const connShX=sx(pose.connShX), connShY=sy(pose.connShY);
-  const tipX=sx(pose.tipX), tipY=sy(pose.tipY);
-  const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY);
+  const connShX=sx(pose.connShX), connShY=sy(pose.connShY-floatY);
+  const tipX=sx(pose.tipX), tipY=sy(pose.tipY-floatY);
+  const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY-floatY);
   ctx.save();
 
   // 1. SHADOW + WHEEL + FORK â€” behind everything
@@ -1102,6 +1107,7 @@ function drawCharacter(){
   const wallReady=p.wallGrip>0&&!!p._wallChargeReady;
   const headPop=springReady||wallReady;
   let headTuckVis=onRope?visualCa2:Math.max(visualCa2,p._autoHeadTuck||0);
+  if((p._springFloat||0)>0) headTuckVis*=1-(p._springFloat||0)*0.28;
   const headR=Math.round(14-headTuckVis*3);
   const standHeadCY=bodyTop-18;
   const shellHeadCY=bodyTop+headR*1.05;

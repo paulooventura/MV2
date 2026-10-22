@@ -994,6 +994,9 @@ function update(){
     if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
+    const _springOn=_grounded&&!!p.duckBoostReady;
+    p._springFloat=(p._springFloat||0)+((_springOn?1:0)-(p._springFloat||0))*(_springOn?0.055:0.12);
+    if(p._springFloat<0.01) p._springFloat=0;
     p._ux0=p.x;
     if(!p._magWorldStick) _updatePlayerMoveX(p);
     if(_playerOnGround(p)) p.momentum=Math.min(1,Math.abs(p.vx)/MOVE_RUN*0.55+(p.runRamp||0)*0.45);
