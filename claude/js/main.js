@@ -859,21 +859,24 @@ function update(){
   p.pupilX+=(p.tAimDX*4-p.pupilX)*(p.og?0.18:0.07); p.pupilY+=(p.tAimDY*4-p.pupilY)*(p.og?0.18:0.07);
 
   if(_bindJ('use')) _cycleItem();
+  if(typeof _updateRunEntry==='function') _updateRunEntry(p);
+  const _runQuiet=typeof _runItemQuiet==='function'&&_runItemQuiet(p);
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){
     const _enhTrs=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
     const _cMax=_enhTrs?22:40;
     const _cReady=_enhTrs?10:18;
-    if(_bindDown('swap')&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
+    if(_runQuiet&&p.laserCharging){p.laserCharging=false;p.laserCharge=0;}
+    else if(_bindDown('swap')&&!_runQuiet&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
     if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=charged?14:8;}
     if(p.laserCd>0)p.laserCd--;
-  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap'))fireItem();p.laserCharging=false;p.laserCharge=0;}
+  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap')&&!_runQuiet)fireItem();p.laserCharging=false;p.laserCharge=0;}
   else{p.laserCharging=false;p.laserCharge=0;}
 
   // ── XLR / MAG hold ────────────────────────────────────────────
-  const _fireHeld=_bindDown('swap');
+  const _fireHeld=_bindDown('swap')&&!_runQuiet;
   const _treeBoost=_knowlTreeBoostMul(p);
   const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];

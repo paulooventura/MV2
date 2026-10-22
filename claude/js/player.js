@@ -208,6 +208,62 @@ function isSprintHeld(){
   // Paulo (Oct 20): holding PUNCH charges the punch only — it doesn't make him run
   return false;
 }
+// Stand still, tap forward, let go, then forward + run. That second press is a
+// run: he gains speed, and the item stays quiet. Run is the same button as
+// Use Item, so without this the press would drain the selected jack's bar.
+function _updateRunEntry(pl){
+  if(!pl||pl!==p) return;
+  const dir=typeof _moveInputX==='function'?_moveInputX():0;
+  const run=isSprintHeld();
+  const phase=pl._runPhase||0;
+  if(phase===3){
+    if(dir&&run&&dir===(pl._runDir||dir)) return;
+    pl._runPhase=0; pl._runGap=0; pl._runLed=0; pl._runArm=0; return;
+  }
+  const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(pl):!!pl.og;
+  if(!grounded||(pl.wallGrip||0)>0){ pl._runPhase=0; pl._runGap=0; return; }
+  if(phase===1){
+    if(run){ pl._runPhase=0; return; }
+    if(!dir){ pl._runPhase=2; pl._runGap=72; }
+    return;
+  }
+  if(phase===2){
+    pl._runGap=(pl._runGap||0)-1;
+    // The two keys rarely land on the same frame. Forward may lead run by a
+    // few frames, or run may lead forward. Either way it is still this run.
+    // A lone run press only stays quiet for a moment — holding it with no
+    // direction after that uses the item, the way a stop-and-fire does.
+    if(run&&!dir){
+      if(!pl._runLed){ pl._runLed=1; pl._runArm=10; }
+      else if((pl._runArm||0)>0) pl._runArm--;
+    }else{
+      if(!run) pl._runLed=0;
+      if((pl._runArm||0)>0) pl._runArm--;
+    }
+    if(dir&&run){
+      pl._runPhase=3; pl._runDir=dir; pl._runArm=0; pl._runJoin=0; pl._runLed=0;
+      pl.movePower=Math.max(pl.movePower||0,0.55);
+      pl.runRamp=Math.max(pl.runRamp||0,0.22);
+      return;
+    }
+    if(dir&&!run){
+      pl._runJoin=(pl._runJoin||0)+1;
+      if(pl._runJoin>14){ pl._runPhase=1; pl._runJoin=0; pl._runArm=0; }
+      return;
+    }
+    pl._runJoin=0;
+    if(pl._runGap<=0){ pl._runPhase=0; pl._runArm=0; }
+    return;
+  }
+  const still=Math.abs(pl.vx||0)<1.15&&(pl.movePower||0)<0.28;
+  if(still&&dir&&!run) pl._runPhase=1;
+}
+function _runItemQuiet(pl){
+  if(!pl||typeof _bindDown!=='function'||!_bindDown('swap')) return false;
+  const phase=pl._runPhase||0;
+  if(phase===3) return true;
+  return phase===2&&(pl._runArm||0)>0;
+}
 function _moveInputX(){
   if(_bindDown('right')&&!_bindDown('left')) return 1;
   if(_bindDown('left')&&!_bindDown('right')) return -1;
