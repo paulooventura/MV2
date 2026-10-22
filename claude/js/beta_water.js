@@ -409,7 +409,7 @@
     const n=Math.min(18,4+power*2|0);
     for(let k=0;k<n;k++){ const a=-Math.PI*(0.15+Math.random()*0.7);
       PFXS.push({x:sx0+(Math.random()-0.5)*24,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*2.5),vy:Math.sin(a)*(1.5+Math.random()*power*0.5),life:18+Math.random()*12|0,maxLife:30,r:1.5+Math.random()*2,col:k%3?'#9ad8ff':'#e8f6ff'}); }
-    try{ if(power>1.5&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(Math.min(1,power/8)); }catch(e){}
+    try{ if(power>1.5&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/8)); } }catch(e){}
   }
   // push water along a row (adds to the flow between cells)
   function shove(x,y,dir,P){
@@ -637,7 +637,7 @@
       bw._gushed=true;
       let wet=false;
       for(let dy=-8;dy<=bw.h+8&&!wet;dy+=8) for(let dx=-12;dx<=bw.w+12;dx+=12) if(waterAt(bw.x+dx,bw.y+dy)){ wet=true; break; }
-      if(wet&&!B._gushFr||wet&&fr-B._gushFr>90){ B._gushFr=fr; try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(1); sfx('water_gush'); }catch(e){} B.shake=Math.max(B.shake||0,4); }
+      if(wet&&!B._gushFr||wet&&fr-B._gushFr>90){ B._gushFr=fr; try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_SPATIAL_from(bw),MV_BETA_AUDIO.splash(1); sfxAt(bw,'water_gush'); }catch(e){} B.shake=Math.max(B.shake||0,4); }
     }
   }
   // where a falling stream hits standing water or the floor: spray (looks only)
@@ -693,7 +693,7 @@
       const i=cellFor(s.x,s.y);
       if(!wetCell(i,s.y)) continue;
       electrify(i,s.charged?90:55); boil(i,s.charged?BOIL_CHARGED:BOIL_SHOT);
-      s.life=0; zap(1); try{ sfx('water_boil'); }catch(e){}
+      s.life=0; zap(1); try{ sfxAt(s,'water_boil'); }catch(e){}
       for(let k=0;k<(s.charged?14:7);k++) B.steam.push({x:s.x+(Math.random()-0.5)*30,y:s.y-Math.random()*20,vx:(Math.random()-0.5)*1.2,vy:-1-Math.random()*1.5,r:8+Math.random()*10,life:70+Math.random()*40|0,max:110});
     }
     // enemies short-circuit in water just like MIND does (Paulo, Oct 21): sparks and

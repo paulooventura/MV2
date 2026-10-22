@@ -295,6 +295,13 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 222 — sound from MIND's spot: distance, walls, room, wind by height (Oct 22)
+- `audio.js`: `MV_SPATIAL_from(obj)` / `sfxAt(obj,name,…)` mark where a sound comes from (obj = {x,y[,w,h]} world px). ~40 enemy / block / debris / shot / water call sites now use them.
+- New `js/beta_spatial.js` (after `beta_audio.js`): wraps `sfx`; positioned sounds get gain by distance (gone ~40 tiles), low-pass by distance, walls on the line through the collision grid muffle + lower them (`occlusion`), pan by side, more room send the farther. `sfx_posh.js` `bus()` honours `window.MV_SFX_ROUTE`; `beta_audio.js` one-shots (boom, splash, creak…) go through `MV_SPATIAL.take`.
+- The room around MIND is measured with 16 grid rays (`MV_SPATIAL.env`: open, sky, size, encl, elev, wind, under) → room reverb + slapback echo (time from room size) on every game sound; MIND's own sounds ring in caves, dry on the street.
+- Enemies moving on the ground make positioned steps / wheel rolls.
+- `beta_ambience.js`: wind = `env.wind` (high + open places, higher whistle up high); hum from the nearest lamp post; crickets on real grass cells, drips from real ceilings, frogs + lapping at the real water surface — all positioned.
+
 ### Build 221 — pass 4 of the art direction: characters + tiles (Oct 22)
 - `js/render.js` `drawHead`: the glowing green glass bulb of the key art (halo, gradient glass, filament ring, specular crescent + glint); the mirror enemy keeps dark red glass.
 - `drawBody`: lit/shadowed cabinet bevel, woofer surround sheen, dust-cap shine. `drawWheel`: tire sheen top-left, shade underneath.

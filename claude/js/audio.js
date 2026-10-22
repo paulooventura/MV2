@@ -417,15 +417,13 @@ function updateGameBgm(){
   if(_gameState!=='game')return;
   const f=Math.max(0.3,_healFrac);
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
-  const presence=1+0.2*Math.max(0,1-f);   // hurt leans the theme forward, it does not quiet it
-  const heard=Math.min(1,Math.max(0.05,mv*presence));
   if(_gameAudioEl){
-    _gameAudioEl.volume=heard;
+    _gameAudioEl.volume=Math.max(0.05,mv*f);
     _gameAudioEl.playbackRate=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
     return;
   }
   if(!_gameGain)return;
-  _gameGain.gain.value=heard;
+  _gameGain.gain.value=Math.max(0.05,mv*f);
   if(_gameSrc)_gameSrc.playbackRate.value=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
 }
 function _applyBgmVolumes(){
@@ -552,6 +550,11 @@ function _hitSfxPitch(hp,maxHp){
 }
 
 // ── SFX DISPATCHER ───────────────────────────────────────────
+// Positional sounds (build 222): MV_SPATIAL_from(obj) marks where the next sound comes from
+// (an object with x,y[,w,h] in world px); sfxAt(obj,name,...) is sfx() from there. beta_spatial.js
+// turns that into distance, panning and walls in the way; without it they are plain sfx().
+function MV_SPATIAL_from(o){ try{ if(o&&isFinite(o.x)&&isFinite(o.y)) window._sfxPos={x:o.x+(o.w||0)/2, y:o.y+(o.h||0)/2, fr:typeof fr==='number'?fr:0}; }catch(e){} }
+function sfxAt(o){ MV_SPATIAL_from(o); return sfx.apply(this,Array.prototype.slice.call(arguments,1)); }
 function sfx(t){
   if(!_audioUnlocked) return;
   const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed';

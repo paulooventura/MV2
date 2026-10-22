@@ -146,7 +146,7 @@ function _debrisCollide(d){
   if(typeof gridWorldSolid==='function'&&gridWorldSolid(px,py+1)){
     const r=Math.floor((py+1)/t);
     d.y=r*t-d.h;
-    if(Math.abs(d.vy)>2.2&&typeof sfx==='function'&&(window._debrisSfxFr||0)<fr-3){ window._debrisSfxFr=fr; sfx('debris',Math.min(1,Math.abs(d.vy)/8)); }
+    if(Math.abs(d.vy)>2.2&&typeof sfx==='function'&&(window._debrisSfxFr||0)<fr-3){ window._debrisSfxFr=fr; sfxAt(d,'debris',Math.min(1,Math.abs(d.vy)/8)); }
     d.vy=Math.abs(d.vy)>1.2?-d.vy*0.42:0;              // bounces, then settles
     d.vx*=0.82; d.og=true;
     d.rotSpd=d.vx/Math.max(2,d.w*0.6);                  // rolls along the floor
@@ -175,16 +175,16 @@ function _damageBwall(bw,kind,fx){
     if(bw.movable&&!bw.noKnock){ _wakeBwall(bw); if(fx.vx!=null) bw.vx=(bw.vx||0)+fx.vx; if(fx.vy!=null) bw.vy=(bw.vy||0)+fx.vy; }   // noKnock: hits wear it down, only XLR/MAG move it
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
     bw.hitGlow=16;
-    spawnDebris(bw,4+Math.ceil(pct/15)); sfx('omniblock_chip');
-    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+    spawnDebris(bw,4+Math.ceil(pct/15)); sfxAt(bw,'omniblock_chip');
+    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
     return;
   }
   const dmg=typeof kind==='number'?kind:(kind==='punchCharged'?2:1);
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
   bw.hitGlow=16;
-  spawnDebris(bw,4+dmg*2); sfx('omniblock_chip');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  spawnDebris(bw,4+dmg*2); sfxAt(bw,'omniblock_chip');
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallApplyImpact(bw,speed){
   if(speed<BWALL_IMPACT_DMG) return;
@@ -193,8 +193,8 @@ function _bwallApplyImpact(bw,speed){
   if(bw.movable) return;
   const dmg=speed>=BWALL_IMPACT_HARD?2:1;
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
-  spawnDebris(bw,4+dmg*3); sfx('omniblock_chip');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfx('omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  spawnDebris(bw,4+dmg*3); sfxAt(bw,'omniblock_chip');
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 const BOX_ROLL_SPEED=2.8, BOX_TUMBLE_FRAMES=11, BOX_GROUND_FRIC=0.76, BOX_REST=0.22;
 const BOX_MAG_STICK=26;
@@ -560,7 +560,7 @@ function updatePlayerShots(){
       if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){s.vx*=-keep;s.vy*=-keep;}
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=bounces+1; s._airAge=0;
       if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
-      spawnSpark(s.x,s.y,s.vx,s.vy); sfx('laser_bounce',bounces);
+      spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'laser_bounce',bounces);
       if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       break;
     }
@@ -957,7 +957,7 @@ function updateEnemyShots(){
     let eBlk=false;
     for(const bw of BWALLS){
       if(bw.hp<=0||!ov(s.x-4,s.y-4,8,8,bw.x+(bw._ox||0),bw.y+(bw._oy||0),bw.w,bw.h)) continue;
-      if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfx('omniblock_chip'); }catch(e){} }
+      if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfxAt(s,'omniblock_chip'); }catch(e){} }
       else _damageBwall(bw,(s.power||1)>1.5?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2});
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff6644',8);
       ESHOTS.splice(i,1); eBlk=true; break;
@@ -975,7 +975,7 @@ function updateEnemyShots(){
       else s.vy*=-0.8;
       s.power=(s.power||1)*0.65; s.bounces=eb+1;
       if(!s.born) s.born=fr;
-      spawnSpark(s.x,s.y,s.vx,s.vy); sfx('ping'); break;
+      spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'ping'); break;
     }
     if(eHit) continue;
     if(!s.born) s.born=fr;

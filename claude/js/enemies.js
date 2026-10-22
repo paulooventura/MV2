@@ -545,7 +545,7 @@ function _spawnSignolFrags(cx,cy){
     PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,
       life:16+Math.random()*10|0,maxLife:26,r:2+Math.random()*2,col:'#ffaa44'});
   }
-  sfx('stomp');
+  sfxAt({x:cx,y:cy},'stomp');
 }
 function _signolExplode(e){
   if(e.signolState==='dead') return;
@@ -554,7 +554,7 @@ function _signolExplode(e){
   e.signolState='dead'; e.alive=false;
   e.shutF=ENEMY_SHUTDOWN_FRAMES; e._shutSettled=false;
   e.vx=0; e.vy=0; e.xlrOn=false; e.magOn=false;
-  sfx('enemy_shut');
+  sfxAt(e,'enemy_shut');
   if(_battleTestMode&&e._battleSignol) _onBattleSignolDefeated();
 }
 function _updateSignolFrag(s,i){
@@ -753,7 +753,7 @@ function _tryInterruptMindReboot(e){
   if(!e||!e.mind||e.alive||e._mindOff!=='rebooting') return false;
   e._mindOff='cooldown'; e._cooldownEnd=Date.now()+MIND_REBOOT_COOLDOWN_MS;
   e.hp=0; e._rebootFill=0; e.hitF=12;
-  sfx('hit_enemy',_hitSfxPitch(e.hp,e.mhp));
+  sfxAt(e,'hit_enemy',_hitSfxPitch(e.hp,e.mhp));
   return true;
 }
 function _completeMindReboot(e){
@@ -773,7 +773,7 @@ function _completeMindReboot(e){
   e.hitF=0; e.pt=0; e.pCd=0; e.punchCd=0;
   e.xlrOn=false; e.magOn=false; e.itemBurst=0;
   if(e.hook) e.hook.st='idle';
-  try{sfx('chargeReady');}catch(_e){}
+  try{sfxAt(e,'chargeReady');}catch(_e){}
 }
 function _updateMindEnemyOff(e){
   if(e.alive) return;
@@ -918,7 +918,7 @@ function _enemyAiPickTool(e,pdist,pdx,pdy,aggro,canSee){
 function _applyEnemyItemFx(e,pose){
   if(_shutdownTimer>0) return;
   if(e.xlrOn&&e.item===2){
-    if(fr%28===0) sfx('xlr');
+    if(fr%28===0) sfxAt(e,'xlr');
     const aimA=Math.atan2(e.aimDY,e.aimDX);
     _applyPushWallReaction(p,pose.tipX,pose.tipY,aimA,195,e.itemBurst||45);
     const h=playerCoreHB(p);
@@ -937,7 +937,7 @@ function _applyEnemyItemFx(e,pose){
     }
   }
   if(e.magOn&&e.item===3){
-    if(fr%32===0) sfx('mag');
+    if(fr%32===0) sfxAt(e,'mag');
     const h=playerCoreHB(p);
     const tug=_applyPullPlayerTug(p,pose.tipX,pose.tipY,3.8,3.4,h.x+h.w/2,h.y+h.h/2,h.w,h.h,215,false);
     p.vx+=tug.x; p.vy+=tug.y;
@@ -998,7 +998,7 @@ function _updateEnemyHook(e,pose,pdist){
     hk.evx=Math.cos(a)*spd; hk.evy=Math.sin(a)*spd;
     hk.ax=tx; hk.ay=ty; hk.len=0;
     hk.maxLen=Math.min(reach, pdist+120);
-    e.hookCd=bt?52:70; sfx('hook');
+    e.hookCd=bt?52:70; sfxAt(e,'hook');
   }
   if(hk.st==='ext'){
     const px=hk.ex, py=hk.ey;
@@ -1096,7 +1096,7 @@ function _updateMindEnemy(e){
     if(e.og&&!e.crouchInput&&(wantJumpUp||lip||dodge)) _enemyStartJump(e, dodge?16:22);
     const punchRange=bt?110:90;
     if((e.aiMode==='punch'||(close&&e.item!==2))&&e.punchCd===0&&e.og&&e.pt===0&&pdist<punchRange){
-      e.pt=7; e.punchCd=bt?16+Math.random()*12|0:32+Math.random()*18|0; sfx('punch');
+      e.pt=7; e.punchCd=bt?16+Math.random()*12|0:32+Math.random()*18|0; sfxAt(e,'punch');
     }
     if(e.item===0&&e.aiMode==='beam'&&e.laserCd===0&&canSee&&pdist>48&&pdist<560){
       const pose=computeConnectorArmPose(e);
@@ -1106,7 +1106,7 @@ function _updateMindEnemy(e){
         life:999,type:'laser',col:'#ff3355',bounces:0,power:charged?1.85:1.15,born:fr,owner:'enemy',src:e});
       e.laserCd=charged?(bt?64:86):(bt?28+Math.random()*18|0:40+Math.random()*22|0);
       e.flashF=charged?12:7;
-      sfx(charged?'laser_charged_fire':'laser');
+      sfxAt(e,charged?'laser_charged_fire':'laser');
     }
     _updateEnemyHook(e,computeConnectorArmPose(e),pdist);
   }else{
@@ -1176,7 +1176,7 @@ function _spawnBattleRandomMindEnemy(){
   e.vx=0; e.vy=0; e.og=true; e.y=feetY-FEET_OFF;
   e._battleRandom=true; ENEMS.push(e); _allPCache=null;
   uiShowToast('RIVAL: '+shape.toUpperCase());
-  try{sfx('chargeReady');}catch(_e){}
+  try{sfxAt(e,'chargeReady');}catch(_e){}
 }
 function _tickBattleRandomSpawnZone(){
   if(!_battleTestMode||_gameState!=='game'||!p) return;
