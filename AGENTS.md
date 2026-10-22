@@ -202,7 +202,7 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
-### Build 244 — HYPERDRIVE engine (Oct 22, Claude)
+### Build 245 — HYPERDRIVE engine (Oct 22, Claude; with Cursor's main build "241" XLR shove merged)
 - New `js/engine_worklet.js` (AudioWorklet `mv-engine`): a crank turns; cylinders fire on their angles as pressure pulses (sharp knock + turbulence) into two exhaust waveguides (one per bank, tuned ~118–216 Hz, ringing harder on throttle), a tailpipe low-pass that opens with throttle×rpm, DC block, tanh. Firing morphs with rpm: cross-plane V8 (bank order L R L L R L R R → the burble) below ~3.8k, even V12 by ~7.6k (the scream), 13.5k redline. `{bang}` messages fire backfires (longer, rougher blasts).
 - `js/beta_engine.js` rewritten as the controller (`MV_ENGINE.tick` from main.js): 6 gears (shift 12.6k → ~6.2k), launch flare (clutch slip from a standstill), full-throttle upshift crack, rev-matched downshift blips, a bouncing limiter in the air/burnouts; twin turbos (whistle + air rush, spool lag), blow-off "pssh-tu-tu" on lift with boost, anti-lag bangs on lift above 7k; an electric hyper-motor (two saws a fifth apart) singing with wheel speed. Through MIND's room bus. 3 s still → off.
 
