@@ -295,6 +295,11 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 221 — pass 4 of the art direction: characters + tiles (Oct 22)
+- `js/render.js` `drawHead`: the glowing green glass bulb of the key art (halo, gradient glass, filament ring, specular crescent + glint); the mirror enemy keeps dark red glass.
+- `drawBody`: lit/shadowed cabinet bevel, woofer surround sheen, dust-cap shine. `drawWheel`: tire sheen top-left, shade underneath.
+- `js/beta_decor.js` `edges()`: moonlit rim on open tile tops (green on 1.1, violet on 1.2), soft shadow under overhangs and down right sides, swaying vines (some with a flower) hanging from outdoor ledges.
+
 ### Build 220 — pass 3 of the art direction: the stage sound bed (Oct 22)
 - New `js/beta_ambience.js` (after `beta_audio.js`), all Web Audio, 50 ms tick: wind gusts, crickets, power-line hum outside; cave drone + ringing drips underground (skin 4/5 or 5+ rows under `horizonRow`); lapping near water (`B.inWater` samples); 1.1 owl, 1.2 frogs.
 - MIND's wheel: rolling rumble + grit by ground speed; heavy-landing thud (vy>7).
