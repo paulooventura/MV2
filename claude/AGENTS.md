@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 268 — snappier magnet on enemies; XLR bubble + MAG water core sized by the power bar (Oct 22, Claude)
+
+- `beta_level.js` `pullAround`: live enemies in the field get their velocity steered toward the poles (target 4–14 px/f by proximity × power, 60% of the gap closed per frame) instead of a small additive nudge their walk ate; `MAG.LOCK` 84 → 104. Test: enemy 190 px out — grabbed in 49 f (old: never, in 4 s).
+- `beta_water.js`: under water the XLR bubble radius = 48 × bar (3x3 blocks on a full bar, min 10), grows at 0.35/f. The MAG under water sets up `B.magCore` (radius 48 × bar, spins up to 0.24 rad/f): turns the water (shove over / under the eye), swirls enemies, the sibling and loose bubbles toward the tip, drawn as a dark eye with three spiral arms; collapses with a ring on release.
+
 ### Build 267 — bodies sit UNDER the water (flat surface, level rises); muffled audio under water (Oct 22, Claude)
 
 - `beta_water.js`: water no longer falls into a submerged body's cells (`bodyUnder(i)`: water > 0.5 beside it at that height) and a submerged body supports the water over it; the pressure column counts body cells as water. Result: no V-dip over MIND / enemies, a flat surface, the level raised by their displacement (test: 1.2 pool with MIND + 2 enemies, surface 1774–1807 px uneven → 1765 flat). A dry body (rain on his head) still sheds water.
