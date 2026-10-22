@@ -44,9 +44,8 @@
     const muffle=a.createBiquadFilter(); muffle.type='lowpass'; muffle.frequency.value=1600; muffle.Q.value=0.6;
     const roomG=a.createGain(); roomG.gain.value=1;
     out.connect(muffle); muffle.connect(roomG); roomG.connect(dest); N_muffle=muffle;
-    // Paulo (Oct 22): in sprint the engine comes up front — dead centre (summed to mono, no room or
-    // echo) and crisp (a presence lift and open air on top, the boom tightened). It crossfades over
-    // from the roomy, muffled path above.
+    // Sports mode brings a drier, centred path up beside the room. It leads the
+    // mix without the full-open scream: a little presence, not a wall of exhaust.
     let main=a.destination; try{ const G=window.MV_SPATIAL&&MV_SPATIAL.graph&&MV_SPATIAL.graph(); if(G&&G.main&&G.main.context===a) main=G.main; }catch(e){}
     const mono=a.createGain(); mono.channelCount=1; mono.channelCountMode='explicit'; mono.channelInterpretation='speakers'; mono.gain.value=1;
     const tight=a.createBiquadFilter(); tight.type='peaking'; tight.frequency.value=160; tight.Q.value=1.0; tight.gain.value=-3;      // less boom
@@ -73,7 +72,7 @@
     const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);   // the rattle of a purr (~24 Hz)
     pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
     for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
-    return {a,core,out,roomG,dryG,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
+    return {a,core,out,roomG,dryG,pres,sheen,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -145,19 +144,24 @@
     // ── voice it ──
     N.core.port.postMessage({rpm:S.rpm, thr:S.thr, load:grounded?S.thr:0.3});
     const tw=1400+S.boost*5600;
-    set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05); set(N.tg.gain,0.05*S.boost*S.boost,0.08);
-    set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.04*S.boost,0.08);
+    // Sports mode (the sprint) is the lead: present and open, still under the other
+    // hits. Cruising and idle sit well back so ambience and the rest of the SFX read.
+    const sport=!!(S.wasSprint||S.rev>0);
+    const quiet=sport?1:0.38;
+    set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05); set(N.tg.gain,0.045*S.boost*S.boost*quiet,0.08);
+    set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.035*S.boost*quiet,0.08);
     const ef=180+spd*2400;
-    set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.022*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    const front=(S.wasSprint||S.rev>0)?1:0;                          // sprint: dry, centred and crisp up front
-    set(N.dryG.gain,front*1.15,front?0.05:0.18); set(N.roomG.gain,1-0.85*front,front?0.05:0.18);
-    if(N_muffle) set(N_muffle.frequency,(S.wasSprint||S.rev>0)?14000:900+2800*Math.min(1,spd)*Math.min(1,spd),S.wasSprint?0.06:0.15);   // the highs open up as you get really fast — or all the way while sprinting
+    set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,(sport?0.016:0.006)*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
+    set(N.dryG.gain,sport?0.72:0,sport?0.08:0.22);
+    set(N.roomG.gain,sport?0.38:0.62,sport?0.08:0.22);
+    if(N.pres) set(N.pres.gain,sport?2.2:0,0.12);
+    if(N.sheen) set(N.sheen.gain,sport?1.2:-4,0.12);
+    if(N_muffle) set(N_muffle.frequency,sport?6800:(700+1600*Math.min(1,spd)*Math.min(1,spd)),sport?0.1:0.2);
     const fire=S.rpm/60*4;                                          // V8 firing rate
     set(N.pu1.frequency,fire/2,0.05); set(N.pu2.frequency,fire,0.05); set(N.ru.frequency,18+fire*0.15,0.2);
-    set(N.puG.gain,0.55*Math.pow(1-r,2)*(1-0.4*S.thr),0.12);
-    // the low end is the most present; the higher it revs, the further back it sits
-    const lvl=S.on?(0.16+0.05*S.thr-0.06*r+(S.wasSprint?0.04:0)):0;
-    set(N.out.gain,lvl*sv(),S.on?0.04:0.4);
+    set(N.puG.gain,(sport?0.26:0.11)*Math.pow(1-r,2)*(1-0.4*S.thr),0.12);
+    const lvl=S.on?(sport?(0.12+0.035*S.thr-0.025*r):(0.045+0.012*S.thr-0.01*r)):0;
+    set(N.out.gain,lvl*sv(),S.on?0.06:0.4);
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};
 })();
