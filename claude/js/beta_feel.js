@@ -181,6 +181,19 @@
       const hT=rx*run*1.5*enh;
       p.vx+=(hT-p.vx)*0.78;
       p._xlrOwns=true; p._xlrJetFr=fr;
+    }else if(ry<-0.35&&held<=16){
+      // Paulo (Oct 22): pushing himself UP has to be immediate and strong — the blast under
+      // him catapults him on the very first frame, and keeps lifting through the burst
+      const pw=0.45+0.55*Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+      const vT=ry*14.5*enh*pw;
+      p.vy=Math.min(p.vy,p.vy+(vT-p.vy)*(held<=2?1:0.85));
+      p.vx+=(rx*run*1.2*enh-p.vx)*0.5;
+      p.og=false; p._groundHold=0; p.jf=0;
+      p._xlrOwns=true; p._xlrJetFr=fr;
+    }else if(ry<-0.35&&!grounded&&held<=48){
+      // still holding: a lift a touch over gravity — a controllable float that runs out
+      p.vy-=g*(1.08-0.4*Math.max(0,(held-16)/32)); if(p.vy<-11) p.vy=-11;
+      p._xlrOwns=true; p._xlrJetFr=fr;
     }else if(burst){
       const hT=rx*run*1.48*enh;
       const vT=ry*(ry<0?10.2:6.5)*enh;
@@ -219,8 +232,8 @@
     const charge=Math.min(1,held/FEEL.XLR_FULL);
     const vFull=Math.sqrt(2*GRAV*FEEL.SUPER_H);
     const pw=B.relPow==null?1:Math.max(0,Math.min(1,B.relPow));   // Paulo (Oct 21): the launch follows the power bar
-    const v=vFull*Math.sqrt(Math.max(0.18,charge))*0.62*pw;
-    const rx=-a.x, ry=-a.y;
+    const rx=-a.x, ry=-a.y, up=ry<-0.5;
+    const v=vFull*Math.sqrt(Math.max(up?0.45:0.18,charge))*(up?0.9:0.62)*pw;   // upward launches hit harder (Paulo, Oct 22)
     const along=p.vx*rx+p.vy*ry;
     const add=Math.max(0,v-Math.max(0,along));
     p.vx+=rx*add; p.vy+=ry*add;
@@ -228,6 +241,7 @@
     p.og=false; p._groundHold=0; p.jf=0;
     st.lastLaunch={held, charge:+charge.toFixed(2), vx:+(p.vx).toFixed(2), vy:+(p.vy).toFixed(2), y0:p.y};
     try{ sfx(charge>=1?'jump_spring':'jump_reg'); }catch(e){}
+    try{ if(window.MV_AIRBLAST) MV_AIRBLAST.boom(Math.max(0.35,charge)*pw); }catch(e){}
     p.flashF=Math.max(p.flashF||0,charge>=1?12:6);
     for(let i=0;i<(charge>=1?14:7);i++){
       const ang=Math.atan2(a.y,a.x)+(Math.random()-0.5)*0.8;
