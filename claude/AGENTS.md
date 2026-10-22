@@ -202,6 +202,13 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 270 — ferrofluid MAG, jump with the MAG aimed down, more water drama, discs respect rock (Oct 22, Claude)
+
+- `beta_water.js` `magnetWater` rewritten: above the water, aimed at it (or roughly down), the MAG lifts the surface in glossy ferrofluid spikes (`B.ferro`, drawn in `drawWater`) and, close enough, a tapering column carries water up into the core at the tip (reach 130–300 px with the bar). The old suck-to-blob (`B.magWater`) no longer fills.
+- Jump with the MAG out: DOWN is the MAG's aim — no crouch / duck charge / platform drop-through from it (`main.js`); the MAG jet (`beta_feel.js magJet`) and suction (`beta_level.js suction`) don't pull a fresh jump back down when aimed down (45 f after a jump, or while jump is held rising, or while drawing water).
+- Drama: wave clamp ±18 → ±34; tsunami heave 6 → 11 with real water thrown out (centre + both sides); XLR jet / crater / spray ×2; MAG funnel ×2; big drops (≥ 2 cells) land with a crown of thrown water, a ring and shake.
+- Discs respect rock: `placeDisc` — aimed into a floor / wall, the XLR bubble and the MAG core sit on the surface as a half-disc (`o.cut`, half capacity, `clipCut` when drawn); no bubbles spawn or orbit inside rock.
+
 ### Build 269 — XLR mini tsunami; the MAG core holds water (tap = a swirl, hold = a water "hadouken") (Oct 22, Claude)
 
 - `beta_water.js` `tsunami(x,y,k,big)`: on the XLR push under water (a fresh bubble) the surface heaves over the source (wave field +6·k, trough ahead), the water is driven outward through ±64 px of depth for 10 cells each way, rings, shake, bubbles, spray, and enemies / the sibling in the water are shoved away; weaker pulses every 26 f while held. k = 0.35 + 0.65 × bar.

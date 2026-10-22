@@ -1047,9 +1047,9 @@ function update(){
   if(p.hook.st!=='on'&&p.wallGrip<=0){
     if(!isJump()) p._jumpArmed=true;
     const _grounded=_playerOnGround(p);
-    p.crouchInput=!!(_grounded&&isDn());const airDuck=!_grounded&&isDn();const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
+    const _dnMv=isDn()&&!p.magOn;p.crouchInput=!!(_grounded&&_dnMv);const airDuck=!_grounded&&_dnMv;const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
     let _platLaunch=false;
-    if(_grounded&&isDn()){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
+    if(_grounded&&isDn()&&!p.magOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     const _springOn=_grounded&&!!p.duckBoostReady;
@@ -1066,7 +1066,7 @@ function update(){
     if(window.MV_BETA&&MV_BETA.on&&MV_BETA.parkInput) MV_BETA.parkInput();   // magnet: DOWN + JUMP lets go of the surface (after the pad is read)
     // Paulo: on a platform (not a solid block), DOWN + JUMP drops through it
     if(_mvDropThru>0) _mvDropThru--;
-    if(!_platLaunch&&isJumpJ()&&isDn()&&_playerOnGround(p)&&_onDropPlatform(p)&&!p.duckBoostReady){
+    if(!_platLaunch&&isJumpJ()&&isDn()&&_playerOnGround(p)&&_onDropPlatform(p)&&!p.duckBoostReady&&!(p.magOn||p.xlrOn||p.laserCharging)){   // (Paulo, Oct 22: aiming an item down isn't asking to drop — jump stays a jump)
       _mvDropThru=16; p.og=false; p._groundHold=0; p._groundSeg=null; p.vy=2.5; p.y+=6; p.duckBoostReady=false; p.duckCharge=0;
       if(window.MV_BETA) MV_BETA.ridePlat=null;
       OPT.binds.jump.forEach(c=>delete Kj[c]);
