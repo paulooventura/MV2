@@ -295,6 +295,11 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 220 — pass 3 of the art direction: the stage sound bed (Oct 22)
+- New `js/beta_ambience.js` (after `beta_audio.js`), all Web Audio, 50 ms tick: wind gusts, crickets, power-line hum outside; cave drone + ringing drips underground (skin 4/5 or 5+ rows under `horizonRow`); lapping near water (`B.inWater` samples); 1.1 owl, 1.2 frogs.
+- MIND's wheel: rolling rumble + grit by ground speed; heavy-landing thud (vy>7).
+- Mix per stage in `MV_AMBIENCE.STAGE`; master 0.55×`OPT.sfxVol`, silent on pause / popups / results / off-game. `MV_AMBIENCE.state()` for tests.
+
 ### Build 219 — the rope reads taut (Oct 22)
 - `js/beta_feel.js` `cordPts`: `CORD_TAUT_SLACK=16` — the first 16 px of slack draw straight; only real slack droops.
 - `js/physics.js` `_vropeStep`: `VROPE_TAUT_FROM=18`, pull up to 0.97 (non-beta cord).
