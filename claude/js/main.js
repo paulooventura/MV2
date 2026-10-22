@@ -1109,6 +1109,7 @@ function update(){
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
     if(p._magWorldStick){ p.vx=0; p.vy=0; if(typeof _applyMagWorldStick==='function') _applyMagWorldStick(p); }
     else _movePlayerWithColl(p,p.vx,p.vy);
+    if(window.MV_BETA&&MV_BETA.stickHeld) MV_BETA.stickHeld();
     if(!_gridReady()){
     const _moveDir=_moveInputX();
     if(_moveDir&&_playerOnGround(p)){

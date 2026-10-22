@@ -622,10 +622,9 @@ function _magRecordTip(tip){
   if(p._magTipHist.length>8) p._magTipHist.shift();
 }
 function _magThrowVel(){
-  const h=(p&&p._magTipHist)||[];
-  if(h.length<2) return {vx:0,vy:0.5};
-  const a=h[0], b=h[h.length-1], n=Math.max(1,h.length-1);
-  return {vx:(b.x-a.x)/n*1.45, vy:(b.y-a.y)/n*1.45};
+  let vx=(p&&p.vx)||0, vy=(p&&p.vy)||0;
+  const s=Math.hypot(vx,vy); if(s>20){ vx*=20/s; vy*=20/s; }
+  return {vx, vy};
 }
 function _pinBoxToTip(box, tip, aimA){
   const ax=Math.cos(aimA), ay=Math.sin(aimA);
