@@ -48,7 +48,7 @@
     S=mkP(); S._aiCompanion=true; S._betaSib=true;
     S.hero=p.hero==='venture'?'mind':'venture';
     S.x=p.x-(p.fc?1:-1)*MIN_GAP; S.y=p.y; S.fc=p.fc; S.og=true; S.hp=S.maxHp;
-    S._shotCd=40; trail.length=0; bolts.length=0; S._blink=12;
+    S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=12;
     lastLevel=B.level; lastHero=p.hero;
   }
   const centre=pl=>({x:pl.x+SW/2, y:pl.y+FEET_OFF-STAND_H*0.45});
@@ -75,54 +75,79 @@
     const last=trail[trail.length-1];
     if(!last||Math.hypot(p.x-last.x,p.y-last.y)>1.2) trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:p.crouchAmt||0});
     if(trail.length>KEEP) trail.splice(0,trail.length-KEEP);
-    // the point a beat behind on your path; never closer than MIN_GAP to you
-    let i=Math.max(0,trail.length-1-DELAY);
-    while(i>0&&Math.hypot(trail[i].x-p.x,trail[i].y-p.y)<MIN_GAP) i--;
-    let T=trail[i];
-    if(!T||Math.hypot(T.x-p.x,T.y-p.y)<MIN_GAP*0.8){                // no path behind you yet: just beside you, on your back side
-      const bx=p.x-(p.fc?1:-1)*MIN_GAP;
-      T={x:(typeof gridWorldSolid==='function'&&gridWorldSolid(bx+SW/2,p.y+FEET_OFF-30))?p.x:bx, y:p.y, fc:p.fc, og:!!p.og, ca:p.crouchAmt||0};
-    }
     const cov=coverSpot(S._threat);
-    if(cov) T={x:cov.x,y:cov.y,fc:S._threat.ex>cov.x+SW/2,og:true,ca:0};
-    const x0=S.x, y0=S.y;
-    if(Math.hypot(S.x-p.x,S.y-p.y)>LOST||B.level!==lastLevel||(last&&Math.hypot(p.x-last.x,p.y-last.y)>LOST)){   // lost: a respawn, a stage change, a teleport
+    if(Math.hypot(S.x-p.x,S.y-p.y)>LOST||B.level!==lastLevel||(last&&Math.hypot(p.x-last.x,p.y-last.y)>LOST)||(S._stuck||0)>150){   // lost: a respawn, a stage change, a teleport, or really stuck
       trail.length=0; trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:0}); lastLevel=B.level;
-      blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); return;
+      blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); S.vx=S.vy=S._hvx=S._hvy=0; S._stuck=0; S._fly=false; return;
     }
-    // Paulo (Oct 22): "it should be able to float around JUST to be around us — using its items".
-    // You're on the move or in the air: it hovers at your back shoulder on its XLR (jack down,
-    // air pushing out of it), out of your way — never in front of you or in your line of aim,
-    // never inside a wall. You stop on the ground: it settles on the floor behind you.
+    // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". It rides the ground with real
+    // physics — eases up to a spot behind you, eases to a stop, hops ledges and walls — and only takes
+    // to the air on its XLR when it has to (you're on the rope, high above it, far off, or it's stuck),
+    // gliding smoothly and landing again as soon as it can. The side it keeps changes only after you've
+    // faced the other way for a while, so turning around doesn't send it darting across.
+    const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
+    const want=p.fc?-1:1;
+    if(S._side==null) S._side=want;
+    if(want!==S._side){ if(++S._sideT>50){ S._side=want; S._sideT=0; } } else S._sideT=0;
     const rope=p.hook&&p.hook.st==='on';
-    const settle=!cov&&p.og&&Math.abs(p.vx||0)<1.2&&!rope;
-    if(!cov&&!settle){
-      const back=p.fc?-1:1, bob=Math.sin(fr*0.06)*5;
-      const cand=[[back*74,-54+bob],[back*60,-92+bob],[-back*74,-62+bob],[0,-118+bob]];
-      const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1;
-      for(const [ox,oy] of cand){
-        const hx=p.x+ox, hy=p.y+oy, d=Math.hypot(ox,oy)||1;
-        if(((ox*ax+oy*ay)/(d*al))>0.55&&(p.xlrOn||p.magOn||p.laserCharging||(p.hook&&p.hook.st!=='idle'))) continue;   // not in your line of fire
-        if(typeof gridWorldSolid==='function'&&(gridWorldSolid(hx+SW/2,hy+FEET_OFF-20)||gridWorldSolid(hx+SW/2,hy+FEET_OFF-70)||gridWorldSolid(hx+SW/2,hy+FEET_OFF-110))) continue;   // not in rock
-        T={x:hx,y:hy,fc:p.fc,og:false,ca:0}; break;
-      }
+    const dxP=p.x-S.x, dyP=p.y-S.y;                                   // dyP < 0: you're above it
+    const needFly=rope||dyP<-150||Math.abs(dxP)>340||(S._stuck||0)>40;
+    if(!S._fly&&needFly&&!cov){ S._fly=true; S._flyT=0; S._hvx=S.vx||0; S._hvy=Math.min(0,S.vy||0); S._stuck=0; }
+    const x0=S.x, y0=S.y;
+    if(S._fly){
+      S._flyT++;
+      const groundOk=p.og&&!rope&&Math.abs(dyP)<110&&Math.abs(dxP)<220;
+      if(groundOk&&S._flyT>40){ S._fly=false; S.vx=S._hvx*0.6; S.vy=Math.max(0,S._hvy); }
     }
-    const kk=S._catch>0?0.03:0.075+Math.min(0.17,Math.hypot(T.x-S.x,T.y-S.y)/900);   // stiffer the further behind it falls (it keeps up when you're fast)
-    S._hvx=(S._hvx||0)*0.8+(T.x-S.x)*kk;
-    S._hvy=(S._hvy||0)*0.8+(T.y-S.y)*kk;
-    if(S._catch>0) S._catch--;
-    if(T.og&&Math.hypot(T.x-S.x,T.y-S.y)<6){ S.x=T.x; S.y=T.y; S._hvx=S._hvy=0; }
-    else{ S.x+=S._hvx; S.y+=S._hvy; }
-    S.vx=S.x-x0; S.vy=S.y-y0; S.crouchAmt=(S.crouchAmt||0)+((T.ca||0)-(S.crouchAmt||0))*0.3;
-    // in the air when there's no floor right under its wheel
-    const feet=S.y+FEET_OFF, floor=typeof gridWorldSolid==='function'&&(gridWorldSolid(S.x+SW/2,feet+3)||gridWorldSolid(S.x+SW/2,feet+12));
-    S.og=!!(T.og&&floor); S._flying=!S.og&&!rope;
-    if(Math.abs(S.vx)>0.25) S.fc=S.vx>0; else if(Math.abs(S.vx)<0.05) S.fc=p.x+SW/2>S.x+SW/2;   // idle: it faces you
-    if(S._flying){
-      S.wheelAngle=(S.wheelAngle||0)+0.25*(S.fc?1:-1);
-      if(!(S._shootT>0)&&!S._threat){ S.aimDX+=(S.vx*0.05-S.aimDX)*0.25; S.aimDY+=(1-S.aimDY)*0.25; }   // the jack points down: the XLR holds it up
-      if(fr%3===0){ const tp=tipOf(S); PFXS.push({x:tp.x+(Math.random()-0.5)*6,y:tp.y+4,vx:(Math.random()-0.5)*1.2-S.vx*0.3,vy:2.2+Math.random()*1.6,life:12,maxLife:12,r:2.2,col:'#aaddff'}); }
-    }else S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R;
+    if(S._fly){
+      // the slot: your back shoulder, a little above; up over your head if that's in rock
+      const bob=Math.sin(fr*0.035)*3;
+      let tx=p.x+S._side*72, ty=p.y-64+bob;
+      if(solid(tx+SW/2,ty+FEET_OFF-20)||solid(tx+SW/2,ty+FEET_OFF-90)){ tx=p.x+S._side*30; ty=p.y-112+bob; }
+      const cap=Math.max(7,Math.hypot(p.vx||0,p.vy||0)+3);
+      S._hvx=S._hvx*0.86+(tx-S.x)*0.014; S._hvy=S._hvy*0.86+(ty-S.y)*0.014;
+      const sp=Math.hypot(S._hvx,S._hvy); if(sp>cap){ S._hvx*=cap/sp; S._hvy*=cap/sp; }
+      const before=Math.hypot(tx-S.x,ty-S.y);
+      if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S._hvx,S._hvy); else { S.x+=S._hvx; S.y+=S._hvy; }
+      S.og=false; S.vx=S.x-x0; S.vy=S.y-y0;
+      if(before>160&&Math.hypot(S.vx,S.vy)<0.4) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
+      S._flying=true;
+      S.fc=Math.abs(S.vx)>1.2?S.vx>0:p.fc;
+      S.wheelAngle=(S.wheelAngle||0)+0.12*(S.fc?1:-1);
+      if(!(S._shootT>0)&&!S._threat){ S.aimDX+=(S.vx*0.04-S.aimDX)*0.12; S.aimDY+=(1-S.aimDY)*0.12; }   // the jack points down: the XLR holds it up
+      if(fr%5===0){ const tp=tipOf(S); PFXS.push({x:tp.x+(Math.random()-0.5)*4,y:tp.y+4,vx:(Math.random()-0.5)*0.8-S.vx*0.2,vy:1.6+Math.random(),life:12,maxLife:12,r:2,col:'#aaddff'}); }
+      return;
+    }
+    // ── on the ground ──
+    S._flying=false;
+    let tx=cov?cov.x:p.x+S._side*70;
+    if(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60)) tx=p.x+S._side*34;   // a wall there: tuck in closer
+    const dx=tx-S.x, adx=Math.abs(dx), dead=16, dir=Math.sign(dx);
+    const maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
+    if(adx>dead){
+      S.vx=(S.vx||0)+dir*Math.min(0.42,0.1+adx/260);
+      const vStop=Math.sqrt(2*0.32*(adx-dead))+0.4;                   // brake in time: eases to a stop on its mark
+      if(Math.sign(S.vx)===dir&&Math.abs(S.vx)>vStop) S.vx=dir*vStop;
+      if(Math.sign(S.vx)!==dir) S.vx*=0.8;
+    }else S.vx=(S.vx||0)*0.75;
+    S.vx=Math.max(-maxV,Math.min(maxV,S.vx));
+    const feet=S.y+FEET_OFF;
+    if(S.og){
+      const ax=S.x+SW/2+dir*(SW/2+10);
+      const wall=adx>dead&&(solid(ax,feet-24)||solid(ax,feet-52));
+      const ledge=dyP<-48&&Math.abs(dxP)<150&&p.og;                    // you're up a step: hop up after you
+      if(wall||ledge){ S.vy=-10.8; S.og=false; }
+    }
+    S.vy=Math.min((S.vy||0)+GRAV,13);
+    if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S.vx,S.vy); else { S.x+=S.vx; S.y+=S.vy; }
+    if(S.og&&S.vy>0) S.vy=0;
+    const moved=S.x-x0;
+    if(adx>60&&Math.abs(moved)<0.25) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
+    S.crouchAmt=(S.crouchAmt||0)+(((cov?0:(p.crouchAmt||0)))-(S.crouchAmt||0))*0.2;
+    S.wheelAngle=(S.wheelAngle||0)+moved/WHEEL_R;
+    // facing: with its motion when it's really moving, otherwise the way you face — and no flicker
+    const wantFc=Math.abs(S.vx)>0.9?S.vx>0:(S._threat?S._threat.ex>S.x+SW/2:p.fc);
+    if(wantFc!==S.fc){ if(++S._fcT>8){ S.fc=wantFc; S._fcT=0; } } else S._fcT=0;
   }
   function blinkTo(T){
     for(let k=0;k<10;k++) PFXS.push({x:S.x+SW/2+(Math.random()-0.5)*30,y:S.y+FEET_OFF-40+(Math.random()-0.5)*40,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,life:14,maxLife:14,r:2,col:S.hero==='venture'?'#ff6a7a':'#c49aff'});
@@ -263,7 +288,7 @@
     // your weight: land on it, or roll into it
     if(Math.abs(dx)<SW*0.75&&Math.abs((b.y)-(p.y))<70){
       if((p.vy||0)>3&&p.y+FEET_OFF<b.y+FEET_OFF-36){ p.vy=-7; p.og=false; knock(b,Math.sign(dx||1)*2.5,2,'stomp',10); }
-      else if(Math.abs(p.vx||0)>0.6&&Math.sign(p.vx)===Math.sign(dx||p.vx)){ const push=p.vx*0.85+Math.sign(dx||p.vx)*0.8; if(!(b.free>0)||Math.abs(b.vx||0)<Math.abs(push)) knock(b,push,b.og?-0.6:(b.vy||0),'bump',0); }
+      else if(Math.abs(p.vx||0)>(b._aiCompanion?6:4.5)&&Math.sign(p.vx)===Math.sign(dx||p.vx)){ const push=p.vx*0.85+Math.sign(dx||p.vx)*0.8; if(!(b.free>0)||Math.abs(b.vx||0)<Math.abs(push)) knock(b,push,b.og?-0.6:(b.vy||0),'bump',0); }   // only a real ram shoves the companion (walking past it doesn't)
     }
   }
   function bodyPhysics(b){
