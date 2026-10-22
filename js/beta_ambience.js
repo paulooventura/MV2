@@ -44,7 +44,7 @@
     rev.buffer=ir; const revG=a.createGain(); revG.gain.value=0.5; rev.connect(revG); revG.connect(out);
     // wind: noise → band-pass that wanders, gain that gusts
     const wBP=a.createBiquadFilter(); wBP.type='bandpass'; wBP.frequency.value=420; wBP.Q.value=0.9;
-    const wG=a.createGain(); wG.gain.value=0; wBP.connect(wG); wG.connect(out); loopNoise(a,wBP);
+    const wG=a.createGain(); wG.gain.value=0; const amb=a.createBiquadFilter(); amb.type='lowpass'; amb.frequency.value=16000; wBP.connect(wG); wG.connect(amb); amb.connect(out); loopNoise(a,wBP);
     // power-line hum: 60 Hz family through a soft low-pass, a slow beat
     const hG=a.createGain(); hG.gain.value=0; const hLP=a.createBiquadFilter(); hLP.type='lowpass'; hLP.frequency.value=420; hLP.connect(hG); hG.connect(out);
     for(const [f,v] of [[60,0.5],[120,0.35],[180,0.18],[240.6,0.08]]){ const o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.value=f; g.gain.value=v; o.connect(g); g.connect(hLP); o.start(); }
@@ -61,7 +61,7 @@
     whBP.connect(whG); whG.connect(a.destination); loopNoise(a,whBP);
     const grHP=a.createBiquadFilter(); grHP.type='highpass'; grHP.frequency.value=2600; const grG=a.createGain(); grG.gain.value=0;
     grHP.connect(grG); grG.connect(a.destination); loopNoise(a,grHP);
-    return {out,rev,wBP,wG,hG,hLP,dG,lG,lLP,whBP,whG,grG};
+    return {out,rev,wBP,wG,amb,hG,hLP,dG,lG,lLP,whBP,whG,grG};
   }
   const set=(param,v,tc)=>{ try{ param.setTargetAtTime(v,A.currentTime,tc||0.25); }catch(e){} };
 
@@ -153,6 +153,9 @@
     // whistles higher the higher he is
     if(t>gustT){ gust=0.4+Math.random()*0.8; gustT=t+2+Math.random()*4; set(N.wBP.frequency,(300+gust*500)*(1+E.elev*0.8),1.2); }
     set(N.wG.gain,0.16*S.wind*gust*E.wind,1.2);
+    // indoors the night comes through the walls: dull and low (wind, crickets and hum are also
+    // walled off one by one through beta_spatial's occlusion)
+    set(N.amb.frequency, 16000-15200*(E.inside||0), 0.4);
     // the power lines hum from the lamp posts, as far and as walled-off as they are
     let hum=0, hlp=420;
     if(SP) for(const d of (B.decor||[])){ if(d.kind!=='lamp') continue; const P=SP.params(d.x,d.y-40); if(P&&P.g>hum){ hum=P.g; hlp=Math.min(420,P.lp); } }
