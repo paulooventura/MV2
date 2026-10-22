@@ -106,7 +106,6 @@
     if(!t){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; helpBlock(null); return; }
     const dx=t.ex-me.x, dy=t.ey-me.y, d=Math.hypot(dx,dy)||1;
     S.aimDX+=(dx/d-S.aimDX)*0.35; S.aimDY+=(dy/d-S.aimDY)*0.35;
-    S.pupilX=dx/d*2.5; S.pupilY=dy/d*2.5;
     if(Math.abs(dx)>6) S.fc=dx>0;
     if(S._shotCd>0) return;
     // never across you: skip the shot if you're between it and the target
@@ -114,7 +113,9 @@
     if(seg>0&&seg<1&&Math.hypot(me.x+dx*seg-P.x,me.y+dy*seg-P.y)<26){ S._shotCd=8; return; }
     const urgent=t.dP<140||(p.hp||0)<(p.maxHp||100)*0.5;
     S._shotCd=urgent?14:24;
-    const sp=11; bolts.push({x:me.x+dx/d*30,y:me.y-6+dy/d*30,vx:dx/d*sp,vy:dy/d*sp,e:t.e,life:50,urgent});
+    const sp=11, tp=tipOf(S); S._shootT=40;
+    bolts.push({x:tp.x,y:tp.y,vx:dx/d*sp,vy:dy/d*sp,e:t.e,life:50,urgent});
+    for(let k=0;k<5;k++) PFXS.push({x:tp.x,y:tp.y,vx:dx/d*2+(Math.random()-0.5)*2,vy:dy/d*2+(Math.random()-0.5)*2,life:8,maxLife:8,r:1.8,col:S.hero==='venture'?'#ffb0b8':'#e0c8ff'});   // the muzzle flash at its jack
     S.fireRecoil=5; S.fireRecoilA=Math.atan2(dy,dx);
     try{ sfx('laser',S.hero==='venture'?1.25:1.4); }catch(e){}
   }
@@ -158,7 +159,8 @@
     if(w.only==='laser') return;                                              // TRS-only blocks are yours
     const dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) return;
     S.aimDX=dx/d; S.aimDY=dy/d; if(Math.abs(dx)>6) S.fc=dx>0;
-    S._shotCd=22; bolts.push({x:me.x+dx/d*30,y:me.y-6+dy/d*30,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
+    const tp=tipOf(S); S._shootT=40;
+    S._shotCd=22; bolts.push({x:tp.x,y:tp.y,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
     S.fireRecoil=5; try{ sfx('laser',S.hero==='venture'?1.3:1.45); }catch(e){}
   }
   // ── cover: step to your side that faces the danger, when there's floor there ──
@@ -188,6 +190,7 @@
     if(!npc||npc.level!==B.level||npc.s.hero===p.hero){ npc=npcSpawn(); if(!npc) return; }
     const s2=npc.s; s2.hp=s2.maxHp; const x0=s2.x;
     if(s2.flashF>0) s2.flashF--;
+    if(typeof _updateBattleEye==='function') _updateBattleEye(s2);
     interact(s2);
     if(s2._downT>0){ s2._downT--; s2.crouchAmt=Math.min(1,(s2.crouchAmt||0)+0.1); if(s2.free>0) bodyPhysics(s2); if(s2._downT===0) s2.crouchAmt=0; return; }
     if(s2.free>0){ bodyPhysics(s2); npc.tx=null; npc.wait=40; return; }
@@ -206,7 +209,7 @@
     if(typeof _movePlayerWithColl==='function'){ const nx=s2.x; s2.x=x0; s2.vy=Math.min((s2.vy||0)+GRAV,14); _movePlayerWithColl(s2,nx-x0,s2.vy); if(s2.og) s2.vy=0; }   // a body on the floor
     s2.vx=s2.x-x0; s2.wheelAngle=(s2.wheelAngle||0)+s2.vx/WHEEL_R;
     const dxp=P.x-me.x, dyp=P.y-me.y, dl=Math.hypot(dxp,dyp)||1;
-    s2.pupilX=near?dxp/dl*2.5:(s2.fc?1.5:-1.5); s2.pupilY=near?dyp/dl*2:0;
+    if(near&&!(typeof ENEMS!=='undefined'&&ENEMS.some(e=>e&&e.alive&&Math.hypot(e.x-s2.x,e.y-s2.y)<520))){ s2.pupilX=dxp/dl*2.5; s2.pupilY=dyp/dl*2; }   // it looks at you
     s2.aimDX=s2.fc?1:-1; s2.aimDY=0.4;
   }
   // ── its body has mass (Paulo, Oct 22): you can punch it, blow it away with the XLR, pull it
@@ -243,6 +246,12 @@
     b.wheelAngle=(b.wheelAngle||0)+b.vx/WHEEL_R;
     b.free-=(b.og&&Math.abs(b.vx)<0.4)?3:1;
   }
+  // the jack's tip, where its shots come from (the arm points where it aims)
+  function tipOf(b){
+    try{ const pose=computeConnectorArmPose(b), a=Math.atan2(b.aimDY||0,b.aimDX||(b.fc?1:-1));
+      if(pose&&isFinite(pose.tipX)) return {x:pose.tipX+Math.cos(a)*30, y:pose.tipY+Math.sin(a)*30}; }catch(e){}
+    const c=centre(b); return {x:c.x+(b.fc?36:-36), y:c.y-6};
+  }
   function fizz(b,hit){ const c=S&&S.hero==='venture'?'#ff8a96':'#d8b4ff'; for(let k=0;k<(hit?8:4);k++) PFXS.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:10,maxLife:10,r:1.6,col:c}); }
 
   const _upd=window.updateKnowls;
@@ -258,6 +267,8 @@
       if(S._blink>0) S._blink--;
       if(S.fireRecoil>0) S.fireRecoil--;
       if(S.flashF>0) S.flashF--;
+      if(S._shootT>0) S._shootT--;
+      if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
       watchBlocks();
@@ -281,7 +292,16 @@
       ctx.restore();
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
-      B.ropeClip=null; B.magPark=null; ITEM=0;
+      const swing=who===S&&p.hook&&p.hook.st==='on';
+      const show=who!==S?-1:(S._shootT>0?0:swing?1:(ITEM>=0?ITEM:0));       // home: empty-handed · with you: your item, the TRS while it shoots
+      B.ropeClip=null; B.magPark=null; ITEM=show;
+      if(swing){                                                              // it swings with you: its own line to the same anchor
+        const h=p.hook, P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+        let n; try{ const ps=computeConnectorArmPose(S); n={x:ps.noseX,y:ps.noseY}; }catch(e){ n=centre(S); }
+        if(n&&isFinite(n.x)){ ctx.save(); ctx.lineCap='round'; ctx.globalAlpha=0.85;
+          ctx.strokeStyle='#120a1c'; ctx.lineWidth=Math.max(2,sw(5)); ctx.beginPath(); ctx.moveTo(sx(n.x),sy(n.y)); ctx.lineTo(sx(P.x),sy(P.y)); ctx.stroke();
+          ctx.strokeStyle=S.hero==='venture'?'#c03048':'#7a3cc8'; ctx.lineWidth=Math.max(1,sw(3)); ctx.beginPath(); ctx.moveTo(sx(n.x),sy(n.y)); ctx.lineTo(sx(P.x),sy(P.y)); ctx.stroke(); ctx.restore(); }
+      }
       try{
         who._armPose=computeConnectorArmPose(who);
         ctx.save(); ctx.globalAlpha=who===S&&S._blink>0?0.4+0.05*(12-S._blink):(who===S?0.92:1);
