@@ -22,6 +22,7 @@
   const STAGE={
     '1.1':{wind:0.9, crickets:1, hum:1, owl:true,  frogs:false, drone:0.8},
     '1.2':{wind:0.7, crickets:0.6, hum:0.6, owl:false, frogs:true, drone:1},
+    '1.3':{wind:0.9, crickets:0.3, hum:0.3, owl:false, frogs:true, drone:1.1},
   };
   const DEF=STAGE['1.1'];
   const sv=()=>{ try{ return Math.max(0,Math.min(1,OPT.sfxVol!=null?OPT.sfxVol:1)); }catch(e){ return 1; } };

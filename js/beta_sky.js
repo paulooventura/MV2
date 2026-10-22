@@ -25,6 +25,10 @@
     '1.2':{bands:['#0a0620','#140b34','#1e1048','#2a165c','#3a1e70','#4f2a82'], swirl:'#3e2a86', swirlHi:'#6f58c8', star:'#f2e8ff',
            far:'#1a1040', farHi:'#2a1a5a', pine:'#0e0828', town:'#181040', roof:'#221656', win:'#ffcf6a', winDim:'#b07a2a', pole:'#08051a',
            grade:'rgba(90,60,170,0.12)', vig:0.6, moon:{x:0.62,y:0.18,r:34,col:'#e6d8ff',edge:'#9a86d8'}, glow:'rgba(170,140,255,'},
+    // 1.3 (The Heptagon): an ember dusk over the arena — dark wine up top, a hot horizon
+    '1.3':{bands:['#140408','#220812','#320c1a','#461224','#5c1a2c','#7a2a30'], swirl:'#5a1a2a', swirlHi:'#a04050', star:'#ffe0d8',
+           far:'#2a0a14', farHi:'#40121e', pine:'#16050a', town:'#220a12', roof:'#34101c', win:'#ffc070', winDim:'#b07030', pole:'#0c0306',
+           grade:'rgba(170,50,60,0.12)', vig:0.62, moon:{x:0.7,y:0.2,r:30,col:'#ffd8c8',edge:'#c86a5a'}, glow:'rgba(255,120,110,'},
   };
   THEMES.default=THEMES['1.1'];
   const cache={};

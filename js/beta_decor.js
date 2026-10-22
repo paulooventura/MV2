@@ -602,7 +602,7 @@
     }
   }
   // A wooden crate with a paper label showing the jack inside (all male plugs).
-  const ITEM_NAMES=['TRS','RCA','XLR','MAG','ISOLATOR'];
+  const ITEM_NAMES=['TRS','RCA','XLR','MAG','ISOLATOR','KNIFE'];
   // the Isolator: an orange rubber ring with a sealed core (the sketch's orange circle with a dot)
   function isolatorIcon(x,y,s){
     ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
@@ -627,6 +627,7 @@
     ctx.save(); ctx.beginPath(); ctx.rect(X(x+8),Y(y+7),S(w-16),S(h-16)); ctx.clip();
     ctx.translate(X(cx-1),Y(y+6+(h-14)/2)); ctx.scale(Z*0.5,Z*0.5);
     if(idx===4) isolatorIcon(0,0,1);
+    else if(idx===5&&typeof drawConnectorTip==='function') drawConnectorTip(-24,0,0,0,4,enh);   // the gaucho knife (1.3)
     else if(typeof drawConnectorTip==='function') drawConnectorTip(idx===3?-14:-16,0,0,0,idx,enh);
     ctx.restore();
     // name under the crate
@@ -882,7 +883,7 @@
 
   // pass 4 (Oct 22): the blocks get the key art's light — a moonlit rim on open tops, soft
   // shadow under overhangs and down open sides, and vines hanging from ledges outside
-  const RIM={'1.1':'rgba(190,255,200,','1.2':'rgba(210,195,255,'};
+  const RIM={'1.1':'rgba(190,255,200,','1.2':'rgba(210,195,255,','1.3':'rgba(255,200,190,'};
   const vh=(c,r)=>{ let h=(c*73856093^r*19349663)>>>0; h=(h^(h>>>13))*1274126177>>>0; return (h>>>8)/16777216; };
   function edges(B,cells,r0,r1,c0,c1){
     const rim=RIM[B.stageId]||RIM['1.1'], z=S(T)+1, sh=Math.max(2,S(10));

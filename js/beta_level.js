@@ -19,7 +19,7 @@
 (function(){
   'use strict';
   // Stages: 1.1 → 1.2 → … (1.3 ends with a boss, then 2.1). Finishing one carries the jacks into the next.
-  const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2', prev:null}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:null, prev:'1.1'}};
+  const LEVELS={'1.1':{path:'assets/levels/awdjoo-beta.ldtk', next:'1.2', prev:null}, '1.2':{path:'assets/levels/awdjoo-1-2.ldtk', next:'1.3', prev:'1.1'}, '1.3':{path:'assets/levels/awdjoo-1-3.ldtk', next:null, prev:'1.2'}};
   function wantedLevel(){ try{ const m=/[?&]lvl=([0-9.]+)/.exec(location.search); if(m&&LEVELS[m[1]]) return m[1]; }catch(e){} if(window.MV_BETA_START&&LEVELS[window.MV_BETA_START]) return window.MV_BETA_START; return '1.1'; }
   const T=32;                                   // world tile
   const ITEM_IDX={TRS:0, RCA:1, XLR:2, MAG:3};
@@ -212,7 +212,7 @@
   }
   function gateReady(){
     const n=counts();
-    const base=n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds;
+    const base=n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds&&(!B.need.boss||!!B.bossDown);   // 1.3: the heptagon has to fall first
     return B.tier>0&&B.echoNeed>0 ? base&&n.echo>=B.echoNeed : base;
   }
   B.gateReady=gateReady;
@@ -259,7 +259,7 @@
           _spawnX=cx-SW/2; _spawnY=feet-FEET_OFF; break;
         case 'Gate':
           B.gate={x, y, w:g.w*T, h:g.h*T};
-          B.need={crystals:F(e,'crystals')|0||3, seeds:F(e,'seeds')|0||6}; break;
+          B.need={crystals:F(e,'crystals')|0||3, seeds:F(e,'seeds')|0||6, boss:F(e,'boss')|0}; break;
         case 'EchoCrystal':
           B.echoNeed++;
           KDROP.push({x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2, kind:'echo'}); break;
@@ -282,6 +282,11 @@
           _knowlTreeZone={x:cx, y:feet-72, r:120, feetY:feet}; break;
         case 'Box': {
           const kind=F(e,'kind')||'omni';
+          if(kind==='seal'||kind==='vine'){     // 1.3: the bowl's seal (gives way when the boss falls) and the vine wall (only the knife cuts it)
+            const bw=_mkBwall(x, y, T, T, {tileGid:typeof BWALL_RED_GID!=='undefined'?BWALL_RED_GID:242, movable:false,
+              hp:kind==='vine'?3:1e9, maxHp:kind==='vine'?3:1e9, label:kind.toUpperCase(), homeX:x, homeY:y, homeCol:g.c, homeRow:g.r, col:kind==='vine'?'#3a8a3a':'#8a8a98'});
+            bw.only=kind; BWALLS.push(bw); break;
+          }
           if(kind==='laser'){                  // TRS-only cage block: fixed in place, only the laser breaks it
             const bw=_mkBwall(x, y, T, T, {tileGid:typeof BWALL_RED_GID!=='undefined'?BWALL_RED_GID:242, movable:false,
               hp:RED_BWALL_HP, maxHp:RED_BWALL_HP, label:'LASER', homeX:x, homeY:y, homeCol:g.c, homeRow:g.r, col:'#e0b020'});
@@ -546,6 +551,7 @@
   // the rung underneath passes up through them.
   function installLaituShaft(){
     B.rungs=new Set();
+    if(B.stageId&&B.stageId!=='1.1') return;            // (Cursor's shaft is under Laitu's house, in 1.1 only)
     if(typeof gridCell!=='function'||typeof gridSet!=='function') return;
     for(let r=29;r<=43;r+=2) for(const c of [64,65]){
       const t=gridCell(c,r);
@@ -991,7 +997,7 @@
     // Paulo (Oct 22): enemies answer the magnet right away — their velocity is steered straight
     // toward the poles (not nudged a little each frame and eaten by their walk)
     for(const e of ENEMS){
-      if(!e._ai||e._betaHeld) continue;
+      if(!e._ai||e._betaHeld||e._noGrab) continue;
       const f=force(e.x+e.w/2,e.y+e.h/2);
       if(!f||typeof _applyItemForceToEnemy!=='function') continue;
       if(e.alive){ const k=Math.min(1,f.s*3), sp=(4+10*k)*(0.3+0.7*powNow()), n=Math.hypot(f.fx,f.fy)||1, tvx=f.fx/n*sp, tvy=f.fy/n*sp-0.6*k;
@@ -1177,7 +1183,7 @@
       };
       for(const bw of cubes()) if(!bw.only||bw.only==='pull') consider('cube',bw,bw.x+T/2,bw.y+T/2,bw.homeCol,bw.homeRow);
       if(!M.held.length){
-        for(const e of ENEMS){ if(e.mind||(e.alive&&typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e))) continue; consider('enemy',e,e.x+e.w/2,e.y+e.h/2); }
+        for(const e of ENEMS){ if(e.mind||e._noGrab||(e.alive&&typeof _enemyBodyPresent==='function'&&!_enemyBodyPresent(e))) continue; consider('enemy',e,e.x+e.w/2,e.y+e.h/2); }
         for(const k of KDROP){ if(k.got&&!k._fly) continue; consider('knowl',k,k.x,k.y); }
         for(const c of CRATES) consider('object',c,c.x+c.w/2,c.y+c.h/2);
       }
@@ -1646,7 +1652,7 @@
     else { ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8); }
     ctx.restore();
   }
-  const JACK_ORDER=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MAG'];
+  const JACK_ORDER0=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MAG','KNIFE'];
   function drawTopBar(){
     const y0=4, h=60;
     uiPanel(6,y0,W-12,h,{r:14,alpha:0.78,flat:true,accent:'rgba(200,170,255,0.55)'});
@@ -1683,6 +1689,7 @@
     }
     // the jacks, drawn as their tips
     const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
+    const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);   // the knife's slot shows once it's found
     JACK_ORDER.forEach((i,k)=>{
       const bx=hx+300+k*78, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
       uiPill(bx,y0+8,70,44,{on:cur,col:icols[i]});
@@ -2097,7 +2104,7 @@
   };
   const _origPlayerHit=window.applyPlayerHit;
   window.applyPlayerHit=function(){ if(B.on&&B.stats&&_shutdownTimer<=0) B.stats.hits++; return _origPlayerHit.apply(this, arguments); };
-  B.openPopup=openPopup; B.openResults=openResults;
+  B.openPopup=openPopup; B.openResults=openResults; B.saveStage=saveStage;
 
   B.onBoom=amp=>{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(amp); };
   B.drawBlock=drawBetaBlock; B.fireCube=fireCube; B.cubes=cubes; B.throwCube=throwCube; B.counts=counts;
