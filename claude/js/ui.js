@@ -626,9 +626,10 @@ function drawZoneCard(){
   const cy=Math.round(H*0.32), bh=110*e;
   ctx.save();
   const g=ctx.createLinearGradient(0,cy-bh/2,0,cy+bh/2);
-  g.addColorStop(0,'rgba(10,4,30,0)'); g.addColorStop(0.2,'rgba(24,10,60,0.85)'); g.addColorStop(0.8,'rgba(24,10,60,0.85)'); g.addColorStop(1,'rgba(10,4,30,0)');
+  g.addColorStop(0,'rgba(2,10,4,0)'); g.addColorStop(0.2,'rgba(6,22,10,0.88)'); g.addColorStop(0.8,'rgba(6,22,10,0.88)'); g.addColorStop(1,'rgba(2,10,4,0)');
   ctx.fillStyle=g; ctx.fillRect(0,cy-bh/2,W,bh);
-  const lg=ctx.createLinearGradient(0,0,W,0); lg.addColorStop(0,'rgba(246,201,74,0)'); lg.addColorStop(0.5,'rgba(246,201,74,0.95)'); lg.addColorStop(1,'rgba(246,201,74,0)');
+  ctx.fillStyle='rgba(0,0,0,0.2)'; for(let yy=Math.round(cy-bh/2);yy<cy+bh/2;yy+=3) ctx.fillRect(0,yy,W,1);   // scanlines, like the key art's CRT glow
+  const lg=ctx.createLinearGradient(0,0,W,0); lg.addColorStop(0,'rgba(170,240,120,0)'); lg.addColorStop(0.5,'rgba(170,240,120,0.9)'); lg.addColorStop(1,'rgba(170,240,120,0)');
   ctx.fillStyle=lg; ctx.fillRect(0,cy-bh*0.38,W,2); ctx.fillRect(0,cy+bh*0.38,W,2);
   const slide=(1-Math.min(1,t/30))*W*0.6 - (1-outK)*W*0.6;
   ctx.globalAlpha=Math.min(inK,outK);
@@ -638,7 +639,7 @@ function drawZoneCard(){
 }
 function _drawSnesWindow(x,y,w,h,opts){ uiPanel(x,y,w,h,{sel:!!(opts&&opts.sel),locked:!!(opts&&opts.locked),r:Math.min(12,h/3)}); }
 let _titleT=0, _logoHalfW=0;
-function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='italic 900 84px "MV Title", sans-serif'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
+function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='105px "MV Pixel", monospace'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
 function _titleArtCursor(map,sx,sy){
   const bob=Math.sin(fr*0.18)*1.5, s=map.s;
   const x=map.dx+(sx+bob)*s, y=map.dy+sy*s;

@@ -221,7 +221,13 @@
       if(!f.settle){
         f.vy=Math.min(f.vy+GRAV*0.6,13);
         const nx=f.x+f.vx, ny=f.y+f.vy;
-        if(solidAt(nx,f.y)){ f.vx*=-0.5; } else f.x=nx;
+        // a hot frag that slams into a block chips it, like a punch would (Paulo, Oct 22)
+        const hitBlock=(x,y)=>{ if(f.dud||f.cold||(f.blkCd||0)>0||Math.hypot(f.vx,f.vy)<3||!B.cubeAt) return;
+          const bw=B.cubeAt(Math.floor(x/T),Math.floor(y/T)); if(!bw||typeof _damageBwall!=='function') return;
+          f.blkCd=12; _damageBwall(bw,'punch',{shakeX:Math.sign(f.vx||1)*2,shakeY:-1}); };
+        if(f.blkCd>0) f.blkCd--;
+        if(solidAt(nx,f.y)){ hitBlock(nx,f.y); f.vx*=-0.5; } else f.x=nx;
+        if(solidAt(f.x,ny)) hitBlock(f.x,ny);
         if(solidAt(f.x,ny)){
           if(f.vy>0){
             f.bounce++;
@@ -763,6 +769,19 @@
     e.y+=e.vy; e.og=false;
   }
 
+  // thrown or blown (MAG throw, XLR blast): it flies, spinning, bounces off walls, lands hard
+  function flight(e){
+    e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
+    const nx=e.x+(e.vx||0);
+    if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx;
+    else{ if(Math.abs(e.vx)>4){ land(e,Math.abs(e.vx)*0.8); if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(Math.abs(e.vx)),e.x+e.w/2+Math.sign(e.vx)*e.w/2,e.y+e.h/2,0.2); } e.vx=-(e.vx||0)*0.3; }
+    const feet=e.y+e.h+e.vy;
+    if(e.vy>=0&&floorUnder(e.x,e.w,feet)){ e.y=floorSnap(e,feet); if(e.vy>3) land(e,e.vy); e.vy=0; e.og=true; e.vx*=0.75; e.baseY=e.y; if(Math.abs(e.vx)<0.6){ e._thrownF=0; e.ang=0; } }
+    else if(e.vy<0&&!boxFree(e.x,e.y+e.vy,e.w,e.h)) e.vy=0;
+    else{ e.y+=e.vy; e.og=false; }
+    if(!e.og&&e._ai!=='circle') e.ang=(e.ang||0)+(e.vx||0)*0.035; else if(e._ai==='circle') e.roll=(e.roll||0)+(e.vx||0)/(e.w/2);
+    if(e._thrownF<=1) e.ang=0;
+  }
   B.enemyAITick=function(){
     if(!p) return;
     for(const e of ENEMS){
@@ -770,7 +789,8 @@
       e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
       e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
-      if(e._betaHeld||(e._thrownF||0)>0){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
+      if(e._betaHeld){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
+      if((e._thrownF||0)>0){ e.tumble=null; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); flight(e); continue; }
       think(e);
     }
     ropeTick();
@@ -955,7 +975,7 @@
     ctx.fillStyle=mk.c==='!'?'#ffe24a':'#bfe4ff'; ctx.strokeStyle='#1a0e08'; ctx.lineWidth=Math.max(2,sw(2.5));
     ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x-r*0.25,y+r*0.85); ctx.lineTo(x,y+r*1.45); ctx.lineTo(x+r*0.3,y+r*0.82); ctx.fill();
-    ctx.fillStyle='#1a0e08'; ctx.font='900 '+Math.round(r*1.5)+'px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#1a0e08'; ctx.font=Math.round(r*1.9)+'px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(mk.c, x, y+r*0.06);
     ctx.restore();
   }

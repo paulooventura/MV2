@@ -952,6 +952,17 @@ function updateEnemyShots(){
       try{ applyPlayerHit(s.vx*0.7,-2.4,PLAYER_HIT_DMG); } finally{ window._hitShotSrc=null; }
       ESHOTS.splice(i,1); continue;
     }
+    // Paulo (Oct 22): enemy shots hit blocks like MIND's do (lasers chip omni blocks,
+    // break electro blocks; push / pull blocks just take the hit)
+    let eBlk=false;
+    for(const bw of BWALLS){
+      if(bw.hp<=0||!ov(s.x-4,s.y-4,8,8,bw.x+(bw._ox||0),bw.y+(bw._oy||0),bw.w,bw.h)) continue;
+      if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfx('omniblock_chip'); }catch(e){} }
+      else _damageBwall(bw,(s.power||1)>1.5?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2});
+      spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff6644',8);
+      ESHOTS.splice(i,1); eBlk=true; break;
+    }
+    if(eBlk) continue;
     // Wall ricochet
     let eHit=false;
     for(const pl2 of allP()){
