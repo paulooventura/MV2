@@ -381,6 +381,18 @@ function drawBody(bx,by,facing,ca2=0,status=null){
     ctx.beginPath(); ctx.arc(ox,ry0+6,4.6,0,Math.PI*2); ctx.fillStyle='#000'; ctx.fill();
     ctx.beginPath(); ctx.arc(ox,ry0+6,3.8,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
   }
+  // the Isolator (Paulo, Oct 22): a glossy orange rubber skin over the speaker box only —
+  // the arms, the wheel and the head stay outside it
+  if(!status&&window.MV_BETA&&MV_BETA.on&&MV_BETA.hasIsolator&&!p._betaSib&&!p._aiCompanion){
+    const wet=MV_BETA.mindWet||0, a=0.3+0.25*wet+0.06*Math.sin(fr*0.12);
+    const ix=x-3, iy=top-3, iw=bw+6, ih=y+bh-top+6;
+    ctx.save();
+    ctx.fillStyle='rgba(255,150,60,'+(a*0.5).toFixed(3)+')'; ctx.strokeStyle='rgba(255,185,105,'+Math.min(1,a+0.25).toFixed(3)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(ix,iy,iw,ih,7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,240,210,'+(0.4+0.3*wet).toFixed(3)+')'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.moveTo(ix+5,iy+ih-8); ctx.lineTo(ix+5,iy+8); ctx.quadraticCurveTo(ix+5,iy+4,ix+10,iy+4); ctx.stroke();   // a glint down one edge
+    ctx.restore();
+  }
 }
 
 function _drawHatCrown(cx,hatTopY,hatBrimY,tx,crownH){

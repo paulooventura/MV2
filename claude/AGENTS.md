@@ -202,6 +202,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 266 — the Isolator skin covers the speaker box only (Oct 22, Claude)
+
+- `render.js` `drawBody`: the orange rubber skin is drawn on the cabinet rect (inside the body's own transform), only for the player (`!p._betaSib`). `beta_water.js` no longer draws the full-body bubble.
+
 ### Build 265 — the storm as a threat; the Isolator gets knocked off; the sibling rides platforms (Oct 22, Claude)
 
 - `beta_weather.js` rewritten (runs on game frames via `updateKnowls`). Vapor (units: fluid cells; 1.2's bottom-left pool ≈ 500, the flooded room ≈ 280):
