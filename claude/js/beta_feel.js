@@ -222,14 +222,15 @@
   const visEnd=()=>{ if(ITEM===1){ const pose=computeConnectorArmPose(p); return pose.worldNose||{x:pose.noseX,y:pose.noseY}; } return hookAttachWorld(); };
   // Paulo (Oct 21): switching items while hooked, MIND takes the rope and clips it onto his
   // body (or unclips it back into his hand) — a short animation of the plug travelling
-  const CLIP_FR=26;
+  const CLIP_FR=16;                                          // a quick reach back and a plug-in
   B.ropeClip=null;
   B.ropeClipPoint=function(){
     const c=B.ropeClip; if(!c) return null;
     const k=Math.min(1,c.t/CLIP_FR), e=k*k*(3-2*k);
     const A=c.toBody?c.from:hookAttachWorld(), Bp=c.toBody?hookAttachWorld():visEnd();
-    const lift=Math.sin(e*Math.PI)*22;                       // a little arc, like a hand carrying it
-    return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e};
+    const lift=Math.sin(e*Math.PI)*(c.toBody?8:16);         // a short carry, then it seats
+    const ang=Math.atan2(Bp.y-A.y,Bp.x-A.x);
+    return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e, ang, toBody:!!c.toBody};
   };
   function clipTick(){
     const c=B.ropeClip; if(!c) return;
@@ -260,7 +261,11 @@
     if(on()&&who===p&&ITEM!==1&&who.hook&&who.hook.st!=='idle'){
       const st0=who.hook.st; who.hook.st='idle';
       const q=B.ropeClip&&B.ropeClipPoint?B.ropeClipPoint():null, ax0=who.aimDX, ay0=who.aimDY;
-      if(q&&q.k<0.85){ const c=hookAttachWorld(); who.aimDX=q.x-c.x+(who.fc?14:-14); who.aimDY=q.y-c.y+18; }   // the hand goes with the plug
+      if(q&&q.toBody&&q.k<0.92){               // the hand carries the RCA back and pushes the pin in
+        const shx=who.x+SW/2+(who.fc?1:-1)*BODY_W*0.42;
+        const shy=who.y+FEET_OFF-STAND_H-WHEEL_R+10+BODY_H*0.22;
+        who.aimDX=q.x-shx; who.aimDY=q.y-shy;
+      }
       try{ return _origPose.apply(this, arguments); } finally{ who.hook.st=st0; who.aimDX=ax0; who.aimDY=ay0; }
     }
     return _origPose.apply(this, arguments);

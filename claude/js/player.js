@@ -720,10 +720,12 @@ function connectorAimAngle(){
   const duckAngle=p.fc?0:Math.PI;
   return rawAngle*(1-ca2*0.85)+duckAngle*(ca2*0.85);
 }
-// where the rope clips onto MIND while another item is in hand: the disc on top of the speaker
+// where the rope clips onto MIND while another item is in hand:
+// a socket on the upper back, between the shoulders
 function hookAttachWorld(){
   const ca=p.crouchAmt||0, top=p.y+FEET_OFF-STAND_H-WHEEL_R+10, duckTop=(p.y+FEET_OFF-WHEEL_R+WHEEL_R*0.5)-BODY_H;
-  return {x:p.x+SW/2+(p.fc?-1:1)*BODY_W*0.36, y:top+ca*(duckTop-top)+5};   // the back edge of the disc, where you can see it
+  const back=p.fc?-1:1;                                              // the cabinet's back panel
+  return {x:p.x+SW/2+back*8, y:top+ca*(duckTop-top)+BODY_H*0.16};
 }
 const ROPE_END_R=48, ROPE_END_R_RCA=56;                                         // body centre → where the rope pulls
 function ropePlayerEndWorld(){
@@ -940,10 +942,13 @@ function updateHook(){
       sfx('jump'); OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     const wasTight=h._tight, wasSlack=h._slack;
-    // reel in / give slack: the cord coils into the jack or pays out of it (cues: render.js + sfx)
+    // reel in / give slack only while the RCA is in hand. Plugged into the
+    // back, up and down don't pay the cord out or wind it in.
     const rl0=h.rl;
-    if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
-    if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+    if(ITEM===1){
+      if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
+      if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+    }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
     if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%4===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
