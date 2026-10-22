@@ -295,6 +295,12 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 223 — chambers (Oct 22)
+- Paulo: inside Laitu's house the crickets and wind were as clear as outside.
+- `beta_spatial.js` `flood()`: from MIND's cell, flood-fill the air through the grid (one-way planks pass, solids stop). Reaching high open sky = outside; closing up = a chamber with volume V. A house (`B.rooms` rect) is always a chamber, and its outline counts as a 2-tile wall in `occlusion()` even through the open door.
+- In a chamber: `env.inside`→1, sky ×0.15, wind ×0.08, encl ≥0.8–0.9, size = √V. The room return gets a resonant peak tuned to the size (`2600/√V` Hz, +8 dB) and darker tone; MIND's own sounds ring more.
+- `beta_ambience.js`: the wind bed is low-passed down to ~800 Hz indoors; crickets / hum outside are walled off one by one by occlusion.
+
 ### Build 222 — sound from MIND's spot: distance, walls, room, wind by height (Oct 22)
 - `audio.js`: `MV_SPATIAL_from(obj)` / `sfxAt(obj,name,…)` mark where a sound comes from (obj = {x,y[,w,h]} world px). ~40 enemy / block / debris / shot / water call sites now use them.
 - New `js/beta_spatial.js` (after `beta_audio.js`): wraps `sfx`; positioned sounds get gain by distance (gone ~40 tiles), low-pass by distance, walls on the line through the collision grid muffle + lower them (`occlusion`), pan by side, more room send the farther. `sfx_posh.js` `bus()` honours `window.MV_SFX_ROUTE`; `beta_audio.js` one-shots (boom, splash, creak…) go through `MV_SPATIAL.take`.

@@ -20,12 +20,38 @@
 (function(){
   'use strict';
   const T=32, MAXR=14;                                      // ray length in tiles
-  const env={open:1, sky:1, size:MAXR, encl:0, elev:0.5, floor:0, wind:0.5, under:0, t:-99};
+  const env={open:1, sky:1, size:MAXR, encl:0, elev:0.5, floor:0, wind:0.5, under:0, inside:0, V:0, room:null, t:-99};
   function solid(x,y){
     try{ if(typeof gridWorldSolid==='function') return !!gridWorldSolid(x,y); }catch(e){}
     const B=window.MV_BETA, lv=B&&B.level; if(!lv) return false;
     const c=Math.floor(x/T), r=Math.floor(y/T); if(r<0||c<0||r>=lv.rows||c>=lv.cols) return r>=0;
     return !!lv.cells[r][c];
+  }
+  // ── chambers (Paulo, Oct 22: "an algorithm identifying chambers from open spaces") ──
+  // A house (B.rooms rects) is a chamber: its outline counts as a wall for sound even
+  // where the door is open. Elsewhere the air around MIND is flood-filled through the
+  // grid: if it reaches the open sky it's outside; if it closes up it's a chamber (a
+  // cave, a corridor, a basement) and its volume sets how it rings.
+  function roomAt(x,y){ const B=window.MV_BETA; for(const r of (B&&B.rooms)||[]) if(x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h) return r; return null; }
+  const chamber={closed:false, V:0, room:null, t:-1};
+  function flood(){
+    const B=window.MV_BETA, lv=B&&B.level; if(!lv) return;
+    const L=listener(), c0=Math.floor(L.x/T), r0=Math.floor(L.y/T), room=roomAt(L.x,L.y);
+    const hz=B.horizonRow!=null?B.horizonRow:(B.sky||0)+13, LIM=1400;
+    const seen=new Set(), q=[[c0,r0]]; seen.add(r0*4096+c0);
+    let n=0, sky=false;
+    while(q.length&&n<LIM){
+      const [c,r]=q.pop(); n++;
+      if(r<=0||(!room&&r<hz-4)){ sky=true; break; }
+      for(const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const cc=c+dc, rr=r+dr; if(cc<0||rr<0||cc>=lv.cols||rr>=lv.rows) continue;
+        const k=rr*4096+cc; if(seen.has(k)) continue; seen.add(k);
+        const t=lv.cells[rr][cc]; if(t&&t!==2) continue;                 // rock / brick / blocks stop sound; one-way planks don't
+        if(roomAt(cc*T+16,rr*T+16)!==room) continue;                    // a house's outline is a wall
+        q.push([cc,rr]);
+      }
+    }
+    chamber.room=room; chamber.closed=!!room||!sky; chamber.V=room?Math.round(room.w*room.h/(T*T)):n;
   }
   function listener(){ return (typeof p!=='undefined'&&p)?{x:p.x+SW/2, y:p.y+FEET_OFF-34}:{x:0,y:0}; }
   function ray(x,y,dx,dy,max){ const st=12; for(let d=st;d<=max;d+=st){ if(solid(x+dx*d,y+dy*d)) return d; } return max; }
@@ -34,7 +60,9 @@
     const dx=x1-x0, dy=y1-y0, L=Math.hypot(dx,dy); if(L<20) return 0;
     const n=Math.min(160,Math.ceil(L/12)); let k=0;
     for(let i=1;i<n;i++){ if(solid(x0+dx*i/n,y0+dy*i/n)) k++; }
-    return k*(L/n)/T;
+    let walls=0; const B=window.MV_BETA;
+    for(const r of (B&&B.rooms)||[]){ const i0=x0>=r.x&&x0<r.x+r.w&&y0>=r.y&&y0<r.y+r.h, i1=x1>=r.x&&x1<r.x+r.w&&y1>=r.y&&y1<r.y+r.h; if(i0!==i1) walls+=2; }
+    return k*(L/n)/T+walls;
   }
   function measure(){
     const B=window.MV_BETA; if(!B||!B.on||typeof p==='undefined'||!p) return;
@@ -50,9 +78,12 @@
     const k=0.35;                                          // ease so it doesn't jump between frames
     env.open+=(open-env.open)*k; env.sky+=(sky-env.sky)*k; env.size+=(sum/16/T-env.size)*k;
     env.encl=1-env.open; env.elev+=(elev-env.elev)*k; env.floor=floor/T;
+    flood();
+    const inside=chamber.closed?1:0; env.inside+=(inside-env.inside)*0.5; env.V=chamber.V; env.room=chamber.room;
+    if(chamber.closed){ env.sky*=0.15; env.encl=Math.max(env.encl,chamber.room?0.9:0.8); env.size=Math.sqrt(chamber.V); }
     env.under=Math.max(0,Math.min(1,(row-hz-1)/4))*(1-env.sky);
     // wind forms where the air is high and open
-    env.wind=Math.max(0,Math.min(1,env.sky*(0.12+0.88*Math.min(1,Math.pow(env.elev,1.5)*1.25+Math.max(0,env.open-0.5)*0.6))));
+    env.wind=(1-0.92*env.inside)*Math.max(0,Math.min(1,env.sky*(0.25+0.75*Math.min(1,Math.pow(env.elev,1.5)*1.25+Math.max(0,env.open-0.5)*0.6))));
   }
 
   // ── audio graph ──
@@ -66,14 +97,16 @@
     for(let c=0;c<2;c++){ const d=ir.getChannelData(c); for(let i=0;i<len;i++){ const t=i/len; d[i]=(Math.random()*2-1)*Math.pow(1-t,2.8)*(i<a.sampleRate*0.008?0:1); } }
     conv.buffer=ir;
     const roomIn=a.createGain(); roomIn.gain.value=0; const roomLP=a.createBiquadFilter(); roomLP.type='lowpass'; roomLP.frequency.value=3800;
-    roomIn.connect(conv); conv.connect(roomLP); roomLP.connect(main);
+    // the chamber's own resonance: a peak tuned to its size (small room high, big cave low)
+    const peak=a.createBiquadFilter(); peak.type='peaking'; peak.frequency.value=300; peak.Q.value=1.4; peak.gain.value=0;
+    roomIn.connect(conv); conv.connect(peak); peak.connect(roomLP); roomLP.connect(main);
     const echoIn=a.createGain(); echoIn.gain.value=0; const dl=a.createDelay(1); dl.delayTime.value=0.12; const fb=a.createGain(); fb.gain.value=0.25;
     const eLP=a.createBiquadFilter(); eLP.type='lowpass'; eLP.frequency.value=2200;
     echoIn.connect(dl); dl.connect(eLP); eLP.connect(fb); fb.connect(dl); eLP.connect(main);
     // MIND's own sounds: straight to the bus, plus the room
     const self=a.createGain(); self.gain.value=1; self.connect(main);
     const selfRoom=a.createGain(); selfRoom.gain.value=0; self.connect(selfRoom); selfRoom.connect(roomIn); selfRoom.connect(echoIn);
-    G={main, roomIn, echoIn, dl, fb, self, selfRoom, posh};
+    G={main, roomIn, echoIn, dl, fb, self, selfRoom, posh, peak, roomLP};
     return G;
   }
   // keep the room in step with where MIND is
@@ -84,7 +117,11 @@
     set(G.echoIn.gain, Math.max(0,(e.encl-0.35))*0.55);
     set(G.dl.delayTime, Math.max(0.05,Math.min(0.28,e.size*0.022)));
     set(G.fb.gain, 0.15+e.encl*0.25);
-    set(G.selfRoom.gain, e.encl*0.32);
+    set(G.selfRoom.gain, e.encl*0.32+e.inside*0.1);
+    const dim=Math.max(2,e.size);                                     // tiles across
+    set(G.peak.frequency, Math.max(70,Math.min(800,2600/dim)));
+    set(G.peak.gain, 8*e.inside);
+    set(G.roomLP.frequency, 3800-1600*e.inside);
   }
   // how a sound at (x,y) reaches MIND
   function params(x,y){
