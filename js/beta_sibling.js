@@ -258,6 +258,7 @@
     if(s2.flashF>0) s2.flashF--;
     if(typeof _updateBattleEye==='function') _updateBattleEye(s2);
     interact(s2); envTick(s2);
+    if(s2._madT>0){ madTick(s2); return; }
     if(s2._downT>0){ s2._downT--; s2.crouchAmt=Math.min(1,(s2.crouchAmt||0)+0.1); if(s2.free>0) bodyPhysics(s2); if(s2._downT===0) s2.crouchAmt=0; return; }
     if(s2.free>0){ bodyPhysics(s2); npc.tx=null; npc.wait=40; return; }
     // walking: keep to the floor it stands on (turn at an edge or a wall)
@@ -318,41 +319,60 @@
       try{ sfx('player_hit',1.35); }catch(e){}
       if(b.sibHp<=0){ b._downT=240; b.sibHp=100; try{ sfx('enemy_shut',1.2); }catch(e){} }
     }else if(kind!=='bump'){ try{ sfx('hit',1.5); }catch(e){} }
+    if(!ff&&kind==='punch') tease(b);
   }
-  // Paulo (Oct 22, for the lore): punch your sibling 3 times inside 5 s and it gets MAD — it glares,
-  // winds up and loaded-punches you back. With friendly fire off it only sends you flying.
-  let pokes=[];
-  function poked(){
-    pokes=pokes.filter(t=>fr-t<300); pokes.push(fr);
-    if(pokes.length>=3&&!(S._mad)){ S._mad={t:0}; pokes=[]; try{ sfx('chargeReady',0.7); }catch(e){} }
+  // Friendly fire off: three connecting punches inside 5 seconds and they snap,
+  // turn, and throw one loaded punch back. That one does hurt.
+  function tease(b){
+    if(b._madT>0) return;
+    if(!b._tease) b._tease=[];
+    b._tease.push(fr);
+    b._tease=b._tease.filter(t=>fr-t<=300);
+    if(b._tease.length<3) return;
+    b._tease.length=0;
+    b._madT=34; b._madHit=false; b.free=0;
+    b.vx*=0.15; b.vy=Math.min(b.vy||0,-1.5);
+    const name=b.hero==='venture'?'VENTURE':'MIND';
+    try{ if(typeof uiShowToast==='function') uiShowToast(name+' SNAPS'); }catch(e){}
+    try{ sfx('punch_heavy',0.85); }catch(e){}
   }
-  function madTick(){
-    const M=S._mad; if(!M) return false;
-    M.t++;
-    const c=centre(S), P=centre(p), dx=P.x-c.x, dir=Math.sign(dx)||1;
-    S.fc=dir>0; S.aimDX=dir; S.aimDY=0; S.pCharge=Math.min(40,M.t);
-    S._eyeTop=1; S._eyeBot=0.4; S._eyeSlant=dir*1.2; S.pupilX=dir*3; S.pupilY=0;     // the glare
-    if(M.t%4===0) PFXS.push({x:c.x+(Math.random()-0.5)*40,y:c.y-40-Math.random()*20,vx:(Math.random()-0.5)*1.5,vy:-1.5,life:14,maxLife:14,r:2,col:'#ff5040'});
-    if(M.t<36){ S.vx=(S.vx||0)*0.8; return true; }                                  // the wind-up
-    const d=Math.abs(dx);
-    if(d>95&&M.t<110){                                                              // chase you down
-      S.vx=dir*Math.min(7,2+d/40); S.vy=(S.vy||0)+GRAV; if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S.vx,S.vy); if(S.og&&S.vy>0) S.vy=0;
-      S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R; return true;
+  function madTick(b){
+    if(!(b._madT>0)) return;
+    b._madT--; b.free=0;
+    const c=centre(b), P=centre(p);
+    const dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
+    const ux=dx/d, uy=dy/d, dir=dx>=0?1:-1;
+    b.fc=dx>=0; b.aimDX=ux; b.aimDY=Math.max(-0.4,Math.min(0.45,uy));
+    b.tAimDX=b.aimDX; b.tAimDY=b.aimDY;
+    if(b._madT>12){
+      b.pCharging=true; b.pCharge=Math.min(28,(34-b._madT)*2); b.pt=0;
+      b.crouchAmt=Math.min(0.8,(b.crouchAmt||0)+0.14);
+      b.vx=d>52?dir*Math.min(5.2,1.3+d*0.018):dir*0.4;
+      b.vy=Math.min((b.vy||0)+GRAV,12);
+      if(b.og&&d>78&&d<220){ b.vy=-7.2; b.og=false; }
+    }else{
+      b.pCharging=false; b.pCharge=28; b.pt=Math.max(1,b._madT);
+      b.crouchAmt=Math.max(0,(b.crouchAmt||0)-0.22);
+      b.vx=dir*1.6; b.vy=Math.min((b.vy||0)+GRAV*0.35,8);
+      if(!b._madHit&&b.pt<=4&&d<112){
+        b._madHit=true;
+        try{ applyPlayerHit(ux*7, Math.min(-3.2, uy*4-2), 28); }catch(e){}
+        try{ sfx('punch_hit_heavy'); }catch(e){}
+        for(let i=0;i<10;i++) PFXS.push({x:P.x+(Math.random()-0.5)*16,y:P.y+(Math.random()-0.5)*16,vx:ux*(2+Math.random()*4),vy:uy*2-Math.random()*2,life:12,maxLife:12,r:2.2,col:i%2?'#ffe0a0':'#ff8866'});
+      }
     }
-    if(d<=95&&Math.abs(P.y-c.y)<90){                                                // POW
-      S.pt=14; S.pCharge=40; S.fireRecoil=0;
-      p.vx=dir*11; p.vy=-7; p.og=false; p._groundHold=0; p.flashF=Math.max(p.flashF||0,10); B.shake=Math.max(B.shake||0,9);
-      if(ff&&typeof applyPlayerHit==='function') applyPlayerHit(dir*11,-7,18); else try{ sfx('hit',0.8); }catch(e){}
-      for(let k=0;k<18;k++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*5; PFXS.push({x:c.x+dir*40,y:c.y-10,vx:Math.cos(a)*sp+dir*2,vy:Math.sin(a)*sp,life:14,maxLife:14,r:2.2,col:k%2?'#ffffff':'#ffd060'}); }
-    }
-    S._mad=null; return true;                                                        // (or it gives up — hmph)
+    if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(b,b.vx,b.vy||0); else { b.x+=b.vx; b.y+=b.vy; }
+    if(b.og&&b.vy>0) b.vy=0;
+    b.wheelAngle=(b.wheelAngle||0)+(b.vx||0)/(typeof WHEEL_R!=='undefined'?WHEEL_R:20);
+    if(b._madT<=0){ b.pt=0; b.pCharge=0; b.pCharging=false; b.crouchAmt=0; }
   }
   function interact(b){
+    if(b._madT>0) return;
     const c=centre(b), P=centre(p), dx=c.x-P.x, dy=c.y-P.y, d=Math.hypot(dx,dy)||1;
     const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1, ux=ax/al, uy=ay/al, dot=(dx*ux+dy*uy)/d;
     if(!clearLine(P.x,P.y,c.x,c.y)) return;                       // nothing (punch, air, magnet, weight) reaches it through a wall
     // a punch
-    if(p.pt>0){ if(!b._pHit){ const rx=P.x+ux*44, ry=P.y+uy*44; if(Math.hypot(c.x-rx,c.y-ry)<50){ b._pHit=true; const k=(p.pCharge||0)>20||p.pCd>4?1.6:1; knock(b,ux*7.5*k,uy*5*k-3.5,'punch',k>1?22:12); if(b===S) poked(); } } }
+    if(p.pt>0){ if(!b._pHit){ const rx=P.x+ux*52, ry=P.y+uy*52; if(Math.hypot(c.x-rx,c.y-ry)<64||(Math.abs(dx)<SW&&Math.abs(dy)<70&&dot>0.2)){ b._pHit=true; const k=(p.pCharge||0)>20||p.pCd>4?1.6:1; knock(b,ux*7.5*k,uy*5*k-3.5,'punch',k>1?22:12); } } }
     else b._pHit=false;
     // the XLR blows it away; the MAG pulls it in
     if(p.xlrOn&&ITEM===2&&d<170&&dot>0.6){ const f=(1-d/170)*1.5; b.vx=(b.vx||0)+ux*f; b.vy=(b.vy||0)+uy*f-0.25; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,24); if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }
@@ -396,10 +416,9 @@
       if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
       envTick(S);
-      if(S.pt>0) S.pt--;
+      if(S._madT>0){ madTick(S); boltsTick(); return r; }
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
       watchBlocks();
-      if(S._mad&&madTick()){ boltsTick(); return r; }
       if(S.free>0){ bodyPhysics(S); assist(); boltsTick(); S._catch=30; return r; }      // moved by you: it lands, then rides back to your trail
       assist(); follow(); boltsTick();
     }catch(e){ console.warn('sibling',e); }
@@ -421,7 +440,7 @@
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       const swing=who===S&&p.hook&&p.hook.st==='on';
-      const show=who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:(ITEM>=0?ITEM:0));   // its XLR while it hovers       // home: empty-handed · with you: your item, the TRS while it shoots
+      const show=who._madT>0?-1:(who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:(ITEM>=0?ITEM:0)));   // a loaded punch is bare fists; otherwise its jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
       if(swing){                                                              // it swings with you: its own line to the same anchor
         const h=p.hook, P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};

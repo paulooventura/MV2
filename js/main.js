@@ -825,13 +825,14 @@ function _updateBattleEye(pl){
   }
   const dangerN=Math.max(0,Math.min(1,danger/1.35));
   const near=best?Math.max(0,Math.min(1,1-Math.max(0,best.d-32)/LID_R)):0;
+  const sport=(pl===p&&typeof isSprintHeld==='function'&&isSprintHeld())?0.4:0;
   let tx, ty;
   if(best){ const reach=4.5; tx=best.dx/best.d*reach; ty=best.dy/best.d*reach*0.8; }
   else { tx=(pl.tAimDX||0)*4; ty=(pl.tAimDY||0)*4; }
   const k=best?0.3:(pl.og?0.18:0.07);
   pl.pupilX+=(tx-pl.pupilX)*k; pl.pupilY+=(ty-pl.pupilY)*k;
-  pl._eyeBot=(pl._eyeBot||0)+(near-(pl._eyeBot||0))*0.16;
-  pl._eyeTop=(pl._eyeTop||0)+(dangerN-(pl._eyeTop||0))*0.11;
+  pl._eyeBot=(pl._eyeBot||0)+(Math.max(near,sport*0.9)-(pl._eyeBot||0))*0.16;
+  pl._eyeTop=(pl._eyeTop||0)+(Math.max(dangerN,sport)-(pl._eyeTop||0))*0.12;
   const side=best?(Math.sign(best.dx)||(pl.fc?1:-1)):0;
   const slantT=side*(dangerN*0.95+near*0.3);
   pl._eyeSlant=(pl._eyeSlant||0)+(slantT-(pl._eyeSlant||0))*0.14;
@@ -1109,6 +1110,7 @@ function update(){
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
     if(p._magWorldStick){ p.vx=0; p.vy=0; if(typeof _applyMagWorldStick==='function') _applyMagWorldStick(p); }
     else _movePlayerWithColl(p,p.vx,p.vy);
+    if(window.MV_BETA&&MV_BETA.stickHeld) MV_BETA.stickHeld();
     if(!_gridReady()){
     const _moveDir=_moveInputX();
     if(_moveDir&&_playerOnGround(p)){
@@ -1231,6 +1233,7 @@ function draw(){
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   } finally { _worldZoomEnd(); }
+  if(typeof _drawSportBlur==='function') _drawSportBlur();
   drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
   if(window.MV_BETA&&MV_BETA.loadFade>0){ ctx.save(); ctx.globalAlpha=Math.min(1,MV_BETA.loadFade/22); ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); ctx.restore(); MV_BETA.loadFade--; }
   if(p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText((p2._aiCompanion?'ALLY':'P2')+' HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}

@@ -193,7 +193,7 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
 const CAM_THREAT_ZOOM=0.09;   // a little closer once a threat is in the frame — present, not a smash
-let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0;
+let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0, _sportZoomS=0, _sportBlur=0;
 // Same sense as the battle eye: nearby threats lean the frame in, and a mutual
 // notice (they have seen MIND) pulls a small zoom onto him and that zone.
 function _readThreatCam(){
@@ -232,14 +232,20 @@ function _updateCamZoom(){
     return;
   }
   const spd=Math.hypot(p.vx||0,(p.vy||0)*0.55);
-  _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?0.05:0.02);         // speeds up the pull-back faster than it settles in
+  const wantSport=(typeof isSprintHeld==='function'&&isSprintHeld())?1:0;
+  _sportZoomS+=(wantSport-_sportZoomS)*0.08;
+  _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?(0.05+0.12*_sportZoomS):(0.02+0.05*_sportZoomS));
   const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
   const th=_readThreatCam();
   _threatZoomS+=(th.z-_threatZoomS)*0.04;
   _threatLookX+=(th.x-_threatLookX)*0.035;
   _threatLookY+=(th.y-_threatLookY)*0.035;
-  camZoomTgt=Math.min(1.3, CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e+CAM_THREAT_ZOOM*_threatZoomS);
-  camZoom+=(camZoomTgt-camZoom)*CAM_ZOOM_EASE;
+  const base=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e+CAM_THREAT_ZOOM*_threatZoomS;
+  // Sports mode swings the lens much harder: tight while the wheel is just
+  // biting, and a long pull-back once the speed is really there.
+  const sportTgt=1.48+(1.0-1.48)*e;
+  camZoomTgt=Math.max(1,Math.min(1.5, base*(1-_sportZoomS)+sportTgt*_sportZoomS));
+  camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS);
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
 function _worldZoomBegin(){
@@ -247,12 +253,46 @@ function _worldZoomBegin(){
   ctx.save(); ctx.scale(camZoom,camZoom); _zoomSaved=true;
 }
 function _worldZoomEnd(){ if(_zoomSaved){ ctx.restore(); _zoomSaved=false; } }
+// A soft circle of blur at the screen edge while sports mode is up to speed.
+// The middle, on the character, stays clear.
+function _drawSportBlur(){
+  if(typeof _gameState==='undefined'||_gameState!=='game'||!p||typeof ctx==='undefined') return;
+  const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+  const spd=Math.min(1,Math.abs(p.vx||0)/top);
+  const want=(typeof isSprintHeld==='function'&&isSprintHeld())?Math.pow(spd,1.35):0;
+  _sportBlur+=(want-_sportBlur)*0.08;
+  if(_sportBlur<0.03) return;
+  const z=camZoom||1;
+  const cx=sx(p.x+SW/2)*z, cy=sy(p.y+FEET_OFF-30)*z;
+  const R=Math.hypot(W,H)*0.62;
+  const inner=R*(0.34+0.16*(1-_sportBlur));
+  ctx.save();
+  const g=ctx.createRadialGradient(cx,cy,inner,cx,cy,R);
+  g.addColorStop(0,'rgba(0,0,0,0)');
+  g.addColorStop(0.62,'rgba(4,6,12,0)');
+  g.addColorStop(1,`rgba(4,6,14,${(0.55*_sportBlur).toFixed(3)})`);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const dir=Math.sign(p.vx||1);
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<10;i++){
+    const t=(i+0.5)/10, y=t*H, edge=Math.min(1,Math.abs(y-cy)/(H*0.5));
+    const a=_sportBlur*edge*0.22;
+    if(a<0.02) continue;
+    ctx.strokeStyle=`rgba(190,205,230,${a.toFixed(3)})`;
+    ctx.lineWidth=6+edge*10;
+    ctx.beginPath();
+    if(dir>=0){ ctx.moveTo(0,y); ctx.lineTo(W*(0.16+0.14*_sportBlur),y); }
+    else { ctx.moveTo(W,y); ctx.lineTo(W*(1-0.16-0.14*_sportBlur),y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function _syncGameCamera(){
   if(_gameState!=='game'||!p) return;
   _updateCamZoom();
   if(!isFinite(p.x)) p.x=_spawnX;
   if(!isFinite(p.y)) p.y=_spawnY;
-  const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X;
+  const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X*(1+1.1*_sportZoomS);
   _camLookX+= (lookTgt-_camLookX)*CAM_LOOK_SMOOTH;
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()

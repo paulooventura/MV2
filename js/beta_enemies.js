@@ -771,12 +771,13 @@
 
   // thrown or blown (MAG throw, XLR blast): it flies, spinning, bounces off walls, lands hard
   function flight(e){
+    const toss=(e._tossT||0)>0; if(toss) e._tossT--;
     e.vy=Math.min((e.vy||0)+GRAV*0.8,13);
     const nx=e.x+(e.vx||0);
     if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx;
     else{ if(Math.abs(e.vx)>4){ land(e,Math.abs(e.vx)*0.8); if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(Math.abs(e.vx)),e.x+e.w/2+Math.sign(e.vx)*e.w/2,e.y+e.h/2,0.2); } e.vx=-(e.vx||0)*0.3; }
     const feet=e.y+e.h+e.vy;
-    if(e.vy>=0&&floorUnder(e.x,e.w,feet)){ e.y=floorSnap(e,feet); if(e.vy>3) land(e,e.vy); e.vy=0; e.og=true; e.vx*=0.75; e.baseY=e.y; if(Math.abs(e.vx)<0.6){ e._thrownF=0; e.ang=0; } }
+    if(e.vy>=0&&floorUnder(e.x,e.w,feet)){ e.y=floorSnap(e,feet); if(!toss&&e.vy>3) land(e,e.vy); e.vy=0; e.og=true; if(!toss) e.vx*=0.75; e.baseY=e.y; if(!toss&&Math.abs(e.vx)<0.6){ e._thrownF=0; e.ang=0; } }
     else if(e.vy<0&&!boxFree(e.x,e.y+e.vy,e.w,e.h)) e.vy=0;
     else{ e.y+=e.vy; e.og=false; }
     if(!e.og&&e._ai!=='circle') e.ang=(e.ang||0)+(e.vx||0)*0.035; else if(e._ai==='circle') e.roll=(e.roll||0)+(e.vx||0)/(e.w/2);

@@ -216,23 +216,23 @@
       let lp=20000, g=1, pan=0;
       if(onStage){
         const vx=24*32+30, vy=home.y+home.h-50, L=SP.listener();
-        const d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
-        // Paulo (Oct 22): right outside the door or down in the tunnel it went unrealistically
-        // muffled. Sound doesn't only go through the rock — it travels round it, through the
-        // door and along the air. Two paths, and the clearer one wins:
-        //   · through the mass: distance + walls (walls shave the highs, gently)
-        //   · around it: the shortest way through the air (flood-filled from the gramophone),
-        //     a little duller the more it has to bend round corners
-        const lpDirect=18000/Math.pow(1+d/8,1.3)*Math.pow(0.78,ot);
-        const gDirect=1/(1+Math.pow(d/20,1.2))*Math.pow(0.9,ot);
+        const face=(typeof p!=='undefined'&&p&&p.fc)?1:-1;
+        const dx=(vx-L.x)/32, d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
+        const along=dx*face;
+        // The gramophone is a place on the screen. Left of the character is the
+        // left ear, wherever he is looking. Facing away still dulls it. Far from
+        // the house (the town gate) it stays faint; just outside the door it carries.
         const air=airPath(B,vx,vy,L.x,L.y);
-        let lpAir=0, gAir=0;
-        if(air!=null){ const bend=Math.max(0,air-d); lpAir=18000/Math.pow(1+air/10,1.1)/(1+bend/25); gAir=1/(1+Math.pow(air/24,1.2))/(1+bend/40); }
-        lp=Math.max(900,lpDirect,lpAir);
-        g=Math.max(0.5,gDirect,gAir);
-        pan=Math.max(-0.45,Math.min(0.45,(vx-L.x)/(14*32)))*(air!=null&&air-d<3?1:0.6);
+        const far=air!=null?Math.min(d,air):d;
+        g=1/(1+Math.pow(far/11,1.6));
+        lp=16000/Math.pow(1+far/5.5,1.5);
+        if(along<0){ const back=Math.min(1,-along/4); g*=1-0.5*back; lp*=1-0.62*back; }
+        if(ot>1&&(air==null||air>d+6)){ lp*=Math.pow(0.7,Math.min(ot,5)); g*=Math.pow(0.82,Math.min(ot,4)); }
+        lp=Math.max(180,Math.min(18000,lp));
+        g=Math.max(0.035,Math.min(1,g));
+        pan=typeof SP.screenPan==='function'?SP.screenPan(vx):Math.max(-0.94,Math.min(0.94,Math.tanh(dx/8)));
       }
-      if(onStage||musicSet){ set(fx.lp.frequency,lp,0.5); set(fx.g.gain,g,0.5); set(fx.pan.pan,pan,0.5); }
+      if(onStage||musicSet){ set(fx.lp.frequency,lp,0.35); set(fx.g.gain,g,0.35); set(fx.pan.pan,pan,0.12); }
       musicSet=onStage;
     }
     // ── stoves ──

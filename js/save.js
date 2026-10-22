@@ -7,6 +7,7 @@
 const DEFAULT_OPTS={
   musicVol:0.75,
   sfxVol:1.0,
+  engineVol:0.8,
   musicMode:'ost', // 'ost' (assets/new music wav) | 'psg' (chiptune fallback)
   binds:{
     up:    ['KeyW','ArrowUp'],

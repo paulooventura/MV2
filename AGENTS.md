@@ -202,10 +202,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
-### Build 272 — the world hurts the sibling; 3 punches in 5 s and it punches back (Oct 22, Claude)
+### Build 279 — the world hurts the sibling (merged onto Cursor's 273–278) (Oct 22, Claude)
 
 - `beta_sibling.js` `envHurt` / `envTick`: friendly fire only covers you ↔ it. The live yellow cage blocks shock it on contact (6–55 by impact speed, 40 f cooldown, knocked away), live water hurts it, lightning (`beta_weather` → `B.sibHurtAt`) and a block chain going off (`beta_level` BOOM) hurt it. Its Knowl tank shows its own energy (`sibHp`); 0 → down 4 s; heals slowly after 3 s unhurt. Same for the NPC at home.
-- `poked()` / `madTick()`: 3 of your punches landing within 300 f → it glares (lids down, red sparks), winds up 36 f, chases you (up to ~1.2 s) and loaded-punches you (11 px/f sideways, −7 up, shake). FF off: you only go flying; FF on: also 18 damage.
+- The 3-punch tantrum is Cursor's (build 274, `madTick(b)`); my duplicate was dropped in the merge.
 
 ### Build 271 — the item button always answers; the sibling can't act through walls (Oct 22, Claude)
 

@@ -333,12 +333,15 @@
     kTotal=KDROP.length; kColl=0; goalOpen=false;
     if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
     B.cubeCellsEver=new Set(BWALLS.filter(b=>b.cube&&b.homeCol!=null).map(b=>b.homeCol+','+b.homeRow));   // for the ghost-cell sweep
+    for(const bw of BWALLS) if(bw.cube&&bw.spawnC==null&&bw.homeCol!=null){ bw.spawnC=bw.homeCol; bw.spawnR=bw.homeRow; }
+    installLaituShaft();
     cubeSettleNow();
     // The referee and main.js read the exit from GOALPL; goalOpen stays false so
     // main.js never zone-hops — the arch is handled here.
     if(B.gate) GOALPL={x:B.gate.x, y:B.gate.y, w:B.gate.w, h:B.gate.h};
 
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
+    B.safe={x:p.x,y:p.y};
     p2=null; _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
     if(typeof _snapCameraToPlayer==='function') _snapCameraToPlayer(p);
     if(typeof ZONES!=='undefined'){
@@ -392,6 +395,7 @@
   }
   function cellFree(c,r,ignorePlayer){
     if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return false;
+    if(B.rungs&&B.rungs.has(c+','+r)) return ignorePlayer||!playerIn(c,r);   // climb rungs: the player stands, cubes fall through
     if(gridSolid(c,r)||gridIsSlope(c,r)||gridCell(c,r)===MV_GRID_ONEWAY) return false;
     if(crateAt(c,r)) return false;
     return ignorePlayer||!playerIn(c,r);
@@ -401,12 +405,14 @@
     gridSmashCell(bw.homeCol,bw.homeRow);
     bw.homeCol+=dc; bw.homeRow+=dr;
     bw.x=bw.homeX=bw.homeCol*T; bw.y=bw.homeY=bw.homeRow*T;
-    gridSet(bw.homeCol,bw.homeRow,MV_GRID_DESTRUCT); B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
+    bw.lipPass=bw.homeCol>=64&&bw.homeCol<=65&&bw.homeRow>=26&&bw.homeRow<=27;
+    gridSet(bw.homeCol,bw.homeRow,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT); B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
     bw._ox-=dc*T; bw._oy-=dr*T; bw._spd=T/Math.max(1,frames);
   }
   function placeCube(bw,c,r,fromX,fromY){
-    bw.homeCol=c; bw.homeRow=r; bw.x=bw.homeX=c*T; bw.y=bw.homeY=r*T;
-    gridSet(c,r,MV_GRID_DESTRUCT); B.cubeCellsEver.add(c+','+r);
+    bw.homeCol=c; bw.homeRow=r;     bw.x=bw.homeX=c*T; bw.y=bw.homeY=r*T;
+    bw.lipPass=c>=64&&c<=65&&r>=26&&r<=27;
+    gridSet(c,r,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT); B.cubeCellsEver.add(c+','+r);
     bw._ox=fromX-bw.x; bw._oy=fromY-bw.y; bw._spd=6; bw._fallN=0;
   }
   const busy=bw=>Math.abs(bw._ox)>0.01||Math.abs(bw._oy)>0.01;
@@ -534,6 +540,50 @@
   // it moves only if the cell past the far end is free. A pull-only or laser
   // block in the line stops an XLR push; push-only blocks stop a MAG pull.
   const B_CHAINS=[];
+  // The shaft under Laitu's house is two tiles wide and about twenty deep, with the
+  // only way out being back up. Rungs every two rows are floors for MIND and air
+  // to a falling cube. The lip cubes he stands on stay one-way, so a jump from
+  // the rung underneath passes up through them.
+  function installLaituShaft(){
+    B.rungs=new Set();
+    if(typeof gridCell!=='function'||typeof gridSet!=='function') return;
+    for(let r=29;r<=43;r+=2) for(const c of [64,65]){
+      const t=gridCell(c,r);
+      if(t===MV_GRID_SOLID||t===MV_GRID_DESTRUCT) continue;
+      if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)) continue;
+      gridSet(c,r,MV_GRID_ONEWAY);
+      B.rungs.add(c+','+r);
+    }
+    for(const bw of BWALLS) if(bw.cube&&bw.homeCol!=null){
+      bw.lipPass=bw.homeCol>=64&&bw.homeCol<=65&&bw.homeRow>=26&&bw.homeRow<=27;
+      if(bw.lipPass) gridSet(bw.homeCol,bw.homeRow,MV_GRID_ONEWAY);
+    }
+  }
+  function inLaituPit(){
+    if(!p) return false;
+    const c=Math.floor((p.x+SW/2)/T), r=Math.floor((p.y+FEET_OFF)/T);
+    return c>=62&&c<=67&&r>=27&&r<=44;
+  }
+  function unstick(){
+    B_CHAINS.length=0;
+    for(const bw of BWALLS){
+      if(!bw.cube||bw.spawnC==null) continue;
+      if(bw.homeCol!=null){ try{ gridSmashCell(bw.homeCol,bw.homeRow); }catch(e){} }
+      bw.hp=bw.maxHp||bw.hp||1; bw.homeCol=bw.spawnC; bw.homeRow=bw.spawnR;
+      bw.x=bw.homeX=bw.spawnC*T; bw.y=bw.homeY=bw.spawnR*T;
+      bw._ox=bw._oy=0; bw._carried=false; bw._fly=false; bw.vx=0; bw.vy=0;
+      bw.lipPass=bw.spawnC>=64&&bw.spawnC<=65&&bw.spawnR>=26&&bw.spawnR<=27;
+      gridSet(bw.homeCol,bw.homeRow,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT);
+    }
+    installLaituShaft();
+    const s=B.safe||{x:_spawnX,y:_spawnY};
+    if(p){ p.x=s.x; p.y=s.y; p.vx=0; p.vy=0; p.og=true; p.fc=true; }
+    try{ if(typeof _shutdownTimer!=='undefined') _shutdownTimer=0; }catch(e){}
+    _paused=false;
+    if(typeof _snapCameraToPlayer==='function'&&p) try{ _snapCameraToPlayer(p); }catch(e){}
+    if(typeof uiShowToast==='function') uiShowToast('BACK ON SOLID GROUND');
+  }
+  B.unstick=unstick; B.inLaituPit=inLaituPit;
   function lineFrom(bw,dc,dr,mode){
     const list=[bw];
     let c=bw.homeCol+dc, r=bw.homeRow+dr;
@@ -763,7 +813,7 @@
     return solidPx(x+m,y+m)||solidPx(x+T-m,y+m)||solidPx(x+m,y+T-m)||solidPx(x+T-m,y+T-m)||solidPx(x+T/2,y+T-m)||solidPx(x+T/2,y+m);
   }
   function throwCube(bw,vx,vy){
-    bw._fly=true; bw._carried=false; bw.vx=vx; bw.vy=vy; bw._rest=0; bw.spin=vx*0.02; bw.rot=0;
+    bw._fly=true; bw._carried=false; bw.vx=vx; bw.vy=vy; bw._rest=0; bw._tossT=14; bw.spin=vx*0.02; bw.rot=0;
     // Paulo (Oct 21): give the cell back when it leaves — a cube tugged out of its cell by the
     // MAG / XLR used to leave that cell solid (an invisible wall where it had been)
     if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol,bw.homeRow);
@@ -774,6 +824,7 @@
     for(let i=B.flying.length-1;i>=0;i--){
       const bw=B.flying[i];
       if(bw.hp<=0){ B.flying.splice(i,1); continue; }
+      if(bw._tossT>0) bw._tossT--;
       bw.vy=Math.min(bw.vy+GRAV,15); bw.vx*=0.995;
       if(B.inWater&&B.inWater(bw.x+T/2,bw.y+T/2)){ bw.vy=Math.min(bw.vy-GRAV*0.7,2.2); bw.vx*=0.93; bw.spin=(bw.spin||0)*0.9; }
       const steps=Math.max(1,Math.ceil(Math.max(Math.abs(bw.vx),Math.abs(bw.vy))/6));
@@ -785,7 +836,7 @@
         const ny=bw.y+bw.vy/steps;
         if(boxHits(bw.x,ny)){
           if(bw.vy>0) ground=true;
-          bw.vy=(bw.vy>3)?-bw.vy*0.25:0; bw.vx*=0.78;
+          bw.vy=(bw.vy>3)?-bw.vy*0.25:0; if(!(bw._tossT>0)) bw.vx*=0.78;
         }else bw.y=ny;
       }
       bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.6:0.98);
@@ -849,8 +900,8 @@
   //   them. Grip is a weight budget: full power holds 9 units = 3 omni cubes,
   //   or one enemy / pull block / knowl / object. As power drains the budget
   //   shrinks and the outer cubes slip off; the last thing held lets go only
-  //   at 0%. Held things sit flush on the poles; letting go throws them with
-  //   the swing of the arm — lighter things fly faster.
+  //   at 0%. Held things sit flush on the poles. Letting go is immediate:
+  //   they leave with the speed the body already has.
   const MAG={LOCK:104, DRAIN:0.45, GAME_DRAIN:1.55, ENH_DRAIN:1.0, THROW:1.25, MAXV:20, GRIP:9};
   const magCap=pw=>MAG.GRIP*Math.max(0,pw)/100;
   const heldWeight=()=>B.mag.held.reduce((s,h)=>s+weightOf(h.kind,h.ref),0);
@@ -864,21 +915,17 @@
     const pole=30*(typeof _itemArtScale==='function'?_itemArtScale(3):0.88);
     return {x:base.x+Math.cos(a)*pole, y:base.y+Math.sin(a)*pole, ux:Math.cos(a), uy:Math.sin(a)};
   }
-  function throwVel(w){
-    const h=B.mag.tips; let vx, vy;
-    if(h.length<2){ vx=p.vx||0; vy=p.vy||0; }
-    else{ const a=h[0], b=h[h.length-1], n=Math.max(1,h.length-1); vx=(b.x-a.x)/n*MAG.THROW; vy=(b.y-a.y)/n*MAG.THROW; }
-    const k=Math.max(0.55,Math.min(1.5,Math.sqrt(3/Math.max(0.3,w||3))));   // heavy things leave slower
-    vx*=k; vy*=k;
+  function throwVel(){
+    let vx=p.vx||0, vy=p.vy||0;
     const s=Math.hypot(vx,vy); if(s>MAG.MAXV){ vx*=MAG.MAXV/s; vy*=MAG.MAXV/s; }
     return {vx, vy};
   }
   function dropHeld(h){
-    const v=throwVel(weightOf(h.kind,h.ref));
+    const v=throwVel();
     if(h.kind==='cube') throwCube(h.ref, v.vx, v.vy);
     else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
     else if(h.kind==='enemy'){
-      const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy;
+      const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy; e._tossT=14;
       e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true;
       if(!e.alive) e._shutSettled=false;
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
@@ -1149,18 +1196,23 @@
         try{ sfx('hook_latch'); }catch(e){}
       }
     }
-    // carry: the first thing sits flush on the poles, cubes stack outward along the aim
+    stickHeld();
+  }
+  function stickHeld(){
+    const M=B.mag; if(!M||!M.held.length||!(p&&p.magOn&&ITEM===3)) return;
+    const tip=magTip();
     let along=0;
     for(const h of M.held){
       const r=h.ref, w=h.kind==='knowl'?22:(r.w||T), hh=h.kind==='knowl'?22:(r.h||T);
-      const half=Math.abs(tip.ux)*w/2+Math.abs(tip.uy)*hh/2;    // face-to-pole distance for this box
+      const half=Math.abs(tip.ux)*w/2+Math.abs(tip.uy)*hh/2;
       const cx=tip.x+tip.ux*(along+half), cy=tip.y+tip.uy*(along+half);
       if(h.kind==='knowl'){ r.x=r.ox=cx; r.y=r.oy=cy; r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }
-      else { r.x=cx-w/2; r.y=cy-hh/2; r.vx=0; r.vy=0; }
+      else { r.x=cx-w/2; r.y=cy-hh/2; r.vx=p.vx||0; r.vy=p.vy||0; }
       if(h.kind==='enemy'){ r.shotCd=Math.max(r.shotCd||0,30); r.hitF=Math.max(r.hitF||0,2); }
       along+=half*2;
     }
   }
+  B.stickHeld=stickHeld;
   B.magTip=magTip;
 
   const _origUpdateMAG=window.updateMAG;
@@ -2014,6 +2066,7 @@
     }
     const r=_origUpdate.apply(this, arguments);
     if(B.on&&_gameState==='game') livesTick();
+    if(B.on&&_gameState==='game'&&p&&p.og&&!inLaituPit()) B.safe={x:p.x,y:p.y};
     return r;
   };
   const _origDraw=window.draw;

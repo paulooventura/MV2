@@ -29,7 +29,13 @@
 let _gameState='title';
 let _paused=false;
 let _pauseIdx=0, _optFromPause=false, _optBackFr=-99;
-const PAUSE_ITEMS=['RESUME','OPTIONS','EXIT'];
+function _pauseItems(){
+  const items=['RESUME','OPTIONS'];
+  if(window.MV_SIGNAL) items.push('LEAVE A NOTE');
+  if(window.MV_BETA&&MV_BETA.unstick) items.push('UNSTICK ME');
+  items.push('EXIT');
+  return items;
+}
 function _togglePause(){
   if(_gameState!=='game') return;
   if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
@@ -213,14 +219,18 @@ function _titleMenuActivate(){
 // Opened with START (the ☰ Menu button next to X) or ESC. Up/down (d-pad,
 // stick, W/S, arrows) moves, A / Space / Enter picks, B or START resumes.
 function _pauseInput(){
-  if(Kj['ArrowUp']||Kj['KeyW']){ _pauseIdx=(_pauseIdx+PAUSE_ITEMS.length-1)%PAUSE_ITEMS.length; try{ sfx('menu'); }catch(e){} }
-  if(Kj['ArrowDown']||Kj['KeyS']){ _pauseIdx=(_pauseIdx+1)%PAUSE_ITEMS.length; try{ sfx('menu'); }catch(e){} }
+  if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(); return; }
+  const items=_pauseItems();
+  if(Kj['ArrowUp']||Kj['KeyW']){ _pauseIdx=(_pauseIdx+items.length-1)%items.length; try{ sfx('menu'); }catch(e){} }
+  if(Kj['ArrowDown']||Kj['KeyS']){ _pauseIdx=(_pauseIdx+1)%items.length; try{ sfx('menu'); }catch(e){} }
   if(Kj['KeyE']&&!K['KeyE_kb']){ _togglePause(); return; }          // pad B: back to the game
   if(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']){
-    const it=PAUSE_ITEMS[_pauseIdx];
+    const it=items[_pauseIdx];
     try{ sfx('confirm'); }catch(e){}
     if(it==='RESUME') _togglePause();
     else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
+    else if(it==='LEAVE A NOTE'){ if(window.MV_SIGNAL) MV_SIGNAL.open(); }
+    else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
     else if(it==='EXIT'){
       _paused=false;
       if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
@@ -230,11 +240,12 @@ function _pauseInput(){
 }
 function drawPauseMenu(){
   ctx.fillStyle='rgba(4,2,10,0.6)'; ctx.fillRect(0,0,W,H);
-  const pw=380, rowH=52, ph=110+PAUSE_ITEMS.length*rowH, px=W/2-pw/2, py=Math.round(H/2-ph/2);
+  const items=_pauseItems();
+  const pw=420, rowH=48, ph=110+items.length*rowH, px=W/2-pw/2, py=Math.round(H/2-ph/2);
   uiPanel(px,py,pw,ph,{r:20});
   uiLogo('PAUSED',W/2,py+16,46,{sweep:150});
   let y=py+86;
-  PAUSE_ITEMS.forEach((it,i)=>{
+  items.forEach((it,i)=>{
     const sel=i===_pauseIdx;
     if(sel){ uiPanel(px+28,y-12,pw-56,rowH-8,{sel:true,r:12,flat:true}); uiCursor(px+50,y+10,10); }
     drawTextC(it,W/2,y,sel?'#ffe39a':'#c8b8ff',3);
@@ -244,10 +255,12 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-const OPT_FIXED_ROWS=7;   // music style, music vol, sfx vol, console, CRT TV, enemies, manual & credits
-function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS; }
+const OPT_FIXED_ROWS=8;   // music style, music, sfx, engine, console, CRT, enemies, manual
+function _optExtra(){ return window.MV_SIGNAL?1:0; }
+function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS+_optExtra(); }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
+  if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
   if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
   const n=_optRowCount();
   if(ev.back){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
@@ -257,9 +270,10 @@ function _optionsInput(ev){
   if(_optRow===0&&(dec||inc||ev.confirm)){ OPT.musicMode=OPT.musicMode==='ost'?'psg':'ost'; _saveOpts();_switchMusicMode();return true; }
   if(_optRow===1&&(dec||inc)){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+(inc?0.05:-0.05))); _saveOpts();_applyBgmVolumes();return true; }
   if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
-  if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
-  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow===5&&(dec||inc||ev.confirm)){
+  if(_optRow===3&&(dec||inc)){ OPT.engineVol=Math.max(0,Math.min(1,(OPT.engineVol==null?0.8:OPT.engineVol)+(inc?0.05:-0.05))); _saveOpts();return true; }
+  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
+  if(_optRow===5&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optRow===6&&(dec||inc||ev.confirm)){
     const B=window.MV_BETA;
     if(B&&typeof B.setDifficulty==='function'){
       const cur=B.difficulty||2;
@@ -267,8 +281,10 @@ function _optionsInput(ev){
     }
     return true;
   }
-  if(_optRow===6&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
-  if(_optRow>=OPT_FIXED_ROWS&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
+  if(_optRow===7&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
+  if(window.MV_SIGNAL&&_optRow===OPT_FIXED_ROWS&&ev.confirm){ MV_SIGNAL.open(); return true; }
+  const bind0=OPT_FIXED_ROWS+_optExtra();
+  if(_optRow>=bind0&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-bind0]; return true; }
   return true;
 }
 
@@ -367,6 +383,7 @@ function _onInteract(e){
 document.addEventListener('click',_onInteract,false);
 document.addEventListener('touchstart',e=>{ if(e.touches&&e.touches[0]) _onInteract(e.touches[0]); },{passive:true});
 document.addEventListener('keydown',e=>{
+  if(window.MV_SIGNAL&&MV_SIGNAL.blocking()) return;
   if(_gameState==='options'){
     if(_optRebinding){ if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;} OPT.binds[_optRebinding]=[e.code]; _saveOpts();_optRebinding=null;e.preventDefault();return; }
     _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace'});
@@ -557,10 +574,12 @@ function drawOptions(){
   _drawSnesStarfield();
   const padX=80, panelW=W-padX*2, rowH=34, scl=2;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
+    {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
     {label:'MANUAL & CREDITS',val:'OPEN >'}];
+  if(window.MV_SIGNAL) rows.push({label:'LEAVE A NOTE',val:'WRITE >'});
   BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
   const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));
   uiPanel(padX,panelY,panelW,panelH,{r:16});

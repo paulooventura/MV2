@@ -676,7 +676,7 @@ function gridFillBwallHole(bw){
   if(!bw||bw.hp<=0) return;
   for(const [c,r] of _gridBwallHomeCells(bw)){
     if(gridIsSlope(c,r)) continue;
-    gridSet(c,r,MV_GRID_DESTRUCT);
+    gridSet(c,r,bw.lipPass?MV_GRID_ONEWAY:MV_GRID_DESTRUCT);
   }
 }
 
