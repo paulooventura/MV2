@@ -57,7 +57,7 @@ function _driveMenusFromPads(){
     if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
     if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
     if(ok) startGame();
-    if(back){ if(_selectStep===1) _selectStep=0; else { _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
+    if(back){ if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
     return;
   }
   if(_gameState==='options'){
@@ -330,7 +330,7 @@ function startGame(){
       if(_playerCount===2){ uiShowToast('2 PLAYERS - COMING SOON TO THE NEW AWDJOO'); _selectStep=0; return; }
       _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
       if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
-      if(window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv); return; }   // a saved run that hadn't seen the intro
+      if(window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv,'select'); return; }   // the timeline picked a saved run: on from its save, with the hero just chosen
       startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
       return;
     }
@@ -389,7 +389,7 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(_gameState==='select'){
-    if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}_gameState='story';_storyPage=STORY_PAGES.length-1;e.preventDefault();return;}
+    if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){_gameState='story';_storyPage=STORY_PAGES.length-1;}e.preventDefault();return;}
     if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3;else _heroChoice='mind';e.preventDefault();return;}
     if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3;else _heroChoice='venture';e.preventDefault();return;}
     if(e.code==='Enter'||e.code==='Space'){startGame();e.preventDefault();return;}
