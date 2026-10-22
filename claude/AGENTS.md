@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 242 — the wheel's engine roar (Oct 22, Claude)
+- New `js/beta_engine.js` (after `beta_spatial.js`) replaces build 237's pop scheduler as `MV_ENGINE.tick` (still called from `main.js`; same 3-second idle cut-off).
+- A V8 model: RPM from wheel speed through 5 gears (`GEARS` spans of |vx|/MOVE_RUN), upshift at 6900 with a 7-frame throttle cut, downshift only well below a gear's span with 30 frames of hysteresis; free-revs in the air and on an XLR burnout. Throttle 0.62 driving, 1 sprinting.
+- Voices at the firing frequency (rpm/60·4/2): rich periodic wave + a detuned twin, sawtooth at ½ and triangle at ¼ for the cross-plane burble, square-wave lope at idle; tanh saturation driven by throttle; resonances ~110 Hz / ~420 Hz / 1.4 kHz; low-pass opening with throttle and RPM; induction howl up top; exhaust crackles when lifting off above 3500 rpm. Plays through MIND's room (`MV_SPATIAL.graph().self`).
+
 ### Build 241 — HRTF ears for positioned sounds; rain from boiled water (Oct 22, Claude)
 - Paulo's capture (07:47, 66 s): the music opens up and closes again each time he passes the gramophone (4 swells, highs to ~17 kHz up close, ~-45 dB vs -90 dB far) — working as designed; the L/R balance follows the gramophone's side. The stereo image measured narrow (side/mid ≈ 0.13–0.36), so positioned effects didn't stand out.
 - `beta_spatial.js` `chainAt` → `hrtf()`: positioned sounds use an HRTF PannerNode (ear timing + head shadow; behind = behind, a little up/down) at the same left/right as before; distance stays ours (rolloff 0). Falls back to a StereoPanner.
