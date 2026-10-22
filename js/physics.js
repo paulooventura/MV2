@@ -42,12 +42,12 @@ const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
 const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
-// Rubber tire (Paulo, Oct 22: "make the edge of the wheel look and feel like tire rubber")
+// Rubber tire + fork (Paulo, Oct 22: tire rubber; then "a badass dirtbike tire/wheel kit, with suspension")
 const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
 const TIRE_MAX_SQ=7;         // px it can squash on a hard landing
 const TIRE_HIT=5.2;          // squash kick per landing (× landing strength)
-const TIRE_K=0.32;           // rubber spring (fast) …
-const TIRE_DAMP=0.70;        // … with a little jiggle after it
+const TIRE_K=0.26;           // fork spring: firm …
+const TIRE_DAMP=0.62;        // … damped like a real shock: one rebound, no jelly
 const TIRE_REBOUND=0.16;     // landings rebound off the rubber (× landing speed) …
 const TIRE_REBOUND_MAX=2.1;  // … capped, so it's a bounce, not a hop
 const TIRE_SKID_BRAKE=0.42;  // decel per frame against the roll that makes the tire squeal

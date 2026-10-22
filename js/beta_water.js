@@ -69,7 +69,7 @@
     F.CS=MV_GRID.tile/2; F.NX=MV_GRID.cols*2; F.NY=MV_GRID.rows*2;
     const n=F.NX*F.NY;
     F.M=new Float32Array(n); F.N2=new Float32Array(n); F.FX=new Float32Array(n); F.PR=new Float32Array(n); F.RL=new Float32Array(n);
-    F.BLK=new Uint8Array(n); F.EL=new Uint8Array(n); F.Q=new Int32Array(n);
+    F.BLK=new Uint8Array(n); F.EL=new Uint8Array(n); F.Q=new Int32Array(n); F.FL=new Float32Array(n);   // FL: recent falling water per cell (for the sound)
     F.WH=new Float32Array(F.NX); F.WV=new Float32Array(F.NX);
     F.lost=0; F.vapor=0;
     terrain();
@@ -168,7 +168,7 @@
         if(y===NY-1){ const f=Math.min(m,0.6); N2[i]-=f; F.lost+=f; continue; }     // off the bottom of the world
         const j=i+NX; if(BLK[j]&1) continue;
         let f=stable(m+M[j])-M[j]; if(f>m) f=m; if(f<=0) continue;
-        N2[i]-=f; N2[j]+=f;
+        N2[i]-=f; N2[j]+=f; if(M[j]<0.7) F.FL[j]=F.FL[j]*0.8+f;   // only water dropping through air counts as falling
       } }
     M.set(N2); }
     // 2) spread sideways over whatever holds it up. The push is the pressure:
@@ -229,6 +229,24 @@
   function waterAt(x,y){ return wetCell(cellFor(x,y),y); }
   function elecAt(x,y){ const i=cellFor(x,y); return i>=0&&F.EL[i]>0&&F.M[i]>0.05; }
   B.inWater=(x,y)=>waterAt(x,y);
+  // build 227: how much the water is moving near (x,y) — sideways flow, falling water, the
+  // surface waves — and where it's centred (beta_ambience.js makes it sound)
+  B.waterMotion=function(x,y,rTiles){
+    if(!F.ready) return null;
+    const NX=F.NX, NY=F.NY, cx=cX(x), cy=cY(y), R=Math.round((rTiles||12)*2);
+    let flow=0, fall=0, wx=0, wy=0, w=0, near=1e9;
+    let bx0=null,bx1,by0,by1; if(typeof p!=='undefined'&&p){ bx0=cX(p.x-44); bx1=cX(p.x+SW+44); by0=cY(p.y-40); by1=cY(p.y+FEET_OFF+16); }
+    for(let yy=Math.max(0,cy-R);yy<=Math.min(NY-1,cy+R);yy++) for(let xx=Math.max(0,cx-R);xx<=Math.min(NX-1,cx+R);xx++){
+      const i=yy*NX+xx, m=F.M[i]; if(m<0.02&&F.FL[i]<0.002) continue;
+      if(bx0!=null&&xx>=bx0&&xx<=bx1&&yy>=by0&&yy<=by1){ F.FL[i]*=0.9; continue; }   // MIND's own wake is the wade sound
+      const fx=Math.max(0,Math.abs(F.FX[i])-0.006), fl=F.FL[i]; F.FL[i]*=0.9;   // a still pool's tiny settling flux is silence
+      const a=fx+fl*2; if(a<0.002) continue;
+      flow+=fx; fall+=fl; wx+=xx*a; wy+=yy*a; w+=a;
+      const d=Math.hypot(xx-cx,yy-cy); if(d<near) near=d;
+    }
+    let wave=0; if(F.WV) for(let xx=Math.max(0,cx-R);xx<=Math.min(NX-1,cx+R);xx++) wave+=Math.abs(F.WV[xx]);
+    return {flow, fall, wave, x:w?(wx/w+0.5)*F.CS:x, y:w?(wy/w+0.5)*F.CS:y, near:near*F.CS/32};
+  };
   B.elecAt=(x,y)=>elecAt(x,y);
   // an enemy is in the water when water stands around its lower body (a film on the floor is not enough)
   B.enemySubmerged=function(e){
@@ -409,7 +427,7 @@
     const n=Math.min(18,4+power*2|0);
     for(let k=0;k<n;k++){ const a=-Math.PI*(0.15+Math.random()*0.7);
       PFXS.push({x:sx0+(Math.random()-0.5)*24,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*2.5),vy:Math.sin(a)*(1.5+Math.random()*power*0.5),life:18+Math.random()*12|0,maxLife:30,r:1.5+Math.random()*2,col:k%3?'#9ad8ff':'#e8f6ff'}); }
-    try{ if(power>1.5&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/8)); } }catch(e){}
+    try{ if(power>0.6&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/8)); } }catch(e){}
   }
   // push water along a row (adds to the flow between cells)
   function shove(x,y,dir,P){
