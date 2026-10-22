@@ -120,48 +120,56 @@
       else if(S.gear>0&&spd<g[0]-0.05&&!(S.shiftT>0)){ S.gear--; S.shiftT=24; S.blip=8; }                                                // downshift: blip to match
       if(spd<0.03&&thr===0) S.gear=0;
     }
-    // Paulo (Oct 22): kicking into sprint revs it — a throttle blip up the band (with a pop at the
-    // top) — and while you sprint the engine is unmuffled (the full exhaust, highs and all)
+    // Sports mode owns the rev. Slow sport stays low in the band; close to top
+    // speed the gearbox is allowed to scream. Off sport the motor is only a sub.
     if(sprint) S.sprintOff=0; else S.sprintOff=(S.sprintOff==null?99:S.sprintOff)+1;
-    const sprinting=!!sprint||S.sprintOff<12;                       // a bump or a hop doesn't drop it (no re-rev)
-    if(sprinting&&!S.wasSprint&&grounded) S.rev=20;
+    const sprinting=!!sprint||S.sprintOff<8;
+    const express=sprinting?Math.pow(Math.min(1,Math.max(0,(spd-0.16)/0.8)),1.7):0;
+    if(sprinting&&!S.wasSprint&&grounded&&express>0.42) S.rev=4+express*8;
     S.wasSprint=sprinting&&(S.wasSprint||grounded);
-    if(S.rev>0){ S.rev--; target=Math.max(target,S.rpm+5200*(S.rev/20)+1800); thr=1; if(S.rev===6) bang(0.45); }
+    if(S.rev>0){ S.rev--; target=Math.max(target,Math.min(RED,S.rpm+(500+3400*express)*(S.rev/12))); if(S.rev===3&&express>0.55) bang(0.22+0.3*express); }
+    if(sprinting){
+      const cap=IDLE+(RED-IDLE)*(0.14+0.86*express);
+      target=Math.min(target,cap);
+      if(spd<0.28) target=Math.min(target,IDLE+420+express*900);
+    }else{
+      target=Math.min(target,IDLE+220);
+      thr=Math.min(thr,0.16);
+      S.gear=0; S.rev=0;
+    }
     if(S.cut>0){ S.cut--; thr=0; target*=0.9; }
-    if(S.blip>0){ S.blip--; target+=2600; thr=Math.max(thr,0.55); }
+    if(S.blip>0&&sprinting){ S.blip--; target+=900+1700*express; thr=Math.max(thr,0.35+0.4*express); }
+    else if(S.blip>0) S.blip=0;
     if(S.lim>0){ S.lim--; if(S.lim<=2){ target=LIMIT-1400; thr=0; } }
     S.thr+=(thr-S.thr)*(thr>S.thr?0.35:0.2);
     S.rpm+=(Math.min(RED,target)-S.rpm)*(target>S.rpm?(grounded?0.14:0.22):0.09);
     // ── anti-lag, blow-off on lifting ──
     const r=(S.rpm-IDLE)/(RED-IDLE);
-    S.boost+=((S.thr*Math.max(0,r-0.15)*1.3)-S.boost)*(S.thr>0.2?0.035:0.12);
-    if(S.lastThr>0.5&&S.raw===0){
+    S.boost+=((sprinting?S.thr*Math.max(0,r-0.15)*1.3:0)-S.boost)*(S.thr>0.2?0.035:0.12);
+    if(S.lastThr>0.5&&S.raw===0&&sprinting){
       if(S.boost>0.25) blowOff();
       if(S.rpm>7000){ const n=2+((Math.random()*4)|0); for(let i=0;i<n;i++) S.bangs.push(4+i*(6+((Math.random()*10)|0))); }
     }
     S.lastThr=S.raw;
-    for(let i=S.bangs.length-1;i>=0;i--){ if(--S.bangs[i]<=0){ S.bangs.splice(i,1); bang(0.35+Math.random()*0.65); } }
+    for(let i=S.bangs.length-1;i>=0;i--){ if(--S.bangs[i]<=0){ S.bangs.splice(i,1); if(sprinting) bang(0.2+0.4*express); } }
     // ── voice it ──
-    N.core.port.postMessage({rpm:S.rpm, thr:S.thr, load:grounded?S.thr:0.3});
+    N.core.port.postMessage({rpm:S.rpm, thr:sprinting?S.thr*express:0.05, load:grounded?S.thr:0.3});
     const tw=1400+S.boost*5600;
-    // Sports mode (the sprint) is the lead: present and open, still under the other
-    // hits. Cruising and idle sit well back so ambience and the rest of the SFX read.
-    const sport=!!(S.wasSprint||S.rev>0);
-    const quiet=sport?1:0.38;
-    set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05); set(N.tg.gain,0.045*S.boost*S.boost*quiet,0.08);
-    set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.035*S.boost*quiet,0.08);
+    const sportMix=sprinting?(0.22+0.78*express):0;
+    set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05); set(N.tg.gain,0.045*S.boost*S.boost*sportMix,0.08);
+    set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.035*S.boost*sportMix,0.08);
     const ef=180+spd*2400;
-    set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,(sport?0.016:0.006)*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    set(N.dryG.gain,sport?0.72:0,sport?0.08:0.22);
-    set(N.roomG.gain,sport?0.38:0.62,sport?0.08:0.22);
-    if(N.pres) set(N.pres.gain,sport?2.2:0,0.12);
-    if(N.sheen) set(N.sheen.gain,sport?1.2:-4,0.12);
-    if(N_muffle) set(N_muffle.frequency,sport?6800:(700+1600*Math.min(1,spd)*Math.min(1,spd)),sport?0.1:0.2);
-    const fire=S.rpm/60*4;                                          // V8 firing rate
-    set(N.pu1.frequency,fire/2,0.05); set(N.pu2.frequency,fire,0.05); set(N.ru.frequency,18+fire*0.15,0.2);
-    set(N.puG.gain,(sport?0.26:0.11)*Math.pow(1-r,2)*(1-0.4*S.thr),0.12);
-    const lvl=S.on?(sport?(0.12+0.035*S.thr-0.025*r):(0.045+0.012*S.thr-0.01*r)):0;
-    set(N.out.gain,lvl*sv(),S.on?0.06:0.4);
+    set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
+    set(N.dryG.gain,sportMix*0.74,sprinting?0.1:0.25);
+    set(N.roomG.gain,sprinting?(0.32+0.2*(1-express)):0.7,0.18);
+    if(N.pres) set(N.pres.gain,2.4*express,0.12);
+    if(N.sheen) set(N.sheen.gain,sprinting?(-2+3.2*express):-10,0.14);
+    if(N_muffle) set(N_muffle.frequency,sprinting?(160+7000*express):95,sprinting?0.12:0.08);
+    const fire=S.rpm/60*4;
+    set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05); set(N.ru.frequency,18+Math.min(40,fire*0.15),0.2);
+    set(N.puG.gain,sprinting?(0.08+0.22*express)*Math.pow(1-r,2):(0.2*Math.pow(1-r,2)),0.12);
+    const lvl=S.on?(sprinting?(0.05+0.11*express):(0.09)):0;
+    set(N.out.gain,lvl*sv(),S.on?0.08:0.35);
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};
 })();

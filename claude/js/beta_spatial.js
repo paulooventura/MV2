@@ -107,6 +107,16 @@
   }
   // +1 facing screen-right. The ear follows this: turn around and left/right swap.
   function faceSign(){ return (typeof p!=='undefined'&&p&&p.fc)?1:-1; }
+  // Where the source sits on screen relative to the character. Left of him is
+  // the left ear. Turning around does not swap ears; walking past the source does.
+  function screenPan(wx){
+    const L=listener();
+    let half=480;
+    try{ if(typeof camViewW==='function') half=camViewW()*0.5; }catch(e){}
+    if(!(half>40)) half=480;
+    const dx=(wx||0)-L.x;
+    return Math.max(-0.94,Math.min(0.94,Math.tanh(dx/half/0.48)));
+  }
   function measure(){
     const B=window.MV_BETA; if(!B||!B.on||typeof p==='undefined'||!p) return;
     const L=listener(), max=MAXR*T; let sum=0, skyS=0, skyN=0;
@@ -171,11 +181,8 @@
     const L=listener(), dx=x-L.x, dy=y-L.y, dist=Math.hypot(dx,dy), d=dist/T;
     if(d>26) return null;
     const face=faceSign();
-    const along=(dx*face)/T;                                 // + tiles in front of him, − behind
-    // Stereo is his, not the map's. Facing right, a block on his right is the right ear.
-    // Turn to face left and that same block is behind him, so it swaps to the other ear.
-    let pan=Math.tanh((dx/T)*face/0.42);
-    pan=Math.max(-0.98,Math.min(0.98,pan));
+    const along=(dx*face)/T;                                 // + tiles in front of him, − behind (tone only)
+    let pan=screenPan(x);
     // clear against his body, faint and dull across the room
     let g=Math.pow(1/(1+d/4.2),1.7);
     let lp=Math.max(480,16800*Math.pow(1/(1+d/5.5),1.25));
@@ -286,5 +293,5 @@
       if(!(typeof _paused!=='undefined'&&_paused)&&!B.popup) worldTick(a);
     }catch(e){}
   },50);
-  window.MV_SPATIAL={env, params, occlusion, chainAt, take, listener, solid, roomAt, graph:()=>G};
+  window.MV_SPATIAL={env, params, occlusion, chainAt, take, listener, screenPan, solid, roomAt, graph:()=>G};
 })();

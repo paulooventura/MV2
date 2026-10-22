@@ -219,10 +219,9 @@
         const face=(typeof p!=='undefined'&&p&&p.fc)?1:-1;
         const dx=(vx-L.x)/32, d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
         const along=dx*face;
-        // The gramophone is a place. Ears are the character's: a source off to
-        // screen-left is the left ear while he faces right, and the other ear
-        // once he turns around. Far from the house (the town gate) it is faint
-        // and dull; just outside the door the air around the corner still carries it.
+        // The gramophone is a place on the screen. Left of the character is the
+        // left ear, wherever he is looking. Facing away still dulls it. Far from
+        // the house (the town gate) it stays faint; just outside the door it carries.
         const air=airPath(B,vx,vy,L.x,L.y);
         const far=air!=null?Math.min(d,air):d;
         g=1/(1+Math.pow(far/11,1.6));
@@ -231,7 +230,7 @@
         if(ot>1&&(air==null||air>d+6)){ lp*=Math.pow(0.7,Math.min(ot,5)); g*=Math.pow(0.82,Math.min(ot,4)); }
         lp=Math.max(180,Math.min(18000,lp));
         g=Math.max(0.035,Math.min(1,g));
-        pan=Math.max(-0.94,Math.min(0.94,Math.tanh(dx*face/0.55)));
+        pan=typeof SP.screenPan==='function'?SP.screenPan(vx):Math.max(-0.94,Math.min(0.94,Math.tanh(dx/8)));
       }
       if(onStage||musicSet){ set(fx.lp.frequency,lp,0.35); set(fx.g.gain,g,0.35); set(fx.pan.pan,pan,0.12); }
       musicSet=onStage;
