@@ -716,7 +716,6 @@ function drawTitle(){
     const k=Math.min(1,_titleT/45), ease=1-Math.pow(1-k,3);
     ctx.save(); ctx.globalAlpha=k;
     uiLogo('MIND & VENTURE',W/2,-90+(96)*ease,58,{sweep:260});
-    drawTextC('A W D J O O   T O W N',W/2,-90+(96)*ease+84,'#ffe39a',2);
     ctx.restore();
     _drawTitleMenuOverArt(Object.assign({},map,{s:0.75}));
     _drawUiToast();
