@@ -417,13 +417,15 @@ function updateGameBgm(){
   if(_gameState!=='game')return;
   const f=Math.max(0.3,_healFrac);
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const presence=1+0.2*Math.max(0,1-f);   // hurt leans the theme forward, it does not quiet it
+  const heard=Math.min(1,Math.max(0.05,mv*presence));
   if(_gameAudioEl){
-    _gameAudioEl.volume=Math.max(0.05,mv*f);
+    _gameAudioEl.volume=heard;
     _gameAudioEl.playbackRate=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
     return;
   }
   if(!_gameGain)return;
-  _gameGain.gain.value=Math.max(0.05,mv*f);
+  _gameGain.gain.value=heard;
   if(_gameSrc)_gameSrc.playbackRate.value=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
 }
 function _applyBgmVolumes(){
