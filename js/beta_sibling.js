@@ -90,11 +90,39 @@
       trail.length=0; trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:0}); lastLevel=B.level;
       blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); return;
     }
-    const lk=S._catch>0?(S._catch--,0.1):0.32;                // after you moved it, it eases back instead of snapping
-    S.x+=(T.x-S.x)*lk; S.y+=(T.y-S.y)*lk;
-    S.vx=S.x-x0; S.vy=S.y-y0; S.og=T.og; S.crouchAmt=(S.crouchAmt||0)+((T.ca||0)-(S.crouchAmt||0))*0.3;
+    // Paulo (Oct 22): "it should be able to float around JUST to be around us — using its items".
+    // You're on the move or in the air: it hovers at your back shoulder on its XLR (jack down,
+    // air pushing out of it), out of your way — never in front of you or in your line of aim,
+    // never inside a wall. You stop on the ground: it settles on the floor behind you.
+    const rope=p.hook&&p.hook.st==='on';
+    const settle=!cov&&p.og&&Math.abs(p.vx||0)<1.2&&!rope;
+    if(!cov&&!settle){
+      const back=p.fc?-1:1, bob=Math.sin(fr*0.06)*5;
+      const cand=[[back*74,-54+bob],[back*60,-92+bob],[-back*74,-62+bob],[0,-118+bob]];
+      const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1;
+      for(const [ox,oy] of cand){
+        const hx=p.x+ox, hy=p.y+oy, d=Math.hypot(ox,oy)||1;
+        if(((ox*ax+oy*ay)/(d*al))>0.55&&(p.xlrOn||p.magOn||p.laserCharging||(p.hook&&p.hook.st!=='idle'))) continue;   // not in your line of fire
+        if(typeof gridWorldSolid==='function'&&(gridWorldSolid(hx+SW/2,hy+FEET_OFF-20)||gridWorldSolid(hx+SW/2,hy+FEET_OFF-70)||gridWorldSolid(hx+SW/2,hy+FEET_OFF-110))) continue;   // not in rock
+        T={x:hx,y:hy,fc:p.fc,og:false,ca:0}; break;
+      }
+    }
+    const kk=S._catch>0?0.03:0.075+Math.min(0.17,Math.hypot(T.x-S.x,T.y-S.y)/900);   // stiffer the further behind it falls (it keeps up when you're fast)
+    S._hvx=(S._hvx||0)*0.8+(T.x-S.x)*kk;
+    S._hvy=(S._hvy||0)*0.8+(T.y-S.y)*kk;
+    if(S._catch>0) S._catch--;
+    if(T.og&&Math.hypot(T.x-S.x,T.y-S.y)<6){ S.x=T.x; S.y=T.y; S._hvx=S._hvy=0; }
+    else{ S.x+=S._hvx; S.y+=S._hvy; }
+    S.vx=S.x-x0; S.vy=S.y-y0; S.crouchAmt=(S.crouchAmt||0)+((T.ca||0)-(S.crouchAmt||0))*0.3;
+    // in the air when there's no floor right under its wheel
+    const feet=S.y+FEET_OFF, floor=typeof gridWorldSolid==='function'&&(gridWorldSolid(S.x+SW/2,feet+3)||gridWorldSolid(S.x+SW/2,feet+12));
+    S.og=!!(T.og&&floor); S._flying=!S.og&&!rope;
     if(Math.abs(S.vx)>0.25) S.fc=S.vx>0; else if(Math.abs(S.vx)<0.05) S.fc=p.x+SW/2>S.x+SW/2;   // idle: it faces you
-    S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R;
+    if(S._flying){
+      S.wheelAngle=(S.wheelAngle||0)+0.25*(S.fc?1:-1);
+      if(!(S._shootT>0)&&!S._threat){ S.aimDX+=(S.vx*0.05-S.aimDX)*0.25; S.aimDY+=(1-S.aimDY)*0.25; }   // the jack points down: the XLR holds it up
+      if(fr%3===0){ const tp=tipOf(S); PFXS.push({x:tp.x+(Math.random()-0.5)*6,y:tp.y+4,vx:(Math.random()-0.5)*1.2-S.vx*0.3,vy:2.2+Math.random()*1.6,life:12,maxLife:12,r:2.2,col:'#aaddff'}); }
+    }else S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R;
   }
   function blinkTo(T){
     for(let k=0;k<10;k++) PFXS.push({x:S.x+SW/2+(Math.random()-0.5)*30,y:S.y+FEET_OFF-40+(Math.random()-0.5)*40,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,life:14,maxLife:14,r:2,col:S.hero==='venture'?'#ff6a7a':'#c49aff'});
@@ -293,7 +321,7 @@
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       const swing=who===S&&p.hook&&p.hook.st==='on';
-      const show=who!==S?-1:(S._shootT>0?0:swing?1:(ITEM>=0?ITEM:0));       // home: empty-handed · with you: your item, the TRS while it shoots
+      const show=who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:(ITEM>=0?ITEM:0));   // its XLR while it hovers       // home: empty-handed · with you: your item, the TRS while it shoots
       B.ropeClip=null; B.magPark=null; ITEM=show;
       if(swing){                                                              // it swings with you: its own line to the same anchor
         const h=p.hook, P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};

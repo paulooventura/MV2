@@ -4,7 +4,7 @@
 //  Music: the stage theme (Awdjoo's Canopy Quest) plays through the level.
 //  Picking up an item pauses it and plays a slower track under the item
 //  window; closing the window picks the stage theme up where it left off.
-//  Clearing the stage plays a short synthesized fanfare, then a calm track
+//  Clearing the stage plays a synthesized house-drop celebration (build 260), then a calm track
 //  under the results screen.
 //  Sounds (synthesized, no files): cage-block blasts, rope creak/twang,
 //  wheel sizzle on walls.
@@ -124,31 +124,64 @@
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.035*sv()*(0.3+heat),t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
     n.connect(hp); hp.connect(g); g.connect(D(a)); n.start(t,Math.random()*0.5); n.stop(t+0.14);
   }
-  // stage-clear fanfare: a bright little tune in C major (lead + bass + bells)
+  // stage-clear celebration (Paulo, Oct 22: "that little stage clear song is terrible, let's
+  // have something way cooler"): a half-bar riser into a 2-bar house drop at 126 BPM —
+  // four-on-the-floor kick, claps, off-beat hats, a ducking sub bassline, supersaw stabs on
+  // Cm9 → Abmaj7 → Bb → G7, a portamento lead hook — then it resolves to a big C major
+  // (the minor turns major: you made it) with a rising arp and a long tail.
   function fanfare(){
     const a=ac(); if(!a) return 0;
-    if(a.state!=='running') try{ a.resume(); }catch(e){}
-    const t0=a.currentTime+0.05, bpm=148, q=60/bpm;
+    if(a.state!=='running'&&!(typeof OfflineAudioContext!=='undefined'&&a instanceof OfflineAudioContext)) try{ const pr=a.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+    const v=sv(), out=a.createGain(); out.gain.value=0.48*v;
+    const comp=a.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=4; comp.attack.value=0.003; comp.release.value=0.12;
+    out.connect(comp); comp.connect(D(a));
+    // a little hall for the stabs and the lead
+    const rev=a.createConvolver(); { const len=Math.round(a.sampleRate*1.6), ir=a.createBuffer(2,len,a.sampleRate); for(let c=0;c<2;c++){ const d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2); } rev.buffer=ir; }
+    const revG=a.createGain(); revG.gain.value=0.22; rev.connect(revG); revG.connect(out);
+    const bpm=126, q=60/bpm, t0=a.currentTime+0.06, RIS=2*q, G0=t0+RIS;      // the drop lands after half a bar
     const N=n=>440*Math.pow(2,(n-69)/12);
-    const lead=[[72,0,.5],[76,.5,.5],[79,1,.5],[84,1.5,1],[83,2.5,.5],[79,3,.5],[81,3.5,.5],[83,4,.5],[84,4.5,2]];
-    const bass=[[48,0,1.5],[55,1.5,1],[53,2.5,1],[55,3.5,1],[48,4.5,2]];
-    const bell=[[96,4.5,1.5],[91,4.75,1.25],[88,5,1]];
-    // 16-bit style voices: a detuned brass section through a filter, a round bass, glassy bells
-    const voice=(notes,type,gain,rel)=>{ for(const [n,b,d] of notes){
-      const s=t0+b*q, e=s+d*q, g=a.createGain();
-      const oscs=type==='brass'?[-7,7].map(c=>{ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.value=N(n); o.detune.value=c; return o; })
-                :[(()=>{ const o=a.createOscillator(); o.type=type; o.frequency.value=N(n); return o; })()];
-      let head=g;
-      if(type==='brass'){ const f=a.createBiquadFilter(); f.type='lowpass'; f.Q.value=2; f.frequency.setValueAtTime(700,s); f.frequency.exponentialRampToValueAtTime(3400,s+0.06); f.frequency.exponentialRampToValueAtTime(1800,e); f.connect(g); head=f;
-        const vib=a.createOscillator(), vg=a.createGain(); vib.frequency.value=5.5; vg.gain.value=d>1?6:0; vib.connect(vg); oscs.forEach(o=>vg.connect(o.detune)); vib.start(s); vib.stop(e+rel+0.05); }
-      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(gain*sv(),s+0.02); g.gain.setValueAtTime(gain*sv()*0.75,e-0.03); g.gain.exponentialRampToValueAtTime(0.0001,e+rel);
-      oscs.forEach(o=>{ o.connect(head); o.start(s); o.stop(e+rel+0.05); });
-      g.connect(D(a)); } };
-    voice(lead,'brass',0.06,0.12); voice(bass,'triangle',0.14,0.1); voice(bell,'sine',0.08,0.9);
-    // timpani roll into the last chord
-    [3.5,3.75,4,4.25,4.5].forEach((b,i)=>{ const s=t0+b*q, o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(i<4?98:65,s); o.frequency.exponentialRampToValueAtTime(i<4?70:44,s+0.3);
-      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime((i<4?0.1:0.22)*sv(),s+0.01); g.gain.exponentialRampToValueAtTime(0.0001,s+(i<4?0.25:0.9)); o.connect(g); g.connect(D(a)); o.start(s); o.stop(s+1); });
-    return (6.5*q+0.9)*1000;
+    const nb=(()=>{ const b=a.createBuffer(1,a.sampleRate,a.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; })();
+    const env=(g,s,peak,att,dec,sus,end,rel)=>{ g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(peak,s+att); g.gain.exponentialRampToValueAtTime(Math.max(0.0001,peak*sus),s+att+dec); g.gain.setValueAtTime(Math.max(0.0001,peak*sus),end); g.gain.exponentialRampToValueAtTime(0.0001,end+rel); };
+    const noiseHit=(s,dur,type,f,qv,peak,dest)=>{ const n=a.createBufferSource(); n.buffer=nb; const fl=a.createBiquadFilter(); fl.type=type; fl.frequency.value=f; fl.Q.value=qv; const g=a.createGain(); g.gain.setValueAtTime(peak,s); g.gain.exponentialRampToValueAtTime(0.0001,s+dur); n.connect(fl); fl.connect(g); g.connect(dest||out); n.start(s,Math.random()*0.5); n.stop(s+dur+0.02); };
+    // ── the riser: noise opening up, a saw climbing, a snare roll speeding up
+    { const n=a.createBufferSource(); n.buffer=nb; n.loop=true; const hp=a.createBiquadFilter(); hp.type='bandpass'; hp.Q.value=1.2; hp.frequency.setValueAtTime(400,t0); hp.frequency.exponentialRampToValueAtTime(7000,G0);
+      const g=a.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.16,G0-0.02); g.gain.exponentialRampToValueAtTime(0.0001,G0+0.05); n.connect(hp); hp.connect(g); g.connect(out); n.start(t0); n.stop(G0+0.1);
+      const o=a.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(N(48),t0); o.frequency.exponentialRampToValueAtTime(N(72),G0); const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.setValueAtTime(500,t0); lp.frequency.exponentialRampToValueAtTime(5000,G0);
+      const og=a.createGain(); og.gain.setValueAtTime(0.0001,t0); og.gain.exponentialRampToValueAtTime(0.05,G0-0.02); og.gain.exponentialRampToValueAtTime(0.0001,G0+0.03); o.connect(lp); lp.connect(og); og.connect(out); o.start(t0); o.stop(G0+0.05);
+      let tt=t0, step=q/2; while(tt<G0-0.01){ noiseHit(tt,0.07,'bandpass',1800,0.9,0.05+0.12*((tt-t0)/RIS)); tt+=step; step=Math.max(q/8,step*0.8); } }
+    // ── drums (2 bars)
+    const kick=s=>{ const o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(150,s); o.frequency.exponentialRampToValueAtTime(46,s+0.12); g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.85,s+0.004); g.gain.exponentialRampToValueAtTime(0.0001,s+0.42); o.connect(g); g.connect(out); o.start(s); o.stop(s+0.45);
+      noiseHit(s,0.02,'highpass',2500,0.7,0.12); };
+    const clap=s=>{ for(const d of [0,0.011,0.022]) noiseHit(s+d,0.09+(d?0:0.06),'bandpass',1300,1.6,0.32); noiseHit(s,0.25,'bandpass',1300,1.2,0.05,rev); };
+    for(let b=0;b<8;b++){ const s=G0+b*q; kick(s); noiseHit(s+q/2,0.09,'highpass',8000,0.8,0.13); if(b%2===1) clap(s); noiseHit(s+q*0.75,0.03,'highpass',10000,0.8,0.05); }
+    // ── sub bass with a kick duck (the pump)
+    const bassNotes=[[36,0,0.75],[36,1,0.5],[48,1.5,0.5],[44,2,0.75],[44,3,0.5],[56,3.5,0.5],[46,4,0.75],[46,5,0.5],[58,5.5,0.5],[43,6,0.75],[43,7,0.5],[47,7.5,0.5]];
+    for(const [n,b,d] of bassNotes){ const s=G0+b*q, e=s+d*q, o=a.createOscillator(), o2=a.createOscillator(), lp=a.createBiquadFilter(), g=a.createGain();
+      o.type='sine'; o.frequency.value=N(n); o2.type='sawtooth'; o2.frequency.value=N(n); lp.type='lowpass'; lp.frequency.setValueAtTime(900,s); lp.frequency.exponentialRampToValueAtTime(220,e); lp.Q.value=3;
+      const g2=a.createGain(); g2.gain.value=0.35; o2.connect(g2); g2.connect(lp); o.connect(lp); lp.connect(g); g.connect(out);
+      env(g,s+0.03,0.42,0.02,0.1,0.75,e-0.02,0.06); for(const o3 of [o,o2]){ o3.start(s); o3.stop(e+0.1); } }
+    // ── supersaw chord stabs (off-beat house stabs), with a filter snap and the hall
+    const stab=(notes,s,len,peak)=>{ const f=a.createBiquadFilter(); f.type='lowpass'; f.Q.value=4; f.frequency.setValueAtTime(5200,s); f.frequency.exponentialRampToValueAtTime(900,s+len);
+      const g=a.createGain(); env(g,s,peak,0.006,len*0.6,0.4,s+len,0.12); f.connect(g); g.connect(out); g.connect(rev);
+      for(const n of notes) for(const dt of [-14,-5,5,14]){ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.value=N(n); o.detune.value=dt; o.connect(f); o.start(s); o.stop(s+len+0.15); } };
+    const CH=[[60,63,67,70,74],[56,60,63,67,72],[58,62,65,70,74],[55,59,62,65,71]];          // Cm9 · Abmaj7 · Bb(add9) · G7
+    for(let c=0;c<4;c++) for(const off of [0.5,1.25,1.5]) stab(CH[c],G0+(c*2+off)*q,q*0.32,0.05);
+    // ── the lead hook: square + pulse, portamento between notes
+    const hook=[[67,0,0.5],[70,0.5,0.5],[72,1,1],[75,2,0.5],[74,2.5,0.5],[72,3,0.5],[70,3.5,0.5],[72,4,0.5],[74,4.5,0.5],[75,5,0.5],[77,5.5,0.5],[79,6,1.5],[83,7.5,0.5]];
+    { const o=a.createOscillator(), o2=a.createOscillator(), f=a.createBiquadFilter(), g=a.createGain();
+      o.type='square'; o2.type='sawtooth'; o2.detune.value=8; f.type='lowpass'; f.frequency.value=3200; f.Q.value=1.5;
+      const vib=a.createOscillator(), vg=a.createGain(); vib.frequency.value=5.8; vg.gain.value=9; vib.connect(vg); vg.connect(o.detune); vg.connect(o2.detune);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(out); g.connect(rev); g.gain.setValueAtTime(0.0001,G0);
+      for(const [n,b,d] of hook){ const s=G0+b*q, e=s+d*q; o.frequency.setTargetAtTime(N(n),s,0.012); o2.frequency.setTargetAtTime(N(n),s,0.012); g.gain.setTargetAtTime(0.075,s,0.005); g.gain.setTargetAtTime(0.03,e-0.04,0.02); }
+      o.frequency.setValueAtTime(N(67),G0); o2.frequency.setValueAtTime(N(67),G0);
+      const END=G0+8*q; g.gain.setTargetAtTime(0.0001,END,0.03);
+      for(const x of [o,o2,vib]){ x.start(G0); x.stop(END+0.3); } }
+    // ── the resolve: a big C major (it turns major — cleared!), crash, a rising arp, a long tail
+    const R0=G0+8*q;
+    kick(R0); stab([48,60,64,67,72,76,79],R0,q*3,0.07); noiseHit(R0,1.6,'highpass',5000,0.6,0.16); noiseHit(R0,1.8,'highpass',3000,0.5,0.06,rev);
+    { const o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.value=N(36); env(g,R0,0.4,0.01,0.4,0.6,R0+1.4,0.5); o.connect(g); g.connect(out); o.start(R0); o.stop(R0+2); }
+    [72,76,79,84,88,91,96].forEach((n,i)=>{ const s=R0+0.08+i*q/4, o=a.createOscillator(), g=a.createGain(); o.type='triangle'; o.frequency.value=N(n); env(g,s,0.07,0.004,0.12,0.3,s+0.12,0.5); o.connect(g); g.connect(out); g.connect(rev); o.start(s); o.stop(s+0.8); });
+    return (R0-a.currentTime+2.2)*1000;
   }
 
   // a splash: filtered noise whoosh + a little bloop, bigger for heavier things

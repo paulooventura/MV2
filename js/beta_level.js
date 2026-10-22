@@ -496,6 +496,7 @@
     if(B._xlrTapped){ B.chX=0; B.downCubeHeld=false; }
     else if(xlrNow){
       B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
+      blowAround();                                              // the air pushes enemies while you hold it (the MAG's pull already does)
       B.downCubeHeld=(p.aimDY||0)>0.55&&powNow()>=0.06&&blastCandidates().length>0;
       if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }   // the blow shoves frags away
       for(const bw of cubes()){
@@ -918,6 +919,18 @@
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,sw(30),Math.PI,0); ctx.fill();
     ctx.restore();
   };
+  // Paulo (Oct 22): the XLR's air shoves enemies in front of the jack while it's held, not only
+  // on the release — strong up close, fading with distance, lighter ones fly further
+  function blowAround(){
+    if(typeof _tipField!=='function'||typeof _applyItemForceToEnemy!=='function') return;
+    const tip=typeof xlrTip==='function'?xlrTip():shoulder(), a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)), range=190;
+    for(const e of ENEMS){
+      if(!e||!e.alive||e._betaHeld||e._hidden) continue;
+      const f=_tipField({x:tip.x,y:tip.y},a,e.x+e.w/2,e.y+e.h/2,range); if(!f) continue;
+      const s=f.prox*f.cone*0.9*(0.25+0.75*powNow())*Math.max(0.5,Math.min(1.6,Math.sqrt(6/(weightOf('enemy',e)||6))));
+      _applyItemForceToEnemy(e,f.ux*s,f.uy*s);
+    }
+  }
   function pullAround(){
     if(typeof _tipField!=='function') return;
     const tip=magTip(), a=Math.atan2(tip.uy,tip.ux), range=200;
