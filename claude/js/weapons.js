@@ -488,6 +488,47 @@ function updateBWalls(){
   _resolvePoolBodies();
 }
 
+// Shots stop on permanent ground and walls. Only a moving platform sends one back.
+function _movingShotPlats(){
+  const out=[];
+  if(typeof MPLAT!=='undefined') for(const m of MPLAT) if(m) out.push(m);
+  if(typeof APLAT!=='undefined') for(const a of APLAT) if(a) out.push(a);
+  const bp=window.MV_BETA&&MV_BETA.platforms;
+  if(bp) for(const m of bp) if(m) out.push(m);
+  return out;
+}
+function _reflectShot(s,q,keep){
+  const prevX=s.x-(s.vx||0), prevY=s.y-(s.vy||0);
+  const hitLeft=prevX+4<=q.x&&s.x+4>q.x, hitRight=prevX-4>=q.x+q.w&&s.x-4<q.x+q.w;
+  const hitTop=prevY+4<=q.y&&s.y+4>q.y, hitBot=prevY-4>=q.y+q.h&&s.y-4<q.y+q.h;
+  if(hitLeft||hitRight) s.vx*=-keep;
+  if(hitTop||hitBot) s.vy*=-keep;
+  if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){ s.vx*=-keep; s.vy*=-keep; }
+  const hh=q.h||14;
+  if(hitTop) s.y=q.y-5;
+  else if(hitBot) s.y=q.y+hh+5;
+  else if(hitLeft) s.x=q.x-5;
+  else if(hitRight) s.x=q.x+q.w+5;
+  if(q.dx) s.vx+=q.dx*0.35;
+  if(q.vx) s.vx+=(q.vx||0)*0.15;
+}
+function _shotHitsPermanent(s,plats){
+  if(!plats) return false;
+  for(const q of plats){
+    if(!q||q.mv||q.mp||q.tp==='oneway') continue;
+    if(q.tp&&q.tp!=='solid'&&q.tp!=='ceil') continue;
+    if(ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h)) return true;
+  }
+  return false;
+}
+function _shotHitsMovingPlat(s){
+  for(const q of _movingShotPlats()){
+    if(!q||q.w==null) continue;
+    if(ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h||14)) return q;
+  }
+  return null;
+}
+
 // ── Player shots update ───────────────────────────────────────
 function updatePlayerShots(){
   const pl=allP();
@@ -537,32 +578,20 @@ function updatePlayerShots(){
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
-    if(typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y)){
-      const prevX=s.x-s.vx, prevY=s.y-s.vy;
-      const keep=enh?0.92:0.76;
-      if(gridWorldSolid(s.x,prevY)&&!gridWorldSolid(prevX,s.y)) s.vx*=-keep;
-      else s.vy*=-keep;
-      s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=(s.bounces||0)+1;
-      spawnSpark(s.x,s.y,s.vx,s.vy);
-      if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
-      if((s.bounces||0)>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
-    }
-    for(const q of pl){
-      if(!ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h)) continue;
+    const mov=_shotHitsMovingPlat(s);
+    if(mov){
       const bounces=s.bounces||0;
-      if(bounces>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); dead=true; break; }
-      const prevX=s.x-s.vx, prevY=s.y-s.vy;
-      const hitLeft=prevX+4<=q.x&&s.x+4>q.x, hitRight=prevX-4>=q.x+q.w&&s.x-4<q.x+q.w;
-      const hitTop=prevY+4<=q.y&&s.y+4>q.y, hitBot=prevY-4>=q.y+q.h&&s.y-4<q.y+q.h;
+      if(bounces>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
       const keep=enh?0.92:0.76;
-      if(hitLeft||hitRight) s.vx*=-keep;
-      if(hitTop||hitBot)    s.vy*=-keep;
-      if(!hitLeft&&!hitRight&&!hitTop&&!hitBot){s.vx*=-keep;s.vy*=-keep;}
+      _reflectShot(s,mov,keep);
       s.power=(s.power||1)*(enh?0.92:0.7); s.bounces=bounces+1; s._airAge=0;
       if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
       spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'laser_bounce',bounces);
       if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
-      break;
+    }else if((typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y))||_shotHitsPermanent(s,pl)){
+      spawnSpark(s.x,s.y,s.vx,s.vy);
+      if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
+      spawnLaserFizzle(s); p.shots.splice(i,1); continue;
     }
     if(dead&&i<p.shots.length) p.shots.splice(i,1);
   }
@@ -963,19 +992,21 @@ function updateEnemyShots(){
       ESHOTS.splice(i,1); eBlk=true; break;
     }
     if(eBlk) continue;
-    // Wall ricochet
+    // Moving platforms bounce a shot back. Permanent ground and walls stop it.
     let eHit=false;
-    for(const pl2 of allP()){
-      if(pl2.tp!=='solid') continue;
-      if(!ov(s.x-4,s.y-4,8,8,pl2.x,pl2.y,pl2.w,pl2.h)) continue;
+    const emov=_shotHitsMovingPlat(s);
+    if(emov){
       const eb=s.bounces||0;
-      if(eb>=3){ESHOTS.splice(i,1);eHit=true;break;}
-      const prevX2=s.x-s.vx, prevY2=s.y-s.vy;
-      if(Math.abs(prevX2-pl2.x)<6||Math.abs(prevX2-(pl2.x+pl2.w))<6) s.vx*=-0.8;
-      else s.vy*=-0.8;
-      s.power=(s.power||1)*0.65; s.bounces=eb+1;
-      if(!s.born) s.born=fr;
-      spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'ping'); break;
+      if(eb>=3){ESHOTS.splice(i,1);eHit=true;}
+      else{
+        _reflectShot(s,emov,0.8);
+        s.power=(s.power||1)*0.65; s.bounces=eb+1;
+        if(!s.born) s.born=fr;
+        spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'ping');
+      }
+    }else if((typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y))||_shotHitsPermanent(s,allP())){
+      spawnSpark(s.x,s.y,-s.vx,-s.vy);
+      ESHOTS.splice(i,1); eHit=true;
     }
     if(eHit) continue;
     if(!s.born) s.born=fr;
