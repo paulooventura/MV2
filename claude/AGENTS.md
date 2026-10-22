@@ -295,6 +295,13 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 224 — the music plays from the gramophone; logical sound sources (Oct 22)
+- `sound16.js`: every `<audio>` track goes through one shared chain `b.mfx` (12 dB/oct low-pass, Q 0.707 → pan → gain) before the music bus; `MV_SOUND16.musicFx(ac)`.
+- `beta_ambience.js` `things()`: on the stage track, the gramophone in MIND's house (home room, col 24) is the music's source: high-cut `18000/(1+d/6)^1.6 × 0.55^walls` (≥200 Hz), level ≥0.42 (× wall loss), slight pan. Item / results / title music is free again (`musicFree`).
+- Stoves (home kitchen + Laitu's): positioned fire roar loop + crackle pops. Yellow cage blocks (`only==='laser'`): one hum/fizz loop placed at their weighted centre, level soft-limited `0.07·(1−e^(−1.4·Σg))`, sparks now and then.
+- Drips only from rock ceilings (cave/basement skin or deep), never in a house or while MIND is in one; no cave drone in houses (`env.under=0` in a room).
+- MIND's wheel rumble/grit cut to ~¼ (it read as a whoosh).
+
 ### Build 223 — chambers (Oct 22)
 - Paulo: inside Laitu's house the crickets and wind were as clear as outside.
 - `beta_spatial.js` `flood()`: from MIND's cell, flood-fill the air through the grid (one-way planks pass, solids stop). Reaching high open sky = outside; closing up = a chamber with volume V. A house (`B.rooms` rect) is always a chamber, and its outline counts as a 2-tile wall in `occlusion()` even through the open door.

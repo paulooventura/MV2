@@ -81,7 +81,7 @@
     flood();
     const inside=chamber.closed?1:0; env.inside+=(inside-env.inside)*0.5; env.V=chamber.V; env.room=chamber.room;
     if(chamber.closed){ env.sky*=0.15; env.encl=Math.max(env.encl,chamber.room?0.9:0.8); env.size=Math.sqrt(chamber.V); }
-    env.under=Math.max(0,Math.min(1,(row-hz-1)/4))*(1-env.sky);
+    env.under=chamber.room?0:Math.max(0,Math.min(1,(row-hz-1)/4))*(1-env.sky);   // a house is not a cave
     // wind forms where the air is high and open
     env.wind=(1-0.92*env.inside)*Math.max(0,Math.min(1,env.sky*(0.25+0.75*Math.min(1,Math.pow(env.elev,1.5)*1.25+Math.max(0,env.open-0.5)*0.6))));
   }
@@ -211,5 +211,5 @@
       if(!(typeof _paused!=='undefined'&&_paused)&&!B.popup) worldTick(a);
     }catch(e){}
   },50);
-  window.MV_SPATIAL={env, params, occlusion, chainAt, take, listener, solid, graph:()=>G};
+  window.MV_SPATIAL={env, params, occlusion, chainAt, take, listener, solid, roomAt, graph:()=>G};
 })();

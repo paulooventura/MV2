@@ -124,7 +124,11 @@
   function ceilingSpot(B){
     const lv=B.level, c0=Math.floor((p.x+SW/2)/32), r0=Math.floor((p.y+FEET_OFF-30)/32);
     for(let k=0;k<10;k++){ const c=c0+rc(12), r=r0+rc(8); if(r<1||c<0||r>=lv.rows||c>=lv.cols) continue;
-      if(!lv.cells[r][c]&&lv.cells[r-1][c]===1&&(r-1)>((B.horizonRow||0)-2)) return {x:c*32+16,y:r*32+2}; }
+      if(lv.cells[r][c]||lv.cells[r-1][c]!==1||(r-1)<=((B.horizonRow||0)-2)) continue;
+      const x=c*32+16, y=r*32+2, sk=B.skin&&B.skin[r]?B.skin[r][c]:0;
+      if(MV_SPATIAL.roomAt&&MV_SPATIAL.roomAt(x,y)) continue;                   // no caves in a bedroom
+      if(sk!==4&&sk!==5&&r<(B.horizonRow||0)+4) continue;                        // wet rock: cave / basement air, or deep down
+      return {x,y}; }
     return null;
   }
   function waterSpot(B,nearest){
@@ -138,6 +142,88 @@
     }
     return best;
   }
+  // ── things in the world that sound (build 224, Paulo: "we also want logic") ──
+  // a positioned loop: its source → low-pass → pan → level → the ambience out (+ the room)
+  const loops={};
+  function mkLoop(key,feed){
+    if(loops[key]&&loops[key].A===A) return loops[key];
+    const inp=A.createGain(), lp=A.createBiquadFilter(), pan=A.createStereoPanner(), g=A.createGain(), wet=A.createGain();
+    lp.type='lowpass'; lp.frequency.value=8000; g.gain.value=0; wet.gain.value=0;
+    inp.connect(lp); lp.connect(pan); pan.connect(g); g.connect(N.out);
+    try{ const G0=MV_SPATIAL.graph(); if(G0) { g.connect(wet); wet.connect(G0.roomIn); } }catch(e){}
+    feed(inp);
+    return loops[key]={A,inp,lp,pan,g,wet};
+  }
+  function placeLoop(L,gain,lp,pan,wet,tc){ set(L.g.gain,gain,tc||0.3); set(L.lp.frequency,Math.max(120,lp),0.3); set(L.pan.pan,pan,0.3); set(L.wet.gain,(wet||0.2)*gain,0.3); }
+  const roomsOf=(B,style)=>(B.rooms||[]).filter(r=>style?r.style===style:true);
+  // the stove: a low roar of the fire, crackles and pops
+  function stoveSpots(B){
+    const out=[];
+    for(const rm of B.rooms||[]){ const F=rm.y+rm.h;
+      if(rm.style==='home') out.push({x:11*32-6+29, y:F-24});
+      else out.push({x:rm.x+rm.w-112+29, y:F-24}); }
+    return out;
+  }
+  function crackle(x,y,amt){
+    const d0=at(x,y,amt); if(!d0) return;
+    const t=A.currentTime, n=1+((Math.random()*3)|0);
+    for(let i=0;i<n;i++){ const s=t+i*(0.02+Math.random()*0.05), src=A.createBufferSource(); src.buffer=noise(A);
+      const hp=A.createBiquadFilter(); hp.type='bandpass'; hp.frequency.value=1800+Math.random()*3500; hp.Q.value=2.5;
+      const g=A.createGain(); env(g,s,0.09+Math.random()*0.08,0.001,0.02+Math.random()*0.03);
+      src.connect(hp); hp.connect(g); g.connect(d0); src.start(s,Math.random()*1.5); src.stop(s+0.08); }
+  }
+  // the yellow cage blocks: mains hum + a buzz, a spark now and then; many blocks add up
+  // gently (a soft limit), so a wall of them is a presence, not a wall of noise
+  function yellows(){ return (typeof BWALLS!=='undefined'?BWALLS:[]).filter(b=>b&&b.only==='laser'&&b.hp>0&&!b._destroyFr); }
+  function spark(x,y,amt){
+    const d0=at(x,y,amt); if(!d0) return;
+    const t=A.currentTime, src=A.createBufferSource(); src.buffer=noise(A);
+    const hp=A.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3000;
+    const g=A.createGain(); env(g,t,0.12,0.001,0.05); src.connect(hp); hp.connect(g); g.connect(d0); src.start(t,Math.random()); src.stop(t+0.08);
+    const o=A.createOscillator(), og=A.createGain(); o.type='square'; o.frequency.setValueAtTime(900+Math.random()*900,t); env(og,t,0.025,0.001,0.04); o.connect(og); og.connect(d0); o.start(t); o.stop(t+0.06);
+  }
+  let musicSet=false;
+  function musicFree(){ if(!musicSet) return; const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null; if(fx){ set(fx.lp.frequency,20000,0.3); set(fx.g.gain,1,0.3); set(fx.pan.pan,0,0.3); } musicSet=false; }
+  function things(B,S,E){
+    const SP=MV_SPATIAL;
+    // ── the stage music plays from the gramophone in MIND's house ──
+    const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null;
+    if(fx){
+      const home=roomsOf(B,'home')[0], cur=window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current();
+      const onStage=home&&(cur==='stage'||cur==='stage2')&&!B.popup&&!B.results;
+      let lp=20000, g=1, pan=0;
+      if(onStage){
+        const vx=24*32+30, vy=home.y+home.h-50, L=SP.listener();
+        const d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
+        // farther = a smooth shave of the highs (12 dB/oct), walls shave more; it stays audible, just muffled
+        lp=Math.max(200,18000/Math.pow(1+d/6,1.6)*Math.pow(0.55,ot));
+        g=Math.max(0.42,1/(1+Math.pow(d/18,1.3)))*Math.max(0.6,Math.pow(0.85,ot));
+        pan=Math.max(-0.45,Math.min(0.45,(vx-L.x)/(14*32)))*(ot>0?0.5:1);
+      }
+      if(onStage||musicSet){ set(fx.lp.frequency,lp,0.5); set(fx.g.gain,g,0.5); set(fx.pan.pan,pan,0.5); }
+      musicSet=onStage;
+    }
+    // ── stoves ──
+    stoveSpots(B).forEach((st,i)=>{
+      const P=SP.params(st.x,st.y), L=mkLoop('stove'+i,inp=>{ const lp=A.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=260; const g=A.createGain(); g.gain.value=0.5; loopNoise(A,lp); lp.connect(g); g.connect(inp);
+        const bp=A.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=900; bp.Q.value=0.8; const g2=A.createGain(); g2.gain.value=0.12; loopNoise(A,bp); bp.connect(g2); g2.connect(inp); });
+      if(!P){ placeLoop(L,0,200,0); return; }
+      placeLoop(L,0.22*P.g,P.lp,P.pan,P.wet);
+      if(P.g>0.03&&Math.random()<0.35) crackle(st.x+(Math.random()-0.5)*30,st.y,0.9);
+    });
+    // ── the yellow blocks ──
+    let sum=0, lpW=0, panW=0, wetW=0; const near=[];
+    for(const b of yellows()){ const x=b.x+(b.w||32)/2, y=b.y+(b.h||32)/2, P=SP.params(x,y); if(!P||P.g<0.01) continue; sum+=P.g; lpW+=P.lp*P.g; panW+=P.pan*P.g; wetW+=P.wet*P.g; near.push([x,y,P.g]); }
+    const Lb=mkLoop('electro',inp=>{
+      for(const [f,v,type] of [[60,0.5,'sine'],[120,0.4,'sawtooth'],[180.4,0.12,'sawtooth']]){ const o=A.createOscillator(), g=A.createGain(); o.type=type; o.frequency.value=f; g.gain.value=v; o.connect(g); g.connect(inp); o.start(); }
+      const bp=A.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2400; bp.Q.value=4; const g=A.createGain(); g.gain.value=0.12; loopNoise(A,bp); bp.connect(g); g.connect(inp);   // the fizz
+    });
+    if(sum>0){
+      const level=0.07*(1-Math.exp(-sum*1.4));             // soft limit: 1 block ≈ ½, many ≈ full, never more
+      placeLoop(Lb,level,Math.min(5000,lpW/sum),panW/sum,wetW/sum);
+      if(Math.random()<Math.min(0.25,0.05*near.length)){ const n=near[(Math.random()*near.length)|0]; spark(n[0]+(Math.random()-0.5)*20,n[1]+(Math.random()-0.5)*20,0.8); }
+    } else placeLoop(Lb,0,200,0);
+  }
   let lastOg=true, lastVy=0, gust=0, gustT=0;
   function tick(){
     const a=ac(); if(!a||a.state!=='running') return;
@@ -146,7 +232,7 @@
     const live=B&&B.on&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)&&!B.popup&&!B.results&&typeof p!=='undefined'&&p;
     const master=live?0.55*sv():0;
     set(N.out.gain,master,live?0.6:0.15);
-    if(!live){ set(N.whG.gain,0,0.05); set(N.grG.gain,0,0.05); return; }
+    if(!live){ set(N.whG.gain,0,0.05); set(N.grG.gain,0,0.05); musicFree(); return; }
     const S=STAGE[B.stageId]||DEF, w=place(B), t=A.currentTime;
     const SP=window.MV_SPATIAL, E=SP?SP.env:{wind:w.out, under:w.under, encl:w.under, elev:0.5};
     // wind lives where it's high and open (beta_spatial measures it); gusts, and it
@@ -160,7 +246,7 @@
     let hum=0, hlp=420;
     if(SP) for(const d of (B.decor||[])){ if(d.kind!=='lamp') continue; const P=SP.params(d.x,d.y-40); if(P&&P.g>hum){ hum=P.g; hlp=Math.min(420,P.lp); } }
     set(N.hG.gain,0.06*S.hum*hum,0.6); set(N.hLP.frequency,Math.max(120,hlp),0.4);
-    set(N.dG.gain,0.09*S.drone*Math.max(E.under,E.encl*0.5*w.under),1.0);
+    set(N.dG.gain,E.room?0:0.09*S.drone*Math.max(E.under,E.encl*0.5*w.under),1.0);
     // water lapping from the nearest water surface
     let lap=0, llp=700; const ws=SP?waterSpot(B,true):null;
     if(ws){ const P=SP.params(ws.x,ws.y); if(P){ lap=P.g; llp=Math.min(700,P.lp); } }
@@ -170,16 +256,17 @@
       if(Math.random()<0.12*S.crickets){ const g=grassSpot(B); if(g) cricket(0,g.x,g.y); }
       if(S.owl&&E.wind>0.2&&Math.random()<0.0016) owl();
       if(S.frogs&&Math.random()<0.02){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
-      if(Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
+      if(!E.room&&Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
+      things(B,S,E);
     }
     // the wheel
     const og=!!(p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p)));
     const spd=og?Math.min(1,Math.abs(p.vx)/6):0;
-    set(N.whG.gain,0.16*spd*sv(),0.06); set(N.whBP.frequency,120+spd*260,0.1);
-    set(N.grG.gain,0.025*spd*sv(),0.06);
+    set(N.whG.gain,0.045*spd*sv(),0.06); set(N.whBP.frequency,110+spd*150,0.1);   // was 0.16: it read as a whoosh
+    set(N.grG.gain,0.006*spd*sv(),0.06);
     if(og&&!lastOg&&lastVy>7) thud(Math.min(1.4,(lastVy-6)/6));
     lastOg=og; lastVy=p.vy||0;
   }
   setInterval(()=>{ try{ tick(); }catch(e){} },50);
-  window.MV_AMBIENCE={STAGE, tick, state:()=>N&&A?{out:N.out.gain.value, wind:N.wG.gain.value, hum:N.hG.gain.value, drone:N.dG.gain.value, lap:N.lG.gain.value, wheel:N.whG.gain.value}:null};
+  window.MV_AMBIENCE={STAGE, tick, loops:()=>loops, state:()=>N&&A?{out:N.out.gain.value, wind:N.wG.gain.value, hum:N.hG.gain.value, drone:N.dG.gain.value, lap:N.lG.gain.value, wheel:N.whG.gain.value}:null};
 })();
