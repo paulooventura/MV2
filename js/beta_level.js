@@ -497,7 +497,7 @@
     } else if(B.chX>0){
       // Paulo (Oct 21): every blast costs power on top of the hold, and its strength is
       // the power left — spamming it empties the bar and the pushes fade to nothing
-      B.relPow=powNow(); fireCube('push',B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX);
+      B.relPow=powNow(); fireCube('push',B.chX); blastEnemies(B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX);
       if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,9*Math.min(1,B.chX/45)*B.relPow+2*B.relPow,220); }
       spend(ITEM_COST.XLR_BASE+ITEM_COST.XLR_CHARGE*Math.min(1,B.chX/45)); B.chX=0;
     }
@@ -607,6 +607,35 @@
     return true;
   }
   B.blastCubes=blastCubes;
+  // ── the same blast hits enemies (Paulo, Oct 22: the XLR has to do something to
+  //   them): every enemy in the cone in front of the jack is blown back, hard
+  //   enough to see — tumbling through the air, knocked into walls, a little
+  //   damage, more when you're close and charged. Light ones fly further.
+  function blastEnemies(held){
+    const o=shoulder(), a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)), ux=Math.cos(a), uy=Math.sin(a);
+    const charge=Math.min(1,held/CUBE.CHARGE_FULL), pw=B.relPow==null?1:B.relPow; if(pw<0.06) return 0;
+    const RANGE=T*6; let n=0;
+    for(const e of ENEMS){
+      if(!isFinite(e.x)||e._betaHeld||e._pitT>0) continue;
+      const cx=e.x+(e.w||SW)/2, cy=e.mind?e.y+FEET_OFF-50:e.y+e.h/2, dx=cx-o.x, dy=cy-o.y, d=Math.hypot(dx,dy)||1;
+      if(d>RANGE) continue;
+      const along=(dx*ux+dy*uy)/d; if(along<0.72) continue;               // a ~45° cone
+      if(!losClear(cx,cy)) continue;
+      const k=(0.45+0.55*charge)*pw*(1-0.55*d/RANGE);
+      const wgt=Math.max(0.5,Math.sqrt((weightOf('enemy',e)||6)/6));
+      const sp=(7+9*k)/wgt, bx=dx/d*0.35+ux*0.65, by=dy/d*0.35+uy*0.65, bl=Math.hypot(bx,by)||1;
+      e.vx=bx/bl*sp; e.vy=by/bl*sp-(2+3*k)/wgt; e.og=false;
+      if(e._ai){ e.mn=-1e6; e.mx=1e6; e._thrownF=Math.round(26+30*k); e._reCenter=true; if(!e.alive) e._shutSettled=false; }
+      if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
+      if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(4+10*k),o.x+ux*30,o.y+uy*30,0.4);
+      for(let j=0;j<10;j++){ const a2=Math.atan2(by,bx)+(Math.random()-0.5)*1.2; PFXS.push({x:cx-ux*e.w*0.4,y:cy-uy*e.w*0.4,vx:Math.cos(a2)*(2+Math.random()*4),vy:Math.sin(a2)*(2+Math.random()*4),life:14+Math.random()*10|0,maxLife:24,r:2+Math.random()*2,col:j%2?'#bfe8ff':'#ffffff'}); }
+      if(B.pushFx) B.pushFx.push({x:cx,y:cy,dir:Math.sign(ux)||1,t:0});
+      n++;
+    }
+    if(n){ B.shake=Math.max(B.shake||0,3+4*charge); try{ sfx('xlr_push'); }catch(_e){ try{ sfx('hit'); }catch(__){} } }
+    return n;
+  }
+  B.blastEnemies=blastEnemies;
   function fireCube(mode, held){
     if(typeof _tipField!=='function') return;
     if(mode==='push'&&blastCubes(held)) return;
@@ -1440,7 +1469,7 @@
       ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
       ctx.restore();
       ctx.lineWidth=1.5; ctx.strokeStyle='#c09a5a'; uiRound(cx-tw/2+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
-      ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='700 12px "MV Sans", system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
+      ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='15px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
     }else if(tg.name) drawTextC('LAITU', cx, top-14, '#a8d4ff');
   }
   // Text that belongs to the world (signs, labels, crate names) is drawn on the
