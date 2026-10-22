@@ -147,6 +147,12 @@
       M[i]=0;
     }
   }
+  // a body cell with water standing beside it at that height (the body is under water there)
+  function bodyUnder(i){
+    const {NX,M,BLK}=F, x=i%NX;
+    for(const s of [-1,1]) for(let k=1;k<=10;k++){ const xx=x+s*k; if(xx<0||xx>=NX) break; const j=i+s*k, w=BLK[j]; if(w&1) break; if(!w){ if(M[j]>0.5) return true; break; } }
+    return false;
+  }
   function walled(x0,x1,y){ const s=x1>x0?1:-1; for(let x=x0+s;x!==x1;x+=s) if(F.BLK[y*F.NX+x]===1) return true; return false; }
   function grow(i){ const x=i%F.NX, y=(i/F.NX)|0, b=F.bb; if(x<b.x0) b.x0=x; if(x>b.x1) b.x1=x; if(y<b.y0) b.y0=y; if(y>b.y1) b.y1=y; }
   function bbox(){
@@ -170,7 +176,7 @@
     for(let y=y0;y<=y1;y++){ const row=y*NX;
       for(let x=x0;x<=x1;x++){ const i=row+x, m=M[i]; if(m<=MINM||(BLK[i]&1)) continue;
         if(y===NY-1){ const f=Math.min(m,0.6); N2[i]-=f; F.lost+=f; continue; }     // off the bottom of the world
-        const j=i+NX; if(BLK[j]&1) continue;
+        const j=i+NX; if((BLK[j]&1)||(BLK[j]===2&&bodyUnder(j))) continue;   // a submerged body holds up the water over it (no dip over it); rain on a dry head still runs off
         let f=stable(m+M[j])-M[j]; if(f>m) f=m; if(f<=0) continue;
         N2[i]-=f; N2[j]+=f; if(M[j]<0.7) F.FL[j]=F.FL[j]*0.8+f;   // only water dropping through air counts as falling
       } }
@@ -183,17 +189,17 @@
     //    column moves about K x the height difference a step (stable at any depth).
     const PR=F.PR, RL=F.RL;
     for(let x=x0;x<=x1;x++){ let acc=0, st=-1;
-      for(let y=y0;y<=y1+1;y++){ const i=y*NX+x, dry=y>y1||(BLK[i]&1)||M[i]<0.02;
+      for(let y=y0;y<=y1+1;y++){ const i=y*NX+x, dry=y>y1||(BLK[i]&1)||(M[i]<0.02&&!(BLK[i]===2&&acc>0));
         if(dry){ if(st>=0){ const n=y-st; for(let k=st;k<y;k++) RL[k*NX+x]=n; st=-1; } if(y<=y1){ PR[i]=0; RL[i]=1; } acc=0; continue; }
-        if(st<0) st=y; acc+=M[i]; PR[i]=acc; } }
+        if(st<0) st=y; acc+=BLK[i]===2?1:M[i]; PR[i]=acc; } }
     for(let y=y0;y<=y1;y++){ const row=y*NX, floor=y<NY-1;
       for(let x=x0;x<x1;x++){ const a=row+x, c=a+1;
         if((BLK[a]|BLK[c])&1){ FX[a]=0; continue; }
         const ma=M[a], mc=M[c];
         if(ma<=MINM&&mc<=MINM){ FX[a]=0; continue; }
         let f=FX[a]*DAMP+K*(PR[a]-PR[c])/Math.max(RL[a],RL[c]);
-        if(f>0){ if(ma<FILM||!(floor&&((BLK[a+NX]&1)||M[a+NX]>=SUP))) f=0; else if(f>ma*0.45) f=ma*0.45; }
-        else if(f<0){ if(mc<FILM||!(floor&&((BLK[c+NX]&1)||M[c+NX]>=SUP))) f=0; else if(-f>mc*0.45) f=-mc*0.45; }
+        if(f>0){ if(ma<FILM||!(floor&&((BLK[a+NX]&1)||(BLK[a+NX]===2&&bodyUnder(a+NX))||M[a+NX]>=SUP))) f=0; else if(f>ma*0.45) f=ma*0.45; }
+        else if(f<0){ if(mc<FILM||!(floor&&((BLK[c+NX]&1)||(BLK[c+NX]===2&&bodyUnder(c+NX))||M[c+NX]>=SUP))) f=0; else if(-f>mc*0.45) f=-mc*0.45; }
         FX[a]=f; N2[a]-=f; N2[c]+=f;
       } }
     M.set(N2);
@@ -278,6 +284,7 @@
     return {f:n?wet/n:0, live};
   }
   B.mindDepth=()=>on()?mindDepth():{f:0};
+  setInterval(()=>{ try{ if(!(B.on&&typeof _gameState!=='undefined'&&_gameState==='game'&&F.ready)&&window.MV_SOUND16&&MV_SOUND16.underwater){ B.uwK=0; MV_SOUND16.underwater(0); } }catch(e){} },250);
 
   // ── Moving platforms ──────────────────────────────────────────
   function ridingPlat(pl){
@@ -760,6 +767,9 @@
     // MIND: short-circuit without the Isolator
     const dpt=mindDepth();
     B.mindWet=dpt.f;
+    // under water the whole mix is muffled (sound16.js), closing as his head goes under
+    B.uwK=(B.uwK||0)+((dpt.f>0.55?Math.min(1,(dpt.f-0.55)/0.35):0)-(B.uwK||0))*0.12;
+    if(window.MV_SOUND16&&MV_SOUND16.underwater) MV_SOUND16.underwater(B.uwK);
     if(dpt.f>0.4){
       const live=dpt.live;
       if(!B.hasIsolator){

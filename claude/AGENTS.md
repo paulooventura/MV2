@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 267 — bodies sit UNDER the water (flat surface, level rises); muffled audio under water (Oct 22, Claude)
+
+- `beta_water.js`: water no longer falls into a submerged body's cells (`bodyUnder(i)`: water > 0.5 beside it at that height) and a submerged body supports the water over it; the pressure column counts body cells as water. Result: no V-dip over MIND / enemies, a flat surface, the level raised by their displacement (test: 1.2 pool with MIND + 2 enemies, surface 1774–1807 px uneven → 1765 flat). A dry body (rain on his head) still sheds water.
+- `sound16.js`: an underwater stage on the master bus (low-pass 20 kHz → 380 Hz, +5 dB @180, −30%) — `MV_SOUND16.underwater(k)`; `beta_water.js` drives it from how far MIND's head is under (`B.uwK`), and resets it off-stage.
+
 ### Build 266 — the Isolator skin covers the speaker box only (Oct 22, Claude)
 
 - `render.js` `drawBody`: the orange rubber skin is drawn on the cabinet rect (inside the body's own transform), only for the player (`!p._betaSib`). `beta_water.js` no longer draws the full-body bubble.
