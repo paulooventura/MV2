@@ -343,6 +343,25 @@ function _startProcBgm(type,vol){
   if(isGame)_gameSrc=node; else _titleSrc=node;
 }
 let _bgmPlayGen=0;
+let _bgmKickTimer=0, _bgmKickN=0;
+function _kickBgmSoon(){
+  if(_bgmKickTimer||_bgmKickN>40) return;
+    _bgmKickTimer=setTimeout(()=>{
+    _bgmKickTimer=0;
+    _bgmKickN++;
+    if(typeof _gameState!=='undefined'&&_gameState!=='title'&&_gameState!=='splash'){ _bgmKickN=0; return; }
+    const ac=_bgmAC;
+    if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
+    const type=_activeBgmType;
+    if(!type||!_audioUnlocked) return;
+    const el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
+    const proc=type==='game'?_gameSrc:_titleSrc;
+    const live=(el&&!el.paused)||!!proc;
+    if(live&&ac&&ac.state==='running'){ _bgmKickN=0; return; }
+    if(!live) _playBGM(type,_bgmVolFor(type));
+    else _kickBgmSoon();
+  }, 400);
+}
 function _playBGM(type,vol=0.7){
   _unlockAudio();
   const playGen=++_bgmPlayGen;
@@ -368,7 +387,13 @@ function _playBGM(type,vol=0.7){
       if(type==='game'&&_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
       else if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
       if(type==='title') _titleMusicPlaying=true;
-    }).catch(()=>{
+    }).catch((err)=>{
+      const blocked=err&&(err.name==='NotAllowedError'||err.name==='AbortError');
+      if(blocked){
+        if(type==='title') _titleMusicPlaying=false;
+        _kickBgmSoon();
+        return;
+      }
       if(el.readyState>=2){
         if(type==='title') _titleMusicPlaying=false;
         return;

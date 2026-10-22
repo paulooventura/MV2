@@ -685,6 +685,13 @@ const _mapLoadPromise = loadTestMap();
     next();
   }
 })();
+function _armAudioOnLoad(){
+  if(/[?&]selftest=/.test(location.search||'')) return;
+  if(typeof _unlockAudio==='function') _unlockAudio();
+  if(typeof _ensureTitleMusic==='function') _ensureTitleMusic();
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_armAudioOnLoad);
+else _armAudioOnLoad();
 setTimeout(_ensureTitleMusic, 250);
 
 // ── Battle / run test worlds ──────────────────────────────────

@@ -299,7 +299,7 @@ function startStoryMode(){
   else { _stopBGM('title'); _playBGM('story',OPT.musicVol*0.85); }   // the storyline theme, up front
 }
 function _ensureTitleMusic(){
-  if(_gameState!=='title') return;
+  if(_gameState!=='title'&&_gameState!=='splash') return;
   if(_titleMusicPlaying&&_openingAudioEl&&!_openingAudioEl.paused) return;
   _unlockAudio(); _playBGM('title',OPT.musicVol);
 }
