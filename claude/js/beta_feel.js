@@ -168,7 +168,7 @@
       const n=Math.random()<0.25+0.45*p._tireHeat?1:0;   // smoke grows with the heat, never a fog
       if(n&&p.smoke&&p.smoke.length<26) p.smoke.push({x:p.x+SW/2-inDir*10+(Math.random()-0.5)*8,y:p.y+FEET_OFF-3,vx:-inDir*(0.6+Math.random())+(Math.random()-0.5)*0.6,vy:-0.5-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*3});
       if(fr%14===0) try{ sfx('tire_squeal',0.35+0.65*p._tireHeat); }catch(e){}
-    }else{
+    }else if(!(grounded&&a.y>0.55&&B.downCubeHeld)){
       p.vx-=a.x*thrust; p.vy-=a.y*thrust;            // opposite the aim
       if((p.xlrHeld||0)>3){ p.og=false; p._groundHold=0; }
     }

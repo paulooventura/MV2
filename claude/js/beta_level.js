@@ -491,15 +491,17 @@
       B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};   // an almost empty bar barely lifts him B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
     }
     B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
-    if(B._xlrTapped){ B.chX=0; }
+    if(B._xlrTapped){ B.chX=0; B.downCubeHeld=false; }
     else if(xlrNow){
       B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
+      B.downCubeHeld=(p.aimDY||0)>0.55&&powNow()>=0.06&&blastCandidates().length>0;
       if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }   // the blow shoves frags away
       for(const bw of cubes()){
         if(bw.only==='pull'||bw._carried||bw._fly) continue;
         if(Math.hypot(bw.vx||0,bw.vy||0)>0.8) throwCube(bw,(bw.vx||0)*4,(bw.vy||0)*4);
       }
     } else if(B.chX>0){
+      B.downCubeHeld=false;
       // Paulo (Oct 21): every blast costs power on top of the hold, and its strength is
       // the power left — spamming it empties the bar and the pushes fade to nothing
       B.relPow=powNow(); fireCube('push',B.chX); blastEnemies(B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX);
@@ -564,18 +566,38 @@
       ch.left=0;
     }
   }
+  // The floor lip under his feet hides a cube in the shaft beside him (Laitu's house).
+  // The column itself is open, so the blast still reaches it.
+  function shaftSees(bw){
+    const ax=aimAxis();
+    if(!ax.dr||Math.abs(ax.dc)>Math.abs(ax.dr)) return false;
+    const pc=Math.floor((p.x+SW/2)/T);
+    if(Math.abs(bw.homeCol-pc)>1) return false;
+    const top=Math.floor((p.y+FEET_OFF-4)/T);
+    const r0=Math.min(top,bw.homeRow), r1=Math.max(top,bw.homeRow);
+    for(let r=r0;r<=r1;r++){
+      if(r===bw.homeRow) continue;
+      if(cubeAt(bw.homeCol,r)) continue;
+      if(typeof gridSolid==='function'&&(gridSolid(bw.homeCol,r)||(typeof gridIsSlope==='function'&&gridIsSlope(bw.homeCol,r)))) return false;
+      if(typeof gridCell==='function'&&typeof MV_GRID_ONEWAY!=='undefined'&&gridCell(bw.homeCol,r)===MV_GRID_ONEWAY) return false;
+    }
+    return true;
+  }
+  function stepOpen(list,dc,dr){
+    if(!list||(!dc&&!dr)) return false;
+    const far=list[list.length-1];
+    return cellFree(far.homeCol+dc,far.homeRow+dr);
+  }
   // ── XLR blast (Paulo, Oct 21): not one block but a cone of air out of the jack.
   //   Blocks in the jack's band (about a block either side of the aim line) go
   //   straight along the aim, 3 cells (4 at full charge); the blocks just off the
   //   band are blown out diagonally, 2 cells (3). Each takes the line behind it.
   //   Weaker on a low power bar, and heavy lines go less far.
-  function blastCubes(held){
+  function blastCandidates(){
+    if(!p) return [];
     const o=shoulder(), tip=typeof connectorTipWorld==='function'?connectorTipWorld(2):o;
-    const ax=aimAxis(); if(!ax.dc&&!ax.dr) return false;
-    const charge=Math.min(1,held/CUBE.CHARGE_FULL), pw=B.relPow==null?1:B.relPow;
-    if(pw<0.06) return false;
-    const bonus=charge>=0.8?1:0, weak=pw<0.15?2:pw<0.35?1:0;
-    const BAND=T*0.78, EDGE=T*1.85, RANGE=T*7;
+    const ax=aimAxis(); if(!ax.dc&&!ax.dr) return [];
+    const BAND=T*1.15, EDGE=T*1.85, RANGE=T*7;
     const hits=[];
     for(const bw of cubes()){
       if(bw.only==='laser'||bw.only==='pull') continue;
@@ -585,19 +607,36 @@
       else if(ax.dc){ along=(cx-o.x)*ax.dc; perp=cy-tip.y; pdr=Math.sign(perp); perp=Math.abs(perp); }
       else { along=(cy-o.y)*ax.dr; perp=cx-tip.x; pdc=Math.sign(perp); perp=Math.abs(perp); }
       if(along<-T*0.3||along>RANGE||perp>EDGE) continue;
-      const straight=perp<=BAND;
+      const inShaft=shaftSees(bw);
+      const straight=perp<=BAND||inShaft;
       if(!straight&&along<T*0.4) continue;                       // right above / below him: not in the cone
-      if(!losClear(cx,cy,bw.homeCol,bw.homeRow)) continue;
-      const far=along>T*4?1:0;
-      const cells=Math.max(1,(straight?3:2)+bonus-weak-far);
-      hits.push({bw,along,dc:straight?ax.dc:(ax.dc||pdc),dr:straight?ax.dr:(ax.dr||pdr),cells,straight});
+      if(!losClear(cx,cy,bw.homeCol,bw.homeRow)&&!inShaft) continue;
+      let dc=straight?ax.dc:(ax.dc||pdc), dr=straight?ax.dr:(ax.dr||pdr);
+      if(inShaft){ dc=ax.dc; dr=ax.dr; }                         // down the hole, not sideways into the lip
+      hits.push({bw,along,dc,dr,straight:straight||inShaft});
     }
+    return hits;
+  }
+  function blastCubes(held){
+    const ax=aimAxis(); if(!ax.dc&&!ax.dr) return false;
+    const charge=Math.min(1,held/CUBE.CHARGE_FULL), pw=B.relPow==null?1:B.relPow;
+    if(pw<0.06) return false;
+    const bonus=charge>=0.8?1:0, weak=pw<0.15?2:pw<0.35?1:0;
+    const hits=blastCandidates();
     if(!hits.length) return false;
+    for(const h of hits){
+      const far=h.along>T*4?1:0;
+      h.cells=Math.max(1,(h.straight?3:2)+bonus-weak-far);
+    }
     hits.sort((a,b)=>a.along-b.along);                          // chainTick runs the last one first: the farthest goes first
     const taken=new Set(); let any=false;
     for(const h of hits){
       if(taken.has(h.bw)) continue;
-      const list=lineFrom(h.bw,h.dc,h.dr,'push');
+      let list=lineFrom(h.bw,h.dc,h.dr,'push');
+      if(!stepOpen(list,h.dc,h.dr)&&(h.dc!==ax.dc||h.dr!==ax.dr)){
+        const alt=lineFrom(h.bw,ax.dc,ax.dr,'push');
+        if(stepOpen(alt,ax.dc,ax.dr)){ list=alt; h.dc=ax.dc; h.dr=ax.dr; }
+      }
       h.bw.hitGlow=16; h.bw._sq=-0.16; h.bw._sqV=0; h.bw._sqAx=h.dc?'x':'y';
       const hx=h.bw.x+T/2-h.dc*T/2, hy=h.bw.y+T/2-h.dr*T/2;
       for(let k=0;k<6;k++){ const a2=Math.atan2(h.dr,h.dc)+Math.PI+(Math.random()-0.5)*1.6; PFXS.push({x:hx,y:hy,vx:Math.cos(a2)*(1+Math.random()*2.5),vy:Math.sin(a2)*(1+Math.random()*2.5),life:12+Math.random()*8|0,maxLife:20,r:2,col:'#9fd8ff'}); }

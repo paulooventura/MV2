@@ -892,6 +892,7 @@ function update(){
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
   if(dn&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
+  if(dn&&!adx&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
   _updateBattleEye(p);
 
   if(_bindJ('use')) _cycleItem();
