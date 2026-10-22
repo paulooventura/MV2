@@ -86,6 +86,7 @@ const ROPE_MAX_PIVOTS=14;
 const ROPE_SNAP_STRETCH=0.45;
 const ROPE_SNAP_MIN=64;
 const ROPE_GIVE=12;
+const ROPE_RECOIL_ABSORB=0.7;   // share of the cord's snap-back (toward the anchor) soaked up
 
 // Verlet visual cord
 const VROPE_N=22;       // particles along cord
@@ -2555,9 +2556,13 @@ function _ropeApplyTension(h){
   const i=path.length-2, p0=path[i], p1=path[i+1];
   const seg=Math.hypot(p1.x-p0.x,p1.y-p0.y)||1;
   const toAx=(p0.x-p1.x)/seg, toAy=(p0.y-p1.y)/seg;
-  const spring=Math.min(over*0.12,2.4);
-  p.vx+=toAx*spring; p.vy+=toAy*spring;
   const outX=(p1.x-p0.x)/seg, outY=(p1.y-p0.y)/seg;
+  // Paulo (Oct 22): no rubber-band recoil — a damper on the cord: most of the speed it already
+  // has snapping back toward the anchor is soaked up (the spring's pull this frame is kept)
+  const vr0=p.vx*outX+p.vy*outY;
+  if(vr0<0){const k=ROPE_RECOIL_ABSORB*Math.min(1,over/ROPE_GIVE);p.vx-=outX*vr0*k;p.vy-=outY*vr0*k;}
+  const spring=Math.min(over*0.09,1.8);                 // softer cord (was 0.12 / 2.4)
+  p.vx+=toAx*spring; p.vy+=toAy*spring;
   const vd=p.vx*outX+p.vy*outY;
   if(vd>0){const k=0.88*Math.min(1,over/ROPE_GIVE);p.vx-=outX*vd*k;p.vy-=outY*vd*k;}
 }
