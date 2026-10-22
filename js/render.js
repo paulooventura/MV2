@@ -194,6 +194,9 @@ function drawWheel(cx,cy,angle,plRef){
   ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
   ctx.strokeStyle='#0a0810';ctx.lineWidth=4;ctx.stroke();
+  // pass 4: rubber sheen on the tire's upper-left (light from the sky), dark under
+  ctx.beginPath();ctx.arc(cx,cy,R-1,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle='rgba(150,160,190,0.38)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,R+0.5,Math.PI*0.15,Math.PI*0.85);ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=2;ctx.stroke();
   for(let b=0;b<3;b++){
     const bAngle=angle+b*(Math.PI*2/3);
     ctx.save();ctx.translate(cx,cy);ctx.rotate(bAngle);
@@ -294,12 +297,19 @@ function drawBody(bx,by,facing,ca2=0,status=null){
     ctx.fillStyle=isVenture?'rgba(14,4,6,0.95)':'rgba(5,5,14,0.95)';ctx.fill();
     ctx.strokeStyle=isVenture?'rgba(52,18,22,0.8)':'rgba(25,25,42,0.8)';ctx.lineWidth=0.5;ctx.stroke();
   }
+  // pass 4: the woofer's rubber surround catches the light, the cone gets a dust-cap shine
+  ctx.beginPath();ctx.arc(scx,scy,18.5,Math.PI*1.05,Math.PI*1.65);ctx.strokeStyle=isVenture?'rgba(150,70,70,0.55)':'rgba(120,130,170,0.55)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(scx,scy,19,0,Math.PI*2);ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=1;ctx.stroke();
   ctx.beginPath();ctx.arc(scx,scy,5,0,Math.PI*2);ctx.fillStyle=isVenture?'#241014':'#181828';ctx.fill();
+  ctx.beginPath();ctx.arc(scx-1.5,scy-1.5,1.6,0,Math.PI*2);ctx.fillStyle='rgba(200,210,240,0.35)';ctx.fill();
   ctx.beginPath();ctx.arc(scx,scy,2,0,Math.PI*2);ctx.fillStyle=isVenture?'#34181c':'#202034';ctx.fill();
   const tx=x+(facing?bw*0.72:bw*0.28),ty=y+bh*0.22;
   ctx.beginPath();ctx.arc(tx,ty,5,0,Math.PI*2);ctx.fillStyle=isVenture?'#140808':'#080814';ctx.fill();
   ctx.beginPath();ctx.arc(tx,ty,3,0,Math.PI*2);ctx.fillStyle=isVenture?'#1c0c0c':'#0d0d1e';ctx.fill();
   ctx.beginPath();ctx.arc(tx,ty,1.5,0,Math.PI*2);ctx.fillStyle=isVenture?'#281414':'#141428';ctx.fill();
+  // cabinet bevel: lit top-left edge, shadowed bottom-right (the key art's rim light)
+  ctx.fillStyle=isVenture?'rgba(170,80,80,0.45)':'rgba(120,130,190,0.42)'; ctx.fillRect(x+1,y,bw-2,1.5); ctx.fillRect(x,y+1,1.5,bh-2);
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(x+1,y+bh-1.5,bw-2,1.5); ctx.fillRect(x+bw-1.5,y+1,1.5,bh-2);
   const hpx=x+(facing?bw-10:2),hpy=y+3,hpw=6,hph=bh-6;
   ctx.fillStyle='#03030a';ctx.fillRect(hpx,hpy,hpw,hph);
   const maxHp=status?(status.mhp||1):(p.maxHp||PLAYER_MAX_HP);
@@ -418,10 +428,21 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     ctx.fillStyle=`rgba(220,255,230,${0.22+lp*0.35})`;
     ctx.fill();
   }
-  ctx.beginPath();ctx.ellipse(cx,drawY,R+3,R+4,0,0,Math.PI*2);ctx.fillStyle='rgba(20,20,10,0.4)';ctx.fill();
-  ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle='#141410';ctx.fill();
-  ctx.beginPath();ctx.ellipse(cx,drawY,R-2,R,0,0,Math.PI*2);ctx.fillStyle='#100e0c';ctx.fill();
   const isVen=!hostile&&hero==='venture';
+  // pass 4 (Oct 22): the glowing green glass bulb of the key art (the mirror enemy keeps dark red glass)
+  if(isFinite(cx)&&isFinite(drawY)){
+    const gl=hostile?['rgba(255,70,50,','#3a1210','#200808','#5a1a14']:['rgba(110,255,140,','#5ee07a','#1f7a38','#0e3a1c'];
+    const halo=ctx.createRadialGradient(cx,drawY,R*0.6,cx,drawY,R+9);
+    halo.addColorStop(0,gl[0]+(hostile?0.0:0.30)+')'); halo.addColorStop(1,gl[0]+'0)');
+    ctx.fillStyle=halo; ctx.beginPath(); ctx.ellipse(cx,drawY,R+9,R+10,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx,drawY,R+1.5,R+3.5,0,0,Math.PI*2);ctx.fillStyle='rgba(4,14,8,0.85)';ctx.fill();   // dark outline
+    const bg=ctx.createRadialGradient(cx-R*0.3,drawY-R*0.35,1,cx,drawY+1,R+2);
+    bg.addColorStop(0,gl[1]); bg.addColorStop(0.55,gl[2]); bg.addColorStop(1,gl[3]);
+    ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
+    // filament glow ring behind the eye
+    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=hostile?'rgba(255,90,60,0.18)':'rgba(190,255,200,0.28)';ctx.fill();
+  }
+
   let scleraCol=hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
   if(lampReady&&!hostile) scleraCol=`rgb(${200+Math.round(Math.sin(fr*0.2)*30)},255,${210+Math.round(Math.sin(fr*0.17)*25)})`;
   let irisCol=hostile?'#882018':(isVen?'#882028':'#2a4888');
@@ -459,7 +480,13 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   const px=cx+pupilX,py=drawY+2+pupilY;
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
-  ctx.beginPath();ctx.ellipse(cx-7,drawY-8,7,9,0,0,Math.PI*2);ctx.fillStyle='rgba(24,22,14,0.45)';ctx.fill();
+  // glass specular: a bright crescent top-left and a pixel glint
+  ctx.save(); ctx.beginPath(); ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2); ctx.clip();
+  ctx.strokeStyle=hostile?'rgba(255,200,190,0.35)':'rgba(230,255,235,0.55)'; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(cx,drawY,R-2.5,Math.PI*1.08,Math.PI*1.42); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(cx-R*0.62,drawY-R*0.55,2,2);
+  ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,drawY+1,R-1,Math.PI*0.1,Math.PI*0.6); ctx.stroke();
+  ctx.restore();
   // ...and the glass bulb cracks: more cracks for every bit of HP lost (fixed paths, no flicker)
   if(hd>0.15){
     const CR=[[[-0.9,-0.5],[-0.45,-0.2],[-0.55,0.15],[-0.2,0.35]],[[0.75,-0.75],[0.4,-0.35],[0.55,-0.05]],[[0.95,0.2],[0.55,0.3],[0.45,0.65],[0.15,0.8]],

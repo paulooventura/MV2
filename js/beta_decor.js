@@ -868,6 +868,7 @@
       if(depth>1){ ctx.fillStyle='rgba(20,8,16,'+Math.min(0.45,depth*0.035)+')'; ctx.fillRect(X(c*T),Y(r*T),S(T)+1,S(T)+1); }
       if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
     }
+    edges(B,cells,r0,r1,c0,c1);
     for(const d of B.decor){
       if(d.kind==='attic') atticWindow(d.x, d.y+12);
       else if(d.kind==='lamp') lampPost(d.x, d.y);
@@ -877,6 +878,35 @@
     fireflies(B);
     for(const l of B.labels) B.wtext(drawText, l.text, X(l.x), Y(l.y), '#f0d8a8', 1);
     choirTick(B);
+  }
+
+  // pass 4 (Oct 22): the blocks get the key art's light — a moonlit rim on open tops, soft
+  // shadow under overhangs and down open sides, and vines hanging from ledges outside
+  const RIM={'1.1':'rgba(190,255,200,','1.2':'rgba(210,195,255,'};
+  const vh=(c,r)=>{ let h=(c*73856093^r*19349663)>>>0; h=(h^(h>>>13))*1274126177>>>0; return (h>>>8)/16777216; };
+  function edges(B,cells,r0,r1,c0,c1){
+    const rim=RIM[B.stageId]||RIM['1.1'], z=S(T)+1, sh=Math.max(2,S(10));
+    const solid=(c,r)=>{ const t=cells[r]&&cells[r][c]; return t===1; };
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
+      if(!solid(c,r)) continue;
+      const x=X(c*T), y=Y(r*T);
+      const up=r>0&&!cells[r-1][c], dn=r+1<cells.length&&!cells[r+1][c];
+      const lf=c>0&&!cells[r][c-1], rt=c+1<cells[r].length&&!cells[r][c+1];
+      if(dn){ const g=ctx.createLinearGradient(0,y+z-sh,0,y+z); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.42)'); ctx.fillStyle=g; ctx.fillRect(x,y+z-sh,z,sh); }
+      if(lf){ ctx.fillStyle=rim+'0.10)'; ctx.fillRect(x,y,Math.max(1,S(3)),z); }
+      if(rt){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.fillRect(x+z-Math.max(1,S(4)),y,Math.max(1,S(4)),z); }
+      if(up){ ctx.fillStyle=rim+'0.22)'; ctx.fillRect(x,y,z,Math.max(1,S(2))); }
+      // vines from ledges that face the night air
+      if(dn&&r<=(B.horizonRow!=null?B.horizonRow:30)+12&&vh(c,r)<0.22){
+        const len=2+Math.floor(vh(c+7,r)*5), vx=x+S(6+vh(c,r+3)*20), sway=Math.sin(fr*0.03+c)*S(1.5);
+        for(let k=0;k<len;k++){
+          const yy=y+z+k*S(5), xx=vx+Math.sin(k*1.3+c)*S(2)+sway*(k/len);
+          ctx.fillStyle=k%2?'#1f5a2a':'#2b7a36'; ctx.fillRect(xx,yy,Math.max(1,S(3)),Math.max(1,S(5)));
+          if(k%2===1){ ctx.fillStyle='#3f9a46'; ctx.fillRect(xx+(k%4===1?S(3):-S(4)),yy+S(1),Math.max(1,S(4)),Math.max(1,S(3))); }
+        }
+        if(vh(c,r+11)<0.35){ ctx.fillStyle=B.stageId==='1.2'?'#b88ae0':'#c86ae0'; ctx.fillRect(vx+sway,y+z+len*S(5),Math.max(1,S(3)),Math.max(1,S(3))); }
+      }
+    }
   }
 
   function itemCrateScreen(idx,cx,bottom,noName){
