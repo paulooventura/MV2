@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 261 — no ROPE meter on MIND (Oct 22, Claude)
+
+- `beta_feel.js`: the floating ROPE tension meter by MIND is gone; strain is exported as `window.MV_ROPE_STRAIN`.
+- `beta_level.js`: the top-bar REEL bar carries the warning instead — amber past 45% strain, red and pulsing past 75%.
+
 ### Build 260 — a real stage-clear drop, the sibling hovers on its XLR, XLR air shoves enemies while held, sprint rev + unmuffle (Oct 22, Claude)
 - `beta_audio.js fanfare()` rewritten: half-bar riser (noise sweep + climbing saw + accelerating snare roll) into a 2-bar 126 BPM house drop — kick (pitch-drop sine + click), claps on 2/4, off-beat hats, ducking sub bassline (sine + filtered saw), supersaw stabs Cm9 → Abmaj7 → Bb(add9) → G7 with filter snap and a generated hall, portamento square/saw lead hook — resolving to a big C major with crash, sub, rising arp and tail. ~7 s, own compressor, peak ≈ −0.8 dBFS offline.
 - Sibling movement: on the move / in the air it hovers at your back shoulder (candidates: back 74/−54, higher back, other side, overhead) — skips spots in your line of fire while you use an item and spots inside rock; spring motion stiffer the further behind; on its XLR (jack down, air puffs, wheel spinning, holds the XLR). Stopped on the ground: settles behind you (trail / cover logic as before).

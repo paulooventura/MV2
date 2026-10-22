@@ -1613,9 +1613,12 @@
       let f=0, live=false;
       if(h&&h.st==='on'){ f=Math.max(0,Math.min(1,((h.rl||0)-rmin)/(cmax-rmin))); live=true; }
       else if(h&&h.st==='ext'){ const a=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x,y:p.y}; f=Math.max(0,Math.min(1,Math.hypot(h.ex-a.x,h.ey-a.y)/cmax)); live=true; }
+      // the old ROPE meter on MIND lives here now: the bar warms to amber, then red and pulsing, as the cord nears its snap
+      const strain=live&&h.st==='on'?Math.min(1,window.MV_ROPE_STRAIN||0):0;
+      const bc=strain>0.75?'#ff4040':strain>0.45?'#ffc040':rc, bh=strain>0.45?'#fff0c0':rcHi;
       ctx.globalAlpha=live?1:0.45;
-      drawText('REEL',hx,y0+45,rc,1);
-      uiBar(hx+36,y0+45,220,5,f,rc,rcHi,3,{});
+      drawText('REEL',hx,y0+45,bc,1);
+      uiBar(hx+36,y0+45,220,5,f,bc,bh,3,{pulse:strain>0.75});
       ctx.globalAlpha=1;
     }
     // the jacks, drawn as their tips

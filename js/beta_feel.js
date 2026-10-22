@@ -465,7 +465,7 @@
       ctx.restore();
     }
     // (no POWER meter on MIND — Paulo, Oct 21: the PWR bar up top already shows it)
-    if(on()&&p.hook&&p.hook.st==='on') meter(1-Math.min(1,st.rope),'ROPE',st.rope>0.75?'#ff4040':st.rope>0.45?'#ffc040':'#60e080',0);
+    // (no ROPE meter on MIND either — Paulo, Oct 22: the REEL bar up top has it; it turns amber/red as the cord strains)
     return r;
   };
   function meter(f,label,col,dy){
@@ -483,7 +483,7 @@
     const r=_origTension.apply(this, arguments);
     if(on()&&h===p.hook){
       const limit=Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)*ROPE_STRENGTH;
-      st.rope=(h._tension||0)/limit;
+      st.rope=(h._tension||0)/limit; window.MV_ROPE_STRAIN=st.rope;
       h._tension=(h._tension||0)/ROPE_STRENGTH;              // the game's snap test now needs ~2x the strain
       if(st.rope>0.45&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(Math.min(1,st.rope));
     }
@@ -494,7 +494,7 @@
     const s0=p.hook?p.hook.st:'idle';
     if(s0==='on'&&hookWas!=='on'&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true);
     if(s0==='idle'&&hookWas==='on'&&st.rope>0.9&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false);
-    if(s0!=='on') st.rope=0;
+    if(s0!=='on'){ st.rope=0; window.MV_ROPE_STRAIN=0; }
     hookWas=s0;
   }
 
