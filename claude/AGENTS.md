@@ -295,6 +295,11 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 228 — XLR burnout (Oct 22)
+- `beta_feel.js` `xlrJet`: on the ground, aim mostly sideways, holding the direction INTO the aim → the tire fights the shove: a stand-off where the shove slowly wins (`creep = thrust·(1−XLR_GRIP)·2.2`, `FEEL.XLR_GRIP` 0.78), no lift-off, the wheel spins against the slide, `p._tireHeat` builds (cools when not fighting), smoke grows with heat (≤26 puffs), `tire_squeal` every 14 frames.
+- `player.js` `_updatePlayerMoveX`: enforces that creep after the drive (`pl._xlrResistV`/`_xlrResistFr`).
+- `render.js` `drawWheel`: a hot tire glows orange, hottest at the contact.
+
 ### Build 227 — dirt-bike wheel kit; moving water you can hear (Oct 22)
 - `render.js` `drawWheel`: no more whole-wheel squash (read as jelly). Knobby tire (14 rigid knobs, staggered), anodized rim (purple / red), 16 crossed spokes, drilled disc brake, motor hub with an LED arc that brightens with speed. Only the contact knobs shave ≤2 px under load.
 - New `drawWheelKit` (after the wheel in `drawCharacter`): coil-over shock from the box's back corner to the axle (spring tightens with `suspComp`), upside-down fork leg (anodized upper, chrome stanchion, axle clamp), the speaker's cable from a gold jack into the hub with a dash of signal running along it. Folds away when crouched.
