@@ -83,6 +83,10 @@
     return true;
   }
   function total(){ let s=0; for(let i=0;i<F.M.length;i++) s+=F.M[i]; return s; }
+  // the weather (beta_weather.js) takes vapor back out of the air as rain
+  B.vaporTake=(n)=>{ if(!F.ready||!(F.vapor>0)) return 0; const t=Math.min(F.vapor,n); F.vapor-=t; return t; };
+  B.vaporNow=()=>F.ready?F.vapor:0;
+  B._testBoil=(n)=>{ if(!F.ready) return 0; let left=n; for(let i=0;i<F.M.length&&left>0;i++){ const t=Math.min(F.M[i]>0.9?F.M[i]*0.5:0,left); if(t>0){ F.M[i]-=t; left-=t; F.vapor+=t; } } return n-left; };   // tests: boil n cells' worth at once
   B.fluidTotal=()=>F.ready?{water:total(), start:F.total0, lost:F.lost, vapor:F.vapor, drops:(B.drops||[]).reduce((a,d)=>a+d.m,0), mag:(B.magWater?B.magWater.area:0)/(F.CS*F.CS)}:null;
 
   // terrain → BLK (1). Slopes: a cell is solid where its centre is under the ramp.

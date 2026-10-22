@@ -153,12 +153,14 @@
     tile(L.far,cx*0.12,horizon-L.far.height*PXS+40,PXS);
     tile(L.town,cx*0.3,horizon-L.town.height*PXS+70,PXS);
     ctx.fillStyle=th.town; ctx.fillRect(0,horizon+70,W,Math.max(0,H-horizon-70));
+    if(window.MV_WEATHER) try{ MV_WEATHER.sky(horizon); }catch(e){}            // clouds from the boiled-off water (beta_weather.js)
     ctx.restore();
     return true;
   }
   // after the world: the stage's colour grade and the art's dark vignette
   function post(B){
     const th=(THEMES[B.stageId]||THEMES.default);
+    if(window.MV_WEATHER) try{ MV_WEATHER.post(); }catch(e){}
     ctx.save();
     ctx.globalCompositeOperation='soft-light'; ctx.fillStyle=th.grade.replace(/[\d.]+\)$/,'0.35)'); ctx.fillRect(0,0,W,H);
     ctx.globalCompositeOperation='source-over';
