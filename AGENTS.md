@@ -202,6 +202,17 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 265 — the storm as a threat; the Isolator gets knocked off; the sibling rides platforms (Oct 22, Claude)
+
+- `beta_weather.js` rewritten (runs on game frames via `updateKnowls`). Vapor (units: fluid cells; 1.2's bottom-left pool ≈ 500, the flooded room ≈ 280):
+  HAZE from 10 (full at 220) · RAIN_START 360 → 30 s brew (`BREW` 1800 f: clouds, darkening, thunder grumbles growing, sheet lightning) → rain until vapor ≤ 70 ·
+  STRIKE_START 560 (off below 430) → lightning every ~3–7 s, weighted to the highest open-sky surfaces (`skyHit`), telegraphed ~1 s (glow + crackle), ~58 HP direct, fries enemies, electrifies water it hits (`B.strikeWater`).
+  Rain intensity = amount + `burst` (how fast the vapor went up; remembered ~a minute) → up to 1.5 = torrent (bigger/more drops, slanted sheets, grey wall, low roar).
+  Static: out in a strike storm without the Isolator MIND charges (~10 s), sparks + crackle; full → the next bolt tracks him. Cover drains it.
+  Light: haze milks sky + world; storm darkens/cools; flashes. Sound: rain hiss → roar, haze hush, thunder (far roll / close crack, panned). `beta_ambience.js`: wind rises, crickets / owl hush, frogs croak more.
+- `beta_water.js`: Isolator has no timer; any hurting hit (`applyPlayerHit` wrapper) or a bolt knocks it off as `B.isoLoose` (bounces, floats, re-grab after 30 f). Crate still regrows 30 s after pickup. `B.strikeWater(x,y)`.
+- `beta_water.js` + `beta_sibling.js`: moving platforms carry other bodies (`B.platRiders()`, `pl._ridePlat`); the sibling targets a spot on your platform, hops onto it, leaps gaps.
+
 ### Build 264 — a calm, grounded sibling (Oct 22, Claude)
 
 - `beta_sibling.js` `follow()` rewritten: it drives on the ground with real collision (`_movePlayerWithColl`), eases to a mark ~70 px behind you (brakes in time, 16 px dead zone), hops walls / ledges (vy -10.8). It flies on the XLR only when it must (you're on the rope, 150 px above, 340 px away, or it's stuck 40 f), glides on a soft spring (0.86 damping, 0.014 pull, speed capped), and lands after 40 f once you're grounded nearby. Side behind you changes only after 50 f facing the other way; facing changes after 8 f. Walking into it no longer bumps it (needs |vx| > 6).
