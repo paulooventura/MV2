@@ -295,6 +295,10 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 233 — tap-then-hold run lock (Oct 22)
+- `player.js` `_updateRunEntry`: TAP the item/run button (Q, ≤12 frames), press it again within 18 frames and hold it with a direction → run lock (`_runPhase` 3, `_runLocked`). While locked, `_runItemQuiet` keeps every item off (no TRS charge/fire, no RCA fire, no XLR/MAG hold → no power spent). Direction can change; letting go of the button, or no direction for 12 frames, ends it. Phase 4 = pressed again, waiting for a direction (also quiet; falls back to the item after 10 frames). Cursor's stand-tap-forward entry still works.
+- The first tap still does the item's tap (a TRS shot / XLR tap).
+
 ### Build 232 — merged Cursor's main builds 230/231 (down punch hits the floor block, XLR down shoves Laitu's push blocks down the shaft) + Claude's build 231 (story intro + hero pick, The Knowl Tree)
 
 ### Build 231 — every story opens with its intro + hero pick; "The Knowl Tree" storyline theme (Oct 22)

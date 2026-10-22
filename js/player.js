@@ -211,12 +211,32 @@ function isSprintHeld(){
 // Stand still, tap forward, let go, then forward + run. That second press is a
 // run: he gains speed, and the item stays quiet. Run is the same button as
 // Use Item, so without this the press would drain the selected jack's bar.
+// Paulo (Oct 22): the other way in — TAP the item/run button, then press it again and HOLD it
+// with a direction. That locks run mode: no item fires, no power is spent, for as long as
+// the button stays held (direction changes are fine; standing still a moment ends it).
+const RUN_TAP_MAX=12, RUN_TAP_GAP=18, RUN_PEND=10, RUN_IDLE_END=12;
 function _updateRunEntry(pl){
   if(!pl||pl!==p) return;
   const dir=typeof _moveInputX==='function'?_moveInputX():0;
   const run=isSprintHeld();
-  const phase=pl._runPhase||0;
+  const item=typeof _bindDown==='function'&&_bindDown('swap');
+  // tap detection on the item button
+  if(item&&!pl._qWas){ pl._qDownFr=fr; if(pl._qTapEnd!=null&&fr-pl._qTapEnd<=RUN_TAP_GAP&&(pl._runPhase||0)!==3){ pl._runPhase=4; pl._runPend=RUN_PEND; } }
+  if(!item&&pl._qWas){ pl._qTapEnd=(fr-(pl._qDownFr||fr)<=RUN_TAP_MAX)?fr:null; }
+  pl._qWas=item;
+  let phase=pl._runPhase||0;
+  if(phase===4){                                          // tap, press again: waiting for a direction
+    if(!item){ pl._runPhase=0; return; }
+    if(dir){ phase=pl._runPhase=3; pl._runDir=dir; pl._runIdle=0; pl.movePower=Math.max(pl.movePower||0,0.55); pl.runRamp=Math.max(pl.runRamp||0,0.22); pl._runLocked=true; return; }
+    if(--pl._runPend<=0) pl._runPhase=0;                  // held with no direction: it's the item after all
+    return;
+  }
   if(phase===3){
+    if(pl._runLocked){                                     // the tap-hold lock: only letting go (or stopping) ends it
+      if(run&&dir){ pl._runDir=dir; pl._runIdle=0; return; }
+      if(run&&(pl._runIdle=(pl._runIdle||0)+1)<=RUN_IDLE_END) return;
+      pl._runPhase=0; pl._runLocked=false; pl._runIdle=0; return;
+    }
     if(dir&&run&&dir===(pl._runDir||dir)) return;
     pl._runPhase=0; pl._runGap=0; pl._runLed=0; pl._runArm=0; return;
   }
@@ -261,7 +281,7 @@ function _updateRunEntry(pl){
 function _runItemQuiet(pl){
   if(!pl||typeof _bindDown!=='function'||!_bindDown('swap')) return false;
   const phase=pl._runPhase||0;
-  if(phase===3) return true;
+  if(phase===3||phase===4) return true;                   // locked run (or about to lock): the item stays quiet
   return phase===2&&(pl._runArm||0)>0;
 }
 function _moveInputX(){
