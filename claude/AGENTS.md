@@ -295,6 +295,12 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 226 — rubber tire (Oct 22)
+- Knobs at the top of `js/physics.js` (`TIRE_*`). `_updateWheelSuspension`: a fast rubber spring `pl._tireSq` (flat under load ~1.4 px, kicked on landings, jiggles back) and `pl._tireSx` (sideways, off walls; kicked in `beta_feel.js` wall bounce).
+- `render.js` `drawWheel`: the wheel is scaled about its contact patch (floor) or its wall side by those springs.
+- Grip: steering against the roll on the ground at speed (>2.6) with real braking → `tire_squeal` (posh), rubber smudge + dust, turn bites ×1.06. Coasting never squeals (`isLf`/`isRt` check).
+- Small landings rebound a bit more (`TIRE_REBOUND` 0.16, cap 2.1; was 0.08 / 0.9); big ones keep `beta_feel` LAND bounce, now with the tire squash. `land` sfx re-voiced with a rubbery bounce.
+
 ### Build 225 — no stale world while a stage loads (Oct 22)
 - Paulo saw the old level for a frame when starting. `_gameState='game'` was set before the async level fetch, so the previous world drew until the LDtk file came in.
 - `startBetaLab` sets `B.loading=gen`; `main.js` `draw()` paints a dark veil and `update()` skips game ticks while it's set; when the stage is in, the camera snaps and `B.loadFade` (22 frames) fades the new world in.

@@ -171,6 +171,11 @@ function drawWheel(cx,cy,angle,plRef){
   const tilt=pl.suspTilt||0;
   ctx.save();ctx.translate(cx,cy);ctx.rotate(tilt);
   ctx.translate(-cx,-cy);
+  // rubber: the tire squashes about its contact patch (flat under load, bulging on landings)
+  const tsq=Math.max(-1.2,Math.min(8,pl._tireSq||0));
+  if(Math.abs(tsq)>0.05){ ctx.translate(cx,cy+R); ctx.scale(1+tsq*0.55/R,1-tsq/R); ctx.translate(-cx,-(cy+R)); }
+  const tsx=Math.max(-1.2,Math.min(8,pl._tireSx||0)), tdir=pl._tireSxDir||1;
+  if(Math.abs(tsx)>0.05){ ctx.translate(cx+tdir*R,cy); ctx.scale(1-tsx/R,1+tsx*0.55/R); ctx.translate(-(cx+tdir*R),-cy); }
   ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
   ctx.fillStyle='#14101c';ctx.fill();
   // Knobby off-road tread blocks (rotate with wheel)
@@ -498,28 +503,6 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
       for(const [col,w,o] of [['rgba(0,0,0,0.55)',2,0.6],['rgba(225,235,255,0.85)',0.9,0]]){
         ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(pts[0][0]+o,pts[0][1]+o); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0]+o,pts[j][1]+o); ctx.stroke();
       }
-    }
-    ctx.restore();
-  }
-  // Paulo (Oct 22): the eye finds the nearest enemy. Closer = a higher bottom lid.
-  // Danger in the radius pulls the top lid down, slanted, so a hard fight looks angry.
-  if(!hostile&&p&&((p._eyeBot||0)>0.03||(p._eyeTop||0)>0.03)){
-    const bot=Math.max(0,Math.min(1,p._eyeBot||0)), top=Math.max(0,Math.min(1,p._eyeTop||0));
-    const slant=Math.max(-1,Math.min(1,p._eyeSlant||0));
-    const ey=drawY+2, rx=10, ry=9, tan=Math.tan(slant*0.42);
-    const fill=isVen?'#14060a':'#06140c', rim=isVen?'#c46070':'#4eae72';
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(cx,ey,rx,ry,0,0,Math.PI*2); ctx.clip();
-    const edge=(yL,yR)=>{ ctx.strokeStyle=rim; ctx.lineWidth=1.3; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(cx-rx+1,yL); ctx.lineTo(cx+rx-1,yR); ctx.stroke(); };
-    if(top>0.03){
-      const mid=ey-ry+top*ry*0.92, yL=mid+(-rx)*tan, yR=mid+rx*tan;
-      ctx.beginPath(); ctx.moveTo(cx-rx-2,ey-ry-8); ctx.lineTo(cx+rx+2,ey-ry-8); ctx.lineTo(cx+rx+2,yR); ctx.lineTo(cx-rx-2,yL); ctx.closePath();
-      ctx.fillStyle=fill; ctx.fill(); edge(yL,yR);
-    }
-    if(bot>0.03){
-      const mid=ey+ry-bot*ry*0.78, yL=mid+(-rx)*tan, yR=mid+rx*tan;
-      ctx.beginPath(); ctx.moveTo(cx-rx-2,ey+ry+8); ctx.lineTo(cx+rx+2,ey+ry+8); ctx.lineTo(cx+rx+2,yR); ctx.lineTo(cx-rx-2,yL); ctx.closePath();
-      ctx.fillStyle=fill; ctx.fill(); edge(yL,yR);
     }
     ctx.restore();
   }
@@ -1098,16 +1081,15 @@ function drawCharacter(){
   const _armMain=isVenture?C.RED_D:C.INDIGO;
   const _armGlow=isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
-  const _plugging=window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody;   // the hand is still seating the RCA
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(p.hook&&p.hook.st==='on'&&held===1) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);
     else drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0&&!_plugging) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
+    if(held>=0) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
   }else{
     drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0&&!_plugging) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
+    if(held>=0) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
   }
   if(coilFlow){
     const tw=connectorTipWorld(held);
@@ -2508,16 +2490,7 @@ function drawFX(){
     // or the plug on its way between them (beta_feel ropeClip animation)
     const _clipQ=window.MV_BETA&&MV_BETA.ropeClipPoint?MV_BETA.ropeClipPoint():null;
     const _onBody=p.hook.st==='on'&&ITEM!==1&&typeof hookAttachWorld==='function';
-    // plugged into the upper back: the pin points into the body, the cord leaves the boot
-    let _plug=null, _wn;
-    if(_clipQ||_onBody){
-      const tip=_clipQ||hookAttachWorld();
-      const into=(_clipQ&&_clipQ.ang!=null)?_clipQ.ang:(p.fc?0:Math.PI);
-      const sc=0.7, pin=44.5*sc, boot=18*sc;
-      const ox=tip.x-Math.cos(into)*pin, oy=tip.y-Math.sin(into)*pin;
-      _plug={ox,oy,ang:into,tx:tip.x,ty:tip.y};
-      _wn={x:ox-Math.cos(into)*boot, y:oy-Math.sin(into)*boot};
-    }else _wn=_ap.worldNose||{x:_ap.noseX,y:_ap.noseY};
+    const _wn=_clipQ||(_onBody?hookAttachWorld():(_ap.worldNose||{x:_ap.noseX,y:_ap.noseY}));
     const bx=sx(_wn.x), by=sy(_wn.y);
     if(p.hook.st==='ext'){
       const ex=sx(p.hook.ex), ey=sy(p.hook.ey);
@@ -2562,15 +2535,17 @@ function drawFX(){
       const ax=wpts[0].x, ay=wpts[0].y, nb=wpts[Math.min(1,wpts.length-1)];
       _drawRopeMagnetTip(ax,ay,Math.atan2(nb.y-ay,nb.x-ax),true,_ropeGlow);
       const pe=wpts[Math.max(0,wpts.length-2)];
-      if(_plug){                                              // RCA pin seating in the socket between the shoulders
-        const sock=sx(_plug.tx), soy=sy(_plug.ty);
-        ctx.save(); ctx.fillStyle='#12141c'; ctx.beginPath(); ctx.ellipse(sock,soy,5,3.5,0,0,Math.PI*2); ctx.fill();
-        ctx.strokeStyle='#6a7080'; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
-        ctx.save(); ctx.translate(sx(_plug.ox),sy(_plug.oy)); ctx.scale(0.7,0.7);
-        if(typeof drawConnectorTip==='function') drawConnectorTip(0,0,_plug.ang,0,1,false);
+      if(_onBody||_clipQ){                                    // the RCA plug itself, on the rope's end
+        const ang=Math.atan2(pe.y-by,pe.x-bx), L=RCA_NOSE_LEN*0.7;
+        ctx.save(); ctx.translate(bx-Math.cos(ang)*L,by-Math.sin(ang)*L); ctx.scale(0.7,0.7);
+        if(typeof drawConnectorTip==='function') drawConnectorTip(0,0,ang,0,1,false);
         ctx.restore();
+        if(_onBody&&!_clipQ){                                 // the clip on the disc holding it
+          ctx.save(); ctx.strokeStyle='#c8ccd8'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(bx,by,4,6,0,0,Math.PI*2); ctx.stroke();
+          ctx.strokeStyle='#5a5e6a'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(bx-4,by); ctx.lineTo(bx+4,by); ctx.stroke(); ctx.restore();
+        }
       }
-      if(!_plug) _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(pe.y-by,pe.x-bx));
+      _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(pe.y-by,pe.x-bx));
     }
   }
 }
