@@ -202,6 +202,12 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 262 — select screen works by mouse / touch / stick; faster HP regen, per hero (Oct 22, Claude)
+
+- `ui_select.js`: a click or tap on a mode card picks it (again = NEXT), on a hero card picks the lead (again = RIDE OUT), on the FRIENDLY FIRE pills switches it. Taps elsewhere no longer skip the screen. `MV_SELECT_FF_TOGGLE()` for the pad.
+- `player.js`: on the select screens the left stick steps the cursor (one step per push) and d-pad / stick up-down switches friendly fire.
+- `physics.js` / `main.js`: HP pip every 60 f for MIND (was 120), 84 f for Venture (`LIFE_REGEN_FRAMES_VEN`). Power refill 1.5/f MIND, 2.1/f Venture.
+
 ### Build 261 — no ROPE meter on MIND (Oct 22, Claude)
 
 - `beta_feel.js`: the floating ROPE tension meter by MIND is gone; strain is exported as `window.MV_ROPE_STRAIN`.
