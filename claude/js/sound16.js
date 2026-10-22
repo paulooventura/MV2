@@ -54,8 +54,21 @@
     // Music only slows down (playbackRate in beta_audio / audio.js).
     const crusher=mk(ac.createWaveShaper()); crusher.oversample='none';
     const musicOut=G(1);
-    C(out,crusher); C(crusher,ac.destination);
-    C(musicOut,ac.destination);
+    // Paulo (Oct 22, "sound MORE like the consoles"): with the tube TV on, a console's sound
+    // came out of the TV's own speaker — a narrower stereo field, no deep sub, a little
+    // cabinet honk around 1.4 kHz, the top rolled off — and the flyback transformer's faint
+    // 15.7 kHz whine. Off, it's the clean line out.
+    const tvIn=G(1), dryOut=G(1), tvOut=G(0);
+    C(out,crusher); C(crusher,tvIn); C(musicOut,tvIn); C(tvIn,dryOut); C(dryOut,ac.destination);
+    {
+      const hp=F('highpass',62,0.6), hp2=F('highpass',45,0.5), honk=F('peaking',1400,0.9,1.6), lp=F('lowpass',10500,0.6);
+      const sp=mk(ac.createChannelSplitter(2)), mg=mk(ac.createChannelMerger(2)), xs=[[0,0,0.82],[1,1,0.82],[0,1,0.18],[1,0,0.18]];
+      C(tvIn,hp); C(hp,hp2); C(hp2,honk); C(honk,lp); C(lp,sp);
+      for(const [i,o,v] of xs){ const g=G(v); sp.connect(g,i); SKIP.add(g); g.connect(mg,0,o); }
+      C(mg,tvOut); C(tvOut,ac.destination);
+      const fly=mk(ac.createOscillator()); fly.frequency.value=15734; const flyG=G(0); C(fly,flyG); C(flyG,tvOut); try{ fly.start(); }catch(e){}
+      var tvNodes={dryOut,tvOut,flyG};
+    }
 
     // SNES after the chip: a little warmth and the S-DSP echo (delay + 8-tap FIR feedback)
     function snesPost(echoSend){
@@ -88,7 +101,7 @@
         C(post,lvl); C(lvl,set[k].inp); set[k].outs.forEach(o=>C(o,key==='m'?musicOut:out));
       }
     }
-    b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5};
+    b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5, tv:tvNodes, tvState:null};
     BUS.set(ac,b);
     try{
       if(ac.audioWorklet&&!disabled){
@@ -169,6 +182,36 @@
     for(const ac of known){ const b=BUS.get(ac); if(!b||b.phase===ph) continue; b.phase=ph;
       try{ b.crusher.curve=ph>=5?null:stepCurve(BITS[ph],1.0); }catch(e){} }
   },60);
+  // the TV state: speaker voicing on/off, and the degauss "thoom" when the set comes on
+  // or the console is switched
+  const tvWanted=()=>{ try{ return !!(window.MV_TV&&MV_TV.on)&&mode()!=='off'; }catch(e){ return false; } };
+  function degauss(ac){
+    try{
+      const t=ac.currentTime, o=ac.createOscillator(), o2=ac.createOscillator(), lp=ac.createBiquadFilter(), g=ac.createGain();
+      [o,o2,lp,g].forEach(n=>SKIP.add(n));
+      o.type='sawtooth'; o.frequency.setValueAtTime(60,t); o2.type='sine'; o2.frequency.setValueAtTime(120,t); o2.frequency.exponentialRampToValueAtTime(52,t+0.9);
+      lp.type='lowpass'; lp.frequency.setValueAtTime(900,t); lp.frequency.exponentialRampToValueAtTime(140,t+0.9);
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.16,t+0.012); g.gain.exponentialRampToValueAtTime(0.03,t+0.35); g.gain.exponentialRampToValueAtTime(0.0001,t+1.0);
+      origConnect.call(o,lp); origConnect.call(o2,lp); origConnect.call(lp,g); origConnect.call(g,ac.destination);
+      o.start(t); o2.start(t); o.stop(t+1.05); o2.stop(t+1.05);
+      // the click of the relay
+      const n=ac.createBufferSource(), buf=ac.createBuffer(1,Math.round(ac.sampleRate*0.02),ac.sampleRate), d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.5;
+      n.buffer=buf; SKIP.add(n); origConnect.call(n,ac.destination); n.start(t);
+    }catch(e){}
+  }
+  let lastMode=null;
+  setInterval(()=>{
+    const want=tvWanted(), m=mode();
+    for(const ac of known){ const b=BUS.get(ac); if(!b||!b.tv||ac.state!=='running') continue;
+      if(b.tvState!==want){ const t=ac.currentTime;
+        b.tv.dryOut.gain.setTargetAtTime(want?0:1,t,0.04); b.tv.tvOut.gain.setTargetAtTime(want?1:0,t,0.04); b.tv.flyG.gain.setTargetAtTime(want?0.0016:0,t,0.3);
+        if(want&&b.tvState===false) degauss(ac);
+        b.tvState=want; }
+      else if(want&&lastMode&&lastMode!==m) degauss(ac);
+    }
+    lastMode=m;
+  },120);
   const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
   hook();
   window.MV_SOUND16={ musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };

@@ -273,8 +273,22 @@
   // body (or unclips it back into his hand) — a short animation of the plug travelling
   const CLIP_FR=16;                                          // a quick reach back and a plug-in
   B.ropeClip=null;
+  // Paulo (Oct 22): the RCA stays on the arm while hooked. Only when he SWITCHES to another
+  // item does the other (glove) hand reach over, pull the jack off the arm, carry it up over
+  // his head — elbow to the sky — and plug it into the top back of the box. Then he swings
+  // from there with the new item in hand.
+  const PLUG_FR=26, GRAB=0.3, PIN=44.5*0.7, BOOT=18*0.7;
+  const SEAT=()=>p.fc?0.55:Math.PI-0.55;                     // the angle the plug seats at (as render.js draws it)
   B.ropeClipPoint=function(){
     const c=B.ropeClip; if(!c) return null;
+    if(c.toBody&&c.rel){
+      const k=Math.min(1,c.t/PLUG_FR), A={x:p.x+c.rel.dx, y:p.y+c.rel.dy};
+      if(k<GRAB) return {x:A.x, y:A.y, k:0, ang:c.ang0, toBody:true, grab:true, gk:k/GRAB};
+      const u=(k-GRAB)/(1-GRAB), e=u*u*(3-2*u), Bp=hookAttachWorld();
+      const C={x:p.x+SW/2+(p.fc?-1:1)*4, y:Bp.y-62};         // over the top of his head
+      const x=(1-e)*(1-e)*A.x+2*(1-e)*e*C.x+e*e*Bp.x, y=(1-e)*(1-e)*A.y+2*(1-e)*e*C.y+e*e*Bp.y;
+      return {x, y, k:e, ang:c.ang0, toBody:true};
+    }
     const k=Math.min(1,c.t/CLIP_FR), e=k*k*(3-2*k);
     const A=c.toBody?c.from:hookAttachWorld(), Bp=c.toBody?hookAttachWorld():visEnd();
     const lift=Math.sin(e*Math.PI)*(c.toBody?8:16);         // a short carry, then it seats
@@ -282,9 +296,27 @@
     return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e, ang, toBody:!!c.toBody};
   };
   // on a latch with the RCA in hand: the plug comes off the arm and seats in the top back
-  window._ropePlugOnLatch=function(){
-    if(!on()||ITEM!==1||!p.hook||p.hook.st!=='on') return;
-    B.ropeClip={t:0, toBody:true, from:visEnd(), latch:true};
+  window._ropePlugOnLatch=function(){};                     // latching keeps the jack on the arm now
+  // the glove hand during the plug-in: where it is and where its elbow goes (world coords)
+  B.gloveReach=function(shX,shY){
+    if(!on()) return null;
+    const c=B.ropeClip; let hx, hy, up=true, w=1;
+    const grip=(q,ang)=>({x:q.x-Math.cos(ang)*(PIN+BOOT*0.5), y:q.y-Math.sin(ang)*(PIN+BOOT*0.5)});
+    const fd=p.fc?1:-1, gx=shX+fd*12, gy=shY+14;              // the guard fist
+    if(c&&c.toBody&&c.rel&&p.hook&&p.hook.st==='on'){
+      const q=B.ropeClipPoint(), ang=q.ang*(1-q.k)+SEAT()*q.k, g=grip(q,ang);
+      if(q.grab){ const e=q.gk*q.gk*(3-2*q.gk); hx=gx+(g.x-gx)*e; hy=gy+(g.y-gy)*e; up=false; }
+      else { hx=g.x; hy=g.y; }
+    }else if(p._plugArchT>0&&p.hook&&p.hook.st==='on'&&!_ropeInHand()){
+      const g=grip(hookAttachWorld(),SEAT()); w=Math.min(1,p._plugArchT/5);
+      hx=gx+(g.x-gx)*w; hy=gy+(g.y-gy)*w;
+    }else return null;
+    const dx=hx-shX, dy=hy-shY, d=Math.hypot(dx,dy)||1, L=Math.max(18,d*0.5+(up?11:4)), hh=Math.sqrt(Math.max(0,L*L-d*d/4));
+    const mx=shX+dx/2, my=shY+dy/2, nx=-dy/d, ny=dx/d;
+    let e1={x:mx+nx*hh,y:my+ny*hh}, e2={x:mx-nx*hh,y:my-ny*hh};
+    if((e1.y<e2.y)!==up){ const t=e1; e1=e2; e2=t; }           // elbow up (over the head) or down (the reach)
+    const lift=up?w:0;
+    return {hx, hy, ex:e1.x, ey:e1.y-6*lift, up};
   };
   function clipTick(){
     const c=B.ropeClip; if(!c) return;
@@ -296,7 +328,8 @@
       h._grace=Math.max(h._grace||0,10); h.vr=null; h._cord=null;
       p._plugArchT=10;                                           // hold the arched arm a beat
     }
-    if(++c.t>=CLIP_FR){ B.ropeClip=null; try{ sfx('grap_attach'); }catch(e){}
+    if(c.rel){ c.grab=c.t<PLUG_FR*GRAB; if(c.t===Math.round(PLUG_FR*GRAB)) try{ sfx('grap_attach'); }catch(e){} }   // the click of the jack coming off
+    if(++c.t>=(c.rel?PLUG_FR:CLIP_FR)){ B.ropeClip=null; if(c.rel) p._plugArchT=12; try{ sfx('grap_attach'); }catch(e){}
       const q=hookAttachWorld(); for(let k=0;k<6;k++) PFXS.push({x:q.x,y:q.y,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:10,maxLife:10,r:1.5,col:'#e0e0ff'}); }
   }
   B.clipTick=clipTick;
@@ -304,8 +337,9 @@
   window._cycleItem=function(){
     const h=on()&&p.hook&&p.hook.st==='on'?p.hook:null;
     const a=h?ropeEnd():null, av=h?visEnd():null, wasRca=_ropeInHand();
+    let ang0=0; if(h&&wasRca){ try{ const ps=computeConnectorArmPose(p); ang0=ps.armA1!=null&&ps.useElbow?ps.armA1:(ps.aimAngle!=null?ps.aimAngle:Math.atan2(p.aimDY||0,p.aimDX||1)); }catch(e){} }
     const r=_origCycle.apply(this, arguments);
-    if(h&&h.st==='on'&&wasRca!==_ropeInHand()) B.ropeClip={t:0, toBody:wasRca, from:av};
+    if(h&&h.st==='on'&&wasRca!==_ropeInHand()) B.ropeClip=wasRca?{t:0, toBody:true, from:av, rel:{dx:av.x-p.x, dy:av.y-p.y}, ang0, grab:true}:{t:0, toBody:false, from:av};
     if(h&&h.st==='on'){
       const b=ropeEnd();
       const piv=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
@@ -323,7 +357,7 @@
     if(on()&&who===p&&(!_ropeInHand()||latchCarry)&&who.hook&&who.hook.st!=='idle'){
       const st0=who.hook.st; who.hook.st='idle';
       const q=B.ropeClip&&B.ropeClipPoint?B.ropeClipPoint():null, ax0=who.aimDX, ay0=who.aimDY;
-      if(q&&q.toBody&&q.k<0.92){               // the hand carries the RCA back and pushes the pin in
+      if(false){                                // (the glove hand does the carrying now: B.gloveReach)
         const shx=who.x+SW/2+(who.fc?1:-1)*BODY_W*0.42;
         const shy=who.y+FEET_OFF-STAND_H-WHEEL_R+10+BODY_H*0.22;
         who.aimDX=q.x-shx; who.aimDY=q.y-shy;
@@ -332,7 +366,7 @@
       try{ r=_origPose.apply(this, arguments); } finally{ who.hook.st=st0; who.aimDX=ax0; who.aimDY=ay0; }
       // Paulo (Oct 22): reaching over the top to plug into the back, the arm arches up —
       // the elbow points at the sky by the frame the jack seats, and holds it a beat
-      const arch=(q&&q.toBody)?Math.sin(Math.min(1,q.k)*Math.PI*0.5):(who._plugArchT>0?who._plugArchT/10:0);
+      const arch=0;                             // the arch is the glove arm's now
       if(r&&arch>0.02){
         const sock=hookAttachWorld(), tx=q&&q.toBody?q.x:sock.x, ty=(q&&q.toBody?q.y:sock.y)-10;
         const ex=(r.connShX+tx)/2, ey=Math.min(r.connShY,ty)-10-20*arch;
