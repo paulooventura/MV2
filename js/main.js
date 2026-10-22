@@ -867,7 +867,7 @@ function update(){
     const _cReady=_enhTrs?10:18;
     if(_bindDown('swap')&&!p.laserCharging&&p.laserCd===0){p.laserCharging=true;p.laserCharge=0;}
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
-    if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=charged?14:8;}
+    if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=0;}
     if(p.laserCd>0)p.laserCd--;
   }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap'))fireItem();p.laserCharging=false;p.laserCharge=0;}
   else{p.laserCharging=false;p.laserCharge=0;}
@@ -888,7 +888,7 @@ function update(){
   if(isPunch()&&!p.pCharging&&p.pCd===0&&!_fMoving){p.pCharging=true;p.pCharge=0;}
   if(_fMoving&&p.pCharging){p.pCharging=false;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
-  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;p.pt=p.pCharge>20?8:5;p.pCd=7;p._hitDone=false;const charged=p.pCharge>20;sfx(charged?'punch_heavy':'punch');}
+  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;p.pt=p.pCharge>20?8:5;p.pCd=0;p._hitDone=false;const charged=p.pCharge>20;sfx(charged?'punch_heavy':'punch');}
   if(p.pt>0)p.pt--;else p._hitDone=false;
   if(p.pCd>0)p.pCd--;
   if(p._pRecoil>0)p._pRecoil--;

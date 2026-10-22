@@ -878,17 +878,12 @@ function updateHook(){
       if(!best||d<Math.hypot(best.tx-px,best.ty-py)){best={...hit,enemy:true,tgt:e};}
     }
     if(best&&!best.enemy){
-      const a0=ropePlayerEndWorld();
-      const latchD=Math.hypot(best.tx-a0.x,best.ty-a0.y);
-      const core=playerCoreHB(p);
       const feet=p.y+FEET_OFF;
       const cx=p.x+SW*0.5;
-      const inBody=best.tx>core.x-4&&best.tx<core.x+core.w+4&&best.ty>core.y-4&&best.ty<core.y+core.h+4;
-      const floorUnderfoot=(best.ny||0)<-0.55&&Math.abs(best.ty-feet)<14&&latchD<28;
-      if(latchD<12||inBody||floorUnderfoot) best=null;
-      else if(p.og&&best.ty>feet+8){
+      const wall=Math.abs(best.nx||0)>=0.45;
+      if(!wall&&p.og&&(best.ny||0)<-0.5&&best.ty>feet+8){
         const stand=typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp:8,maxDrop:10}):null;
-        if(stand!=null){ best.tx=cx; best.ty=stand; best.nx=0; best.ny=-1; }
+        if(stand!=null){ best.tx=cx; best.ty=stand.y!=null?stand.y:stand; best.nx=0; best.ny=-1; }
       }
     }
     if(best){

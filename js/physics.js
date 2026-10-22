@@ -2186,21 +2186,44 @@ function _segBarrierHit(x1,y1,x2,y2,seg){
   const nx=seg.insideLeft?-1:1;
   return {tx:wallX,ty,nx,ny:0};
 }
+function _hookSolidSteps(x1,y1,x2,y2){
+  if(typeof gridWorldSolid!=='function') return null;
+  const dx=x2-x1, dy=y2-y1, dist=Math.hypot(dx,dy);
+  if(dist<0.5){
+    if(gridWorldSolid(x2,y2)) return {tx:x2,ty:y2,nx:0,ny:0};
+    return null;
+  }
+  const ux=dx/dist, uy=dy/dist;
+  if(gridWorldSolid(x1,y1)) return {tx:x1,ty:y1,nx:-ux,ny:-uy};
+  const n=Math.ceil(dist/2);
+  for(let i=1;i<=n;i++){
+    const t=i/n, x=x1+dx*t, y=y1+dy*t;
+    if(!gridWorldSolid(x,y)) continue;
+    const t0=(i-1)/n;
+    return {tx:x1+dx*t0, ty:y1+dy*t0, nx:-ux, ny:-uy};
+  }
+  return null;
+}
 function _hookRayHit(x1,y1,x2,y2){
   let best=null, bestD=1e9;
   const consider=(hit)=>{
     if(!hit) return;
     const d=Math.hypot(hit.tx-x1,hit.ty-y1);
-    if(d<6) return;
     if(d<bestD){ bestD=d; best={tx:hit.tx,ty:hit.ty,nx:hit.nx||0,ny:hit.ny||0,enemy:false,tgt:null,plat:hit.plat||null}; }
   };
   const gridOn=typeof _gridReady==='function'&&_gridReady();
   if(gridOn){
-    if(typeof gridRayHit==='function') consider(gridRayHit(x1,y1,x2,y2));
+    if(typeof gridRayHit==='function') consider(gridRayHit(x1,y1,x2,y2,{rope:true}));
+    consider(_hookSolidSteps(x1,y1,x2,y2));
     for(const bw of BWALLS){
       if(!bw||bw.hp<=0) continue;
-      if(typeof _bwallMovedFromHome==='function'&&!_bwallMovedFromHome(bw)) continue;
       consider(_segAabbHit(x1,y1,x2,y2,{x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'}));
+    }
+    if(typeof CRATES!=='undefined'){
+      for(const cw of CRATES){
+        if(!cw) continue;
+        consider(_segAabbHit(x1,y1,x2,y2,{x:cw.x,y:cw.y,w:cw.w||32,h:cw.h||32,tp:'solid'}));
+      }
     }
     if(typeof allP==='function'){
       for(const q of allP()){
