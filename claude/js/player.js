@@ -210,7 +210,7 @@ function isPunch(){ return _bindDown('punch'); }
 let _punchHoldF=0, _punchHoldFr=-1;
 // The item button is also Run. A fast tap arms it; holding it again with a
 // direction is the sprint. Shift still runs on its own. A plain hold is the item.
-const _SPRINT_TAP=12, _SPRINT_ARM=40;
+const _SPRINT_TAP=12, _SPRINT_ARM=16;   // Paulo (Oct 22): sprint = a quick double-tap-and-hold while moving (16 f window, was 40)
 function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
@@ -227,7 +227,7 @@ function _updateRunEntry(pl){
   const up=!btn&&was;
   if(up){
     const held=pl._itemHold||0;
-    if(!pl._sprintMode&&held>0&&held<=_SPRINT_TAP){ pl._sprintArm=_SPRINT_ARM; pl._tapPulse=3; }   // Paulo (Oct 22): a quick tap still USES the item (main.js plays it back as a short press)
+    if(!pl._sprintMode&&held>0&&held<=_SPRINT_TAP) pl._sprintArm=_SPRINT_ARM;   // the item already fired on the press (it isn't held back any more)
     pl._itemHold=0;
     pl._sprintMode=false;
   }
@@ -240,7 +240,7 @@ function _updateRunEntry(pl){
   }
   if((pl._sprintArm||0)>0){
     if(!btn) pl._sprintArm--;
-    else if(dir){
+    else if(dir&&(pl._itemHold||0)>10){                       // the second press is HELD while moving: that's a sprint (a tap is just another shot)
       pl._sprintMode=true; pl._sprintArm=0;
       pl.movePower=Math.max(pl.movePower||0,0.55);
       pl.runRamp=Math.max(pl.runRamp||0,0.22);
@@ -249,9 +249,11 @@ function _updateRunEntry(pl){
 }
 function _runItemQuiet(pl){
   if(!pl||!_itemBtnDown()) return false;
+  // Paulo (Oct 22, "the item button is not working"): the button used to be held back for the first
+  // 12 frames of EVERY press (in case it was a sprint), and a second press within 40 frames while
+  // moving became a sprint — so firing while walking kept getting swallowed. Now a press always uses
+  // the item at once; only the sprint itself (a quick second press while moving) is quiet.
   if(pl._sprintMode) return true;
-  if((pl._itemHold||0)>0&&(pl._itemHold||0)<=_SPRINT_TAP) return true;
-  if((pl._sprintArm||0)>0&&_moveInputX()!==0) return true;
   return false;
 }
 function _moveInputX(){

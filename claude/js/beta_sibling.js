@@ -174,7 +174,8 @@
     if(seg>0&&seg<1&&Math.hypot(me.x+dx*seg-P.x,me.y+dy*seg-P.y)<26){ S._shotCd=8; return; }
     const urgent=t.dP<140||(p.hp||0)<(p.maxHp||100)*0.5;
     S._shotCd=urgent?14:24;
-    const sp=11, tp=tipOf(S); S._shootT=40;
+    const sp=11, tp=tipOf(S); if(!clearLine(me.x,me.y-6,tp.x,tp.y)){ S._shotCd=8; return; }   // the jack's tip is past a wall: no shot
+    S._shootT=40;
     bolts.push({x:tp.x,y:tp.y,vx:dx/d*sp,vy:dy/d*sp,e:t.e,life:50,urgent});
     for(let k=0;k<5;k++) PFXS.push({x:tp.x,y:tp.y,vx:dx/d*2+(Math.random()-0.5)*2,vy:dy/d*2+(Math.random()-0.5)*2,life:8,maxLife:8,r:1.8,col:S.hero==='venture'?'#ffb0b8':'#e0c8ff'});   // the muzzle flash at its jack
     S.fireRecoil=5; S.fireRecoilA=Math.atan2(dy,dx);
@@ -185,13 +186,15 @@
       const b=bolts[i]; b.life--;
       const e=b.e;
       if(e&&e.alive){ const ex=e.x+(e.w||0)/2, ey=e.y+(e.h||0)/2, d=Math.hypot(ex-b.x,ey-b.y)||1; b.vx+=((ex-b.x)/d*10-b.vx)*0.12; b.vy+=((ey-b.y)/d*10-b.vy)*0.12; }   // a gentle homing
+      const hitRock=(x,y)=>{ if(typeof gridWorldSolid!=='function'||!gridWorldSolid(x,y)) return false; const w=b.bw; return !(w&&x>=w.x-2&&x<=w.x+(w.w||32)+2&&y>=w.y-2&&y<=w.y+(w.h||32)+2); };
+      if(hitRock(b.x+b.vx*0.5,b.y+b.vy*0.5)){ b.x+=b.vx*0.5; b.y+=b.vy*0.5; fizz(b); bolts.splice(i,1); continue; }   // never through a wall (Paulo, Oct 22)
       b.x+=b.vx; b.y+=b.vy;
       if(b.bw){
         const w=b.bw; if(w.hp>0&&b.x>=w.x-2&&b.x<=w.x+(w.w||32)+2&&b.y>=w.y-2&&b.y<=w.y+(w.h||32)+2){
           sibHitFr=fr; if(typeof _damageBwall==='function') _damageBwall(w,'punch',{shakeX:Math.sign(b.vx)*2,shakeY:Math.sign(b.vy)*2}); fizz(b,true); bolts.splice(i,1); continue; }
         const cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2, d=Math.hypot(cx-b.x,cy-b.y)||1; b.vx+=((cx-b.x)/d*11-b.vx)*0.2; b.vy+=((cy-b.y)/d*11-b.vy)*0.2;
       }
-      if(b.life<=0||(!b.bw&&typeof gridWorldSolid==='function'&&gridWorldSolid(b.x,b.y))){ fizz(b); bolts.splice(i,1); continue; }
+      if(b.life<=0||hitRock(b.x,b.y)){ fizz(b); bolts.splice(i,1); continue; }
       for(const en of (typeof ENEMS!=='undefined'?ENEMS:[])){
         if(!en||!en.alive||en._hidden) continue;
         if(b.x>=en.x&&b.x<=en.x+(en.w||0)&&b.y>=en.y&&b.y<=en.y+(en.h||0)){
@@ -219,8 +222,10 @@
     const w=blockT.w, me=centre(S), cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2;
     if(w.only==='laser') return;                                              // TRS-only blocks are yours
     const dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) return;
+    { const n=Math.ceil(Math.max(0,d-26)/12); for(let k=1;k<n;k++){ const x=me.x+dx/d*k*12, y=me.y-6+dy/d*k*12; if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)&&!(x>=w.x&&x<=w.x+(w.w||32)&&y>=w.y&&y<=w.y+(w.h||32))) return; } }   // a wall in between: not its shot
     S.aimDX=dx/d; S.aimDY=dy/d; if(Math.abs(dx)>6) S.fc=dx>0;
-    const tp=tipOf(S); S._shootT=40;
+    const tp=tipOf(S); if(!clearLine(me.x,me.y-6,tp.x,tp.y)) return;
+    S._shootT=40;
     S._shotCd=22; bolts.push({x:tp.x,y:tp.y,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
     S.fireRecoil=5; try{ sfx('laser',S.hero==='venture'?1.3:1.45); }catch(e){}
   }
@@ -287,6 +292,7 @@
   function interact(b){
     const c=centre(b), P=centre(p), dx=c.x-P.x, dy=c.y-P.y, d=Math.hypot(dx,dy)||1;
     const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1, ux=ax/al, uy=ay/al, dot=(dx*ux+dy*uy)/d;
+    if(!clearLine(P.x,P.y,c.x,c.y)) return;                       // nothing (punch, air, magnet, weight) reaches it through a wall
     // a punch
     if(p.pt>0){ if(!b._pHit){ const rx=P.x+ux*44, ry=P.y+uy*44; if(Math.hypot(c.x-rx,c.y-ry)<50){ b._pHit=true; const k=(p.pCharge||0)>20||p.pCd>4?1.6:1; knock(b,ux*7.5*k,uy*5*k-3.5,'punch',k>1?22:12); } } }
     else b._pHit=false;

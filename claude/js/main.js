@@ -812,6 +812,8 @@ function _updateBattleEye(pl){
       if(!e||e.alive===false||e._aiCompanion) continue;
       const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.35:18);
       const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
+      // the companion sibling only sees (and gets mad at) what it can actually see — not through walls (Paulo, Oct 22)
+      if((pl._betaSib||pl._aiCompanion)&&d<LOOK&&typeof gridWorldSolid==='function'){ let blocked=false; const n=Math.ceil(d/14); for(let k=1;k<n;k++){ if(gridWorldSolid(ox+dx*k/n,oy+dy*k/n)){ blocked=true; break; } } if(blocked) continue; }
       if(d<bestD&&d<LOOK){ bestD=d; best={dx,dy,d}; }
       if(d>=DANGER_R) continue;
       const prox=1-d/DANGER_R;

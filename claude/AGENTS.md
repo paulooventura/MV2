@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 271 — the item button always answers; the sibling can't act through walls (Oct 22, Claude)
+
+- `player.js`: the item button was held back for the first 12 f of every press (in case it became a sprint), and any press within 40 f of a tap while moving turned into a sprint — so firing while walking got swallowed (test: 3 of 5 TRS taps while walking fired). Now a press always uses the item at once; sprint = a quick second press (within 16 f of a tap) that is HELD > 10 f while moving (`_runItemQuiet` only quiet in sprint mode; no `_tapPulse`). Test: 5/5 taps fire while walking; tap + hold + direction still sprints.
+- `beta_sibling.js`: its bolts are sub-stepped and stop at rock (block-help bolts too, except inside the target block); it won't shoot when its jack tip is past a wall, nor help on a block it can't see; your punch / XLR / MAG / weight don't reach it through a wall. `main.js _updateBattleEye`: the companion only looks at / gets mad at enemies it can see.
+
 ### Build 270 — ferrofluid MAG, jump with the MAG aimed down, more water drama, discs respect rock (Oct 22, Claude)
 
 - `beta_water.js` `magnetWater` rewritten: above the water, aimed at it (or roughly down), the MAG lifts the surface in glossy ferrofluid spikes (`B.ferro`, drawn in `drawWater`) and, close enough, a tapering column carries water up into the core at the tip (reach 130–300 px with the bar). The old suck-to-blob (`B.magWater`) no longer fills.
