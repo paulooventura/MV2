@@ -149,30 +149,54 @@
     if(!(p.xlrOn&&ITEM===2)||B._xlrTapped) return;
     if(p.hook&&p.hook.st==='on') return;
     const a=aimUnit();
-    const charge=Math.min(1,(p.xlrHeld||0)/FEEL.XLR_FULL);
-    const thrust=(0.55+charge*1.15)*(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[2]?1.25:1);
+    const held=p.xlrHeld||0;
+    const enh=(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[2])?1.12:1;
+    const run=(typeof MOVE_RUN!=='undefined'?MOVE_RUN:12.4);
     // Paulo (Oct 22): on the ground, pushing with the XLR while driving INTO the push, the
     // tire fights it — it grips (most of the shove is soaked up), spins, heats up and smokes
     const inDir=(typeof isRt==='function'&&isRt())?1:(typeof isLf==='function'&&isLf())?-1:0;
     const grounded=typeof _playerOnGround==='function'&&_playerOnGround(p);
     const resist=grounded&&Math.abs(a.x)>0.45&&a.y>-0.6&&inDir!==0&&inDir===Math.sign(a.x);
     if(resist){
-      // a stand-off: the drive and the shove cancel, and the shove slowly wins (more with charge)
+      const thrust=(1.35+Math.min(1,held/6)*0.7)*enh;
       const creep=-Math.sign(a.x)*thrust*(1-FEEL.XLR_GRIP)*2.2;
-      p.vx+=(creep-p.vx)*0.35; p._xlrResistV=creep; p._xlrResistFr=fr; if(a.y>0.2) p.vy-=a.y*thrust*0.3;           // no lift off the ground
+      p.vx+=(creep-p.vx)*0.72; p._xlrResistV=creep; p._xlrResistFr=fr; if(a.y>0.2) p.vy-=a.y*thrust*0.35;
       const slip=Math.abs(a.x)*thrust;
-      p._tireHeat=Math.min(1,(p._tireHeat||0)+0.006*slip*(0.6+charge));
-      p.wheelAngle=(p.wheelAngle||0)+inDir*0.55;   // spinning against the slide
+      p._tireHeat=Math.min(1,(p._tireHeat||0)+0.006*slip);
+      p.wheelAngle=(p.wheelAngle||0)+inDir*0.7;
       p._burnout=6;
-      const n=Math.random()<0.25+0.45*p._tireHeat?1:0;   // smoke grows with the heat, never a fog
+      const n=Math.random()<0.25+0.45*p._tireHeat?1:0;
       if(n&&p.smoke&&p.smoke.length<26) p.smoke.push({x:p.x+SW/2-inDir*10+(Math.random()-0.5)*8,y:p.y+FEET_OFF-3,vx:-inDir*(0.6+Math.random())+(Math.random()-0.5)*0.6,vy:-0.5-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*3});
       if(fr%14===0) try{ sfx('tire_squeal',0.35+0.65*p._tireHeat); }catch(e){}
-    }else if(!(grounded&&a.y>0.55&&B.downCubeHeld)){
-      p.vx-=a.x*thrust; p.vy-=a.y*thrust;            // opposite the aim
-      if((p.xlrHeld||0)>3){ p.og=false; p._groundHold=0; }
+      if(fr%3===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
+      return;
     }
-    capSpeed(7+charge*6);
-    if(fr%4===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
+    if(grounded&&a.y>0.55&&B.downCubeHeld) return;
+    const rx=-a.x, ry=-a.y;
+    const g=(typeof GRAV!=='undefined'?GRAV:0.52);
+    // The shove is there on the first frames (a few G), then it stops adding
+    // speed. Holding it in the air steers the arc. It does not keep a flight.
+    const burst=held<=10;
+    if(grounded&&Math.abs(a.x)>=0.35&&a.y<=0.55){
+      const hT=rx*run*1.5*enh;
+      p.vx+=(hT-p.vx)*0.78;
+      p._xlrOwns=true; p._xlrJetFr=fr;
+    }else if(burst){
+      const hT=rx*run*1.48*enh;
+      const vT=ry*(ry<0?10.2:6.5)*enh;
+      p.vx+=(hT-p.vx)*0.78;
+      p.vy+=(vT-p.vy)*0.78;
+      if(ry<-0.35){ p.og=false; p._groundHold=0; }
+      p._xlrOwns=true; p._xlrJetFr=fr;
+    }else if(!grounded){
+      // The path snaps onto the new aim. The fall stays a fall: the leftover
+      // push is under one G, so holding it cannot keep a backwards flight.
+      const hT=rx*run*0.48*enh;
+      p.vx+=(hT-p.vx)*0.62;
+      p.vy+=ry*g*0.72;
+      p._xlrOwns=true; p._xlrJetFr=fr;
+    }
+    if(fr%3===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*3.2,vy:a.y*3.2,life:8,maxLife:8,r:2.4,col:'#aaddff'});
   }
   function magJet(){
     if(!(p.magOn&&ITEM===3)||p._magWorldStick||B.magLock) return;
@@ -196,8 +220,11 @@
     const vFull=Math.sqrt(2*GRAV*FEEL.SUPER_H);
     const pw=B.relPow==null?1:Math.max(0,Math.min(1,B.relPow));   // Paulo (Oct 21): the launch follows the power bar
     const v=vFull*Math.sqrt(Math.max(0.18,charge))*0.62*pw;
-    p.vx-=a.x*v; p.vy-=a.y*v;
-    capSpeed(16);
+    const rx=-a.x, ry=-a.y;
+    const along=p.vx*rx+p.vy*ry;
+    const add=Math.max(0,v-Math.max(0,along));
+    p.vx+=rx*add; p.vy+=ry*add;
+    capSpeed(Math.max(16,Math.hypot(p.vx,p.vy)));
     p.og=false; p._groundHold=0; p.jf=0;
     st.lastLaunch={held, charge:+charge.toFixed(2), vx:+(p.vx).toFixed(2), vy:+(p.vy).toFixed(2), y0:p.y};
     try{ sfx(charge>=1?'jump_spring':'jump_reg'); }catch(e){}
@@ -330,9 +357,12 @@
     if(!on()||pl!==p) return _origMoveX.apply(this, arguments);
     const vxIn=pl.vx, dir=typeof _moveInputX==='function'?_moveInputX():0;
     const grounded=!!pl.og, onSlope=!!(grounded&&pl._onSlope);
+    const jet=!!(pl._xlrOwns&&pl._xlrJetFr===fr);
+    const vxJet=jet?pl.vx:0;
     const r=_origMoveX.apply(this, arguments);
+    if(jet) pl.vx=vxJet+Math.max(-0.85,Math.min(0.85,(pl.vx||0)-vxJet));
     if(onSlope&&Math.abs(vxIn)>2) st.coast=true;
-    if(st.coast){
+    if(st.coast&&!jet){
       if(!grounded||dir===-Math.sign(vxIn)||Math.abs(vxIn)<0.3||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0){ if(grounded||Math.abs(vxIn)<0.3) st.coast=onSlope; }
       else if(!onSlope&&!dir){
         const drag=ROLL.RESIST*(WT()/9.5);
