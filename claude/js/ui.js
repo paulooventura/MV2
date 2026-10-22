@@ -255,7 +255,7 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-const OPT_FIXED_ROWS=7;   // music style, music vol, sfx vol, console, CRT TV, enemies, manual & credits
+const OPT_FIXED_ROWS=8;   // music style, music, sfx, engine, console, CRT, enemies, manual
 function _optExtra(){ return window.MV_SIGNAL?1:0; }
 function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS+_optExtra(); }
 function _optionsInput(ev){
@@ -270,9 +270,10 @@ function _optionsInput(ev){
   if(_optRow===0&&(dec||inc||ev.confirm)){ OPT.musicMode=OPT.musicMode==='ost'?'psg':'ost'; _saveOpts();_switchMusicMode();return true; }
   if(_optRow===1&&(dec||inc)){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+(inc?0.05:-0.05))); _saveOpts();_applyBgmVolumes();return true; }
   if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
-  if(_optRow===3&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
-  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow===5&&(dec||inc||ev.confirm)){
+  if(_optRow===3&&(dec||inc)){ OPT.engineVol=Math.max(0,Math.min(1,(OPT.engineVol==null?0.8:OPT.engineVol)+(inc?0.05:-0.05))); _saveOpts();return true; }
+  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
+  if(_optRow===5&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optRow===6&&(dec||inc||ev.confirm)){
     const B=window.MV_BETA;
     if(B&&typeof B.setDifficulty==='function'){
       const cur=B.difficulty||2;
@@ -280,7 +281,7 @@ function _optionsInput(ev){
     }
     return true;
   }
-  if(_optRow===6&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
+  if(_optRow===7&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
   if(window.MV_SIGNAL&&_optRow===OPT_FIXED_ROWS&&ev.confirm){ MV_SIGNAL.open(); return true; }
   const bind0=OPT_FIXED_ROWS+_optExtra();
   if(_optRow>=bind0&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-bind0]; return true; }
@@ -573,6 +574,7 @@ function drawOptions(){
   _drawSnesStarfield();
   const padX=80, panelW=W-padX*2, rowH=34, scl=2;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
+    {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},

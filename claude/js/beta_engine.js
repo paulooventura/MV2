@@ -26,6 +26,7 @@
   const UP=12600, BASE=6200;                       // shift at 12.6k, lands at ~6.2k in the next gear
   const S={on:true, idle:0, rpm:IDLE, gear:0, thr:0, raw:0, cut:0, shiftT:0, boost:0, blip:0, lim:0, lastThr:0, bangs:[]};
   const sv=()=>{ try{ return Math.max(0,Math.min(1,OPT.sfxVol!=null?OPT.sfxVol:1)); }catch(e){ return 1; } };
+  const ev=()=>{ try{ const v=OPT.engineVol; return Math.max(0,Math.min(1,v==null?0.8:v)); }catch(e){ return 0.8; } };
   function ac(){ try{ return (typeof _audioUnlocked!=='undefined'&&_audioUnlocked&&typeof ga==='function')?ga():null; }catch(e){ return null; } }
   let A=null, N=null, loading=false, N_muffle=null;
 
@@ -52,7 +53,8 @@
     const pres=a.createBiquadFilter(); pres.type='peaking'; pres.frequency.value=2600; pres.Q.value=0.9; pres.gain.value=5;          // the bite
     const sheen=a.createBiquadFilter(); sheen.type='highshelf'; sheen.frequency.value=7000; sheen.gain.value=6;                         // the air (undoes the -6 dB shelf)
     const dryG=a.createGain(); dryG.gain.value=0;
-    out.connect(mono); mono.connect(tight); tight.connect(pres); pres.connect(sheen); sheen.connect(dryG); dryG.connect(main);
+    const pan=a.createStereoPanner(); pan.pan.value=0;
+    out.connect(mono); mono.connect(tight); tight.connect(pres); pres.connect(sheen); sheen.connect(dryG); dryG.connect(pan); pan.connect(main);
     // turbos: two whistles a hair apart, through a resonant band, plus the rushing air
     const tbp=a.createBiquadFilter(); tbp.type='bandpass'; tbp.Q.value=9; const tg=a.createGain(); tg.gain.value=0;
     const t1=a.createOscillator(), t2=a.createOscillator(); t1.type='sine'; t2.type='triangle';
@@ -72,7 +74,7 @@
     const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);   // the rattle of a purr (~24 Hz)
     pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
     for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
-    return {a,core,out,roomG,dryG,pres,sheen,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
+    return {a,core,out,roomG,dryG,pres,sheen,pan,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -82,6 +84,35 @@
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,0.32*S.boost),t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.45);
     const fl=a.createGain(); fl.gain.value=1; const lfo=a.createOscillator(), lg=a.createGain(); lfo.frequency.value=22; lg.gain.value=0.45; lfo.connect(lg); lg.connect(fl.gain);   // the flutter
     s.connect(hp); hp.connect(g); g.connect(fl); fl.connect(N.out); s.start(t); s.stop(t+0.5); lfo.start(t); lfo.stop(t+0.5);
+  }
+  // A backfire pop, booked on the audio clock: a bright crack plus a low thump.
+  function pop(level, delay){
+    if(!N||!(level>0)) return;
+    const a=N.a, t=a.currentTime+Math.max(0,delay||0), k=Math.max(0.15,Math.min(1,level));
+    const s=a.createBufferSource(); s.buffer=N.NB;
+    const hp=a.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1500+Math.random()*900;
+    const ng=a.createGain();
+    ng.gain.setValueAtTime(0.0001,t);
+    ng.gain.exponentialRampToValueAtTime(0.22*k*(0.65+Math.random()*0.7), t+0.002);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t+0.035+Math.random()*0.02);
+    const wide=a.createStereoPanner(); wide.pan.value=(Math.random()*2-1)*0.4;
+    s.connect(hp); hp.connect(ng); ng.connect(wide); wide.connect(N.out);
+    const o=a.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(70+Math.random()*40,t);
+    const og=a.createGain();
+    og.gain.setValueAtTime(0.0001,t);
+    og.gain.exponentialRampToValueAtTime(0.28*k, t+0.008);
+    og.gain.exponentialRampToValueAtTime(0.0001, t+0.06);
+    o.connect(og); og.connect(wide);
+    s.start(t); s.stop(t+0.09); o.start(t); o.stop(t+0.09);
+  }
+  function crackle(count, big){
+    const n=Math.max(1,Math.min(8,count|0));
+    const span=0.4+Math.random()*0.5;
+    let at=0.02;
+    for(let i=0;i<n;i++){
+      at+= (span/n)*(0.55+Math.random()*0.9);
+      pop((big?1:0.7)*(1-i/n*0.4), at);
+    }
   }
 
   function tick(){
@@ -97,7 +128,7 @@
     const spd=Math.max(0,Math.abs(p.vx||0)/top);
     const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
     const sprint=typeof isSprintHeld==='function'&&isSprintHeld()&&dir;
-    if(dir){ S.on=true; S.idle=0; } else if(grounded&&spd<0.06){ if(++S.idle>=180) S.on=false; } else S.idle=0;
+    if(dir){ if(!S.on) pop(0.45,0.02); S.on=true; S.idle=0; } else if(grounded&&spd<0.06){ if(++S.idle>=180) S.on=false; } else S.idle=0;
     const burn=(p._burnout||0)>0;
     let thr=dir?(sprint?1:0.7):0; if(burn) thr=1;
     S.raw=thr;
@@ -116,7 +147,11 @@
       if(spd<0.16&&thr>0) target=Math.max(target,2600+thr*1800);   // launch: the clutch slips, it flares and bites
       target+=thr*500;
       if(S.shiftT>0) S.shiftT--;
-      if(target>up&&S.gear<GEARS.length-1&&!(S.shiftT>0)){ S.gear++; S.cut=5; S.shiftT=24; if(thr>=0.9&&S.rpm>11000) bang(0.35); }   // upshift (cracks at full throttle)
+      if(target>up&&S.gear<GEARS.length-1&&!(S.shiftT>0)){
+        S.gear++; S.cut=5; S.shiftT=24;
+        if(sprint&&S.rpm>5500){ bang(0.22); crackle(1+(Math.random()<0.45?1:0), S.rpm>10000); }
+        else if(thr>=0.9&&S.rpm>11000) bang(0.35);
+      }
       else if(S.gear>0&&spd<g[0]-0.05&&!(S.shiftT>0)){ S.gear--; S.shiftT=24; S.blip=8; }                                                // downshift: blip to match
       if(spd<0.03&&thr===0) S.gear=0;
     }
@@ -132,6 +167,10 @@
       const cap=IDLE+(RED-IDLE)*(0.14+0.86*express);
       target=Math.min(target,cap);
       if(spd<0.28) target=Math.min(target,IDLE+420+express*900);
+      if(express>0.88&&grounded){
+        S.redN=(S.redN|0)+1;
+        if((S.redN%5)<2){ target=Math.min(target, RED*0.86); thr*=0.2; }
+      }
     }else{
       target=Math.min(target,IDLE+220);
       thr=Math.min(thr,0.16);
@@ -146,10 +185,15 @@
     // ── anti-lag, blow-off on lifting ──
     const r=(S.rpm-IDLE)/(RED-IDLE);
     S.boost+=((sprinting?S.thr*Math.max(0,r-0.15)*1.3:0)-S.boost)*(S.thr>0.2?0.035:0.12);
-    if(S.lastThr>0.5&&S.raw===0&&sprinting){
+    const lift=(S.heldSport&&!sprint)||(S.lastThr>0.5&&S.raw===0&&sprinting);
+    if(lift&&S.rpm>4200){
       if(S.boost>0.25) blowOff();
-      if(S.rpm>7000){ const n=2+((Math.random()*4)|0); for(let i=0;i<n;i++) S.bangs.push(4+i*(6+((Math.random()*10)|0))); }
+      crackle(3+((Math.random()*6)|0), S.rpm>9000);
     }
+    S.heldSport=!!sprint;
+    if(S.wasAir&&grounded&&sprinting&&S.rpm>4200&&(S.airVy||0)>3.5) crackle(2, false);
+    S.wasAir=!grounded;
+    if(!grounded) S.airVy=p.vy||0;
     S.lastThr=S.raw;
     for(let i=S.bangs.length-1;i>=0;i--){ if(--S.bangs[i]<=0){ S.bangs.splice(i,1); if(sprinting) bang(0.2+0.4*express); } }
     // ── voice it ──
@@ -168,8 +212,13 @@
     const fire=S.rpm/60*4;
     set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05); set(N.ru.frequency,18+Math.min(40,fire*0.15),0.2);
     set(N.puG.gain,sprinting?(0.08+0.22*express)*Math.pow(1-r,2):(0.2*Math.pow(1-r,2)),0.12);
+    const duck=(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.ending))?0.63:1;
     const lvl=S.on?(sprinting?(0.05+0.11*express):(0.09)):0;
-    set(N.out.gain,lvl*sv(),S.on?0.08:0.35);
+    set(N.out.gain,lvl*sv()*ev()*duck,S.on?0.08:0.45);
+    if(N.pan&&window.MV_SPATIAL&&typeof MV_SPATIAL.screenPan==='function'){
+      const px=(p.x||0)+(typeof SW==='number'?SW*0.5:32);
+      set(N.pan.pan, MV_SPATIAL.screenPan(px)*0.4, 0.12);
+    }
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};
 })();
