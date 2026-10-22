@@ -27,7 +27,7 @@
   const S={on:true, idle:0, rpm:IDLE, gear:0, thr:0, raw:0, cut:0, shiftT:0, boost:0, blip:0, lim:0, lastThr:0, bangs:[]};
   const sv=()=>{ try{ return Math.max(0,Math.min(1,OPT.sfxVol!=null?OPT.sfxVol:1)); }catch(e){ return 1; } };
   function ac(){ try{ return (typeof _audioUnlocked!=='undefined'&&_audioUnlocked&&typeof ga==='function')?ga():null; }catch(e){ return null; } }
-  let A=null, N=null, loading=false;
+  let A=null, N=null, loading=false, N_muffle=null;
 
   function noiseBuf(a){ const b=a.createBuffer(1,a.sampleRate,a.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
   async function build(a,dest){
@@ -37,10 +37,12 @@
     const out=a.createGain(); out.gain.value=0;
     const coreG=a.createGain(); coreG.gain.value=1;
     const body=a.createBiquadFilter(); body.type='peaking'; body.frequency.value=90; body.Q.value=0.8; body.gain.value=5;   // chest
-    const air=a.createBiquadFilter(); air.type='highshelf'; air.frequency.value=4500; air.gain.value=2;
+    const air=a.createBiquadFilter(); air.type='highshelf'; air.frequency.value=3500; air.gain.value=-6;
     core.connect(coreG); coreG.connect(body); body.connect(air); air.connect(out);
     if(!dest){ dest=a.destination; try{ const G=window.MV_SPATIAL&&MV_SPATIAL.graph&&MV_SPATIAL.graph(); if(G&&G.self&&G.self.context===a) dest=G.self; }catch(e){} }
-    out.connect(dest);
+    // Paulo (Oct 22): sit it back in the mix — muffled, like it's inside the hub, under the music
+    const muffle=a.createBiquadFilter(); muffle.type='lowpass'; muffle.frequency.value=1600; muffle.Q.value=0.6;
+    out.connect(muffle); muffle.connect(dest); N_muffle=muffle;
     // turbos: two whistles a hair apart, through a resonant band, plus the rushing air
     const tbp=a.createBiquadFilter(); tbp.type='bandpass'; tbp.Q.value=9; const tg=a.createGain(); tg.gain.value=0;
     const t1=a.createOscillator(), t2=a.createOscillator(); t1.type='sine'; t2.type='triangle';
@@ -84,15 +86,18 @@
     // ── the gearbox ──
     let target;
     if(!grounded||burn){                                          // free-revving: up to the limiter, which bounces
-      target=thr>0?LIMIT+400:IDLE+900;
-      if(S.rpm>=LIMIT&&thr>0&&!(S.lim>0)) S.lim=5;
+      const lim=Math.min(LIMIT,6200+spd*7600);                    // Paulo: the top of the scream belongs to top speed — standing still it revs only so far
+      target=thr>0?lim+400:IDLE+900;
+      if(S.rpm>=lim&&thr>0&&!(S.lim>0)) S.lim=5;
     }else{
       const g=GEARS[S.gear], span=Math.max(0.01,g[1]-g[0]);
-      target=S.gear===0?IDLE+(UP-IDLE)*Math.min(1.08,spd/span):BASE+(UP-BASE)*Math.max(-0.5,Math.min(1.08,(spd-g[0])/span));
-      if(spd<0.16&&thr>0) target=Math.max(target,3600+thr*3200);   // launch: the clutch slips, it flares and bites
+      // each gear tops out higher than the last: low gears shift early (5.4k), only 6th reaches the scream
+      const up=5400+S.gear*1440, base=Math.max(IDLE+1500,up*0.55);
+      target=S.gear===0?IDLE+(up-IDLE)*Math.min(1.08,spd/span):base+(up-base)*Math.max(-0.5,Math.min(1.08,(spd-g[0])/span));
+      if(spd<0.16&&thr>0) target=Math.max(target,2600+thr*1800);   // launch: the clutch slips, it flares and bites
       target+=thr*500;
       if(S.shiftT>0) S.shiftT--;
-      if(target>UP&&S.gear<GEARS.length-1&&!(S.shiftT>0)){ S.gear++; S.cut=5; S.shiftT=24; if(thr>=0.9&&S.rpm>11000) bang(0.35); }   // upshift (cracks at full throttle)
+      if(target>up&&S.gear<GEARS.length-1&&!(S.shiftT>0)){ S.gear++; S.cut=5; S.shiftT=24; if(thr>=0.9&&S.rpm>11000) bang(0.35); }   // upshift (cracks at full throttle)
       else if(S.gear>0&&spd<g[0]-0.05&&!(S.shiftT>0)){ S.gear--; S.shiftT=24; S.blip=8; }                                                // downshift: blip to match
       if(spd<0.03&&thr===0) S.gear=0;
     }
@@ -117,7 +122,8 @@
     set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.04*S.boost,0.08);
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.022*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    const lvl=S.on?(0.34+0.2*S.thr+0.12*r):0;
+    if(N_muffle) set(N_muffle.frequency,900+2800*Math.min(1,spd)*Math.min(1,spd),0.15);   // the highs open up only as you get really fast
+    const lvl=S.on?(0.13+0.08*S.thr+0.05*r):0;                    // was 0.34+0.2·thr+0.12·r: much quieter
     set(N.out.gain,lvl*sv(),S.on?0.04:0.4);
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};

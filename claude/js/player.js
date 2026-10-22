@@ -220,7 +220,7 @@ function _updateRunEntry(pl){
   const up=!btn&&was;
   if(up){
     const held=pl._itemHold||0;
-    if(!pl._sprintMode&&held>0&&held<=_SPRINT_TAP) pl._sprintArm=_SPRINT_ARM;
+    if(!pl._sprintMode&&held>0&&held<=_SPRINT_TAP){ pl._sprintArm=_SPRINT_ARM; pl._tapPulse=3; }   // Paulo (Oct 22): a quick tap still USES the item (main.js plays it back as a short press)
     pl._itemHold=0;
     pl._sprintMode=false;
   }
