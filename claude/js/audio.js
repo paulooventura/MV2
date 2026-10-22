@@ -146,6 +146,12 @@ function _loadBgmElement(type,path){
   const el=new Audio();
   el.preload='auto';
   el.src=_musicUrl(path);
+  if(type==='title'){
+    el.autoplay=true;
+    el.volume=(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75;
+    const pr=el.play();
+    if(pr&&typeof pr.catch==='function') pr.catch(()=>{});
+  }
   _wireBgmElement(type,el);
   el.addEventListener('error',()=>_onBgmTrackError(type,path),{once:true});
   el.load();
@@ -345,23 +351,25 @@ function _startProcBgm(type,vol){
 let _bgmPlayGen=0;
 let _bgmKickTimer=0, _bgmKickN=0;
 function _kickBgmSoon(){
-  if(_bgmKickTimer||_bgmKickN>40) return;
-    _bgmKickTimer=setTimeout(()=>{
+  if(_bgmKickTimer) return;
+  _bgmKickTimer=setTimeout(()=>{
     _bgmKickTimer=0;
-    _bgmKickN++;
-    if(typeof _gameState!=='undefined'&&_gameState!=='title'&&_gameState!=='splash'){ _bgmKickN=0; return; }
+    const gs=typeof _gameState!=='undefined'?_gameState:'';
+    if(gs!=='title'&&gs!=='splash') return;
     const ac=_bgmAC;
     if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
     const type=_activeBgmType;
     if(!type||!_audioUnlocked) return;
     const el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
     const proc=type==='game'?_gameSrc:_titleSrc;
-    const live=(el&&!el.paused)||!!proc;
-    if(live&&ac&&ac.state==='running'){ _bgmKickN=0; return; }
-    if(!live) _playBGM(type,_bgmVolFor(type));
+    if(el&&!el.paused) return;
+    if(proc&&ac&&ac.state==='running') return;
+    if(!proc) _playBGM(type,_bgmVolFor(type));
     else _kickBgmSoon();
   }, 400);
 }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') _kickBgmSoon(); });
+window.addEventListener('pageshow',()=>{ _kickBgmSoon(); });
 function _playBGM(type,vol=0.7){
   _unlockAudio();
   const playGen=++_bgmPlayGen;

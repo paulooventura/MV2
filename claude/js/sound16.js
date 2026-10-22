@@ -133,19 +133,29 @@
     try{ if(typeof _bgmAC!=='undefined'&&_bgmAC) return _bgmAC; }catch(e){}
     return null;
   }
+  function routeMusic(el,ac){
+    if(!el||routed.has(el)||!ac||ac.state!=='running') return;
+    try{
+      const src=ac.createMediaElementSource(el); SKIP.add(src);
+      const b=busFor(ac); known.add(ac);
+      if(!b.mfx){ const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.707; const g=ac.createGain(); const pn=ac.createStereoPanner();
+        SKIP.add(lp); SKIP.add(g); SKIP.add(pn); origConnect.call(lp,pn); origConnect.call(pn,g); origConnect.call(g,b.musicPost||b.music); b.mfx={lp,g,pan:pn}; }
+      origConnect.call(src,b.mfx.lp); routed.add(el);
+    }catch(e){ routed.add(el); }
+  }
   HTMLMediaElement.prototype.play=function(){
+    // A suspended context swallows the element: the page would look open and
+    // stay silent. Leave the track on the speakers until the context is running.
     if(!disabled&&!routed.has(this)&&this instanceof HTMLAudioElement){
       const ac=ctxNow();
-      if(ac){
-        try{
-          const src=ac.createMediaElementSource(this); SKIP.add(src);
-          const b=busFor(ac); known.add(ac);
-          // build 224: the music has a place in the world (beta_ambience.js moves these):
-          // a 12 dB/oct high-cut, a level and a pan, shared by every track
-          if(!b.mfx){ const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.707; const g=ac.createGain(); const pn=ac.createStereoPanner();
-            SKIP.add(lp); SKIP.add(g); SKIP.add(pn); origConnect.call(lp,pn); origConnect.call(pn,g); origConnect.call(g,b.musicPost||b.music); b.mfx={lp,g,pan:pn}; }
-          origConnect.call(src,b.mfx.lp); routed.add(this);
-        }catch(e){ routed.add(this); }
+      if(ac&&ac.state==='running') routeMusic(this,ac);
+      else if(ac&&!ac._mvRouteWait){
+        ac._mvRouteWait=true;
+        ac.addEventListener('statechange',function onst(){
+          if(ac.state!=='running') return;
+          ac.removeEventListener('statechange',onst);
+          document.querySelectorAll('audio').forEach(el=>routeMusic(el,ac));
+        });
       }
     }
     if(routed.has(this)){ const ac=ctxNow(); if(ac&&ac.state==='suspended') try{ ac.resume(); }catch(e){} }
