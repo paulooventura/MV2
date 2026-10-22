@@ -146,7 +146,9 @@ function _loadBgmElement(type,path){
   const el=new Audio();
   el.preload='auto';
   el.src=_musicUrl(path);
-  if(type==='title'){
+  // Paulo (Oct 22): the title theme comes in with the 2nd logo — never under the 1st
+  const _logo1=typeof _gameState!=='undefined'&&_gameState==='splash'&&(!window.MV_SPLASH||MV_SPLASH.idx()<1);
+  if(type==='title'&&!_logo1){
     el.autoplay=true;
     el.volume=(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75;
     const pr=el.play();

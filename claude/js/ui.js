@@ -147,8 +147,9 @@ function _drawUiToast(){
 function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
-    // Hidden for now (Paulo, Oct 2026): Tutorial Chamber, Item Sprite Lab, Physics Lab,
-    // Battle Practice, Creative Mode. Their code stays; add the entries back to show them.
+    // Paulo (Oct 22): Creative Mode is on the menu, locked until the Alpha.
+    // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
+    {label:'CREATIVE MODE', locked:true, note:'OPENS IN ALPHA', activate:()=>{}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
   ];
 }
@@ -157,11 +158,11 @@ function _titleMenuGeom(){
   const map=_titleArtMap();
   // The key art already paints START / OPTIONS. Hit boxes sit on those words.
   if(map&&map.im.naturalWidth===1536){
-    const bands=[[745,808],[808,868]];
+    // three rows drawn over the art's own menu words (drawTitle covers them with a panel)
+    const top=742, rowH=54;
     return menu.map((it,i)=>{
-      const b=bands[Math.min(i,bands.length-1)];
-      const x=map.dx+620*map.s, y=map.dy+b[0]*map.s, w=300*map.s, h=(b[1]-b[0])*map.s;
-      return {label:it.label, locked:!!it.locked, activate:it.activate, x, y, w, h, ty:y+h/2};
+      const x=map.dx+560*map.s, y=map.dy+(top+i*rowH)*map.s, w=420*map.s, h=rowH*map.s;
+      return {label:it.label, locked:!!it.locked, note:it.note, activate:it.activate, x, y, w, h, ty:y+h/2};
     });
   }
   const gw=1024, gh=768;
@@ -192,7 +193,7 @@ function _titleMenuActivate(){
   const menu=_titleMenuItems();
   const item=menu[_titleMenuIdx];
   if(!item) return;
-  if(item.locked){ uiShowToast('BEAT STORY MODE TO UNLOCK CREATIVE MODE'); return; }
+  if(item.locked){ uiShowToast(item.label==='CREATIVE MODE'?'CREATIVE MODE OPENS IN THE ALPHA':'LOCKED'); try{ sfx('omniblock_chip'); }catch(e){} return; }
   item.activate();
 }
 
@@ -231,7 +232,7 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-const OPT_FIXED_ROWS=6;   // music style, music vol, sfx vol, console, CRT TV, enemies
+const OPT_FIXED_ROWS=7;   // music style, music vol, sfx vol, console, CRT TV, enemies, manual & credits
 function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS; }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
@@ -254,6 +255,7 @@ function _optionsInput(ev){
     }
     return true;
   }
+  if(_optRow===6&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
   if(_optRow>=OPT_FIXED_ROWS&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_FIXED_ROWS]; return true; }
   return true;
 }
@@ -308,6 +310,7 @@ function startStoryMode(){
 }
 function _ensureTitleMusic(){
   if(_gameState!=='title'&&_gameState!=='splash') return;
+  if(_gameState==='splash'&&window.MV_SPLASH&&MV_SPLASH.idx()<1) return;      // Paulo (Oct 22): the title music comes in on the 2nd logo
   if(_titleMusicPlaying&&_openingAudioEl&&!_openingAudioEl.paused) return;
   _unlockAudio(); _playBGM('title',OPT.musicVol);
 }
@@ -542,7 +545,8 @@ function drawOptions(){
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
-    {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()}];
+    {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
+    {label:'MANUAL & CREDITS',val:'OPEN >'}];
   BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
   const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));
   uiPanel(padX,panelY,panelW,panelH,{r:16});
@@ -659,19 +663,36 @@ function _titleArtCursor(map,sx,sy){
   ctx.fillStyle='#c6ff9a';
   ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+16*s); ctx.lineTo(x+22*s,y+8*s); ctx.closePath(); ctx.fill();
 }
+// The title's menu (Paulo, Oct 22): STORY MODE · CREATIVE MODE (locked until the Alpha) ·
+// OPTIONS, drawn in the art's own phosphor-green lettering on a dark glass plate that
+// covers the words painted into the art.
+function _drawTitleMenuOverArt(map){
+  const rows=_titleMenuGeom(); if(!rows.length) return;
+  const k=Math.min(1,Math.max(0,(_titleT-20)/30)), s=map.s;
+  const px=rows[0].x, py=rows[0].y-8*s, pw=rows[0].w, ph=rows[rows.length-1].y+rows[rows.length-1].h-rows[0].y+44*s;
+  ctx.save(); ctx.globalAlpha=k;
+  const g=ctx.createLinearGradient(0,py,0,py+ph); g.addColorStop(0,'rgba(4,16,8,0.0)'); g.addColorStop(0.12,'rgba(4,16,8,0.9)'); g.addColorStop(0.88,'rgba(4,16,8,0.9)'); g.addColorStop(1,'rgba(4,16,8,0.0)');
+  ctx.fillStyle=g; ctx.fillRect(px-30*s,py,pw+60*s,ph);
+  ctx.fillStyle='rgba(150,240,140,0.35)'; ctx.fillRect(px+20*s,py+6*s,pw-40*s,1); ctx.fillRect(px+20*s,py+ph-8*s,pw-40*s,1);
+  rows.forEach((r,i)=>{
+    const sel=i===_titleMenuIdx, cy=r.y+r.h/2-6*s, sz=Math.round((sel?36:30)*s*1.5);
+    ctx.save(); ctx.font=sz+'px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const col=r.locked?(sel?'#7f9a86':'#4f6656'):(sel?'#d8ffc0':'#8fd78a');
+    ctx.lineWidth=Math.max(3,sz*0.12); ctx.strokeStyle='#020a04'; ctx.strokeText(r.label,W/2,cy);
+    if(sel&&!r.locked){ ctx.shadowColor='rgba(170,255,140,0.9)'; ctx.shadowBlur=14; }
+    ctx.fillStyle=col; ctx.fillText(r.label,W/2,cy); ctx.restore();
+    if(r.locked&&r.note){ drawTextC(r.note,W/2,cy+sz*0.42,sel?'#c8a050':'#7a6a40',1); }
+    if(sel) uiCursor(W/2-((r.label.length*sz*0.5)/2)-26*s,cy,12);
+  });
+  ctx.restore();
+}
 function drawTitle(){
   _titleT++;
   const map=_titleArtMap();
   if(map){
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
     ctx.drawImage(map.im,map.dx,map.dy,map.im.naturalWidth*map.s,map.im.naturalHeight*map.s);
-    if(_titleMenuIdx===1){
-      const s=map.s;
-      ctx.save(); ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(map.im,650,730,40,36, map.dx+650*s, map.dy+756*s, 40*s, 36*s);   // hide the art's arrow at STORY MODE
-      ctx.restore();
-      _titleArtCursor(map,668,820);
-    }
+    _drawTitleMenuOverArt(map);
     return;
   }
   ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';

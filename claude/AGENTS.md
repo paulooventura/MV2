@@ -202,6 +202,12 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 243 — the front door: logos → title → story → action; the booklet + credits (Oct 22, Claude)
+- Title music waits for the 2nd logo: `ui.js` `_ensureTitleMusic` returns while `MV_SPLASH.idx()<1`; `audio.js` no longer autoplays the title element under the 1st logo; `beta_splash.js` starts it when logo 2 comes in.
+- Title menu: STORY MODE · CREATIVE MODE (locked, "OPENS IN ALPHA") · OPTIONS, drawn in code (`_drawTitleMenuOverArt`) on a dark glass plate over the words painted into the key art; `_titleMenuGeom` rows at art y 742 + 54·i.
+- Continuing a saved story shows a chapter card first (`beta_story.js` state `chapter`, 170 frames, skippable after 40): the stage sky, the stage name, your hero (feathered portrait), what you've found; then it fades into the stage. Game over goes through it too ("GAME OVER - BACK TO YOUR LAST SAVE").
+- Options → MANUAL & CREDITS (row 6; `OPT_FIXED_ROWS` 7) opens `js/ui_manual.js` (loaded after `beta_splash.js` — it wraps `update`/`draw`, which `main.js` declares): an 11-page SNES/Genesis-style booklet (cream paper, halftone, red/blue italic ribbons in Exo 2 900i, Nunito body, boxed art, HINT! starbursts, page numbers; pages slide). Cover · story · heroes · controls (from `OPT.binds`) · the four jacks (crops of `mv2-item-boxes`) · Awdjoo Town · tips · credits · progress · curious facts · back cover. ←/→ turn, ESC back.
+
 ### Build 242 — the wheel's engine roar (Oct 22, Claude)
 - New `js/beta_engine.js` (after `beta_spatial.js`) replaces build 237's pop scheduler as `MV_ENGINE.tick` (still called from `main.js`; same 3-second idle cut-off).
 - A V8 model: RPM from wheel speed through 5 gears (`GEARS` spans of |vx|/MOVE_RUN), upshift at 6900 with a 7-frame throttle cut, downshift only well below a gear's span with 30 frames of hysteresis; free-revs in the air and on an XLR burnout. Throttle 0.62 driving, 1 sprinting.

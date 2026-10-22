@@ -55,6 +55,7 @@
   }
   function nextSplash(){
     idx++; t=0;
+    if(idx===1&&typeof _ensureTitleMusic==='function') try{ _ensureTitleMusic(); }catch(e){}   // the title theme starts with the 2nd logo
     if(idx>=SPLASHES.length){ _gameState='title'; if(typeof _titleMenuIdx!=='undefined') _titleMenuIdx=0; }
   }
   function skipKey(){ for(const k in Kj){ if(Kj[k]) return true; } return false; }

@@ -47,8 +47,59 @@
   const _quit=B.quitToTitle;
   if(_quit) B.quitToTitle=function(){ if(B.ending&&B.saveStage){ try{ B.saveStage(); }catch(e){} savepoint(); } return _quit.apply(this,arguments); };
 
+  // Paulo (Oct 22): "a fluid sequence from start of game to action" — carrying on a saved
+  // story first shows a chapter card (the stage, your hero, what you've found), then the
+  // stage fades in. Any button after a moment skips it.
+  const CARD_FR=170;
+  let card=null;
+  const HERO_IM={}; for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=229'; HERO_IM[k]=im; }
+  function chapter(save,msg){
+    try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
+    card={save, msg:msg||null, t:0}; _paused=false; _gameState='chapter';
+    try{ sfx('gate'); }catch(e){}
+  }
+  function cardDraw(){
+    const c=card, s=c.save, k=Math.min(1,c.t/40), out=Math.max(0,(c.t-(CARD_FR-30))/30);
+    try{ if(window.MV_SKY){ ctx.save(); MV_SKY.draw({stageId:s.stageId}, H*0.92); ctx.restore(); } else { ctx.fillStyle='#04140e'; ctx.fillRect(0,0,W,H); } }catch(e){ ctx.fillStyle='#04140e'; ctx.fillRect(0,0,W,H); }
+    ctx.fillStyle='rgba(2,8,4,0.55)'; ctx.fillRect(0,0,W,H);
+    const hero=s.hero==='venture'?'venture':'mind', im=HERO_IM[hero], col=hero==='venture'?'#ff6a5a':'#c48cff';
+    if(im.complete&&im.naturalWidth){ const ih=Math.round(H*0.78), iw=Math.round(ih*im.naturalWidth/im.naturalHeight);
+      if(!im._feather||im._feather.width!==iw){ const c2=document.createElement('canvas'); c2.width=iw; c2.height=ih; const o=c2.getContext('2d'); o.imageSmoothingEnabled=false; o.drawImage(im,0,0,iw,ih);
+        o.globalCompositeOperation='destination-in';
+        const gx=o.createLinearGradient(0,0,iw,0); gx.addColorStop(0,'rgba(0,0,0,0)'); gx.addColorStop(0.22,'#000'); gx.addColorStop(0.78,'#000'); gx.addColorStop(1,'rgba(0,0,0,0)'); o.fillStyle=gx; o.fillRect(0,0,iw,ih);
+        const gy=o.createLinearGradient(0,0,0,ih); gy.addColorStop(0,'rgba(0,0,0,0)'); gy.addColorStop(0.12,'#000'); gy.addColorStop(0.85,'#000'); gy.addColorStop(1,'rgba(0,0,0,0)'); o.fillStyle=gy; o.fillRect(0,0,iw,ih); im._feather=c2; }
+      ctx.save(); ctx.globalAlpha=k; ctx.drawImage(im._feather, W*0.72-iw/2+(1-k)*80, H*0.12); ctx.restore(); }
+    ctx.save(); ctx.globalAlpha=k;
+    if(c.msg) drawTextC(c.msg,W*0.36,H*0.2,'#ffb0a0',2);
+    drawText('CHAPTER',80,H*0.28,'#9ef58a',2);
+    if(typeof uiLogo==='function') uiLogo(NAMES[s.stageId]||s.stageId,W*0.36,H*0.32,38,{col:'#b8f5a0',sweep:200});
+    drawText((hero==='venture'?'VENTURE':'MIND')+' LEADS',80,H*0.46,col,2);
+    drawText(summary(s),80,H*0.52,'#d8ffc8',1);
+    if(c.t>40&&(c.t>>4)%2===0) drawText('PRESS ANY BUTTON',80,H*0.62,'#ffe39a',2);
+    ctx.restore();
+    if(out>0){ ctx.fillStyle='rgba(2,8,4,'+Math.min(1,out)+')'; ctx.fillRect(0,0,W,H); }
+  }
+  function cardGo(){ const s=card.save; card=null; play(s,true); }
+  const _upd=window.update, _drw=window.draw;
+  window.update=function(){
+    if(_gameState==='chapter'&&card){
+      card.t++; fr++;
+      let any=false; for(const k in Kj){ if(Kj[k]) any=true; }
+      if(any&&card.t>40&&card.t<CARD_FR-30) card.t=CARD_FR-30;            // skip to the fade
+      if(card.t>=CARD_FR) cardGo();
+      if(typeof clkj==='function') clkj(); return;
+    }
+    return _upd.apply(this,arguments);
+  };
+  window.draw=function(){
+    if(_gameState==='chapter'&&card){ ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; cardDraw(); ctx.restore(); return; }
+    return _drw.apply(this,arguments);
+  };
+  document.addEventListener('click',e=>{ if(_gameState==='chapter'&&card&&card.t>40){ card.t=Math.max(card.t,CARD_FR-30); e.stopImmediatePropagation(); } },true);
+
   // start a run from a slot's save
-  function play(save){
+  function play(save,fromCard){
+    if(!fromCard){ chapter(save); return; }
     if(typeof _unlockAudio==='function') _unlockAudio();
     try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
     if(B.newRun) B.newRun();
@@ -63,8 +114,7 @@
   B.storyGameOver=function(){
     if(B.storySlot==null) return false;
     const s=slots()[B.storySlot]; if(!s) return false;
-    if(typeof uiShowToast==='function') uiShowToast('GAME OVER - BACK TO YOUR LAST SAVE');
-    play(s); return true;
+    chapter(s,'GAME OVER  -  BACK TO YOUR LAST SAVE'); return true;
   };
 
   // ── the slot screen on the title ─────────────────────────────────
