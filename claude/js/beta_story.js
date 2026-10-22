@@ -53,7 +53,7 @@
   // stage fades in. Any button after a moment skips it.
   const CARD_FR=170;
   let card=null;
-  const HERO_IM={}; for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=229'; HERO_IM[k]=im; }
+  const HERO_IM={}; for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; HERO_IM[k]=im; }
   function chapter(save,msg){
     try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
     card={save, msg:msg||null, t:0}; _paused=false; _gameState='chapter';

@@ -18,7 +18,7 @@ whole tree to "see what's up" — use this map.
 | `js/physics.js` | Wheel/slope **feel** on top of the grid. `MOVE_*`/`WHEEL_*`/`GRAV`/`JI`. Player move goes through `gridResolvePlayer`. |
 | `js/weapons.js` | Items TRS/RCA/XLR/MAG, **RCA grappling-hook**, rope pickup |
 | `js/enemies.js` | Enemy AI, mind-enemy, body separation |
-| `js/render.js` | All drawing (sprites, world, HUD shapes). Venture’s hat is **black like Mind’s**, back brim only (laid-down **P**) — not red. |
+| `js/render.js` | All drawing (sprites, world, HUD shapes). Character look = the Oct 22 key art (`assets/ui/title-key.jpg`): Venture wears a **red backwards cap**. |
 | `js/ui.js` | HUD, menus, on-screen version line |
 | `js/editor.js` | In-browser stage editor |
 | `js/spawn_fix.js` | Tiled object/tile spawn resolution (player/RCA/enemy) |
@@ -201,6 +201,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **Water items scale with power**: XLR/MAG strength = max(charge, power bar). Full power: 3×3 pocket almost at once, churning big bubbles, white boiling surface, bigger rings, a little shake; MAG digs a whirlpool funnel with a bubble vortex; release surges are bigger.
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
+
+### Build 253 — the key art is the title; sprites follow it (Oct 22, Claude)
+- Paulo's key art (two siblings, purple / red, MJ) → `assets/ui/title-key.jpg` (2688×1792). Title (`ui.js drawTitle`, art ≠ 1536 wide): fit to width on the bottom, slow push-in, breathing sigil light, MIND & VENTURE logo in the top band, menu plate low between the wheels (`_titleMenuGeom` branch). Hero cards (`hero-mind/venture.png`, 600×800) are crops of it.
+- Sprites (`render.js`): `drawBody` rewritten — black cabinet, woofer, corner screws, coloured rim light; a thick grooved record on top with chrome-orb shoulder sockets on its edges; the back's HP strip is now the glowing Knowl tank (liquid = HP, 10% air at full, bubbles, segment lines). Bulb is clear violet (MIND) / rose (VENTURE) glass with a purple / red iris; head sits 3 px higher, screwed into the record. MIND's logo hat brim 64→80 wide. VENTURE: new red backwards baseball cap (`_drawVentureCap`). Gloves purple / red leather (`drawFist`). Fork black with gold stanchions and a gold spring.
 
 ### Build 252 — the XLR catapults you up, with a sub "woo-woo" (Oct 22, Claude)
 - `beta_feel.js` xlrJet: aimed down (push UP), the first 16 frames slam vy toward −14.5 (×power 0.45–1, the very first frames at full blend), then up to frame 48 a lift of ~1.08 G tapering to 0.68 G (a float that runs out; the hold still drains 1.55/frame). Release/tap launches upward use 0.9 × vFull (was 0.62) with a 0.45 minimum charge: a full ground tap now lifts ~320 px peak vs ~150.

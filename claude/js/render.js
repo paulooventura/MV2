@@ -276,7 +276,7 @@ function drawWheel(cx,cy,angle,plRef){
 function drawWheelKit(cx,cy,bodyBot,fc,pl){
   const gap=cy-bodyBot; if(!(gap>5)) return;                     // crouched: the kit folds away under the box
   const isVen=pl.hero==='venture', back=fc?-1:1;
-  const ano=isVen?'#b0242e':'#7a2cc8', anoHi=isVen?'#ff5a5a':'#b884ff', spring=isVen?'#ff8a3a':'#d8ff5a';
+  const ano='#15151a', anoHi=isVen?'#ff5a5a':'#b884ff', spring='#e8b440';   // black fork, gold suspension (Oct 22 key art)
   const comp=Math.max(0,Math.min(1,(pl.suspComp||0)));
   ctx.save(); ctx.lineCap='round';
   // coil-over shock: from the box's back corner down to the axle
@@ -295,8 +295,8 @@ function drawWheelKit(cx,cy,bodyBot,fc,pl){
   ctx.fillStyle=ano; ctx.fillRect(fx-3.5,bodyBot-3,7,upLen+3);
   ctx.fillStyle=anoHi; ctx.fillRect(fx-3.5,bodyBot-3,1.5,upLen+3);
   ctx.fillStyle='#1a1a22'; ctx.fillRect(fx-4,bodyBot+upLen-1,8,2);                          // seal
-  ctx.fillStyle='#e2e6ee'; ctx.fillRect(fx-2.2,bodyBot+upLen,4.4,gap-upLen);               // chrome
-  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fillRect(fx-1.6,bodyBot+upLen,1,gap-upLen);
+  ctx.fillStyle='#d8a030'; ctx.fillRect(fx-2.2,bodyBot+upLen,4.4,gap-upLen);               // gold stanchion
+  ctx.fillStyle='rgba(255,240,180,0.85)'; ctx.fillRect(fx-1.6,bodyBot+upLen,1,gap-upLen);
   ctx.fillStyle='#2a2a34'; ctx.beginPath(); ctx.arc(fx,cy,3.2,0,Math.PI*2); ctx.fill();      // axle clamp
   ctx.fillStyle='#c8ccd8'; ctx.beginPath(); ctx.arc(fx,cy,1.3,0,Math.PI*2); ctx.fill();
   // the speaker's cable into the hub motor, with a live glow
@@ -314,56 +314,72 @@ function drawHostileWheel(cx,cy,angle){
 
 /* -- HS8 Body â€” shaded studio monitor cabinet -- */
 function drawBody(bx,by,facing,ca2=0,status=null){
-  facing=!facing;   // the speaker (woofer + tweeter) faces the way MIND is heading
-  const bw=52,bh=42;
-  const x=bx-bw/2,y=by;
+  // Paulo (Oct 22, the key art): a black cabinet, a THICK vinyl record sitting on top of it
+  // (the arms come out of chrome orbs on its edges, the bulb screws into its centre), and the
+  // glowing green Knowl tank built into the back of the box — its level is MIND's HP.
+  facing=!facing;   // the speaker faces the way MIND is heading
+  const bw=52,bh=42, x=bx-bw/2, y=by;
   const isVenture=p.hero==='venture';
-  const faceDark=isVenture?'#180808':'#0c0c18';
-  const faceMid=isVenture?'#220e0e':'#0e0e1c';
-  ctx.fillStyle=faceDark;ctx.fillRect(x,y,bw,bh);
-  ctx.fillStyle=faceMid;ctx.fillRect(x+1,y+1,bw-2,bh-2);
-  const scx=x+(facing?bw*0.38:bw*0.62),scy=y+bh*0.56;
-  for(let r=18;r>1;r-=4){
-    ctx.beginPath();ctx.arc(scx,scy,r,0,Math.PI*2);
-    ctx.fillStyle=isVenture?'rgba(14,4,6,0.95)':'rgba(5,5,14,0.95)';ctx.fill();
-    ctx.strokeStyle=isVenture?'rgba(52,18,22,0.8)':'rgba(25,25,42,0.8)';ctx.lineWidth=0.5;ctx.stroke();
-  }
-  // pass 4: the woofer's rubber surround catches the light, the cone gets a dust-cap shine
-  ctx.beginPath();ctx.arc(scx,scy,18.5,Math.PI*1.05,Math.PI*1.65);ctx.strokeStyle=isVenture?'rgba(150,70,70,0.55)':'rgba(120,130,170,0.55)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.beginPath();ctx.arc(scx,scy,19,0,Math.PI*2);ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=1;ctx.stroke();
-  ctx.beginPath();ctx.arc(scx,scy,5,0,Math.PI*2);ctx.fillStyle=isVenture?'#241014':'#181828';ctx.fill();
-  ctx.beginPath();ctx.arc(scx-1.5,scy-1.5,1.6,0,Math.PI*2);ctx.fillStyle='rgba(200,210,240,0.35)';ctx.fill();
-  if((p._dblJumpFx||0)>0){ const f=p._dblJumpFx/14; ctx.save(); ctx.strokeStyle=`rgba(${isVenture?'255,150,170':'200,160,255'},${f.toFixed(2)})`; ctx.lineWidth=2; for(const k of [0,6]){ ctx.beginPath(); ctx.arc(scx,scy,19+(1-f)*16+k,0,Math.PI*2); ctx.stroke(); } ctx.restore(); }   // the woofer's kick (double jump)
-  ctx.beginPath();ctx.arc(scx,scy,2,0,Math.PI*2);ctx.fillStyle=isVenture?'#34181c':'#202034';ctx.fill();
-  const tx=x+(facing?bw*0.72:bw*0.28),ty=y+bh*0.22;
-  ctx.beginPath();ctx.arc(tx,ty,5,0,Math.PI*2);ctx.fillStyle=isVenture?'#140808':'#080814';ctx.fill();
-  ctx.beginPath();ctx.arc(tx,ty,3,0,Math.PI*2);ctx.fillStyle=isVenture?'#1c0c0c':'#0d0d1e';ctx.fill();
-  ctx.beginPath();ctx.arc(tx,ty,1.5,0,Math.PI*2);ctx.fillStyle=isVenture?'#281414':'#141428';ctx.fill();
-  // cabinet bevel: lit top-left edge, shadowed bottom-right (the key art's rim light)
-  ctx.fillStyle=isVenture?'rgba(170,80,80,0.45)':'rgba(120,130,190,0.42)'; ctx.fillRect(x+1,y,bw-2,1.5); ctx.fillRect(x,y+1,1.5,bh-2);
-  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(x+1,y+bh-1.5,bw-2,1.5); ctx.fillRect(x+bw-1.5,y+1,1.5,bh-2);
-  const hpx=x+(facing?bw-10:2),hpy=y+3,hpw=6,hph=bh-6;
-  ctx.fillStyle='#03030a';ctx.fillRect(hpx,hpy,hpw,hph);
+  const top=y+10;                                   // the cabinet's face starts under the record
+  // cabinet
+  ctx.fillStyle='#030304'; ctx.fillRect(x-1,top-1,bw+2,bh-top+y+2);
+  const g=ctx.createLinearGradient(0,top,0,y+bh); g.addColorStop(0,'#1a1a1f'); g.addColorStop(1,'#08080a');
+  ctx.fillStyle=g; ctx.fillRect(x,top,bw,y+bh-top);
+  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.strokeRect(x+2.5,top+2.5,bw-5,y+bh-top-5);
+  // the woofer
+  const scx=x+(facing?bw*0.42:bw*0.58), scy=top+(y+bh-top)*0.52, wr=13;
+  ctx.beginPath();ctx.arc(scx,scy,wr+1.5,0,Math.PI*2);ctx.fillStyle='#000';ctx.fill();
+  ctx.beginPath();ctx.arc(scx,scy,wr,0,Math.PI*2);ctx.fillStyle='#16161c';ctx.fill();
+  const cg=ctx.createRadialGradient(scx-3,scy-3,1,scx,scy,wr-2.5); cg.addColorStop(0,'#3a3a46'); cg.addColorStop(1,'#0b0b0f');
+  ctx.beginPath();ctx.arc(scx,scy,wr-2.5,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=0.6; for(const r of [8,5.5]){ ctx.beginPath();ctx.arc(scx,scy,r,0,Math.PI*2);ctx.stroke(); }
+  ctx.beginPath();ctx.arc(scx,scy,3.6,0,Math.PI*2);ctx.fillStyle='#050507';ctx.fill();
+  ctx.beginPath();ctx.arc(scx-1.2,scy-1.2,1.2,0,Math.PI*2);ctx.fillStyle='rgba(220,220,255,0.35)';ctx.fill();
+  ctx.beginPath();ctx.arc(scx,scy,wr+0.5,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle=isVenture?'rgba(255,110,110,0.45)':'rgba(170,140,255,0.45)';ctx.lineWidth=1.2;ctx.stroke();
+  if((p._dblJumpFx||0)>0){ const f=p._dblJumpFx/14; ctx.save(); ctx.strokeStyle=`rgba(${isVenture?'255,150,170':'200,160,255'},${f.toFixed(2)})`; ctx.lineWidth=2; for(const k of [0,6]){ ctx.beginPath(); ctx.arc(scx,scy,wr+1+(1-f)*16+k,0,Math.PI*2); ctx.stroke(); } ctx.restore(); }   // the woofer's kick (double jump)
+  // corner screws
+  ctx.fillStyle='#4a4e58'; for(const [sx2,sy2] of [[x+4,top+4],[x+bw-4,top+4],[x+4,y+bh-4],[x+bw-4,y+bh-4]]){ if((facing&&sx2<x+bw/2&&sy2>top+8)||(!facing&&sx2>x+bw/2&&sy2>top+8)) continue; ctx.beginPath();ctx.arc(sx2,sy2,1.3,0,Math.PI*2);ctx.fill(); }
+  // rim light (the key art's coloured edge light) and a shadowed bottom
+  ctx.fillStyle=isVenture?'rgba(255,70,80,0.5)':'rgba(150,100,255,0.5)'; ctx.fillRect(facing?x+bw-1.5:x,top,1.5,y+bh-top);
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(x+1,y+bh-1.5,bw-2,1.5);
+  // the Knowl tank in the back: glass, glowing green liquid (10% air at full HP), bubbles
   const maxHp=status?(status.mhp||1):(p.maxHp||PLAYER_MAX_HP);
   const hp=status?(status.hp||0):(p.hp||0);
   const liveFrac=maxHp>0?Math.max(0,Math.min(1,hp/maxHp)):0;
-  const filH=Math.max(0,Math.floor((hph-2)*liveFrac));
-  const hcol=liveFrac>0.6?'#00bb44':liveFrac>0.35?'#ffaa00':'#ff2200';
-  if(liveFrac<=0.35&&fr%16<8)ctx.fillStyle='#ff6666';else ctx.fillStyle=hcol;
-  ctx.fillRect(hpx+1,hpy+1+(hph-2-filH),hpw-2,filH);
+  const tw=9, tx0=facing?x+bw-tw-2:x+2, ty0=top+3, th=y+bh-top-7;
+  const liq=th*0.9*liveFrac, ly=ty0+th-liq;
+  const low=liveFrac<=0.35, lc=low&&fr%16<8?'#ff5a5a':(liveFrac>0.6?'#3dff7a':liveFrac>0.35?'#c8ff3a':'#ff9a2a');
+  ctx.fillStyle='#000'; ctx.fillRect(tx0-1,ty0-1,tw+2,th+2);
+  ctx.fillStyle='#0a1a10'; ctx.fillRect(tx0,ty0,tw,th);
+  if(liq>0){
+    const halo=ctx.createRadialGradient(tx0+tw/2,ly+liq/2,1,tx0+tw/2,ly+liq/2,14+liq*0.4); halo.addColorStop(0,'rgba(80,255,130,0.28)'); halo.addColorStop(1,'rgba(80,255,130,0)');
+    if(!low){ ctx.fillStyle=halo; ctx.fillRect(tx0-14,ly-10,tw+28,liq+20); }
+    const lg=ctx.createLinearGradient(0,ly,0,ly+liq); lg.addColorStop(0,'#d8ff9a'); lg.addColorStop(0.2,lc); lg.addColorStop(1,low?'#7a1010':'#0e9a3a');
+    ctx.fillStyle=lg; ctx.fillRect(tx0,ly,tw,liq);
+    ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.fillRect(tx0,ly,tw,1);                        // the meniscus
+    for(let i=0;i<3;i++){ const bt=((fr*0.6+i*13)%Math.max(4,liq)); ctx.fillStyle='rgba(230,255,230,0.7)'; ctx.fillRect(tx0+2+((i*3)%5),ly+liq-bt,1.2,1.2); }
+  }
+  ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(tx0+1,ty0+1,1.2,th-2);              // the glass
   const lifeSegs=status?Math.max(1,Math.ceil(maxHp/PLAYER_HIT_DMG)):MAXLIVES;
-  for(let i=1;i<lifeSegs;i++){ctx.fillStyle='#03030a';ctx.fillRect(hpx+1,hpy+1+Math.floor((hph-2)*i/lifeSegs),hpw-2,1);}
-  ctx.fillStyle='#06060e';ctx.fillRect(hpx+1,hpy-2,hpw-2,3);
+  for(let i=1;i<lifeSegs;i++){ ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(tx0,ty0+Math.floor(th*i/lifeSegs),tw,1); }
+  // power dot
   const dotOff=status&&status.off;
-  const dotX=x+(facing?4:bw-4),dotY=y+bh-4;
-  if(dotOff){
-    ctx.beginPath();ctx.arc(dotX,dotY,2.5,0,Math.PI*2);ctx.fillStyle='#880000';ctx.fill();
-    ctx.beginPath();ctx.arc(dotX,dotY,1.5,0,Math.PI*2);
-    ctx.fillStyle='#ff3333';ctx.globalAlpha=0.75;ctx.fill();ctx.globalAlpha=1;
-  }else{
-    ctx.beginPath();ctx.arc(dotX,dotY,2.5,0,Math.PI*2);ctx.fillStyle='#00cc44';ctx.fill();
-    ctx.beginPath();ctx.arc(dotX,dotY,1.5,0,Math.PI*2);
-    ctx.fillStyle='#00ff66';ctx.globalAlpha=0.6;ctx.fill();ctx.globalAlpha=1;
+  const dotX=x+(facing?5:bw-5),dotY=y+bh-5;
+  ctx.beginPath();ctx.arc(dotX,dotY,2.2,0,Math.PI*2);ctx.fillStyle=dotOff?'#880000':'#00cc44';ctx.fill();
+  ctx.beginPath();ctx.arc(dotX,dotY,1.3,0,Math.PI*2);ctx.fillStyle=dotOff?'#ff3333':'#7dff9a';ctx.fill();
+  // the thick record on top: a black slab with grooves, wider than the box, a sheen on its face
+  const rx0=x-3, rw=bw+6, ry0=y, rh=12;
+  ctx.fillStyle='#000'; ctx.fillRect(rx0-1,ry0-1,rw+2,rh+2);
+  const rg=ctx.createLinearGradient(0,ry0,0,ry0+rh); rg.addColorStop(0,'#2a2a32'); rg.addColorStop(0.25,'#111116'); rg.addColorStop(1,'#060608');
+  ctx.fillStyle=rg; ctx.fillRect(rx0,ry0,rw,rh);
+  ctx.fillStyle='rgba(255,255,255,0.07)'; for(let k=ry0+3;k<ry0+rh;k+=2) ctx.fillRect(rx0+1,k,rw-2,0.6);
+  ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(rx0+2,ry0,rw-4,1);
+  ctx.fillStyle=isVenture?'rgba(255,80,90,0.35)':'rgba(170,120,255,0.35)'; ctx.fillRect(facing?rx0+rw-10:rx0+4,ry0+1,6,0.8);   // a coloured glint
+  // chrome orbs on the record's edges (the shoulder sockets)
+  for(const ox of [rx0-1,rx0+rw+1]){
+    const og=ctx.createRadialGradient(ox-1.5,ry0+4.5,0.5,ox,ry0+6,5); og.addColorStop(0,'#ffffff'); og.addColorStop(0.4,'#b8bec8'); og.addColorStop(1,'#2a2e36');
+    ctx.beginPath(); ctx.arc(ox,ry0+6,4.6,0,Math.PI*2); ctx.fillStyle='#000'; ctx.fill();
+    ctx.beginPath(); ctx.arc(ox,ry0+6,3.8,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
   }
 }
 
@@ -430,14 +446,30 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
   const hatBrimY=drawY-R+3+ty;
-  drawLogoHat(cx+tx,hatBrimY,64,window._hatDirOverride||_hatDir());
+  drawLogoHat(cx+tx,hatBrimY,80,window._hatDirOverride||_hatDir(),{crownH:15});   // the key art's wide flat brim
 }
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
   const hatBrimY=drawY-R+3+ty;
-  // Paulo (Oct 21): the same hat with no front brim — a backwards baseball cap
-  drawLogoHat(cx+tx,hatBrimY,64,window._hatDirOverride||_hatDir(),{front:false});
+  // Paulo (Oct 22, the key art): a red baseball cap worn backwards — the bill points behind him
+  const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
+  // the bill, behind
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-10),by-3); ctx.lineTo(X(-29),by+1); ctx.lineTo(X(-28),by+3.5); ctx.lineTo(X(-9),by+1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#b01828'; ctx.beginPath(); ctx.moveTo(X(-10),by-2.2); ctx.lineTo(X(-27.5),by+1.2); ctx.lineTo(X(-26.8),by+2.6); ctx.lineTo(X(-9.5),by+0.2); ctx.closePath(); ctx.fill();
+  // the crown (a dome)
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-16),by+1); ctx.quadraticCurveTo(X(-15),by-17,X(0),by-17); ctx.quadraticCurveTo(X(15),by-17,X(16),by+1); ctx.closePath(); ctx.fill();
+  const g=ctx.createLinearGradient(X(-12),by-15,X(12),by); g.addColorStop(0,'#ff4a52'); g.addColorStop(0.55,'#d01e2e'); g.addColorStop(1,'#7a0a16');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(X(-14.5),by); ctx.quadraticCurveTo(X(-13.5),by-15.5,X(0),by-15.5); ctx.quadraticCurveTo(X(13.5),by-15.5,X(14.5),by); ctx.closePath(); ctx.fill();
+  // panel seams, the button, the strap opening at the front (the cap's back) with its snaps
+  ctx.strokeStyle='rgba(60,0,8,0.6)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(-6),by-8,X(-6),by); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(6),by-8,X(6),by); ctx.stroke();
+  ctx.fillStyle='#ff6a72'; ctx.fillRect(X(0)-1.5,by-17,3,2);
+  ctx.fillStyle='#14060a'; ctx.beginPath(); ctx.moveTo(X(5),by); ctx.quadraticCurveTo(X(9),by-7,X(13.5),by-5); ctx.lineTo(X(14),by); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#e0e0e8'; for(const u of [6.5,9,11.5]) ctx.fillRect(X(u)-0.5,by-1.2,1,1);
+  ctx.fillStyle='rgba(255,200,200,0.45)'; ctx.fillRect(X(-9),by-12,dir*6,1.2);
+  ctx.restore();
 }
 
 /* -- Lightbulb head â€” glass, iris, wide hat -- */
@@ -463,26 +495,27 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   const isVen=!hostile&&hero==='venture';
   // pass 4 (Oct 22): the glowing green glass bulb of the key art (the mirror enemy keeps dark red glass)
   if(isFinite(cx)&&isFinite(drawY)){
-    const gl=hostile?['rgba(255,70,50,','#3a1210','#200808','#5a1a14']:['rgba(110,255,140,','#5ee07a','#1f7a38','#0e3a1c'];
+    // Paulo (Oct 22, the key art): clear glass with a violet (MIND) / rose (VENTURE) glow
+    const gl=hostile?['rgba(255,70,50,','#3a1210','#200808','#5a1a14']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
     const halo=ctx.createRadialGradient(cx,drawY,R*0.6,cx,drawY,R+9);
     halo.addColorStop(0,gl[0]+(hostile?0.0:0.30)+')'); halo.addColorStop(1,gl[0]+'0)');
     ctx.fillStyle=halo; ctx.beginPath(); ctx.ellipse(cx,drawY,R+9,R+10,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath();ctx.ellipse(cx,drawY,R+1.5,R+3.5,0,0,Math.PI*2);ctx.fillStyle='rgba(4,14,8,0.85)';ctx.fill();   // dark outline
+    ctx.beginPath();ctx.ellipse(cx,drawY,R+1.5,R+3.5,0,0,Math.PI*2);ctx.fillStyle=hostile?'rgba(4,14,8,0.85)':'rgba(6,4,14,0.85)';ctx.fill();   // dark outline
     const bg=ctx.createRadialGradient(cx-R*0.3,drawY-R*0.35,1,cx,drawY+1,R+2);
     bg.addColorStop(0,gl[1]); bg.addColorStop(0.55,gl[2]); bg.addColorStop(1,gl[3]);
     ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
     // filament glow ring behind the eye
-    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=hostile?'rgba(255,90,60,0.18)':'rgba(190,255,200,0.28)';ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
   }
 
   let scleraCol=hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
   if(lampReady&&!hostile) scleraCol=`rgb(${200+Math.round(Math.sin(fr*0.2)*30)},255,${210+Math.round(Math.sin(fr*0.17)*25)})`;
-  let irisCol=hostile?'#882018':(isVen?'#882028':'#2a4888');
-  let irisDark=hostile?'#5a1010':(isVen?'#541018':'#18306a');
+  let irisCol=hostile?'#882018':(isVen?'#e02a3c':'#9a4cff');
+  let irisDark=hostile?'#5a1010':(isVen?'#6a0a18':'#4a1a9a');
   if(!hostile&&cg>0.05){
     const g=cg;
-    irisCol=_mixHex(isVen?'#882028':'#2a4888','#28a050',g);
-    irisDark=_mixHex(isVen?'#541018':'#18306a','#184820',g);
+    irisCol=_mixHex(isVen?'#e02a3c':'#9a4cff','#28a050',g);
+    irisDark=_mixHex(isVen?'#6a0a18':'#4a1a9a','#184820',g);
     if(lampReady){ irisCol='#38c868'; irisDark='#1a6838'; }
   }
   // Paulo (Oct 21): hurt, the eye goes red and veiny — more the lower his HP
@@ -508,7 +541,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   ctx.beginPath();ctx.ellipse(cx,drawY+2,6,6,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5,5,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5.5,5.5,0,0,Math.PI*2);
-  ctx.strokeStyle=hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#aa3040':'#3a5aaa'));ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#ff6a7a':'#c49aff'));ctx.lineWidth=1;ctx.stroke();
   const px=cx+pupilX,py=drawY+2+pupilY;
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
@@ -539,7 +572,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     const bot=Math.max(0,Math.min(1,p._eyeBot||0)), top=Math.max(0,Math.min(1,p._eyeTop||0));
     const slant=Math.max(-1,Math.min(1,p._eyeSlant||0));
     const ey=drawY+2, rx=10, ry=9, tan=Math.tan(Math.max(-0.8,Math.min(0.8,slant))*0.42);
-    const fill=isVen?'#14060a':'#06140c', rim=isVen?'#c46070':'#4eae72';
+    const fill=isVen?'#14060a':'#0c0618', rim=isVen?'#c46070':'#9a7ae0';
     ctx.save();
     ctx.beginPath(); ctx.ellipse(cx,ey,rx,ry,0,0,Math.PI*2); ctx.clip();
     const edge=(yL,yR)=>{ ctx.strokeStyle=rim; ctx.lineWidth=1.3; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(cx-rx+1,yL); ctx.lineTo(cx+rx-1,yR); ctx.stroke(); };
@@ -1109,18 +1142,22 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   ctx.translate(gx, gy);
   if(!facing) ctx.scale(-1,1);
   if(punching) ctx.scale(1+snapFrac*0.1,1+snapFrac*0.1);
-  ctx.fillStyle='#0b0b10';
+  // Paulo (Oct 22, the key art): a purple leather glove for MIND, a red one for VENTURE
+  const gL=isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];
+  ctx.fillStyle='#050507';
+  ctx.beginPath();ctx.roundRect(-1,-gh/2-1,gw+2,gh+2,7);ctx.fill();
+  ctx.beginPath();ctx.arc(gw/2,0,gh/2+3,0,Math.PI*2);ctx.fill();
+  const lg=ctx.createRadialGradient(gw/2-3,-3,1,gw/2,0,gh/2+3);
+  lg.addColorStop(0,gL[0]); lg.addColorStop(0.45,gL[1]); lg.addColorStop(1,gL[2]);
+  ctx.fillStyle=lg;
   ctx.beginPath();ctx.roundRect(0,-gh/2,gw,gh,6);ctx.fill();
-  ctx.fillStyle=isVenture?'#280810':'#161618';
-  ctx.beginPath();ctx.roundRect(1,-gh/2+1,gw-2,gh-2,5);ctx.fill();
-  ctx.fillStyle='#0e0e16';
   ctx.beginPath();ctx.arc(gw/2,0,gh/2+2,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=isVenture?'#581018':'#161618';
-  ctx.beginPath();ctx.arc(gw/2,0,gh/2,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.06)';
-  ctx.beginPath();ctx.arc(gw/2-3,-3,gh/4,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#080812';
-  ctx.beginPath();ctx.roundRect(-5,-4,8,8,3);ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.45)';ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(gw/2+2,1,4,Math.PI*0.6,Math.PI*1.6);ctx.stroke();   // the thumb
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.beginPath();ctx.ellipse(gw/2-3,-4,3,1.6,-0.4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#050507';ctx.beginPath();ctx.roundRect(-6,-5,8,10,2);ctx.fill();          // the cuff
+  ctx.fillStyle=gL[2];ctx.beginPath();ctx.roundRect(-5,-4,6,8,2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(-4,-3,4,1);
   if(charging&&chargeFrac>0.25){
     ctx.globalAlpha=chargeFrac*0.6;
     ctx.fillStyle=chargeFrac>0.8?'#ffffff':(isVenture?'#ff8888':'#cc88ff');
@@ -1236,7 +1273,7 @@ function drawCharacter(){
   let headTuckVis=onRope?visualCa2:Math.max(visualCa2,p._autoHeadTuck||0);
   if((p._springFloat||0)>0) headTuckVis*=1-(p._springFloat||0)*0.28;
   const headR=Math.round(14-headTuckVis*3);
-  const standHeadCY=bodyTop-18;
+  const standHeadCY=bodyTop-21;                       // the bulb screws into the thick record on top (Oct 22 key art)
   const shellHeadCY=bodyTop+headR*1.05;
   let headCY=standHeadCY+headTuckVis*(shellHeadCY-standHeadCY);
   let peekAmt=0;

@@ -157,6 +157,14 @@ function _titleMenuGeom(){
   const menu=_titleMenuItems();
   const map=_titleArtMap();
   // The key art already paints START / OPTIONS. Hit boxes sit on those words.
+  if(map&&map.im.naturalWidth!==1536){
+    // the key art (Oct 22): the menu sits low in the middle, on the wet floor between the two wheels
+    const rowH=40, top=H-150;
+    return menu.map((it,i)=>{
+      const w=290, x=W/2-w/2, y=top+i*rowH;
+      return {label:it.label, locked:!!it.locked, note:it.note, activate:it.activate, x, y, w, h:rowH, ty:y+rowH/2};
+    });
+  }
   if(map&&map.im.naturalWidth===1536){
     // three rows drawn over the art's own menu words (drawTitle covers them with a panel)
     const top=742, rowH=54;
@@ -273,7 +281,7 @@ const STORY_ART_Q=[];
 const TITLE_FRAME_N=12;
 let TITLE_FRAMES=null;
 let _titleAnimReady=false, _titleStaticReady=false;
-const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/story/title-frame-00.png?v=215'; return im; })();
+const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/ui/title-key.jpg?v=253'; return im; })();   // Paulo (Oct 22): the key art of the siblings is the title screen
 if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth) _titleStaticReady=true;
 function _titleArtMap(){
   const im=TITLE_STATIC;
@@ -689,6 +697,32 @@ function _drawTitleMenuOverArt(map){
 function drawTitle(){
   _titleT++;
   const map=_titleArtMap();
+  if(map&&map.im.naturalWidth!==1536){
+    // Paulo (Oct 22): the siblings' key art. A slow push-in, the logo dropping in at the top
+    // over a dark band, the menu on a glass plate low in the middle, sigil light breathing.
+    ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
+    // the whole art, fit to the width, sitting on the bottom: the logo gets the band above it
+    ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H);
+    const z=1+0.02*Math.min(1,_titleT/600)+0.005*Math.sin(fr*0.01), s0=W/map.im.naturalWidth;
+    const w=map.im.naturalWidth*s0*z, h=map.im.naturalHeight*s0*z;
+    ctx.drawImage(map.im,(W-w)/2,H-h+(z-1)*h*0.5,w,h);
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const sg=ctx.createRadialGradient(W/2,H*0.25,10,W/2,H*0.25,230); sg.addColorStop(0,'rgba(140,80,255,'+(0.10+0.06*Math.sin(fr*0.05))+')'); sg.addColorStop(1,'rgba(140,80,255,0)');
+    ctx.fillStyle=sg; ctx.fillRect(0,0,W,H); ctx.restore();
+    const tg=ctx.createLinearGradient(0,0,0,170); tg.addColorStop(0,'rgba(4,2,12,0.88)'); tg.addColorStop(0.6,'rgba(4,2,12,0.45)'); tg.addColorStop(1,'rgba(4,2,12,0)');
+    ctx.fillStyle=tg; ctx.fillRect(0,0,W,170);
+    const bg=ctx.createLinearGradient(0,H-230,0,H); bg.addColorStop(0,'rgba(4,2,12,0)'); bg.addColorStop(1,'rgba(4,2,12,0.7)');
+    ctx.fillStyle=bg; ctx.fillRect(0,H-230,W,230);
+    const k=Math.min(1,_titleT/45), ease=1-Math.pow(1-k,3);
+    ctx.save(); ctx.globalAlpha=k;
+    uiLogo('MIND & VENTURE',W/2,-90+(96)*ease,58,{sweep:260});
+    drawTextC('A W D J O O   T O W N',W/2,-90+(96)*ease+84,'#ffe39a',2);
+    ctx.restore();
+    _drawTitleMenuOverArt(Object.assign({},map,{s:0.75}));
+    _drawUiToast();
+    drawTextC('© 1993 SONNATA GAMES',W-96,H-14,'rgba(200,184,255,0.6)',1);
+    return;
+  }
   if(map){
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
     ctx.drawImage(map.im,map.dx,map.dy,map.im.naturalWidth*map.s,map.im.naturalHeight*map.s);
