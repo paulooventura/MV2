@@ -121,6 +121,7 @@
     g.addColorStop(0,P.skyTop); g.addColorStop(0.45,P.skyMid); g.addColorStop(0.85,P.skyLow); g.addColorStop(1,P.skyGlow);
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
     const horizon=Y((MV_BETA.horizonRow!=null?MV_BETA.horizonRow:MV_BETA.sky+13)*T);
+    if(window.MV_SKY&&MV_SKY.draw(MV_BETA,horizon)) return;          // build 217: the key-art sky (beta_sky.js)
     // stars high up, twinkling
     const starH=(MV_BETA.sky+8)*T;
     for(let i=0;i<70;i++){

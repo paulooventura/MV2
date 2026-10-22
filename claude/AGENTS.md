@@ -295,6 +295,12 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 217 — pass 2 of the art direction: key-art skies (Oct 22)
+- New `js/beta_sky.js` (loaded after `beta_decor.js`): `MV_SKY.draw(B,horizonPx)` replaces the old dusk sky in `beta_decor` `sky()`.
+  Pixel art painted at 1/3 scale into cached strips: dithered night bands, Van Gogh swirls + tendrils, stars, far ridge + pines, town strip (lit windows, chimneys, poles, sagging wires), parallax per layer; twinkling cross sparkles; moon on 1.2.
+- Themes in `MV_SKY.THEMES` keyed by `B.stageId` (1.1 green night like the title, 1.2 violet moon night like "Deep Waters").
+- `MV_SKY.post` wraps `drawDamageOverlay`: soft-light stage grade + vignette in screen space, under the HUD.
+
 ### Build 216 — pass 1 of the art direction: the title's lettering + UI; XLR hits enemies; enemy shots hit blocks (Oct 22)
 - Paulo: the game should look like the title key art and the story pictures (rich pixel art, green phosphor lettering), in four passes: (1) fonts + HUD/menus, (2) stage backgrounds + lighting, (3) sound, (4) tiles + characters.
 - Pass 1 (core.js): one UI face, VT323 (`assets/fonts/vt323.woff2`, OFL) as "MV Pixel", thickened, dark outline, glow in its own colour. `UI_RECOLOR` maps the old lilac/gold menu colours to the title greens (HUD colours like HP red stay). `uiPanel` = chamfered dark-green glass with a pixel frame, scanlines, corner studs, green glow when selected; `uiBar` = pixel meter; `uiLogo` = big green pixel letters with a stepped extrusion, scanlines and a light scan (opts.col to tint); `uiCursor` = the title's green ▶. Stage card banner recoloured green (ui.js drawZoneCard).
