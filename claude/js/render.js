@@ -501,6 +501,28 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     }
     ctx.restore();
   }
+  // Paulo (Oct 22): the eye finds the nearest enemy. Closer = a higher bottom lid.
+  // Danger in the radius pulls the top lid down, slanted, so a hard fight looks angry.
+  if(!hostile&&p&&((p._eyeBot||0)>0.03||(p._eyeTop||0)>0.03)){
+    const bot=Math.max(0,Math.min(1,p._eyeBot||0)), top=Math.max(0,Math.min(1,p._eyeTop||0));
+    const slant=Math.max(-1,Math.min(1,p._eyeSlant||0));
+    const ey=drawY+2, rx=10, ry=9, tan=Math.tan(slant*0.42);
+    const fill=isVen?'#14060a':'#06140c', rim=isVen?'#c46070':'#4eae72';
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(cx,ey,rx,ry,0,0,Math.PI*2); ctx.clip();
+    const edge=(yL,yR)=>{ ctx.strokeStyle=rim; ctx.lineWidth=1.3; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(cx-rx+1,yL); ctx.lineTo(cx+rx-1,yR); ctx.stroke(); };
+    if(top>0.03){
+      const mid=ey-ry+top*ry*0.92, yL=mid+(-rx)*tan, yR=mid+rx*tan;
+      ctx.beginPath(); ctx.moveTo(cx-rx-2,ey-ry-8); ctx.lineTo(cx+rx+2,ey-ry-8); ctx.lineTo(cx+rx+2,yR); ctx.lineTo(cx-rx-2,yL); ctx.closePath();
+      ctx.fillStyle=fill; ctx.fill(); edge(yL,yR);
+    }
+    if(bot>0.03){
+      const mid=ey+ry-bot*ry*0.78, yL=mid+(-rx)*tan, yR=mid+rx*tan;
+      ctx.beginPath(); ctx.moveTo(cx-rx-2,ey+ry+8); ctx.lineTo(cx+rx+2,ey+ry+8); ctx.lineTo(cx+rx+2,yR); ctx.lineTo(cx-rx-2,yL); ctx.closePath();
+      ctx.fillStyle=fill; ctx.fill(); edge(yL,yR);
+    }
+    ctx.restore();
+  }
   const baseY=drawY+R+1;
   ctx.fillStyle='#7a8290';ctx.fillRect(cx-12,baseY,24,6);
   ctx.fillStyle='#8a929e';ctx.fillRect(cx-11,baseY+1,22,4);
