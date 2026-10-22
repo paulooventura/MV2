@@ -164,8 +164,8 @@
     }
     B.blasts.push({x:c.x, y:c.y, t:0, amp:1});
     B.shake=Math.max(B.shake||0,8);
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(1);
-    if(e._ai==='circle') try{ sfx('frag_fire'); }catch(_e){}
+    if(window.MV_BETA_AUDIO) { MV_SPATIAL_from(c); MV_BETA_AUDIO.boom(1); };
+    if(e._ai==='circle') try{ sfxAt(c,'frag_fire'); }catch(_e){}
     // the blast itself shoves MIND
     const m=mindCenter(), d=Math.hypot(m.x-c.x,m.y-c.y)||1;
     if(d<3*T&&_shutdownTimer<=0){ const k=1-d/(3*T); applyPlayerHit((m.x-c.x)/d*8*k,-4*k-1,Math.round(6+8*k)); }
@@ -186,7 +186,7 @@
     const s=Math.sign(p.vx);
     f.vx=p.vx*1.25+s*1.2; f.vy=-2-Math.abs(p.vx)*0.35; f.settle=0; f.bounce=0; f.dud=true; f.kickCd=10;
     if(f.ai!=='circle') f.t=Math.min(f.t,100); else f.smoked=Math.min(f.smoked||0,FRAG_LINGER-600);
-    try{ sfx('debris',0.7); }catch(e){}
+    try{ sfxAt(f,'debris',0.7); }catch(e){}
     return true;
   }
   // XLR (sign +1, push) / MAG (sign -1, pull): frags in front of the jack get shoved or drawn in
@@ -280,7 +280,7 @@
   function push(e,dir){
     const c=center(e);
     B.pushFx.push({x:c.x+dir*e.w*0.5, y:c.y, dir, t:0});
-    try{ sfx('xlr_push'); }catch(_e){ try{ sfx('hit'); }catch(__){} }
+    try{ sfxAt(c,'xlr_push'); }catch(_e){ try{ sfxAt(c,'hit'); }catch(__){} }
     const m=mindCenter(), dx=m.x-c.x;
     if(Math.sign(dx)===dir&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<2*T&&_shutdownTimer<=0){
       const k=1-Math.abs(dx)/(PUSH_R+e.w/2);
@@ -310,7 +310,7 @@
   }
   function throwRope(e,tx,ty,kind){
     const c=ropeOrigin(e), d=Math.hypot(tx-c.x,ty-c.y)||1;
-    try{ if(onScreen(e)) sfx('rope_throw'); }catch(_e){}
+    try{ if(onScreen(e)) sfxAt(c,'rope_throw'); }catch(_e){}
     B.ropes.push({e, kind, x:c.x, y:c.y, vx:(tx-c.x)/d*11, vy:(ty-c.y)/d*11, st:'fly', t:0, len:0, mode:'hold', mash:0, decide:0, tx, ty});
   }
   function ropeTick(){
@@ -461,7 +461,7 @@
     if(k>=1){
       e.x=tb.nx; e.ang=0; e.tumble=null;
       if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
-      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfx('tumble'); }catch(_e){}
+      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfxAt(e,'tumble'); }catch(_e){}
       if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
       else land(e,1.5);
     }
@@ -482,7 +482,7 @@
   }
   function land(e,v){
     B.shake=Math.max(B.shake||0,Math.min(5,v*0.7));
-    try{ sfx(v>5?'stomp':'land'); }catch(_e){}
+    try{ sfxAt(e,v>5?'stomp':'land'); }catch(_e){}
     for(let k=0;k<6;k++) PFXS.push({x:e.x+Math.random()*e.w,y:e.y+e.h-2,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:14,maxLife:14,r:2+Math.random()*2,col:'#a89880'});
   }
   function touchesWater(e){
@@ -572,9 +572,9 @@
     if(e.look==null){ e.look={x:0,y:0}; e.leash=e.leash||8*T; }
     if(los){
       e.lastSeen={x:m.x,y:m.y}; e.lostT=0; e.searchT=0;
-      if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfx('enemy_alert'); }catch(_e){} }
+      if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfxAt(e,'enemy_alert'); }catch(_e){} }
     }else if(e.aware&&++e.lostT>(DIFF()===3?130:95)){
-      e.aware=false; e.mark={c:'?',t:0}; e.searchT=DIFF()===3?600:420; try{ sfx('enemy_huh'); }catch(_e){}
+      e.aware=false; e.mark={c:'?',t:0}; e.searchT=DIFF()===3?600:420; try{ sfxAt(e,'enemy_huh'); }catch(_e){}
     }
     if(e.mark&&++e.mark.t>60) e.mark=null;
     if(e.searchT>0) e.searchT--;
@@ -600,7 +600,7 @@
     }else{
       const want=near?Math.max(0,Math.min(1,(HEAT_FAR-gap)/(HEAT_FAR-T))):0;
       e.heat+=(want-e.heat)*0.06;
-      if(gap<=T*1.05&&near&&!e.fuse) { e.fuse=1; try{ sfx('chargeReady'); }catch(_e){} }
+      if(gap<=T*1.05&&near&&!e.fuse) { e.fuse=1; try{ sfxAt(e,'chargeReady'); }catch(_e){} }
       if(e.fuse){ e.heat=1; if(++e.fuse>=FUSE){ explode(e); return; } }
     }
     if(e.pushCd>0) e.pushCd--;
@@ -813,7 +813,7 @@
         if(s0.mn!=null){ e.mn=s0.mn; e.mx=s0.mx; }
         e.alive=true; e._permOff=false; e._stayDown=false; e._shorted=false; e._shortT=0; e._downs=0; e._mindOff=null;
         if(e.mhp) e.hp=e.mhp; e.cool=0; e.heat=0; e.fuse=0; e._hidden=false; e._spawnFx=36;
-        try{ sfx('enemy_boot'); }catch(_e){}
+        try{ sfxAt(e,'enemy_boot'); }catch(_e){}
         for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.5,life:18,maxLife:18,r:2,col:'#c8a8ff'}); }
         continue;
       }

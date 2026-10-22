@@ -69,6 +69,10 @@
   window.addEventListener('keydown',kick); window.addEventListener('pointerdown',kick);
 
   function ac(){ try{ return typeof ga==='function'?ga():null; }catch(e){ return null; } }
+  // build 222: positional output (beta_spatial.js) for this one sound, else the speakers
+  let _dOut=null;
+  function D(a){ return _dOut||a.destination; }
+  const spatial=fn=>function(){ const a=ac(); _dOut=(a&&window.MV_SPATIAL)?MV_SPATIAL.take(a):null; if(_dOut===false){ _dOut=null; return; } try{ return fn.apply(this,arguments); } finally{ _dOut=null; } };
   const sv=()=>{ try{ return Math.max(0,Math.min(1,OPT.sfxVol!=null?OPT.sfxVol:1)); }catch(e){ return 1; } };
   let noiseBuf=null;
   function noise(a){
@@ -84,10 +88,10 @@
     const n=a.createBufferSource(); n.buffer=noise(a);
     const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.setValueAtTime(2400,t); lp.frequency.exponentialRampToValueAtTime(140,t+0.5);
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.32*sv()*Math.min(1.4,0.7+0.3*k),t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.55+0.1*k);
-    n.connect(lp); lp.connect(g); g.connect(a.destination); n.start(t); n.stop(t+0.8);
+    n.connect(lp); lp.connect(g); g.connect(D(a)); n.start(t); n.stop(t+0.8);
     const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(38,t+0.35);
     og.gain.setValueAtTime(0.4*sv(),t); og.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
-    o.connect(og); og.connect(a.destination); o.start(t); o.stop(t+0.45);
+    o.connect(og); og.connect(D(a)); o.start(t); o.stop(t+0.45);
   }
   // rope creak: a short scratchy squeak whose pitch climbs with tension
   let lastCreak=0;
@@ -98,7 +102,7 @@
     o.type='sawtooth'; const f=180+level*520; o.frequency.setValueAtTime(f,t); o.frequency.linearRampToValueAtTime(f*1.18,t+0.07);
     bp.type='bandpass'; bp.frequency.value=f*2; bp.Q.value=6;
     g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.06*sv()*(0.4+level),t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
-    o.connect(bp); bp.connect(g); g.connect(a.destination); o.start(t); o.stop(t+0.1);
+    o.connect(bp); bp.connect(g); g.connect(D(a)); o.start(t); o.stop(t+0.1);
   }
   // rope twang when it latches tight or snaps
   function twang(hi){
@@ -106,7 +110,7 @@
     const t=a.currentTime, o=a.createOscillator(), g=a.createGain();
     o.type='triangle'; o.frequency.setValueAtTime(hi?520:300,t); o.frequency.exponentialRampToValueAtTime(hi?180:120,t+0.25);
     g.gain.setValueAtTime(0.16*sv(),t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
-    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+0.32);
+    o.connect(g); g.connect(D(a)); o.start(t); o.stop(t+0.32);
   }
   // wheel sizzle on a wall
   let lastSizzle=0;
@@ -116,7 +120,7 @@
     const n=a.createBufferSource(); n.buffer=noise(a);
     const hp=a.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3500+heat*3000;
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.035*sv()*(0.3+heat),t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
-    n.connect(hp); hp.connect(g); g.connect(a.destination); n.start(t,Math.random()*0.5); n.stop(t+0.14);
+    n.connect(hp); hp.connect(g); g.connect(D(a)); n.start(t,Math.random()*0.5); n.stop(t+0.14);
   }
   // stage-clear fanfare: a bright little tune in C major (lead + bass + bells)
   function fanfare(){
@@ -137,11 +141,11 @@
         const vib=a.createOscillator(), vg=a.createGain(); vib.frequency.value=5.5; vg.gain.value=d>1?6:0; vib.connect(vg); oscs.forEach(o=>vg.connect(o.detune)); vib.start(s); vib.stop(e+rel+0.05); }
       g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(gain*sv(),s+0.02); g.gain.setValueAtTime(gain*sv()*0.75,e-0.03); g.gain.exponentialRampToValueAtTime(0.0001,e+rel);
       oscs.forEach(o=>{ o.connect(head); o.start(s); o.stop(e+rel+0.05); });
-      g.connect(a.destination); } };
+      g.connect(D(a)); } };
     voice(lead,'brass',0.06,0.12); voice(bass,'triangle',0.14,0.1); voice(bell,'sine',0.08,0.9);
     // timpani roll into the last chord
     [3.5,3.75,4,4.25,4.5].forEach((b,i)=>{ const s=t0+b*q, o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(i<4?98:65,s); o.frequency.exponentialRampToValueAtTime(i<4?70:44,s+0.3);
-      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime((i<4?0.1:0.22)*sv(),s+0.01); g.gain.exponentialRampToValueAtTime(0.0001,s+(i<4?0.25:0.9)); o.connect(g); g.connect(a.destination); o.start(s); o.stop(s+1); });
+      g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime((i<4?0.1:0.22)*sv(),s+0.01); g.gain.exponentialRampToValueAtTime(0.0001,s+(i<4?0.25:0.9)); o.connect(g); g.connect(D(a)); o.start(s); o.stop(s+1); });
     return (6.5*q+0.9)*1000;
   }
 
@@ -153,10 +157,10 @@
     const n=a.createBufferSource(); n.buffer=noise(a);
     const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.setValueAtTime(1400,t); bp.frequency.exponentialRampToValueAtTime(500,t+0.25); bp.Q.value=1.2;
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.16*sv()*(0.3+k),t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
-    n.connect(bp); bp.connect(g); g.connect(a.destination); n.start(t,Math.random()*0.5); n.stop(t+0.32);
+    n.connect(bp); bp.connect(g); g.connect(D(a)); n.start(t,Math.random()*0.5); n.stop(t+0.32);
     const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(380+Math.random()*120,t+0.03); o.frequency.exponentialRampToValueAtTime(900,t+0.12);
     og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.06*sv()*(0.3+k),t+0.05); og.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
-    o.connect(og); og.connect(a.destination); o.start(t+0.03); o.stop(t+0.18);
+    o.connect(og); og.connect(D(a)); o.start(t+0.03); o.stop(t+0.18);
   }
   // the magnet locking onto the floor: a heavy metal CLANK, then a low hum
   // (two detuned square waves through a low-pass, wobbling) while it holds
@@ -166,11 +170,11 @@
     for(const [f,d,v] of [[180,0.18,0.18],[620,0.09,0.08],[1450,0.05,0.05]]){
       const o=a.createOscillator(), g=a.createGain(); o.type='square'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*0.6,t+d);
       g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v*sv(),t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
-      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+d+0.02);
+      o.connect(g); g.connect(D(a)); o.start(t); o.stop(t+d+0.02);
     }
     const n=a.createBufferSource(); n.buffer=noise(a); const hp=a.createBiquadFilter(); hp.type='bandpass'; hp.frequency.value=2400; hp.Q.value=3;
     const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.1*sv(),t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
-    n.connect(hp); hp.connect(g); g.connect(a.destination); n.start(t); n.stop(t+0.1);
+    n.connect(hp); hp.connect(g); g.connect(D(a)); n.start(t); n.stop(t+0.1);
   }
   let hum=null;
   function magHum(on){
@@ -180,7 +184,7 @@
       const o1=a.createOscillator(), o2=a.createOscillator(), lfo=a.createOscillator(), lg=a.createGain();
       o1.type='square'; o2.type='square'; o1.frequency.value=55; o2.frequency.value=55.7; lfo.frequency.value=7; lg.gain.value=120;
       lfo.connect(lg); lg.connect(f.frequency);
-      o1.connect(f); o2.connect(f); f.connect(g); g.connect(a.destination);
+      o1.connect(f); o2.connect(f); f.connect(g); g.connect(D(a));
       const t=a.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.05*sv(),t+0.08);
       o1.start(); o2.start(); lfo.start(); hum={g,os:[o1,o2,lfo]};
     }else if(!on&&hum){
@@ -189,5 +193,5 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, stopAll, ensure, hurtTick, boom, creak, twang, sizzle, fanfare, splash, magClank, magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, stopAll, ensure, hurtTick, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
 })();

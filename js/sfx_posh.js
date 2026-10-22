@@ -26,7 +26,9 @@
     return noiseBuf;
   }
   // output bus: a little glue compression + a short, warm room on a send
-  function bus(a){
+  // build 222: beta_spatial.js may route one sound through its own distance / wall chain
+  function bus(a){ return window.MV_SFX_ROUTE||realBus(a); }
+  function realBus(a){
     let b=BUS.get(a); if(b) return b;
     const out=a.createGain(); out.gain.value=0.9;
     const comp=a.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=3; comp.attack.value=0.003; comp.release.value=0.15;
@@ -240,7 +242,7 @@
     const p=typeof arguments[1]==='number'?arguments[1]:1;
     try{ r(a,p); }catch(e){ return orig.apply(this,arguments); }
   };
-  window.MV_SFX_POSH={names:Object.keys(R)};
+  window.MV_SFX_POSH={names:Object.keys(R), bus:realBus};
 
   // a few more moments that deserve a sound
   window.addEventListener('load',()=>{

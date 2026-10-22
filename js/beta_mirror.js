@@ -55,9 +55,9 @@
     if(!B.on||!e||!e.mirror) return _upd.apply(this,arguments);
     if(sees(e)){
       e._seenT=LOSE_FR;
-      if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfx('enemy_alert'); }catch(_e){} }
+      if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfxAt(e,'enemy_alert'); }catch(_e){} }
     }else if(e._seenT>0&&--e._seenT===0&&e.aware){
-      e.aware=false; e.mark={c:'?',t:0}; try{ sfx('enemy_huh'); }catch(_e){}
+      e.aware=false; e.mark={c:'?',t:0}; try{ sfxAt(e,'enemy_huh'); }catch(_e){}
     }
     window._mirrorActing=e;
     try{ if(e.aware) return _upd.apply(this,arguments); patrol(e); } finally{ window._mirrorActing=null; }
@@ -99,7 +99,7 @@
     const d={item:idx, enhanced:enh, x:cx-16, y:cy-16, w:32, h:32, got:false, bob:0, _knocked:true,
       _box:{hp:0, broken:true, shake:0, glow:0, item:{x:cx, y:cy, vx:dir*(3+Math.random()*1.5), vy:-6, rot:0, vr:dir*0.3, og:false, noPick:45}}};
     ITEM_DROPS.push(d); lost.add(idx);
-    try{ sfx('item_clink'); sfx('enemy_alert'); }catch(_e){}
+    try{ sfxAt(e,'item_clink'); sfxAt(e,'enemy_alert'); }catch(_e){}
     for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:cx,y:cy,vx:Math.cos(a)*3,vy:Math.sin(a)*3-1,life:16,maxLife:16,r:2,col:'#ffd070'}); }
     const names=['TRS','RCA','XLR','MAG'];
     if(typeof uiShowToast==='function') uiShowToast('D KNOCKED YOUR '+names[idx]+' LOOSE - GRAB IT BACK!');

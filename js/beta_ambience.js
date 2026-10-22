@@ -12,6 +12,10 @@
 //   - MIND's wheel: a rolling rumble with grit that follows his speed on
 //     the ground, and a heavier thud on a hard landing.
 //  Everything fades with OPT.sfxVol, on pause, on popups and off the game.
+//  Build 222: heard from MIND's spot (beta_spatial.js) — crickets sit on real grass, drips
+//  fall from real ceilings, frogs on the water, the hum on the lamp posts, each one
+//  with distance, panning and the walls in between; wind follows how high and open
+//  the place is; the cave drone how enclosed.
 // ============================================================
 (function(){
   'use strict';
@@ -57,34 +61,37 @@
     whBP.connect(whG); whG.connect(a.destination); loopNoise(a,whBP);
     const grHP=a.createBiquadFilter(); grHP.type='highpass'; grHP.frequency.value=2600; const grG=a.createGain(); grG.gain.value=0;
     grHP.connect(grG); grG.connect(a.destination); loopNoise(a,grHP);
-    return {out,rev,wBP,wG,hG,dG,lG,whBP,whG,grG};
+    return {out,rev,wBP,wG,hG,hLP,dG,lG,lLP,whBP,whG,grG};
   }
   const set=(param,v,tc)=>{ try{ param.setTargetAtTime(v,A.currentTime,tc||0.25); }catch(e){} };
 
   // one-shots
   function env(g,t,peak,att,dec){ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak),t+att); g.gain.exponentialRampToValueAtTime(0.0001,t+att+dec); }
-  function cricket(pan){
+  function at(x,y,g){ return window.MV_SPATIAL?MV_SPATIAL.chainAt(A,x,y,{dest:N.out,gain:g||1}):null; }
+  function cricket(pan,x,y){
     const t=A.currentTime, carrier=4200+Math.random()*700, pulses=2+((Math.random()*3)|0);
     const o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner(); o.type='sine'; o.frequency.value=carrier; p.pan.value=pan;
-    g.gain.value=0.0001; o.connect(g); g.connect(p); p.connect(N.out);
+    g.gain.value=0.0001; const d0=x!=null?at(x,y,1.6):N.out; if(!d0) return; o.connect(g); g.connect(p); p.connect(d0);
     for(let i=0;i<pulses;i++){ const s=t+i*0.055; g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.05,s+0.008); g.gain.exponentialRampToValueAtTime(0.0001,s+0.04); }
     o.start(t); o.stop(t+pulses*0.055+0.05);
   }
   function owl(){
-    const t=A.currentTime;
-    [[0,0.32],[0.5,0.18],[0.72,0.5]].forEach(([dt,d])=>{ const o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(410,t+dt); o.frequency.linearRampToValueAtTime(370,t+dt+d); env(g,t+dt,0.05,0.06,d); o.connect(g); g.connect(N.out); g.connect(N.rev); o.start(t+dt); o.stop(t+dt+d+0.1); });
+    const t=A.currentTime, L=window.MV_SPATIAL?MV_SPATIAL.listener():null, d0=L?at(L.x+(Math.random()<0.5?-1:1)*22*32,L.y-8*32,2.2):N.out; if(!d0) return;
+    [[0,0.32],[0.5,0.18],[0.72,0.5]].forEach(([dt,d])=>{ const o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(410,t+dt); o.frequency.linearRampToValueAtTime(370,t+dt+d); env(g,t+dt,0.05,0.06,d); o.connect(g); g.connect(d0); o.start(t+dt); o.stop(t+dt+d+0.1); });
   }
-  function frog(pan){
+  function frog(pan,x,y){
+    const d0=x!=null?at(x,y,1.5):N.out; if(!d0) return;
     const t=A.currentTime, f=140+Math.random()*60, n=2+((Math.random()*2)|0);
     for(let i=0;i<n;i++){ const s=t+i*0.16, o=A.createOscillator(), g=A.createGain(), bp=A.createBiquadFilter(), p=A.createStereoPanner();
       o.type='sawtooth'; o.frequency.setValueAtTime(f,s); o.frequency.exponentialRampToValueAtTime(f*1.5,s+0.09);
       bp.type='bandpass'; bp.frequency.value=f*4; bp.Q.value=5; p.pan.value=pan; env(g,s,0.07,0.01,0.11);
-      o.connect(bp); bp.connect(g); g.connect(p); p.connect(N.out); o.start(s); o.stop(s+0.14); }
+      o.connect(bp); bp.connect(g); g.connect(p); p.connect(d0); o.start(s); o.stop(s+0.14); }
   }
-  function drip(pan,amt){
+  function drip(pan,amt,x,y){
+    const d0=x!=null?at(x,y,1.8):N.out; if(!d0) return;
     const t=A.currentTime, f=900+Math.random()*1300, o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner();
     o.type='sine'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*2.3,t+0.05); p.pan.value=pan;
-    env(g,t,0.09*amt,0.003,0.08); o.connect(g); g.connect(p); p.connect(N.out); p.connect(N.rev); o.start(t); o.stop(t+0.12);
+    env(g,t,0.09*amt,0.003,0.08); o.connect(g); g.connect(p); p.connect(d0); p.connect(N.rev); o.start(t); o.stop(t+0.12);
   }
   function thud(k){
     const t=A.currentTime, o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(95,t); o.frequency.exponentialRampToValueAtTime(40,t+0.18);
@@ -106,6 +113,31 @@
     }
     return {out, under:1-out, water:waterNear};
   }
+  // real places for the sounds to come from
+  const rc=(n)=>Math.floor((Math.random()*2-1)*n);
+  function grassSpot(B){
+    const lv=B.level, sr=B.surfRow||[], hz=B.horizonRow!=null?B.horizonRow:30;
+    const c0=Math.floor((p.x+SW/2)/32);
+    for(let k=0;k<6;k++){ const c=c0+rc(16), r=sr[c]; if(r==null||r>hz+12||r<1) continue; if(lv.cells[r-1][c]) continue; return {x:c*32+16,y:r*32-4}; }
+    return null;
+  }
+  function ceilingSpot(B){
+    const lv=B.level, c0=Math.floor((p.x+SW/2)/32), r0=Math.floor((p.y+FEET_OFF-30)/32);
+    for(let k=0;k<10;k++){ const c=c0+rc(12), r=r0+rc(8); if(r<1||c<0||r>=lv.rows||c>=lv.cols) continue;
+      if(!lv.cells[r][c]&&lv.cells[r-1][c]===1&&(r-1)>((B.horizonRow||0)-2)) return {x:c*32+16,y:r*32+2}; }
+    return null;
+  }
+  function waterSpot(B,nearest){
+    if(typeof B.inWater!=='function') return null;
+    const L=MV_SPATIAL.listener();
+    let best=null, bd=1e9;
+    for(const w of (B.waters||[])){
+      const x=nearest?Math.max(w.px0,Math.min(w.px1,L.x)):w.px0+Math.random()*(w.px1-w.px0);
+      let y=null; for(let yy=w.base-64; yy<=(w.r1+1)*32; yy+=8){ if(B.inWater(x,yy)){ y=yy; break; } }   // the surface may have moved
+      if(y==null) continue; const d=Math.hypot(x-L.x,y-L.y); if(d<bd){ bd=d; best={x,y}; }
+    }
+    return best;
+  }
   let lastOg=true, lastVy=0, gust=0, gustT=0;
   function tick(){
     const a=ac(); if(!a||a.state!=='running') return;
@@ -116,17 +148,27 @@
     set(N.out.gain,master,live?0.6:0.15);
     if(!live){ set(N.whG.gain,0,0.05); set(N.grG.gain,0,0.05); return; }
     const S=STAGE[B.stageId]||DEF, w=place(B), t=A.currentTime;
-    // wind gusts
-    if(t>gustT){ gust=0.4+Math.random()*0.8; gustT=t+2+Math.random()*4; set(N.wBP.frequency,300+gust*500,1.2); }
-    set(N.wG.gain,0.11*S.wind*gust*(0.3+0.7*w.out),1.2);
-    set(N.hG.gain,0.035*S.hum*w.out,0.8);
-    set(N.dG.gain,0.09*S.drone*w.under,1.0);
-    set(N.lG.gain,0.16*w.water,0.6);
-    // the creatures and the drips
-    if(w.out>0.3&&Math.random()<0.10*S.crickets*w.out) cricket(Math.random()*1.6-0.8);
-    if(S.owl&&w.out>0.6&&Math.random()<0.0016) owl();
-    if(S.frogs&&w.out>0.3&&(w.water>0.05||Math.random()<0.3)&&Math.random()<0.012) frog(Math.random()*1.4-0.7);
-    if(Math.random()<0.03*w.under+0.02*w.water) drip(Math.random()*1.6-0.8,0.6+w.under*0.6);
+    const SP=window.MV_SPATIAL, E=SP?SP.env:{wind:w.out, under:w.under, encl:w.under, elev:0.5};
+    // wind lives where it's high and open (beta_spatial measures it); gusts, and it
+    // whistles higher the higher he is
+    if(t>gustT){ gust=0.4+Math.random()*0.8; gustT=t+2+Math.random()*4; set(N.wBP.frequency,(300+gust*500)*(1+E.elev*0.8),1.2); }
+    set(N.wG.gain,0.16*S.wind*gust*E.wind,1.2);
+    // the power lines hum from the lamp posts, as far and as walled-off as they are
+    let hum=0, hlp=420;
+    if(SP) for(const d of (B.decor||[])){ if(d.kind!=='lamp') continue; const P=SP.params(d.x,d.y-40); if(P&&P.g>hum){ hum=P.g; hlp=Math.min(420,P.lp); } }
+    set(N.hG.gain,0.06*S.hum*hum,0.6); set(N.hLP.frequency,Math.max(120,hlp),0.4);
+    set(N.dG.gain,0.09*S.drone*Math.max(E.under,E.encl*0.5*w.under),1.0);
+    // water lapping from the nearest water surface
+    let lap=0, llp=700; const ws=SP?waterSpot(B,true):null;
+    if(ws){ const P=SP.params(ws.x,ws.y); if(P){ lap=P.g; llp=Math.min(700,P.lp); } }
+    set(N.lG.gain,0.2*lap,0.6); set(N.lLP.frequency,Math.max(150,llp),0.4);
+    // the creatures and the drips, each from a real spot
+    if(SP){
+      if(Math.random()<0.12*S.crickets){ const g=grassSpot(B); if(g) cricket(0,g.x,g.y); }
+      if(S.owl&&E.wind>0.2&&Math.random()<0.0016) owl();
+      if(S.frogs&&Math.random()<0.02){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
+      if(Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
+    }
     // the wheel
     const og=!!(p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p)));
     const spd=og?Math.min(1,Math.abs(p.vx)/6):0;

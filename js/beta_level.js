@@ -455,7 +455,7 @@
           bw._ox=0; bw._oy=0; bw._ease=0;
           const pd=bw._pushDir||{dc:0,dr:0}; bw._sq=0.2; bw._sqV=0; bw._sqAx=pd.dc?'x':'y';
           if(pd.dc){ for(let k=0;k<6;k++) PFXS.push({x:bw.x+T/2+pd.dc*T/2,y:bw.y+T-3,vx:pd.dc*(0.5+Math.random()*1.5),vy:-Math.random()*1.4,life:14+Math.random()*8|0,maxLife:22,r:2+Math.random()*2,col:'#c8b090'}); }
-          try{ sfx('omniblock_chip'); }catch(e){}
+          try{ sfxAt(bw,'omniblock_chip'); }catch(e){}
         }else{ bw._ox-=bw._ox/d*s; bw._oy-=bw._oy/d*s;
           if(bw._pushDir&&bw._pushDir.dc&&fr%2===0) PFXS.push({x:bw.x+(bw._ox||0)+T/2-bw._pushDir.dc*T/2,y:bw.y+T-2,vx:-bw._pushDir.dc*Math.random(),vy:-Math.random()*0.8,life:12,maxLife:12,r:1.5+Math.random()*1.5,col:'#b8a080'}); }
         continue;
@@ -469,7 +469,7 @@
       if(!holdsStill(bw)&&cellFree(bw.homeCol,bw.homeRow+1)){
         bw._fallN=(bw._fallN||0)+1;
         moveCube(bw,0,1,Math.max(2,7-bw._fallN));
-        if(!cellFree(bw.homeCol,bw.homeRow+1,true)){ try{ sfx('omniblock_chip'); }catch(e){} bw.shakeY=2; }
+        if(!cellFree(bw.homeCol,bw.homeRow+1,true)){ try{ sfxAt(bw,'omniblock_chip'); }catch(e){} bw.shakeY=2; }
         continue;
       }
       bw._fallN=0;
@@ -544,7 +544,7 @@
       if(ch.list.some(busy)) continue;
       const far=ch.list[ch.list.length-1];
       if(ch.left<=0||!cellFree(far.homeCol+ch.dc,far.homeRow+ch.dr)){
-        if(ch.left===ch.cells){ for(const b of ch.list){ b.shakeX=ch.dc*2; b.hitGlow=10; } try{ sfx('omniblock_chip'); }catch(e){} }
+        if(ch.left===ch.cells){ for(const b of ch.list){ b.shakeX=ch.dc*2; b.hitGlow=10; } try{ sfxAt(ch.list[0],'omniblock_chip'); }catch(e){} }
         B_CHAINS.splice(i,1); continue;
       }
       // Paulo (Oct 21): the push should read clearly — the whole line takes all its
@@ -657,7 +657,7 @@
     }
     if(!best) return;
     const charge=Math.min(1,held/CUBE.CHARGE_FULL)*(B.relPow==null?1:B.relPow);   // weaker on a low power bar
-    if(charge<0.06){ best.shakeX=2; best.hitGlow=8; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, weak:true}; return; }
+    if(charge<0.06){ best.shakeX=2; best.hitGlow=8; try{ sfxAt(best,'omniblock_chip'); }catch(e){} B.lastFire={mode, weak:true}; return; }
     const near=bd<=CUBE.NEAR?1:Math.max(0,1-(bd-CUBE.NEAR)/(CUBE.RANGE-CUBE.NEAR));
     const cells=Math.max(1,Math.min(4,Math.round(1+3*charge*near)));
     const ax=aimAxis();
@@ -667,7 +667,7 @@
     if(mode==='push'){ best._sq=-0.16; best._sqV=0; best._sqAx=dc?'x':'y';            // the blast hits it: it gives a little first
       const hx=best.x+T/2-dc*T/2, hy=best.y+T/2-dr*T/2;
       for(let k=0;k<8;k++){ const a2=Math.atan2(dr,dc)+Math.PI+(Math.random()-0.5)*1.6; PFXS.push({x:hx,y:hy,vx:Math.cos(a2)*(1+Math.random()*2.5),vy:Math.sin(a2)*(1+Math.random()*2.5),life:12+Math.random()*8|0,maxLife:20,r:2,col:'#9fd8ff'}); } }
-    if(!list){ best.shakeX=dc*5; best._sq=-0.22; try{ sfx('omniblock_chip'); }catch(e){} B.lastFire={mode, blocked:true}; return; }
+    if(!list){ best.shakeX=dc*5; best._sq=-0.22; try{ sfxAt(best,'omniblock_chip'); }catch(e){} B.lastFire={mode, blocked:true}; return; }
     for(const b of list) b.wedge=false;                 // once moved, a trapdoor block is just a cube
     // heavier lines travel less far: up to ~7 weight units go the full distance
     const lineW=list.reduce((w,b)=>w+weightOf('cube',b),0);
@@ -720,7 +720,7 @@
       let ground=false;
       for(let s=0;s<steps;s++){
         const nx=bw.x+bw.vx/steps;
-        if(boxHits(nx,bw.y)){ bw.vx=Math.abs(bw.vx)>2?-bw.vx*0.3:0; bw.spin=-(bw.spin||0)*0.5; try{ if(Math.abs(bw.vx)>1.2) sfx('omniblock_chip'); }catch(e){} }
+        if(boxHits(nx,bw.y)){ bw.vx=Math.abs(bw.vx)>2?-bw.vx*0.3:0; bw.spin=-(bw.spin||0)*0.5; try{ if(Math.abs(bw.vx)>1.2) sfxAt(bw,'omniblock_chip'); }catch(e){} }
         else bw.x=nx;
         const ny=bw.y+bw.vy/steps;
         if(boxHits(bw.x,ny)){
@@ -1016,7 +1016,7 @@
       if(!e.alive&&!e._permOff&&!e._shorted&&!e._betaHeld){
         e._revT=(e._revT||0)+1;
         e.hp=Math.min(e.mhp,Math.ceil(e.mhp*e._revT/REVIVE_FR));     // the bar fills back up
-        if(e._revT===REVIVE_FR-66) try{ sfx('enemy_boot'); }catch(_e){}   // the boot sound swells up to the moment it comes back on
+        if(e._revT===REVIVE_FR-66) try{ sfxAt(e,'enemy_boot'); }catch(_e){}   // the boot sound swells up to the moment it comes back on
         if(e._revT>=REVIVE_FR) revive(e);
       }
       // patrol range follows a thrown enemy once it settles
