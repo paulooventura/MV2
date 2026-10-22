@@ -42,6 +42,7 @@ const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
 const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
+const DOUBLE_JUMP_K=0.9;     // the air jump's kick (× a ground jump)
 // Rubber tire + fork (Paulo, Oct 22: tire rubber; then "a badass dirtbike tire/wheel kit, with suspension")
 const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
 const TIRE_MAX_SQ=7;         // px it can squash on a hard landing

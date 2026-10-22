@@ -242,21 +242,34 @@
   // RCA nose to MIND's body (and back) and the rope length follows, so nothing snaps.
   const ropeEnd=()=>ropePlayerEndWorld();                 // physics end: the RCA's pull point, or the clip on the disc
   // the drawn end of the rope: the jack in MIND's hand (RCA out) or the clip on his body
-  const visEnd=()=>{ if(ITEM===1){ const pose=computeConnectorArmPose(p); return pose.worldNose||{x:pose.noseX,y:pose.noseY}; } return hookAttachWorld(); };
+  const visEnd=()=>{ if(_ropeInHand()){ const pose=computeConnectorArmPose(p); return pose.worldNose||{x:pose.noseX,y:pose.noseY}; } return hookAttachWorld(); };
   // Paulo (Oct 21): switching items while hooked, MIND takes the rope and clips it onto his
   // body (or unclips it back into his hand) — a short animation of the plug travelling
-  const CLIP_FR=26;
+  const CLIP_FR=16;                                          // a quick reach back and a plug-in
   B.ropeClip=null;
   B.ropeClipPoint=function(){
     const c=B.ropeClip; if(!c) return null;
     const k=Math.min(1,c.t/CLIP_FR), e=k*k*(3-2*k);
     const A=c.toBody?c.from:hookAttachWorld(), Bp=c.toBody?hookAttachWorld():visEnd();
-    const lift=Math.sin(e*Math.PI)*22;                       // a little arc, like a hand carrying it
-    return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e};
+    const lift=Math.sin(e*Math.PI)*(c.toBody?8:16);         // a short carry, then it seats
+    const ang=Math.atan2(Bp.y-A.y,Bp.x-A.x);
+    return {x:A.x+(Bp.x-A.x)*e, y:A.y+(Bp.y-A.y)*e-lift, k:e, ang, toBody:!!c.toBody};
+  };
+  // on a latch with the RCA in hand: the plug comes off the arm and seats in the top back
+  window._ropePlugOnLatch=function(){
+    if(!on()||ITEM!==1||!p.hook||p.hook.st!=='on') return;
+    B.ropeClip={t:0, toBody:true, from:visEnd(), latch:true};
   };
   function clipTick(){
     const c=B.ropeClip; if(!c) return;
     if(!(p.hook&&p.hook.st==='on')){ B.ropeClip=null; return; }
+    if(c.latch&&c.t+1>=CLIP_FR&&!p.hook._plugged){              // seated: the rope now runs from the socket
+      const h=p.hook, a=ropeEnd(); h._plugged=true; const b=ropeEnd();
+      const piv=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+      h.rl=Math.max(ROPE_RL_MIN,h.rl+Math.hypot(b.x-piv.x,b.y-piv.y)-Math.hypot(a.x-piv.x,a.y-piv.y));
+      h._grace=Math.max(h._grace||0,10); h.vr=null; h._cord=null;
+      p._plugArchT=10;                                           // hold the arched arm a beat
+    }
     if(++c.t>=CLIP_FR){ B.ropeClip=null; try{ sfx('grap_attach'); }catch(e){}
       const q=hookAttachWorld(); for(let k=0;k<6;k++) PFXS.push({x:q.x,y:q.y,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:10,maxLife:10,r:1.5,col:'#e0e0ff'}); }
   }
@@ -264,9 +277,9 @@
   const _origCycle=window._cycleItem;
   window._cycleItem=function(){
     const h=on()&&p.hook&&p.hook.st==='on'?p.hook:null;
-    const a=h?ropeEnd():null, av=h?visEnd():null, wasRca=ITEM===1;
+    const a=h?ropeEnd():null, av=h?visEnd():null, wasRca=_ropeInHand();
     const r=_origCycle.apply(this, arguments);
-    if(h&&h.st==='on'&&wasRca!==(ITEM===1)) B.ropeClip={t:0, toBody:wasRca, from:av};
+    if(h&&h.st==='on'&&wasRca!==_ropeInHand()) B.ropeClip={t:0, toBody:wasRca, from:av};
     if(h&&h.st==='on'){
       const b=ropeEnd();
       const piv=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
@@ -280,11 +293,32 @@
   const _origPose=window.computeConnectorArmPose;
   window.computeConnectorArmPose=function(pl){
     const who=pl||p;
-    if(on()&&who===p&&ITEM!==1&&who.hook&&who.hook.st!=='idle'){
+    const latchCarry=!!(B.ropeClip&&B.ropeClip.latch);
+    if(on()&&who===p&&(!_ropeInHand()||latchCarry)&&who.hook&&who.hook.st!=='idle'){
       const st0=who.hook.st; who.hook.st='idle';
       const q=B.ropeClip&&B.ropeClipPoint?B.ropeClipPoint():null, ax0=who.aimDX, ay0=who.aimDY;
-      if(q&&q.k<0.85){ const c=hookAttachWorld(); who.aimDX=q.x-c.x+(who.fc?14:-14); who.aimDY=q.y-c.y+18; }   // the hand goes with the plug
-      try{ return _origPose.apply(this, arguments); } finally{ who.hook.st=st0; who.aimDX=ax0; who.aimDY=ay0; }
+      if(q&&q.toBody&&q.k<0.92){               // the hand carries the RCA back and pushes the pin in
+        const shx=who.x+SW/2+(who.fc?1:-1)*BODY_W*0.42;
+        const shy=who.y+FEET_OFF-STAND_H-WHEEL_R+10+BODY_H*0.22;
+        who.aimDX=q.x-shx; who.aimDY=q.y-shy;
+      }
+      let r;
+      try{ r=_origPose.apply(this, arguments); } finally{ who.hook.st=st0; who.aimDX=ax0; who.aimDY=ay0; }
+      // Paulo (Oct 22): reaching over the top to plug into the back, the arm arches up —
+      // the elbow points at the sky by the frame the jack seats, and holds it a beat
+      const arch=(q&&q.toBody)?Math.sin(Math.min(1,q.k)*Math.PI*0.5):(who._plugArchT>0?who._plugArchT/10:0);
+      if(r&&arch>0.02){
+        const sock=hookAttachWorld(), tx=q&&q.toBody?q.x:sock.x, ty=(q&&q.toBody?q.y:sock.y)-10;
+        const ex=(r.connShX+tx)/2, ey=Math.min(r.connShY,ty)-10-20*arch;
+        const a0=Math.atan2(ey-r.connShY,ex-r.connShX), a1=Math.atan2(ty-ey,tx-ex);
+        const k=Math.min(1,arch*1.4);
+        const mix=(u,v)=>u+(v-u)*k;
+        r=Object.assign({},r,{elbowX:mix(r.elbowX,ex),elbowY:mix(r.elbowY,ey),tipX:mix(r.tipX,tx),tipY:mix(r.tipY,ty),
+          armA0:Math.atan2(mix(r.elbowY,ey)-r.connShY,mix(r.elbowX,ex)-r.connShX),armA1:Math.atan2(mix(r.tipY,ty)-mix(r.elbowY,ey),mix(r.tipX,tx)-mix(r.elbowX,ex)),
+          useElbow:true});
+        r.armL0=Math.hypot(r.elbowX-r.connShX,r.elbowY-r.connShY); r.armL1=Math.hypot(r.tipX-r.elbowX,r.tipY-r.elbowY); r.aimAngle=r.armA1;
+      }
+      return r;
     }
     return _origPose.apply(this, arguments);
   };
@@ -431,9 +465,11 @@
   }
   window._ropeSlackDrawPts=function(path,rl){ if(on()&&p.hook&&p.hook.st==='on') return cordPts(path,rl); return _origSlack.apply(this, arguments); };
 
+  window.MV_FEEL_BOUNCING=()=>on()&&st.bounceT>0;           // the landing bounce takes a jump press as a ground jump
   B.feelTick=function(){
     if(!on()) return;
     tireCool();
+    if(p._plugArchT>0) p._plugArchT--;
     if(p.hook&&p.hook.st!=='on'&&p.hook._cord) p.hook._cord=null;
     // still ducks with DOWN while roped to the ground
     if(p.hook&&p.hook.st==='on'&&typeof isDn==='function'&&isDn()&&_playerOnGround(p)){ p.crouchAmt=(p.crouchAmt||0)+(1-(p.crouchAmt||0))*0.28; }

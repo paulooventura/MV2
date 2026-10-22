@@ -208,6 +208,62 @@ function isSprintHeld(){
   // Paulo (Oct 20): holding PUNCH charges the punch only — it doesn't make him run
   return false;
 }
+// Stand still, tap forward, let go, then forward + run. That second press is a
+// run: he gains speed, and the item stays quiet. Run is the same button as
+// Use Item, so without this the press would drain the selected jack's bar.
+function _updateRunEntry(pl){
+  if(!pl||pl!==p) return;
+  const dir=typeof _moveInputX==='function'?_moveInputX():0;
+  const run=isSprintHeld();
+  const phase=pl._runPhase||0;
+  if(phase===3){
+    if(dir&&run&&dir===(pl._runDir||dir)) return;
+    pl._runPhase=0; pl._runGap=0; pl._runLed=0; pl._runArm=0; return;
+  }
+  const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(pl):!!pl.og;
+  if(!grounded||(pl.wallGrip||0)>0){ pl._runPhase=0; pl._runGap=0; return; }
+  if(phase===1){
+    if(run){ pl._runPhase=0; return; }
+    if(!dir){ pl._runPhase=2; pl._runGap=72; }
+    return;
+  }
+  if(phase===2){
+    pl._runGap=(pl._runGap||0)-1;
+    // The two keys rarely land on the same frame. Forward may lead run by a
+    // few frames, or run may lead forward. Either way it is still this run.
+    // A lone run press only stays quiet for a moment — holding it with no
+    // direction after that uses the item, the way a stop-and-fire does.
+    if(run&&!dir){
+      if(!pl._runLed){ pl._runLed=1; pl._runArm=10; }
+      else if((pl._runArm||0)>0) pl._runArm--;
+    }else{
+      if(!run) pl._runLed=0;
+      if((pl._runArm||0)>0) pl._runArm--;
+    }
+    if(dir&&run){
+      pl._runPhase=3; pl._runDir=dir; pl._runArm=0; pl._runJoin=0; pl._runLed=0;
+      pl.movePower=Math.max(pl.movePower||0,0.55);
+      pl.runRamp=Math.max(pl.runRamp||0,0.22);
+      return;
+    }
+    if(dir&&!run){
+      pl._runJoin=(pl._runJoin||0)+1;
+      if(pl._runJoin>14){ pl._runPhase=1; pl._runJoin=0; pl._runArm=0; }
+      return;
+    }
+    pl._runJoin=0;
+    if(pl._runGap<=0){ pl._runPhase=0; pl._runArm=0; }
+    return;
+  }
+  const still=Math.abs(pl.vx||0)<1.15&&(pl.movePower||0)<0.28;
+  if(still&&dir&&!run) pl._runPhase=1;
+}
+function _runItemQuiet(pl){
+  if(!pl||typeof _bindDown!=='function'||!_bindDown('swap')) return false;
+  const phase=pl._runPhase||0;
+  if(phase===3) return true;
+  return phase===2&&(pl._runArm||0)>0;
+}
 function _moveInputX(){
   if(_bindDown('right')&&!_bindDown('left')) return 1;
   if(_bindDown('left')&&!_bindDown('right')) return -1;
@@ -722,14 +778,20 @@ function connectorAimAngle(){
   const duckAngle=p.fc?0:Math.PI;
   return rawAngle*(1-ca2*0.85)+duckAngle*(ca2*0.85);
 }
-// where the rope clips onto MIND while another item is in hand: the disc on top of the speaker
+// where the rope clips onto MIND while another item is in hand:
+// a socket on the upper back, between the shoulders
+// Paulo (Oct 22): once the rope is latched, MIND takes the RCA off his arm and plugs it
+// into a socket on the TOP BACK of the speaker box; the rope then runs from there.
+// _ropeInHand(): the RCA (and its cord) is still in his hand.
+function _ropeInHand(){ return ITEM===1&&!(p&&p.hook&&p.hook.st==='on'&&p.hook._plugged); }
 function hookAttachWorld(){
   const ca=p.crouchAmt||0, top=p.y+FEET_OFF-STAND_H-WHEEL_R+10, duckTop=(p.y+FEET_OFF-WHEEL_R+WHEEL_R*0.5)-BODY_H;
-  return {x:p.x+SW/2+(p.fc?-1:1)*BODY_W*0.36, y:top+ca*(duckTop-top)+5};   // the back edge of the disc, where you can see it
+  const back=p.fc?-1:1;                                              // the cabinet's back edge, near the top
+  return {x:p.x+SW/2+back*(BODY_W*0.5-2), y:top+ca*(duckTop-top)+7};
 }
 const ROPE_END_R=48, ROPE_END_R_RCA=56;                                         // body centre → where the rope pulls
 function ropePlayerEndWorld(){
-  if(ITEM===1){
+  if(_ropeInHand()){
     const h=p.hook;
     if(h&&(h.st==='on'||h.st==='ext')){
       const pose=computeConnectorArmPose(p), P=(h.st==='on'&&h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.st==='on'?h.ax:h.ex,y:h.st==='on'?h.ay:h.ey};
@@ -793,6 +855,7 @@ function fireItem(charged=false){
       h.pivots=[]; h.vr=null; h.rl=Math.max(Math.hypot(h.ax-a2.x,h.ay-a2.y),ROPE_RL_MIN);
       h._path=[{x:h.ax,y:h.ay},{x:a2.x,y:a2.y}]; h._tension=0; h._slack=true; h._tight=false; h._grace=14;
       sfx('hook_latch'); p.fireRecoil=5; p.fireRecoilA=Math.PI/2;
+      h._plugged=false; if(typeof window._ropePlugOnLatch==='function') window._ropePlugOnLatch();
       return;
     }
     if(p.hook.st==='idle'){
@@ -878,17 +941,12 @@ function updateHook(){
       if(!best||d<Math.hypot(best.tx-px,best.ty-py)){best={...hit,enemy:true,tgt:e};}
     }
     if(best&&!best.enemy){
-      const a0=ropePlayerEndWorld();
-      const latchD=Math.hypot(best.tx-a0.x,best.ty-a0.y);
-      const core=playerCoreHB(p);
       const feet=p.y+FEET_OFF;
       const cx=p.x+SW*0.5;
-      const inBody=best.tx>core.x-4&&best.tx<core.x+core.w+4&&best.ty>core.y-4&&best.ty<core.y+core.h+4;
-      const floorUnderfoot=(best.ny||0)<-0.55&&Math.abs(best.ty-feet)<14&&latchD<28;
-      if(latchD<12||inBody||floorUnderfoot) best=null;
-      else if(p.og&&best.ty>feet+8){
+      const wall=Math.abs(best.nx||0)>=0.45;
+      if(!wall&&p.og&&(best.ny||0)<-0.5&&best.ty>feet+8){
         const stand=typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp:8,maxDrop:10}):null;
-        if(stand!=null){ best.tx=cx; best.ty=stand; best.nx=0; best.ny=-1; }
+        if(stand!=null){ best.tx=cx; best.ty=stand.y!=null?stand.y:stand; best.nx=0; best.ny=-1; }
       }
     }
     if(best){
@@ -906,6 +964,7 @@ function updateHook(){
       if(best.enemy&&best.tgt){ _damageEnemy(best.tgt,ENM_DMG.hook,h.ex,h.ey); _markEnemyItemForce(best.tgt,10); }
       if(p.vy>0) p.vy*=0.2;
       sfx('hook_latch');
+      h._plugged=false; if(typeof window._ropePlugOnLatch==='function') window._ropePlugOnLatch();
     }
     return;
   }
@@ -926,7 +985,7 @@ function updateHook(){
       }
     }
     p.wallGrip=0;
-    if(!p._hasAimInput&&ITEM===1) _aimHook(h.ax,h.ay);       // only the RCA's own arm looks up the rope
+    if(!p._hasAimInput&&_ropeInHand()) _aimHook(h.ax,h.ay);       // only the RCA's own arm looks up the rope
     // Down + jump lets go (item button does the same when the rope is selected).
     // Jump alone stays a kick: off the ground a real jump, in the air a pump along the swing.
     if(isJumpJ()&&isDn()){
@@ -942,10 +1001,13 @@ function updateHook(){
       sfx('jump'); OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     const wasTight=h._tight, wasSlack=h._slack;
-    // reel in / give slack: the cord coils into the jack or pays out of it (cues: render.js + sfx)
+    // reel in / give slack only while the RCA is in hand. Plugged into the
+    // back, up and down don't pay the cord out or wind it in.
     const rl0=h.rl;
-    if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
-    if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+    if(ITEM===1){
+      if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
+      if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+    }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
     if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%4===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
