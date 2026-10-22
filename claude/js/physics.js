@@ -190,15 +190,53 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // The world is drawn scaled by camZoom (main.js draw: _worldZoomBegin/_worldZoomEnd);
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
-let _camSpdS=0, _zoomSaved=false;
+const CAM_THREAT_ZOOM=0.09;   // a little closer once a threat is in the frame — present, not a smash
+let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0;
+// Same sense as the battle eye: nearby threats lean the frame in, and a mutual
+// notice (they have seen MIND) pulls a small zoom onto him and that zone.
+function _readThreatCam(){
+  const none={z:0,x:0,y:0};
+  if(!p||typeof ENEMS==='undefined') return none;
+  const ox=p.x+SW/2, oy=p.y+FEET_OFF-34;
+  let presence=0, focus=0, bx=0, by=0, bw=0;
+  for(const e of ENEMS){
+    if(!e||e.alive===false||e._aiCompanion) continue;
+    const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.4:20);
+    const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
+    if(d>540) continue;
+    const prox=1-d/540, prox2=prox*prox;
+    presence+=prox2*((e.mind||e._betaEnemy||e._ai)?1.15:0.65);
+    if(e.hitF>0||(e.shotCd!=null&&e.shotCd<28)) presence+=0.25*prox;
+    if(!e.aware||d>460) continue;
+    const w=prox2*(e.hitF>0?1.35:1);
+    focus+=w; bx+=dx*w; by+=dy*w; bw+=w;
+  }
+  const near=Math.max(0,Math.min(1,presence/1.5));
+  const locked=Math.max(0,Math.min(1,focus/0.85));
+  const z=Math.max(0,Math.min(1,near*0.4+locked*0.75));
+  if(bw<0.04) return {z,x:0,y:0};
+  return {
+    z,
+    x:Math.max(-72,Math.min(72,(bx/bw)*0.26)),
+    y:Math.max(-44,Math.min(44,(by/bw)*0.2))
+  };
+}
 function _updateCamZoom(){
   if(camZoom==null) _initCamZoom();
   const ed=typeof _mapEdActive!=='undefined'&&_mapEdActive;
-  if(ed||_playerCount===2||!p){ camZoomTgt=1; camZoom+=(1-camZoom)*0.2; return; }
+  if(ed||_playerCount===2||!p){
+    camZoomTgt=1; camZoom+=(1-camZoom)*0.2;
+    _threatZoomS*=0.85; _threatLookX*=0.85; _threatLookY*=0.85;
+    return;
+  }
   const spd=Math.hypot(p.vx||0,(p.vy||0)*0.55);
   _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?0.05:0.02);         // speeds up the pull-back faster than it settles in
   const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
-  camZoomTgt=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e;
+  const th=_readThreatCam();
+  _threatZoomS+=(th.z-_threatZoomS)*0.04;
+  _threatLookX+=(th.x-_threatLookX)*0.035;
+  _threatLookY+=(th.y-_threatLookY)*0.035;
+  camZoomTgt=Math.min(1.3, CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e+CAM_THREAT_ZOOM*_threatZoomS);
   camZoom+=(camZoomTgt-camZoom)*CAM_ZOOM_EASE;
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
@@ -217,7 +255,7 @@ function _syncGameCamera(){
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
-  const tx=camClampX(t.x+_camLookX), ty=camClampY(t.y);
+  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY);
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;
