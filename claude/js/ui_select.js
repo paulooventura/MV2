@@ -143,7 +143,8 @@
     title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS  ·  PLAYER 2 RIDES THE OTHER':(sib?'THE OTHER SIBLING SHADOWS YOU AND HAS YOUR BACK':'YOU RIDE ALONE  ·  THE OTHER SIBLING WAITS AT HOME'));
     // draw the dimmed card first, the lead on top
     const order=mSel?['venture','mind']:['mind','venture'];
-    for(const k of order) heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k]);
+    heroRects=[];
+    for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
     // the seam between them: a pulsing "&" like the logo
     const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
@@ -171,11 +172,41 @@
       sibRects.push({x,y,w,h,k:o.k}); x+=w+14;
     });
   }
+  // Paulo (Oct 22): pick with the mouse / a finger — a tap on a card picks it, a tap on the picked
+  // card goes on; the FRIENDLY FIRE pills switch it. A tap anywhere else does nothing (it used to
+  // skip straight past the screen with whatever was highlighted).
+  let modeRects=[], heroRects=[], lastTouch=0;
+  const inR=(b,mx,my)=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h;
+  function selectTap(cx,cy){
+    const c=document.getElementById('c'); if(!c) return;
+    const r=c.getBoundingClientRect(), mx=(cx-r.left)*(W/r.width), my=(cy-r.top)*(H/r.height);
+    const beep=()=>{ try{ sfx('menu'); }catch(e2){} };
+    if(_selectStep===0){
+      for(const b of modeRects) if(inR(b,mx,my)){ if(_playModeIdx===b.i) startGame(); else { _playModeIdx=b.i; beep(); } return; }
+      return;
+    }
+    if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){ if(MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; beep(); } return; }
+    for(const b of heroRects) if(inR(b,mx,my)){ if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
+  }
   document.addEventListener('click',e=>{
-    if(_gameState!=='select'||_selectStep!==1||!sibRects.length||!window.MV_SIBLING) return;
-    const c=document.getElementById('c'); if(!c) return; const r=c.getBoundingClientRect(), mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
-    for(const b of sibRects) if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){ if(MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; try{ sfx('menu'); }catch(e2){} } e.stopImmediatePropagation(); return; }
+    if(_gameState!=='select') return;
+    e.stopImmediatePropagation();
+    if(performance.now()-lastTouch<700) return;               // the click a tap makes after its touchstart
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    selectTap(e.clientX,e.clientY);
   },true);
+  document.addEventListener('touchstart',e=>{
+    if(_gameState!=='select'||!e.touches||!e.touches[0]) return;
+    if(e.target&&e.target.id!=='c') return;                   // on-screen pad buttons keep working
+    e.stopImmediatePropagation(); lastTouch=performance.now();
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    selectTap(e.touches[0].clientX,e.touches[0].clientY);
+  },{capture:true,passive:true});
+  // the pad: up / down on the d-pad or the stick switches friendly fire (player.js calls this)
+  window.MV_SELECT_FF_TOGGLE=function(){
+    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
+    MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e2){}
+  };
   window.addEventListener('keydown',e=>{
     if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
     if(['ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code)){ MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e2){} e.preventDefault(); e.stopImmediatePropagation(); }
@@ -195,9 +226,11 @@
   function drawModes(){
     title('HOW DO YOU RIDE?', 'PICK A MODE  ·  YOU CAN CHANGE IT EVERY NEW STORY');
     const cw=218, ch=330, gap=22, x0=W/2-(cw*4+gap*3)/2;
+    modeRects=[];
     MODES.forEach((m,i)=>{
       const sel=_playModeIdx===i, key='m'+i; anim[key]=ease(anim[key],sel?1:0,0.2);
       const k=anim[key], sc=0.92+0.08*k, w=cw*sc, h=ch*sc, cx=x0+i*(cw+gap)+cw/2, x=cx-w/2, y=170+(1-k)*16+(sel?Math.sin(fr*0.08)*3:0), sk=16;
+      modeRects.push({i,x:x-sk,y,w:w+sk,h});
       const rgb=_uiRGB(m.col).join(',');
       if(sel&&!m.locked) rays(cx,y+h*0.4,rgb,k*0.8);
       ctx.save(); ctx.fillStyle='rgba(0,0,0,0.5)'; cardPath(x+7,y+9,w,h,sk); ctx.fill();

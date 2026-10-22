@@ -174,8 +174,13 @@ function readGamepad(){
     _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)});   // A ok, B back
   }
   if(_gameState==='select'){
-    if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
-    if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+    // d-pad, or the stick pushed past half (one step per push) — Paulo, Oct 22
+    const sx=ax<-0.5?-1:ax>0.5?1:0, sy2=ay<-0.5?-1:ay>0.5?1:0;
+    const px0=GP.selX||0, py0=GP.selY||0, stL=sx<0&&px0>=0, stR=sx>0&&px0<=0, stV=sy2!==0&&py0===0;
+    GP.selX=sx; GP.selY=sy2;
+    if(rose(14)||stL){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
+    if(rose(15)||stR){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+    if((rose(12)||rose(13)||stV)&&window.MV_SELECT_FF_TOGGLE) MV_SELECT_FF_TOGGLE();
   }
   // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
   // d-pad or stick moves the cursor, A picks, B resumes

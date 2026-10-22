@@ -939,7 +939,7 @@ function update(){
   const _enhXlr=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
   const _enhMag=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
   if(p._itemRest>0) p._itemRest--;                               // just used: the bar waits before refilling
-  else if(p.itemStamina<100&&!_fireHeld) p.itemStamina=Math.min(100,p.itemStamina+1.5*_treeBoost);   // Paulo (Oct 22): refills faster again (was 0.8; 0.56 before that)
+  else if(p.itemStamina<100&&!_fireHeld) p.itemStamina=Math.min(100,p.itemStamina+(p.hero==='venture'?2.1:1.5)*_treeBoost);   // Paulo (Oct 22): Venture's power refills faster than MIND's   // Paulo (Oct 22): refills faster again (was 0.8; 0.56 before that)
   if(ITEM===2&&_itemUnlocked(2)){const wasOn=p.xlrOn;p.xlrOn=_fireHeld&&p.itemStamina>0;p.magOn=false;if(p.xlrOn)p.itemStamina=Math.max(0,p.itemStamina-(_enhXlr?1.0:1.55));if(p.xlrOn&&!wasOn){sfx('xlr');p.flashF=9;}p.xlrHeld=p.xlrOn?(p.xlrHeld||0)+1:0;}
   else if(ITEM===3&&_itemUnlocked(3)){const wasOn=p.magOn;p.magOn=_fireHeld&&p.itemStamina>0;p.xlrOn=false;if(p.magOn)p.itemStamina=Math.max(0,p.itemStamina-(_enhMag?1.0:1.55));if(p.magOn&&!wasOn){sfx('mag');p.flashF=7;}p.magHeld=p.magOn?(p.magHeld||0)+1:0;}
   else{p.xlrOn=false;p.magOn=false;p.xlrHeld=0;p.magHeld=0;}
@@ -979,7 +979,7 @@ function update(){
   if(_healFrac<_gameLivesFrac){_healFrac=Math.min(_gameLivesFrac,_healFrac+HEAL_RATE);updateGameBgm();}
   if(p.hp<p.maxHp&&_shutdownTimer<=0){
     p._lifeRegenT=(p._lifeRegenT||0)+_knowlTreeBoostMul(p);
-    if(p._lifeRegenT>=LIFE_REGEN_FRAMES){p._lifeRegenT=0;p.hp=Math.min(p.maxHp,p.hp+PLAYER_HIT_DMG);_syncLivesFromHp(p);p.flashF=Math.max(p.flashF,6);}
+    if(p._lifeRegenT>=(p.hero==='venture'?LIFE_REGEN_FRAMES_VEN:LIFE_REGEN_FRAMES)){p._lifeRegenT=0;p.hp=Math.min(p.maxHp,p.hp+PLAYER_HIT_DMG);_syncLivesFromHp(p);p.flashF=Math.max(p.flashF,6);}
   }else p._lifeRegenT=0;
 
   updateHook(); updateLaitu();
