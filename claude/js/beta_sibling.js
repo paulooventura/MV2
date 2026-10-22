@@ -21,6 +21,12 @@
 //     you're hurting (HP under 40%) — then it finishes it. It never fires
 //     through rock, never across you, and slows down when nothing's urgent.
 //   · Can't be hurt (enemies pass through it); it never costs you anything.
+//  Oct 22 (later): it RESONATES with you — when you start breaking blocks it
+//  joins in on the block you're working on — and it is always proactive about
+//  threats: any enemy near you gets attacked at full strength, and it moves to
+//  your side facing the danger (when there's floor there) to cover you.
+//  SOLO: the other sibling stays home — it potters around the house like Laitu
+//  does in hers (walks the floor it's on, stops, looks at you when you're near).
 // ============================================================
 (function(){
   'use strict';
@@ -28,11 +34,15 @@
   const KEY='mv2.sibling';
   const read=()=>{ try{ const v=localStorage.getItem(KEY); return v==null?true:v==='1'; }catch(e){ return true; } };
   let on=read();
-  window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; }, state:()=>S };
+  let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
+  window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
+    get ff(){ return ff; }, set ff(v){ ff=!!v; try{ localStorage.setItem(KEY+'.ff',ff?'1':'0'); }catch(e){} },   // friendly fire
+    state:()=>S, npc:()=>npc&&npc.s };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
   const DELAY=24, KEEP=220, MIN_GAP=62, LOST=560;
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
 
+  function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results; }
   function active(){ return on&&labOk()&&B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _paused!=='undefined'&&_paused); }
   function spawn(){
     S=mkP(); S._aiCompanion=true; S._betaSib=true;
@@ -53,7 +63,7 @@
     for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){
       if(!e||!e.alive||e._hidden||e._betaHeld||e._spawnFx>0) continue;
       const ex=e.x+(e.w||0)/2, ey=e.y+(e.h||0)/2, dP=Math.hypot(ex-P.x,ey-P.y);
-      if(dP>300) continue;
+      if(dP>360) continue;
       const closing=((P.x-ex)*(e.vx||0)+(P.y-ey)*(e.vy||0))>0;
       const score=dP*(closing?0.6:1);
       if(score<bs&&clearLine(me.x,me.y-6,ex,ey)){ bs=score; best={e,ex,ey,dP}; }
@@ -73,12 +83,15 @@
       const bx=p.x-(p.fc?1:-1)*MIN_GAP;
       T={x:(typeof gridWorldSolid==='function'&&gridWorldSolid(bx+SW/2,p.y+FEET_OFF-30))?p.x:bx, y:p.y, fc:p.fc, og:!!p.og, ca:p.crouchAmt||0};
     }
+    const cov=coverSpot(S._threat);
+    if(cov) T={x:cov.x,y:cov.y,fc:S._threat.ex>cov.x+SW/2,og:true,ca:0};
     const x0=S.x, y0=S.y;
     if(Math.hypot(S.x-p.x,S.y-p.y)>LOST||B.level!==lastLevel||(last&&Math.hypot(p.x-last.x,p.y-last.y)>LOST)){   // lost: a respawn, a stage change, a teleport
       trail.length=0; trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:0}); lastLevel=B.level;
       blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); return;
     }
-    S.x+=(T.x-S.x)*0.32; S.y+=(T.y-S.y)*0.32;
+    const lk=S._catch>0?(S._catch--,0.1):0.32;                // after you moved it, it eases back instead of snapping
+    S.x+=(T.x-S.x)*lk; S.y+=(T.y-S.y)*lk;
     S.vx=S.x-x0; S.vy=S.y-y0; S.og=T.og; S.crouchAmt=(S.crouchAmt||0)+((T.ca||0)-(S.crouchAmt||0))*0.3;
     if(Math.abs(S.vx)>0.25) S.fc=S.vx>0; else if(Math.abs(S.vx)<0.05) S.fc=p.x+SW/2>S.x+SW/2;   // idle: it faces you
     S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R;
@@ -88,9 +101,9 @@
     S.x=T.x; S.y=T.y; S._blink=12;
   }
   function assist(){
-    const t=pickThreat(), me=centre(S);
+    const t=pickThreat(), me=centre(S); S._threat=t;
     S._shotCd=(S._shotCd||0)-1;
-    if(!t){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; return; }
+    if(!t){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; helpBlock(null); return; }
     const dx=t.ex-me.x, dy=t.ey-me.y, d=Math.hypot(dx,dy)||1;
     S.aimDX+=(dx/d-S.aimDX)*0.35; S.aimDY+=(dy/d-S.aimDY)*0.35;
     S.pupilX=dx/d*2.5; S.pupilY=dy/d*2.5;
@@ -99,9 +112,9 @@
     // never across you: skip the shot if you're between it and the target
     const P=centre(p), seg=((P.x-me.x)*dx+(P.y-me.y)*dy)/(d*d);
     if(seg>0&&seg<1&&Math.hypot(me.x+dx*seg-P.x,me.y+dy*seg-P.y)<26){ S._shotCd=8; return; }
-    const urgent=t.dP<110||(p.hp||0)<(p.maxHp||100)*0.4;
-    S._shotCd=urgent?26:48;
-    const sp=10; bolts.push({x:me.x+dx/d*30,y:me.y-6+dy/d*30,vx:dx/d*sp,vy:dy/d*sp,e:t.e,life:50,urgent});
+    const urgent=t.dP<140||(p.hp||0)<(p.maxHp||100)*0.5;
+    S._shotCd=urgent?14:24;
+    const sp=11; bolts.push({x:me.x+dx/d*30,y:me.y-6+dy/d*30,vx:dx/d*sp,vy:dy/d*sp,e:t.e,life:50,urgent});
     S.fireRecoil=5; S.fireRecoilA=Math.atan2(dy,dx);
     try{ sfx('laser',S.hero==='venture'?1.25:1.4); }catch(e){}
   }
@@ -111,19 +124,124 @@
       const e=b.e;
       if(e&&e.alive){ const ex=e.x+(e.w||0)/2, ey=e.y+(e.h||0)/2, d=Math.hypot(ex-b.x,ey-b.y)||1; b.vx+=((ex-b.x)/d*10-b.vx)*0.12; b.vy+=((ey-b.y)/d*10-b.vy)*0.12; }   // a gentle homing
       b.x+=b.vx; b.y+=b.vy;
-      if(b.life<=0||(typeof gridWorldSolid==='function'&&gridWorldSolid(b.x,b.y))){ fizz(b); bolts.splice(i,1); continue; }
+      if(b.bw){
+        const w=b.bw; if(w.hp>0&&b.x>=w.x-2&&b.x<=w.x+(w.w||32)+2&&b.y>=w.y-2&&b.y<=w.y+(w.h||32)+2){
+          sibHitFr=fr; if(typeof _damageBwall==='function') _damageBwall(w,'punch',{shakeX:Math.sign(b.vx)*2,shakeY:Math.sign(b.vy)*2}); fizz(b,true); bolts.splice(i,1); continue; }
+        const cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2, d=Math.hypot(cx-b.x,cy-b.y)||1; b.vx+=((cx-b.x)/d*11-b.vx)*0.2; b.vy+=((cy-b.y)/d*11-b.vy)*0.2;
+      }
+      if(b.life<=0||(!b.bw&&typeof gridWorldSolid==='function'&&gridWorldSolid(b.x,b.y))){ fizz(b); bolts.splice(i,1); continue; }
       for(const en of (typeof ENEMS!=='undefined'?ENEMS:[])){
         if(!en||!en.alive||en._hidden) continue;
         if(b.x>=en.x&&b.x<=en.x+(en.w||0)&&b.y>=en.y&&b.y<=en.y+(en.h||0)){
-          let dmg=8;
-          const P=centre(p), near=Math.hypot(en.x+(en.w||0)/2-P.x,en.y+(en.h||0)/2-P.y)<110, hurt=(p.hp||0)<(p.maxHp||100)*0.4;
-          if(!near&&!hurt) dmg=Math.min(dmg,Math.max(0,(en.hp||0)-1));         // softens it up — the knockdown is yours
-          if(dmg>0&&typeof _damageEnemy==='function') _damageEnemy(en,dmg,b.x-b.vx*3,b.y-b.vy*3,0.35);
-          else en.hitF=Math.max(en.hitF||0,6);
+          const dmg=b.urgent?12:9;                                       // always for real: it protects you
+          if(typeof _damageEnemy==='function') _damageEnemy(en,dmg,b.x-b.vx*3,b.y-b.vy*3,0.45);
           fizz(b,true); bolts.splice(i,1); break;
         }
       }
     }
+  }
+  // ── resonance: the block you're breaking ──
+  let sibHitFr=-99, blockT=null; const hpSeen=new WeakMap();
+  function watchBlocks(){
+    const P=centre(p);
+    for(const w of (typeof BWALLS!=='undefined'?BWALLS:[])){
+      if(!w) continue; const was=hpSeen.get(w); hpSeen.set(w,w.hp);
+      if(was==null||w.hp>=was||w.hp<=0||fr-sibHitFr<3) continue;
+      if(w.only==='push'||w.only==='pull'||w._carried||w._fly) continue;
+      if(Math.hypot(w.x+(w.w||32)/2-P.x,w.y+(w.h||32)/2-P.y)<260) blockT={w,t:fr};   // you just hit it: help
+    }
+    if(blockT&&(blockT.w.hp<=0||fr-blockT.t>240)) blockT=null;               // broken, or you've moved on
+  }
+  function helpBlock(threat){
+    if(threat||!blockT||S._shotCd>0) return;
+    const w=blockT.w, me=centre(S), cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2;
+    if(w.only==='laser') return;                                              // TRS-only blocks are yours
+    const dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) return;
+    S.aimDX=dx/d; S.aimDY=dy/d; if(Math.abs(dx)>6) S.fc=dx>0;
+    S._shotCd=22; bolts.push({x:me.x+dx/d*30,y:me.y-6+dy/d*30,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
+    S.fireRecoil=5; try{ sfx('laser',S.hero==='venture'?1.3:1.45); }catch(e){}
+  }
+  // ── cover: step to your side that faces the danger, when there's floor there ──
+  function coverSpot(t){
+    if(!t||!p.og||typeof gridWorldSolid!=='function') return null;
+    const side=t.ex>p.x+SW/2?1:-1, x=p.x+side*58, feet=p.y+FEET_OFF;
+    if(gridWorldSolid(x+SW/2,feet-30)||gridWorldSolid(x+SW/2,feet-60)) return null;            // a wall there
+    if(!gridWorldSolid(x+SW/2,feet+4)&&!gridWorldSolid(x+SW/2,feet+20)) return null;            // no floor there
+    return {x, y:p.y};
+  }
+
+  // ── SOLO: the other sibling at home, pottering about like Laitu ──
+  let npc=null;
+  function npcSpawn(){
+    const home=(B.rooms||[]).find(r=>r.style==='home'); if(!home||typeof gridWorldSolid!=='function') return null;
+    // the upper floor of the house (the bedroom): the first floor down from the room's top
+    const floorAt=x=>{ for(let y=home.y+40;y<home.y+home.h+40;y+=4){ if(gridWorldSolid(x,y)) return y; } return null; };
+    const mid=home.x+home.w*0.55, fy=floorAt(mid); if(fy==null) return null;
+    let x0=mid, x1=mid;
+    while(x0>home.x+40&&floorAt(x0-8)===fy&&!gridWorldSolid(x0-8,fy-40)) x0-=8;
+    while(x1<home.x+home.w-40&&floorAt(x1+8)===fy&&!gridWorldSolid(x1+8,fy-40)) x1+=8;
+    const s2=mkP(); s2._aiCompanion=true; s2._betaSib=true; s2.hero=p.hero==='venture'?'mind':'venture';
+    s2.x=mid-SW/2; s2.y=fy-FEET_OFF; s2.og=true; s2.hp=s2.maxHp; s2.fc=Math.random()<0.5;
+    return {s:s2, fy, minX:x0+10-SW/2, maxX:x1-10-SW/2, tx:null, wait:60, level:B.level};
+  }
+  function npcTick(){
+    if(!npc||npc.level!==B.level||npc.s.hero===p.hero){ npc=npcSpawn(); if(!npc) return; }
+    const s2=npc.s; s2.hp=s2.maxHp; const x0=s2.x;
+    if(s2.flashF>0) s2.flashF--;
+    interact(s2);
+    if(s2._downT>0){ s2._downT--; s2.crouchAmt=Math.min(1,(s2.crouchAmt||0)+0.1); if(s2.free>0) bodyPhysics(s2); if(s2._downT===0) s2.crouchAmt=0; return; }
+    if(s2.free>0){ bodyPhysics(s2); npc.tx=null; npc.wait=40; return; }
+    // walking: keep to the floor it stands on (turn at an edge or a wall)
+    if(npc.tx!=null&&typeof gridWorldSolid==='function'){ const dir=Math.sign(npc.tx-s2.x)||1, fx=s2.x+SW/2+dir*26, feet=s2.y+FEET_OFF;
+      if(!gridWorldSolid(fx,feet+6)||gridWorldSolid(fx,feet-36)){ npc.tx=null; npc.wait=60+Math.random()*120|0; } }
+    if(!(npc.minX<npc.maxX)||Math.abs((s2.x)-(npc.minX+npc.maxX)/2)>400){ npc.minX=s2.x-160; npc.maxX=s2.x+160; }
+    const P=centre(p), me=centre(s2), near=Math.hypot(P.x-me.x,P.y-me.y)<260;
+    if(npc.wait>0){ npc.wait--; if(near) s2.fc=P.x>me.x; }
+    else{
+      if(npc.tx==null) npc.tx=npc.minX+Math.random()*(npc.maxX-npc.minX);
+      const dx=npc.tx-s2.x;
+      if(Math.abs(dx)<3){ npc.tx=null; npc.wait=90+Math.random()*200|0; }
+      else{ s2.x+=Math.sign(dx)*Math.min(1.3,Math.abs(dx)); s2.fc=dx>0; }
+    }
+    if(typeof _movePlayerWithColl==='function'){ const nx=s2.x; s2.x=x0; s2.vy=Math.min((s2.vy||0)+GRAV,14); _movePlayerWithColl(s2,nx-x0,s2.vy); if(s2.og) s2.vy=0; }   // a body on the floor
+    s2.vx=s2.x-x0; s2.wheelAngle=(s2.wheelAngle||0)+s2.vx/WHEEL_R;
+    const dxp=P.x-me.x, dyp=P.y-me.y, dl=Math.hypot(dxp,dyp)||1;
+    s2.pupilX=near?dxp/dl*2.5:(s2.fc?1.5:-1.5); s2.pupilY=near?dyp/dl*2:0;
+    s2.aimDX=s2.fc?1:-1; s2.aimDY=0.4;
+  }
+  // ── its body has mass (Paulo, Oct 22): you can punch it, blow it away with the XLR, pull it
+  //    with the MAG, shove it with your weight or land on it. Friendly fire ON also hurts it
+  //    (it can be knocked out for a few seconds); OFF it just gets moved.
+  function knock(b,vx,vy,kind,dmg){
+    b.vx=vx; b.vy=vy; b.og=false; b.free=Math.max(b.free||0,46); b._prevLandFeet=b.y+FEET_OFF;
+    if(ff&&dmg>0&&!(b._downT>0)){
+      b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=14;
+      try{ sfx('player_hit',1.35); }catch(e){}
+      if(b.sibHp<=0){ b._downT=240; b.sibHp=100; try{ sfx('enemy_shut',1.2); }catch(e){} }
+    }else if(kind!=='bump'){ try{ sfx('hit',1.5); }catch(e){} }
+  }
+  function interact(b){
+    const c=centre(b), P=centre(p), dx=c.x-P.x, dy=c.y-P.y, d=Math.hypot(dx,dy)||1;
+    const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1, ux=ax/al, uy=ay/al, dot=(dx*ux+dy*uy)/d;
+    // a punch
+    if(p.pt>0){ if(!b._pHit){ const rx=P.x+ux*44, ry=P.y+uy*44; if(Math.hypot(c.x-rx,c.y-ry)<50){ b._pHit=true; const k=(p.pCharge||0)>20||p.pCd>4?1.6:1; knock(b,ux*7.5*k,uy*5*k-3.5,'punch',k>1?22:12); } } }
+    else b._pHit=false;
+    // the XLR blows it away; the MAG pulls it in
+    if(p.xlrOn&&ITEM===2&&d<170&&dot>0.6){ const f=(1-d/170)*1.5; b.vx=(b.vx||0)+ux*f; b.vy=(b.vy||0)+uy*f-0.25; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,24); if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }
+    if(p.magOn&&ITEM===3&&d<190&&d>64&&dot>0.55){ const f=(1-d/190)*1.2; b.vx=(b.vx||0)-ux*f; b.vy=(b.vy||0)-uy*f-0.3; if(!(b.free>0)) knock(b,b.vx,b.vy,'mag',0); b.free=Math.max(b.free,24); }
+    // your weight: land on it, or roll into it
+    if(Math.abs(dx)<SW*0.75&&Math.abs((b.y)-(p.y))<70){
+      if((p.vy||0)>3&&p.y+FEET_OFF<b.y+FEET_OFF-36){ p.vy=-7; p.og=false; knock(b,Math.sign(dx||1)*2.5,2,'stomp',10); }
+      else if(Math.abs(p.vx||0)>0.6&&Math.sign(p.vx)===Math.sign(dx||p.vx)){ const push=p.vx*0.85+Math.sign(dx||p.vx)*0.8; if(!(b.free>0)||Math.abs(b.vx||0)<Math.abs(push)) knock(b,push,b.og?-0.6:(b.vy||0),'bump',0); }
+    }
+  }
+  function bodyPhysics(b){
+    b.vy=Math.min((b.vy||0)+GRAV,14);
+    b.vx*=b.og?0.84:0.985;
+    if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(b,b.vx,b.vy); else { b.x+=b.vx; b.y+=b.vy; }
+    if(b.og&&b.vy>0) b.vy=0;
+    b.wheelAngle=(b.wheelAngle||0)+b.vx/WHEEL_R;
+    b.free-=(b.og&&Math.abs(b.vx)<0.4)?3:1;
   }
   function fizz(b,hit){ const c=S&&S.hero==='venture'?'#ff8a96':'#d8b4ff'; for(let k=0;k<(hit?8:4);k++) PFXS.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:10,maxLife:10,r:1.6,col:c}); }
 
@@ -131,12 +249,20 @@
   window.updateKnowls=function(){
     const r=_upd.apply(this,arguments);
     try{
-      if(!active()){ if(!(on&&labOk())||!B.on) S=null; return r; }
+      if(!B.on||!labOk()){ S=null; npc=null; return r; }
+      if(!on){ S=null; if(active2()) npcTick(); return r; }
+      npc=null;
+      if(!active()) return r;
       if(!S||p.hero===S.hero) spawn();
       S.hp=S.maxHp;
       if(S._blink>0) S._blink--;
       if(S.fireRecoil>0) S.fireRecoil--;
-      follow(); assist(); boltsTick();
+      if(S.flashF>0) S.flashF--;
+      interact(S);
+      if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
+      watchBlocks();
+      if(S.free>0){ bodyPhysics(S); assist(); boltsTick(); S._catch=30; return r; }      // moved by you: it lands, then rides back to your trail
+      assist(); follow(); boltsTick();
     }catch(e){ console.warn('sibling',e); }
     return r;
   };
@@ -144,11 +270,12 @@
   const _hud=window.drawLdtkLabHud;
   window.drawLdtkLabHud=function(){
     const r=_hud.apply(this,arguments);
-    if(!S||!active()) return r;
+    const who=S&&active()?S:(npc&&!on&&active2()?npc.s:null);
+    if(!who) return r;
     try{
       // the bolts
       ctx.save(); ctx.globalCompositeOperation='lighter';
-      for(const b of bolts){ const c=S.hero==='venture'?'255,90,110':'190,140,255'; ctx.strokeStyle='rgba('+c+',0.85)'; ctx.lineWidth=sw(4); ctx.lineCap='round';
+      for(const b of bolts){ if(!S) break; const c=S.hero==='venture'?'255,90,110':'190,140,255'; ctx.strokeStyle='rgba('+c+',0.85)'; ctx.lineWidth=sw(4); ctx.lineCap='round';
         ctx.beginPath(); ctx.moveTo(sx(b.x-b.vx*1.6),sy(b.y-b.vy*1.6)); ctx.lineTo(sx(b.x),sy(b.y)); ctx.stroke();
         ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(sx(b.x),sy(b.y),Math.max(1.5,sw(2.5)),0,Math.PI*2); ctx.fill(); }
       ctx.restore();
@@ -156,9 +283,9 @@
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       B.ropeClip=null; B.magPark=null; ITEM=0;
       try{
-        S._armPose=computeConnectorArmPose(S);
-        ctx.save(); ctx.globalAlpha=S._blink>0?0.4+0.05*(12-S._blink):0.92;
-        try{ drawCharacterFor(S); } finally{ ctx.restore(); }
+        who._armPose=computeConnectorArmPose(who);
+        ctx.save(); ctx.globalAlpha=who===S&&S._blink>0?0.4+0.05*(12-S._blink):(who===S?0.92:1);
+        try{ drawCharacterFor(who); } finally{ ctx.restore(); }
       } finally{ B.ropeClip=keep.rc; B.magPark=keep.mp; ITEM=keep.it; }   // your item, rope and magnet are always handed back
     }catch(e){ console.warn('sibling draw',e); }
     return r;

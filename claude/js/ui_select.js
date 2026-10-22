@@ -21,11 +21,12 @@
     venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE BOLD SIBLING', tag:'BACKWARD CAP  ·  NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
-    {id:0, name:'1 PLAYER', sub:'SOLO, OR WITH YOUR SIBLING AS BACKUP', icon:'one', col:'#9ef58a'},
-    {id:1, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
-    {id:2, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
+    {id:0, name:'SOLO', sub:'YOUR SIBLING STAYS HOME', icon:'one', col:'#9ef58a'},
+    {id:1, name:'WITH SIBLING', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
+    {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
+    {id:3, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
   ];
-  const anim={mind:0, venture:0, m0:0, m1:0, m2:0, last:null, punch:0};
+  const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
   const sparks=[];
   const ease=(a,b,k)=>a+(b-a)*k;
 
@@ -148,21 +149,22 @@
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
     sparkTick();
     if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
-    hints(_playerCount!==2&&window.MV_SIBLING?[['<  >','SWITCH','#d8ffc8'],['^  v','SOLO / SIBLING','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
+    hints(_playerCount!==2&&window.MV_SIBLING?[['<  >','SWITCH','#d8ffc8'],['^  v','FRIENDLY FIRE','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
   }
-  // Paulo (Oct 22): SOLO, or the other sibling shadowing you as backup (beta_sibling.js)
+  // Paulo (Oct 22): friendly fire ON / OFF (the sibling — shadowing you or at home — can always be
+  // punched, blown, pulled and shoved; ON it also gets hurt). SOLO / WITH SIBLING is the mode step.
   let sibRects=[];
   function sibToggle(){
-    if(Kj['ArrowUp']||Kj['ArrowDown']||Kj['KeyW']||Kj['KeyS']){ delete Kj['ArrowUp']; delete Kj['ArrowDown']; delete Kj['KeyW']; delete Kj['KeyS']; MV_SIBLING.toggle(); try{ sfx('menu'); }catch(e){} }
-    const on=MV_SIBLING.on, other=_heroChoice==='mind'?'venture':'mind', y=H-112, h=34;
-    const opts=[{k:false,label:'SOLO'},{k:true,label:HERO[other].name+' SHADOWS YOU'}];
+    if(Kj['ArrowUp']||Kj['ArrowDown']){ delete Kj['ArrowUp']; delete Kj['ArrowDown']; MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e){} }
+    const on=MV_SIBLING.ff, y=H-112, h=34;
+    const opts=[{k:false,label:'FRIENDLY FIRE OFF'},{k:true,label:'FRIENDLY FIRE ON'}];
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
     const ws=opts.map(o=>Math.max(160,ctx.measureText(o.label).width+70)); ctx.restore();
     let x=W/2-(ws[0]+ws[1]+14)/2; sibRects=[];
     opts.forEach((o,i)=>{
-      const sel=o.k===on, w=ws[i], col=o.k?HERO[other].col:'#d8ffc8';
+      const sel=o.k===on, w=ws[i], col=o.k?'#ff7a6a':'#9ef58a';
       ctx.fillStyle='#020a04'; uiRound(x+2,y+3,w,h,h/2); ctx.fill();
-      ctx.fillStyle=sel?(o.k?'rgba('+HERO[other].glow+',0.35)':'rgba(120,200,140,0.3)'):'rgba(10,20,14,0.85)'; uiRound(x,y,w,h,h/2); ctx.fill();
+      ctx.fillStyle=sel?(o.k?'rgba(255,100,80,0.3)':'rgba(120,200,140,0.3)'):'rgba(10,20,14,0.85)'; uiRound(x,y,w,h,h/2); ctx.fill();
       ctx.save(); if(sel){ ctx.shadowColor=col; ctx.shadowBlur=12; } ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
       drawTextC(o.label,x+w/2+8,y+9,sel?'#ffffff':'#7a8a80',2);
       if(sel&&typeof uiCursor==='function') uiCursor(x+14,y+h/2,7);
@@ -172,11 +174,11 @@
   document.addEventListener('click',e=>{
     if(_gameState!=='select'||_selectStep!==1||!sibRects.length||!window.MV_SIBLING) return;
     const c=document.getElementById('c'); if(!c) return; const r=c.getBoundingClientRect(), mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
-    for(const b of sibRects) if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){ if(MV_SIBLING.on!==b.k){ MV_SIBLING.on=b.k; try{ sfx('menu'); }catch(e2){} } e.stopImmediatePropagation(); return; }
+    for(const b of sibRects) if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){ if(MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; try{ sfx('menu'); }catch(e2){} } e.stopImmediatePropagation(); return; }
   },true);
   window.addEventListener('keydown',e=>{
     if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
-    if(['ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code)){ MV_SIBLING.toggle(); try{ sfx('menu'); }catch(e2){} e.preventDefault(); e.stopImmediatePropagation(); }
+    if(['ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code)){ MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e2){} e.preventDefault(); e.stopImmediatePropagation(); }
   },true);
 
   // ── step 1: the mode ──
@@ -186,12 +188,13 @@
       ctx.fillRect(x-12,0,24,22); ctx.beginPath(); ctx.arc(x,34,10,0,Math.PI*2); ctx.stroke(); };
     if(kind==='one') bulb(0);
     else if(kind==='two'){ bulb(-20); bulb(20); }
+    else if(kind==='shadow'){ ctx.globalAlpha=0.45; bulb(-22); ctx.globalAlpha=1; ctx.fillStyle=col; bulb(14); }
     else { ctx.beginPath(); ctx.arc(0,-6,12,Math.PI,0); ctx.stroke(); ctx.fillRect(-16,-6,32,28); ctx.fillStyle='#04140e'; ctx.fillRect(-2,2,4,10); }
     ctx.restore();
   }
   function drawModes(){
     title('HOW DO YOU RIDE?', 'PICK A MODE  ·  YOU CAN CHANGE IT EVERY NEW STORY');
-    const cw=270, ch=330, gap=40, x0=W/2-(cw*3+gap*2)/2;
+    const cw=218, ch=330, gap=22, x0=W/2-(cw*4+gap*3)/2;
     MODES.forEach((m,i)=>{
       const sel=_playModeIdx===i, key='m'+i; anim[key]=ease(anim[key],sel?1:0,0.2);
       const k=anim[key], sc=0.92+0.08*k, w=cw*sc, h=ch*sc, cx=x0+i*(cw+gap)+cw/2, x=cx-w/2, y=170+(1-k)*16+(sel?Math.sin(fr*0.08)*3:0), sk=16;
@@ -205,7 +208,7 @@
       ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk); ctx.stroke(); ctx.restore();
       icon(m.icon,cx,y+h*0.36,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),sel?1.7:1.4);
       ctx.save(); if(!sel) ctx.globalAlpha=0.6;
-      uiLogo(m.name,cx,y+h-118,sel?34:28,{col:m.locked?'#7a8a80':m.col,sweep:220});
+      uiLogo(m.name,cx,y+h-118,m.name.length>9?(sel?25:21):(sel?34:28),{col:m.locked?'#7a8a80':m.col,sweep:220});
       drawTextC(m.sub,cx,y+h-56,sel?'#ffffff':'#8a9a90',1);
       ctx.restore();
       if(sel&&!m.locked&&fr%4===0) spark(x+Math.random()*w,y+h-20-Math.random()*h*0.5,m.col);

@@ -174,8 +174,8 @@ function readGamepad(){
     _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)});   // A ok, B back
   }
   if(_gameState==='select'){
-    if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
-    if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
+    if(rose(14)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
+    if(rose(15)){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
   }
   // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
   // d-pad or stick moves the cursor, A picks, B resumes

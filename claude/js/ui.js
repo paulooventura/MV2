@@ -54,8 +54,8 @@ function _driveMenusFromPads(){
   }
   if(_gameState==='story'&&ok){ startGame(); return; }
   if(_gameState==='select'){
-    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3; else _heroChoice='mind'; }
-    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3; else _heroChoice='venture'; }
+    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
+    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
     if(ok) startGame();
     if(back){ if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
     return;
@@ -326,11 +326,13 @@ function startGame(){
   _unlockAudio();
   if(_gameState==='story'){
     _storyPage++; _storyFr=0;
-    if(_storyPage>=STORY_PAGES.length){ _gameState='select'; _selectStep=0; _playModeIdx=_playerCount===2?1:0; }
+    if(_storyPage>=STORY_PAGES.length){ _gameState='select'; _selectStep=0; _playModeIdx=_playerCount===2?2:(window.MV_SIBLING&&!MV_SIBLING.on?0:1); }
   }else if(_gameState==='select'){
     if(_selectStep===0){
-      if(_playModeIdx===2){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
-      _playerCount=_playModeIdx===0?1:2; _selectStep=1; return;
+      // modes (Paulo, Oct 22): 0 SOLO · 1 WITH YOUR SIBLING (it shadows you) · 2 2P LOCAL · 3 2P ONLINE
+      if(_playModeIdx===3){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
+      _playerCount=_playModeIdx===2?2:1; if(_playModeIdx<2&&window.MV_SIBLING) MV_SIBLING.on=_playModeIdx===1;
+      _selectStep=1; return;
     }
     // Story mode plays the new stages: Awdjoo Town 1.1 → 1.2 (beta_level.js).
     // The self-test keeps driving the classic Awdjoo map.
@@ -398,8 +400,8 @@ document.addEventListener('keydown',e=>{
   }
   if(_gameState==='select'){
     if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){_gameState='story';_storyPage=STORY_PAGES.length-1;}e.preventDefault();return;}
-    if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+2)%3;else _heroChoice='mind';e.preventDefault();return;}
-    if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%3;else _heroChoice='venture';e.preventDefault();return;}
+    if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4;else _heroChoice='mind';e.preventDefault();return;}
+    if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4;else _heroChoice='venture';e.preventDefault();return;}
     if(e.code==='Enter'||e.code==='Space'){startGame();e.preventDefault();return;}
     return;
   }
