@@ -52,7 +52,10 @@
       const g=cell(e), id=e.__identifier;
       if(id==='MovingPlatform'){
         const a=(Fd(e,'a')??g.c)*T, b=(Fd(e,'b')??g.c)*T;
-        B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a, b, dir:1, spd:(Fd(e,'speed')||12)/10, dx:0});
+        if(Fd(e,'axis')==='y'){   // 1.3: vertical lifts (a..b = the top's row range); loop=1 runs one way forever and wraps (the belts)
+          const ya=(Fd(e,'a')??g.r)*T, yb=(Fd(e,'b')??g.r)*T, d0=Fd(e,'dir')|0||1;
+          B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a:g.c*T, b:g.c*T, ya, yb, vert:true, loop:!!Fd(e,'loop'), dir:d0, spd:(Fd(e,'speed')||12)/10, dx:0, dy:0});
+        }else B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a, b, dir:1, spd:(Fd(e,'speed')||12)/10, dx:0, dy:0});
       }else if(id==='Water'){
         const r={c0:g.c, c1:g.c+g.w-1, r0:g.r, r1:g.r+g.h-1, plug:Fd(e,'plug')||null};
         F.rects.push(r);
@@ -301,17 +304,26 @@
   };
   function platformTick(){
     for(const m of B.platforms){
+      if(m.vert){
+        const y0=m.y; m.y+=m.spd*m.dir; m.dx=0; m.wrapped=false;
+        if(m.loop){ if(m.dir>0&&m.y>m.yb){ m.y=m.ya; m.wrapped=true; } else if(m.dir<0&&m.y<m.ya){ m.y=m.yb; m.wrapped=true; } }
+        else if(m.y>=m.yb){ m.y=m.yb; m.dir=-1; } else if(m.y<=m.ya){ m.y=m.ya; m.dir=1; }
+        m.dy=m.wrapped?0:m.y-y0; continue;
+      }
       const x0=m.x;
       m.x+=m.spd*m.dir;
       if(m.x>=m.b){ m.x=m.b; m.dir=-1; } else if(m.x<=m.a){ m.x=m.a; m.dir=1; }
-      m.dx=m.x-x0;
+      m.dx=m.x-x0; m.dy=0;
     }
+    // riding: carried along (and up / down) with it; a belt platform that wraps leaves you behind
+    const m0=B.ridePlat;
+    if(m0&&m0.vert&&!m0.wrapped&&p&&Math.abs(p.y+FEET_OFF-(m0.y-m0.dy))<=6&&p.x+SW/2>=m0.x-8&&p.x+SW/2<=m0.x+m0.w+8&&(p.vy||0)>=-0.01){ p.y=m0.y-FEET_OFF; }
     const m=ridingPlat(p);
     if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
     // other bodies (the sibling, the NPC at home) ride them too (Paulo, Oct 22)
     for(const o of B.platRiders?B.platRiders():[]){ const q=o._ridePlat; if(!q) continue;
       const cx=o.x+SW/2, feet=o.y+FEET_OFF;
-      if(cx>=q.x-8&&cx<=q.x+q.w+8&&Math.abs(feet-q.y)<=4&&(o.vy||0)>=-0.01){ o.x+=q.dx; o.y=q.y-FEET_OFF; } else o._ridePlat=null; }
+      if(!q.wrapped&&cx>=q.x-8&&cx<=q.x+q.w+8&&Math.abs(feet-(q.y-(q.dy||0)))<=6&&(o.vy||0)>=-0.01){ o.x+=q.dx; o.y=q.y-FEET_OFF; } else o._ridePlat=null; }
     // the hook rides the platform it bit
     const h=p.hook;
     if(h&&h.st==='on'&&!h.tgt){

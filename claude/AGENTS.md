@@ -202,6 +202,16 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 280 — Awdjoo Town 1.3 + the heptagon boss + the gaucho knife (Oct 22, Claude)
+
+- Level: `python3 scripts/build-awdjoo-1-3.py` → `assets/levels/awdjoo-1-3.ldtk` (92×74, 1 sheet square = 2 tiles, same scale as 1.2) + preview png. Carved out of solid rock; polygons with auto 45° slopes. `LEVELS['1.2'].next='1.3'`. Trial page `play-1-3.html` (Restart / Go to the boss / Go to the pool). Reach check `--lvl=1.3`: beatable, 0 dead ends.
+- Paulo's legend: purple = vertical moving platforms; the left shaft's green belts run forever (left column DOWN, right UP); red dot / triangle / square = A / B / C; green dot = seed, diamond = crystal; K = gaucho knife; S = save-state item.
+- `beta_water.js`: MovingPlatform `axis='y'` (a..b = top row range), `loop=1` wraps one way forever (`dir` ±1); riders carried vertically (MIND, the sibling, NPCs; a wrapping belt leaves its rider).
+- New `js/beta_foes.js` (after beta_sibling): E `ai='eye'` (floats, fast, keeps ~210 px off, 32 f lock-on with a sight line, then a beam to the rock, 14 dmg); F `ai='cube'` (`_iso`, dormant and faint in the water until MIND swims within 250 px or it's hit; darts at 6.5 px/f, rams 12; asleep again after 6 s; out of water it drops); Boss entity (heptagon, 360 HP, `_noGrab`): rests in its bowl, floats when MIND is within 620 px; corona of 7 telegraphed rotating beams, node volleys, and under half a sweeping beam; contact 16. On defeat `B.bossDown`, the bowl's `seal` blocks crumble into the knife's chamber. Boss HP bar over the HUD.
+- Gaucho knife = item index 4 (`ITEM_UNLOCK_BITS[4]=16`, `_cycleItem` over N items, HUD slot appears once found): copper-core damascus kiritsuke art at the arm tip; slash (16 f) cuts `vine` blocks (nothing else does), cuts enemies (14) and enemy ropes holding MIND. Popup `ITEM_INFO[5]`.
+- Save-state `S`: touching it saves the stage (`B.saveStage`) and moves the respawn there.
+- Gate field `boss=1`: the exit needs the heptagon down. Sky / rim / ambience themes for 1.3 (ember dusk). `installLaituShaft` now 1.1-only (it was stamping rungs into 1.2/1.3).
+
 ### Build 279 — the world hurts the sibling (merged onto Cursor's 273–278) (Oct 22, Claude)
 
 - `beta_sibling.js` `envHurt` / `envTick`: friendly fire only covers you ↔ it. The live yellow cage blocks shock it on contact (6–55 by impact speed, 40 f cooldown, knocked away), live water hurts it, lightning (`beta_weather` → `B.sibHurtAt`) and a block chain going off (`beta_level` BOOM) hurt it. Its Knowl tank shows its own energy (`sibHp`); 0 → down 4 s; heals slowly after 3 s unhurt. Same for the NPC at home.

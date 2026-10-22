@@ -269,9 +269,9 @@ function _runDir(){ return _moveInputX(); }
 
 // ── Item state ────────────────────────────────────────────────
 let ITEM=-1;  // -1=none · 0=TRS · 1=RCA · 2=XLR · 3=MAG
-const INAMES=['TRS','RCA','XLR','MAG'];
-const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028'];
-const ITEM_UNLOCK_BITS=[1,2,4,8];
+const INAMES=['TRS','RCA','XLR','MAG','KNIFE'];
+const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028','#d88a4a'];
+const ITEM_UNLOCK_BITS=[1,2,4,8,16];   // 16 = the gaucho knife (1.3)
 let _unlockedMask=15;
 let _itemEnhanced=[false,false,false,false];
 /** Held-jack scale. RCA was undersized vs TRS on the arm — read as a real plug. */
@@ -309,9 +309,9 @@ function _grantPlayerItem(idx, silent){
 }
 function _cycleItem(){
   if(_unlockedMask===0) return;
-  const start=ITEM<0?0:ITEM;
-  for(let n=1;n<=4;n++){
-    const next=(start+n)%4;
+  const start=ITEM<0?0:ITEM, N=ITEM_UNLOCK_BITS.length;   // 4 jacks, + the gaucho knife once it's found (1.3)
+  for(let n=1;n<=N;n++){
+    const next=(start+n)%N;
     if(_itemUnlocked(next)){ ITEM=next; return; }
   }
 }

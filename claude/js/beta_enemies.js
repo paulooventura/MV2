@@ -294,6 +294,7 @@
   // ── rope ────────────────────────────────────────────────────────
   B.ropes=B.ropes||[];
   function ropeOf(e){ return B.ropes.find(r=>r.e===e); }
+  B.releaseRopeOf=e=>releaseRope(e);
   function releaseRope(e){ const i=B.ropes.findIndex(r=>r.e===e); if(i>=0){ B.ropes.splice(i,1); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(false); }catch(_e){} } }
   function ropeOrigin(e){
     const c=center(e), a=e.tumble?(e.ang||0):(e.gAng||0)+(e.ang||0);
@@ -792,6 +793,7 @@
       if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
       if(e._betaHeld){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       if((e._thrownF||0)>0){ e.tumble=null; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); flight(e); continue; }
+      if(e._foe){ if(B.foeTick) B.foeTick(e); continue; }       // 1.3's E, F and the heptagon (beta_foes.js)
       think(e);
     }
     ropeTick();
@@ -980,7 +982,7 @@
     ctx.fillText(mk.c, x, y+r*0.06);
     ctx.restore();
   }
-  window.drawEnemy=function(e){ if(e&&e._ai){ const r=drawAi(e); drawMark(e); return r; } return _origDrawEnemy.apply(this, arguments); };
+  window.drawEnemy=function(e){ if(e&&e._foe&&B.foeDraw){ const r=B.foeDraw(e); drawMark(e); return r; } if(e&&e._ai){ const r=drawAi(e); drawMark(e); return r; } return _origDrawEnemy.apply(this, arguments); };
   B.drawEnemyFx=function(){ drawRopes(); drawFrags(); };
 
   // ── difficulty switch under the screen (next to the console buttons) ──
