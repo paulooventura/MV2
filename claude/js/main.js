@@ -899,7 +899,7 @@ function update(){
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
   if(dn&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
-  if(dn&&!adx&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
+  if(dn&&!adx&&!p._sprintMode&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
   _updateBattleEye(p);
 
   if(_bindJ('use')) _cycleItem();
@@ -916,7 +916,12 @@ function update(){
     if(p.laserCharging){p.laserCharge=Math.min(p.laserCharge+(_enhTrs?1.9:1),_cMax);if(p.laserCharge>4&&fr%6===0)sfx('laser_charge',p.laserCharge/_cMax);}
     if(!_bindDown('swap')&&p.laserCharging){const charged=p.laserCharge>_cReady;fireItem(charged);p.laserCharging=false;p.laserCharge=0;p.laserCd=0;}
     if(p.laserCd>0)p.laserCd--;
-  }else if(ITEM===1&&_itemUnlocked(1)){if(_bindJ('swap')&&!_runQuiet)fireItem();p.laserCharging=false;p.laserCharge=0;}
+  }else if(ITEM===1&&_itemUnlocked(1)){
+    const _rcaHeld=_bindDown('swap');
+    if(_runQuiet||!_rcaHeld){ if(!_rcaHeld) p._rcaArmed=false; }
+    else if(!p._rcaArmed){ fireItem(); p._rcaArmed=true; }
+    p.laserCharging=false;p.laserCharge=0;
+  }
   else{p.laserCharging=false;p.laserCharge=0;}
 
   // ── XLR / MAG hold ────────────────────────────────────────────
