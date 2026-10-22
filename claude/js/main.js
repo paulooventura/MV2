@@ -1155,6 +1155,7 @@ function update(){
     else{win=true;_markGameBeaten();}
   }
   _tickBattleTestSpawner();
+  if(window.MV_ENGINE&&typeof MV_ENGINE.tick==='function') MV_ENGINE.tick();
   if(window.__MV_HEALTH&&typeof window.__MV_HEALTH.tick==='function') window.__MV_HEALTH.tick();
   clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]);
 }
