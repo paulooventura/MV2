@@ -39,6 +39,7 @@
   const cell=e=>({c:e.__grid?e.__grid[0]:Math.round(e.px[0]/16), r:e.__grid?e.__grid[1]:Math.round(e.px[1]/16),
     w:Math.round((e.width||16)/16), h:Math.round((e.height||16)/16)});
 
+  const LOAD_FADE=22;
   async function startBetaLab(id, carryMask, opts){
     opts=opts||{};
     id=id&&LEVELS[id]?id:wantedLevel();
@@ -48,8 +49,11 @@
     const guess=id==='1.2'?'stage2':'stage';
     if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(guess);   // still inside the click, before the level fetch
     const gen=B.loadGen=(B.loadGen||0)+1;             // a newer load wins (e.g. a stage button during boot)
+    // Paulo (Oct 22): nothing of the old world may show while the stage loads — the game
+    // draws a dark veil until the new level is in, then fades it in (main.js draw/update)
+    B.loading=gen;
     const res=await fetch(PATH+(PATH.indexOf('?')<0?'?v='+(window.MV_BUILD||'0'):''));
-    if(!res.ok) throw new Error('beta level fetch failed '+res.status);
+    if(!res.ok){ if(B.loading===gen) B.loading=0; throw new Error('beta level fetch failed '+res.status); }
     const raw0=await res.json();
     if(opts.fresh) delete B.saves[id];
     const tier=revisitTier(id);
@@ -61,6 +65,7 @@
     applyLdtkLevel(level);
     applyBeta(raw, level);
     restoreStage(opts);
+    if(B.loading===gen){ B.loading=0; B.loadFade=LOAD_FADE; if(typeof _snapCameraToPlayer==='function'&&typeof p!=='undefined'&&p) try{ _snapCameraToPlayer(p); }catch(e){} }
     if(window.MV_BETA_AUDIO){
       if(B.music&&B.music!==guess) MV_BETA_AUDIO.play(B.music,{restart:true});
       else if(MV_BETA_AUDIO.ensure) MV_BETA_AUDIO.ensure();

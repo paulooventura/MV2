@@ -295,6 +295,11 @@ HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everyth
 - assets/story/title-frame-00.png: the key art's START is repainted as STORY MODE (same green pixel lettering, arrow moved left to x≈656). ui.js hides that arrow with a background patch (650,730,40,36) when OPTIONS is selected.
 - js/beta_story.js now keeps 5 slots in localStorage `mv2.story.slots.v1` (the old single save migrates to slot 1). A savepoint is written to the active slot (`B.storySlot`) each time a stage finishes loading in story mode (story start, every stage passed into) and at the story's end — not mid-stage. GAME OVER (`B.overT` in beta_level) calls `B.storyGameOver()`: back to the slot's last save with fresh lives/continues. STORY MODE: no saves anywhere → new story in slot 1; otherwise the slot screen (saved slot = play from its save, empty = new story there, Y/F/Delete twice = erase, B back).
 
+### Build 225 — no stale world while a stage loads (Oct 22)
+- Paulo saw the old level for a frame when starting. `_gameState='game'` was set before the async level fetch, so the previous world drew until the LDtk file came in.
+- `startBetaLab` sets `B.loading=gen`; `main.js` `draw()` paints a dark veil and `update()` skips game ticks while it's set; when the stage is in, the camera snaps and `B.loadFade` (22 frames) fades the new world in.
+- Checked frame by frame with a slowed level fetch: before, ~30 frames of the old bright world; now veil → fade.
+
 ### Build 224 — the music plays from the gramophone; logical sound sources (Oct 22)
 - `sound16.js`: every `<audio>` track goes through one shared chain `b.mfx` (12 dB/oct low-pass, Q 0.707 → pan → gain) before the music bus; `MV_SOUND16.musicFx(ac)`.
 - `beta_ambience.js` `things()`: on the stage track, the gramophone in MIND's house (home room, col 24) is the music's source: high-cut `18000/(1+d/6)^1.6 × 0.55^walls` (≥200 Hz), level ≥0.42 (× wall loss), slight pan. Item / results / title music is free again (`musicFree`).

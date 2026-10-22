@@ -792,47 +792,13 @@ function startNgPlusRun(){ _ngPlusRun=true; _ngSeed=Date.now()^(Math.random()*0x
 const _ngCheckInterval=setInterval(()=>{ if(win&&_gameState==='game'){_winCount++;if(_winCount>=2&&!_ngPlusRun)setTimeout(startNgPlusRun,2000);}},500);
 
 // ── Main update loop ──────────────────────────────────────────
-// The eye slides toward the nearest living enemy. Distance raises the bottom
-// lid; how much threat sits in the radius closes the top lid and slants both.
-function _updateBattleEye(pl){
-  if(!pl) return;
-  const LOOK=520, LID_R=230, DANGER_R=360;
-  const ox=pl.x+(typeof SW!=='undefined'?SW:64)/2;
-  const oy=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-(typeof STAND_H!=='undefined'?STAND_H*0.55:40);
-  let best=null, bestD=1e9, danger=0;
-  if(typeof ENEMS!=='undefined'){
-    for(const e of ENEMS){
-      if(!e||e.alive===false||e._aiCompanion) continue;
-      const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.35:18);
-      const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
-      if(d<bestD&&d<LOOK){ bestD=d; best={dx,dy,d}; }
-      if(d>=DANGER_R) continue;
-      const prox=1-d/DANGER_R;
-      let w=prox*prox;
-      if(e.hitF>0||(e.shotCd!=null&&e.shotCd<28)||e._thrownF>0) w+=0.4*prox;
-      if(e.mind||e._betaEnemy||e._ai) w*=1.2;
-      danger+=w;
-    }
-  }
-  const dangerN=Math.max(0,Math.min(1,danger/1.35));
-  const near=best?Math.max(0,Math.min(1,1-Math.max(0,best.d-32)/LID_R)):0;
-  let tx, ty;
-  if(best){ const reach=4.5; tx=best.dx/best.d*reach; ty=best.dy/best.d*reach*0.8; }
-  else { tx=(pl.tAimDX||0)*4; ty=(pl.tAimDY||0)*4; }
-  const k=best?0.3:(pl.og?0.18:0.07);
-  pl.pupilX+=(tx-pl.pupilX)*k; pl.pupilY+=(ty-pl.pupilY)*k;
-  pl._eyeBot=(pl._eyeBot||0)+(near-(pl._eyeBot||0))*0.16;
-  pl._eyeTop=(pl._eyeTop||0)+(dangerN-(pl._eyeTop||0))*0.11;
-  const side=best?(Math.sign(best.dx)||(pl.fc?1:-1)):0;
-  const slantT=side*(dangerN*0.95+near*0.3);
-  pl._eyeSlant=(pl._eyeSlant||0)+(slantT-(pl._eyeSlant||0))*0.14;
-}
 function update(){
   readGamepad();
   if(typeof _driveMenusFromPads==='function') _driveMenusFromPads();
   if(_gameState==='game'&&Kj['Escape']&&typeof _togglePause==='function') _togglePause();
   fr++;
   if(_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
+  if(window.MV_BETA&&MV_BETA.loading){ clkj(); return; }               // no game ticks on a stale world while a stage loads
   if(_paused){
     if(typeof _pauseInput==='function'){ _pauseInput(); if(!_paused||_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; } }
     if(Kj['Tab']){
@@ -890,7 +856,7 @@ function update(){
   const _aimLerp=_trsSweep?0.06:p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
   if(p._wallAimFree>0) p._wallAimFree--;
   p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
-  _updateBattleEye(p);
+  p.pupilX+=(p.tAimDX*4-p.pupilX)*(p.og?0.18:0.07); p.pupilY+=(p.tAimDY*4-p.pupilY)*(p.og?0.18:0.07);
 
   if(_bindJ('use')) _cycleItem();
 
@@ -1138,6 +1104,8 @@ function draw(){
   if(_gameState==='stagedesign'){drawStageDesignHub();return;}
   if(_gameState==='options'){drawOptions();return;}
   if(_gameState==='story'){_storyFr++;drawStory();return;}
+  // a stage is loading (beta_level.js): a dark veil, never the old world; then the new one fades in
+  if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }
   if(_gameState==='cutscene'){_cutsceneFr++;drawCutscene();return;}
   if(_gameState==='select'){drawSelect();return;}
   _snapRenderCam();
@@ -1182,6 +1150,7 @@ function draw(){
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   } finally { _worldZoomEnd(); }
   drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
+  if(window.MV_BETA&&MV_BETA.loadFade>0){ ctx.save(); ctx.globalAlpha=Math.min(1,MV_BETA.loadFade/22); ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); ctx.restore(); MV_BETA.loadFade--; }
   if(p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText((p2._aiCompanion?'ALLY':'P2')+' HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
   if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-140,H*0.40,280,48);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.41),C.LILAC,2);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.41)+22,C.PURPLE_L,2);}}
   if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-28,C.RED_L,4);drawTextC('5 SHUTDOWNS',W/2,H/2+8,C.LILAC,3);drawTextC('TAB TO RETRY',W/2,H/2+40,C.GREY,2);}
