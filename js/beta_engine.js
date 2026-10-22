@@ -42,7 +42,18 @@
     if(!dest){ dest=a.destination; try{ const G=window.MV_SPATIAL&&MV_SPATIAL.graph&&MV_SPATIAL.graph(); if(G&&G.self&&G.self.context===a) dest=G.self; }catch(e){} }
     // Paulo (Oct 22): sit it back in the mix — muffled, like it's inside the hub, under the music
     const muffle=a.createBiquadFilter(); muffle.type='lowpass'; muffle.frequency.value=1600; muffle.Q.value=0.6;
-    out.connect(muffle); muffle.connect(dest); N_muffle=muffle;
+    const roomG=a.createGain(); roomG.gain.value=1;
+    out.connect(muffle); muffle.connect(roomG); roomG.connect(dest); N_muffle=muffle;
+    // Paulo (Oct 22): in sprint the engine comes up front — dead centre (summed to mono, no room or
+    // echo) and crisp (a presence lift and open air on top, the boom tightened). It crossfades over
+    // from the roomy, muffled path above.
+    let main=a.destination; try{ const G=window.MV_SPATIAL&&MV_SPATIAL.graph&&MV_SPATIAL.graph(); if(G&&G.main&&G.main.context===a) main=G.main; }catch(e){}
+    const mono=a.createGain(); mono.channelCount=1; mono.channelCountMode='explicit'; mono.channelInterpretation='speakers'; mono.gain.value=1;
+    const tight=a.createBiquadFilter(); tight.type='peaking'; tight.frequency.value=160; tight.Q.value=1.0; tight.gain.value=-3;      // less boom
+    const pres=a.createBiquadFilter(); pres.type='peaking'; pres.frequency.value=2600; pres.Q.value=0.9; pres.gain.value=5;          // the bite
+    const sheen=a.createBiquadFilter(); sheen.type='highshelf'; sheen.frequency.value=7000; sheen.gain.value=6;                         // the air (undoes the -6 dB shelf)
+    const dryG=a.createGain(); dryG.gain.value=0;
+    out.connect(mono); mono.connect(tight); tight.connect(pres); pres.connect(sheen); sheen.connect(dryG); dryG.connect(main);
     // turbos: two whistles a hair apart, through a resonant band, plus the rushing air
     const tbp=a.createBiquadFilter(); tbp.type='bandpass'; tbp.Q.value=9; const tg=a.createGain(); tg.gain.value=0;
     const t1=a.createOscillator(), t2=a.createOscillator(); t1.type='sine'; t2.type='triangle';
@@ -62,7 +73,7 @@
     const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);   // the rattle of a purr (~24 Hz)
     pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
     for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
-    return {a,core,out,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
+    return {a,core,out,roomG,dryG,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -138,6 +149,8 @@
     set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.04*S.boost,0.08);
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.022*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
+    const front=(S.wasSprint||S.rev>0)?1:0;                          // sprint: dry, centred and crisp up front
+    set(N.dryG.gain,front*1.15,front?0.05:0.18); set(N.roomG.gain,1-0.85*front,front?0.05:0.18);
     if(N_muffle) set(N_muffle.frequency,(S.wasSprint||S.rev>0)?14000:900+2800*Math.min(1,spd)*Math.min(1,spd),S.wasSprint?0.06:0.15);   // the highs open up as you get really fast — or all the way while sprinting
     const fire=S.rpm/60*4;                                          // V8 firing rate
     set(N.pu1.frequency,fire/2,0.05); set(N.pu2.frequency,fire,0.05); set(N.ru.frequency,18+fire*0.15,0.2);

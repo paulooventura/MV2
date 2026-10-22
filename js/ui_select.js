@@ -150,31 +150,56 @@
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
     sparkTick();
     if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
-    hints(_playerCount!==2&&window.MV_SIBLING?[['<  >','SWITCH','#d8ffc8'],['^  v','FRIENDLY FIRE','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
+    hints(_playerCount!==2&&window.MV_SIBLING?[['^  v','PICK A ROW','#d8ffc8'],['<  >',selRow===0?'SWITCH LEAD':'CHANGE','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
   }
-  // Paulo (Oct 22): friendly fire ON / OFF (the sibling — shadowing you or at home — can always be
-  // punched, blown, pulled and shoved; ON it also gets hurt). SOLO / WITH SIBLING is the mode step.
-  let sibRects=[];
-  function sibToggle(){
-    if(Kj['ArrowUp']||Kj['ArrowDown']){ delete Kj['ArrowUp']; delete Kj['ArrowDown']; MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e){} }
-    const on=MV_SIBLING.ff, y=H-112, h=34;
-    const opts=[{k:false,label:'FRIENDLY FIRE OFF'},{k:true,label:'FRIENDLY FIRE ON'}];
+  // Paulo (Oct 22): on this screen, under the heroes, two switches —
+  //   COMPANION: SOLO (the other sibling stays home as an NPC) / WITH SIBLING (it shadows you)
+  //   FRIENDLY FIRE: OFF / ON (it can always be punched, blown, pulled and shoved; ON it also gets hurt)
+  // ^ v moves between the hero row and the two switches, < > changes the focused one. Mouse / touch: tap.
+  let sibRects=[], selRow=0;
+  function setCompanion(on){
+    if(!window.MV_SIBLING||_playerCount===2) return;
+    MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
+  }
+  function pillGroup(label,opts,cur,x,y,focus,row){
+    const h=34;
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
-    const ws=opts.map(o=>Math.max(160,ctx.measureText(o.label).width+70)); ctx.restore();
-    let x=W/2-(ws[0]+ws[1]+14)/2; sibRects=[];
+    const ws=opts.map(o=>Math.max(108,ctx.measureText(o.label).width+56)); ctx.restore();
+    const lw=textW(label,1)+14, tw=lw+ws[0]+ws[1]+8;
+    if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.55+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x-8,y-6,tw+16,h+12,12); ctx.stroke(); ctx.restore(); }
+    drawText(label,x,y+13,focus?'#ffffff':'#8aa090',1);
+    let xx=x+lw;
     opts.forEach((o,i)=>{
-      const sel=o.k===on, w=ws[i], col=o.k?'#ff7a6a':'#9ef58a';
-      ctx.fillStyle='#020a04'; uiRound(x+2,y+3,w,h,h/2); ctx.fill();
-      ctx.fillStyle=sel?(o.k?'rgba(255,100,80,0.3)':'rgba(120,200,140,0.3)'):'rgba(10,20,14,0.85)'; uiRound(x,y,w,h,h/2); ctx.fill();
-      ctx.save(); if(sel){ ctx.shadowColor=col; ctx.shadowBlur=12; } ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(x+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
-      drawTextC(o.label,x+w/2+8,y+9,sel?'#ffffff':'#7a8a80',2);
-      if(sel&&typeof uiCursor==='function') uiCursor(x+14,y+h/2,7);
-      sibRects.push({x,y,w,h,k:o.k}); x+=w+14;
+      const sel=o.k===cur, w=ws[i], col=o.col;
+      ctx.fillStyle='#020a04'; uiRound(xx+2,y+3,w,h,h/2); ctx.fill();
+      ctx.fillStyle=sel?'rgba('+_uiRGB(col).join(',')+',0.3)':'rgba(10,20,14,0.85)'; uiRound(xx,y,w,h,h/2); ctx.fill();
+      ctx.save(); if(sel){ ctx.shadowColor=col; ctx.shadowBlur=12; } ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(xx+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
+      drawTextC(o.label,xx+w/2+(sel?8:0),y+9,sel?'#ffffff':'#7a8a80',2);
+      if(sel&&typeof uiCursor==='function') uiCursor(xx+14,y+h/2,7);
+      sibRects.push({x:xx,y,w,h,row,k:o.k}); xx+=w+8;
     });
+    return tw;
+  }
+  function sibToggle(){
+    const y=H-104; sibRects=[];
+    const g1=[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH SIBLING',col:'#ffb86a'}];
+    const g2=[{k:false,label:'OFF',col:'#9ef58a'},{k:true,label:'ON',col:'#ff7a6a'}];
+    // measure both groups to centre them
+    ctx.save(); ctx.font='22px "MV Pixel", monospace';
+    const wOf=g=>g.reduce((t,o)=>t+Math.max(108,ctx.measureText(o.label).width+56),0)+8; ctx.restore();
+    const w1=wOf(g1)+textW('COMPANION',1)+14, w2=wOf(g2)+textW('FRIENDLY FIRE',1)+14;
+    const gap=40, x0=W/2-(w1+gap+w2)/2;
+    pillGroup('COMPANION',g1,!!MV_SIBLING.on,x0,y,selRow===1,1);
+    pillGroup('FRIENDLY FIRE',g2,!!MV_SIBLING.ff,x0+w1+gap,y,selRow===2,2);
+  }
+  function rowChange(dx){
+    if(selRow===0){ _heroChoice=dx<0?'mind':'venture'; return; }
+    if(selRow===1) setCompanion(dx>0);
+    else MV_SIBLING.ff=dx>0;
+    try{ sfx('menu'); }catch(e2){}
   }
   // Paulo (Oct 22): pick with the mouse / a finger — a tap on a card picks it, a tap on the picked
-  // card goes on; the FRIENDLY FIRE pills switch it. A tap anywhere else does nothing (it used to
-  // skip straight past the screen with whatever was highlighted).
+  // card goes on; the switches switch. A tap anywhere else does nothing.
   let modeRects=[], heroRects=[], lastTouch=0;
   const inR=(b,mx,my)=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h;
   function selectTap(cx,cy){
@@ -185,8 +210,13 @@
       for(const b of modeRects) if(inR(b,mx,my)){ if(_playModeIdx===b.i) startGame(); else { _playModeIdx=b.i; beep(); } return; }
       return;
     }
-    if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){ if(MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; beep(); } return; }
-    for(const b of heroRects) if(inR(b,mx,my)){ if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
+    if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
+      selRow=b.row;
+      if(b.row===1){ if(!!MV_SIBLING.on!==b.k){ setCompanion(b.k); beep(); } }
+      else if(!!MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; beep(); }
+      return;
+    }
+    for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
   }
   document.addEventListener('click',e=>{
     if(_gameState!=='select') return;
@@ -202,14 +232,19 @@
     if(typeof _unlockAudio==='function') _unlockAudio();
     selectTap(e.touches[0].clientX,e.touches[0].clientY);
   },{capture:true,passive:true});
-  // the pad: up / down on the d-pad or the stick switches friendly fire (player.js calls this)
-  window.MV_SELECT_FF_TOGGLE=function(){
-    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
-    MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e2){}
+  // the pad (player.js): dy moves between rows, dx changes the focused row. Returns true if it took it.
+  window.MV_SELECT_NAV=function(dx,dy){
+    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return false;
+    if(dy){ selRow=Math.max(0,Math.min(2,selRow+dy)); try{ sfx('menu'); }catch(e2){} }
+    if(dx) rowChange(dx);
+    return true;
   };
+  window.MV_SELECT_FF_TOGGLE=function(){ window.MV_SELECT_NAV(0,1); };
   window.addEventListener('keydown',e=>{
     if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
-    if(['ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code)){ MV_SIBLING.ff=!MV_SIBLING.ff; try{ sfx('menu'); }catch(e2){} e.preventDefault(); e.stopImmediatePropagation(); }
+    const dy={ArrowUp:-1,KeyW:-1,ArrowDown:1,KeyS:1}[e.code]||0, dx={ArrowLeft:-1,KeyA:-1,ArrowRight:1,KeyD:1}[e.code]||0;
+    if(dx||dy){ window.MV_SELECT_NAV(dx,dy); e.preventDefault(); e.stopImmediatePropagation(); }
+    if(e.code==='Escape'||e.code==='Backspace') selRow=0;
   },true);
 
   // ── step 1: the mode ──

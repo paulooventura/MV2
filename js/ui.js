@@ -54,8 +54,12 @@ function _driveMenusFromPads(){
   }
   if(_gameState==='story'&&ok){ startGame(); return; }
   if(_gameState==='select'){
-    if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
-    if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+    const nX=lf?-1:rt?1:0, nY=up?-1:dn?1:0;
+    if((nX||nY)&&window.MV_SELECT_NAV&&MV_SELECT_NAV(nX,nY)){ /* hero screen: rows + switches (ui_select.js) */ }
+    else {
+      if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
+      if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+    }
     if(ok) startGame();
     if(back){ if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
     return;
