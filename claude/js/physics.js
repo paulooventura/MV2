@@ -56,7 +56,7 @@ const TIRE_GRIP_TURN=1.06;   // rubber bites: turning around on the ground digs 
 const WLK=MOVE_WALK, RUN=MOVE_RUN, ACCEL=MOVE_ACCEL;
 const RUN_RAMP_RATE=MOVE_RUN_RAMP;
 const FALL_DMG_VY=9.2;
-const LIFE_REGEN_FRAMES=360;
+const LIFE_REGEN_FRAMES=120;   // one pip (20 HP) every 2 s; a hit still resets the wait
 const KNOWL_TREE_BOOST=2;
 let _knowlTreeZone=null;
 
