@@ -1267,6 +1267,7 @@
         else { p.vx+=kx*6; p.vy+=ky*5-2; }
       }
     }
+    if(B.sibHurtAt) B.sibHurtAt(cx,cy,BOOM.R+30,dmg*0.6);          // a chain going off hurts your sibling too
     for(let i=0;i<22;i++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*5*amp;
       PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:16+Math.random()*16|0,maxLife:32,r:2+Math.random()*3,col:i%3?'#ffd040':'#ff7020'}); }
   }
