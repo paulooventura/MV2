@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 264 — a calm, grounded sibling (Oct 22, Claude)
+
+- `beta_sibling.js` `follow()` rewritten: it drives on the ground with real collision (`_movePlayerWithColl`), eases to a mark ~70 px behind you (brakes in time, 16 px dead zone), hops walls / ledges (vy -10.8). It flies on the XLR only when it must (you're on the rope, 150 px above, 340 px away, or it's stuck 40 f), glides on a soft spring (0.86 damping, 0.014 pull, speed capped), and lands after 40 f once you're grounded nearby. Side behind you changes only after 50 f facing the other way; facing changes after 8 f. Walking into it no longer bumps it (needs |vx| > 6).
+- Trace (scratch `sib7.mjs`): fly time 98% → 10%, mean per-frame accel 2.2 → 0.33, jumps > 14 px/frame 48 → 0.
+
 ### Build 263 — COMPANION + FRIENDLY FIRE switches on the hero screen; sprint engine up front (Oct 22, Claude)
 
 - `ui_select.js`: under the hero cards two switches, COMPANION (SOLO / WITH SIBLING → `MV_SIBLING.on`, `_playModeIdx` 0/1) and FRIENDLY FIRE (OFF / ON). ^ v moves between the hero row and the switches, < > changes the focused one; tap / click works too. `MV_SELECT_NAV(dx,dy)` is the shared entry (keyboard, pad in `player.js`, touch pad via `_driveMenusFromPads` in `ui.js`).
