@@ -1071,17 +1071,7 @@
   const _origDrawChar=window.drawCharacter;
   window.drawCharacter=function(){
     const r=_origDrawChar.apply(this, arguments);
-    if(on()&&B.hasIsolator){
-      const cx=sx(p.x+SW/2), feet=sy(p.y+FEET_OFF), top=feet-sw(STAND_H+WHEEL_R)+sw((p.crouchAmt||0)*30)-4;
-      const wet=B.mindWet||0;
-      const a=0.28+0.25*wet+0.06*Math.sin(fr*0.12);
-      ctx.save();
-      ctx.fillStyle='rgba(255,150,60,'+(a*0.45)+')'; ctx.strokeStyle='rgba(255,180,100,'+(a+0.2)+')'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.roundRect(cx-sw(32),top,sw(64),feet-top+2,sw(18)); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle='rgba(255,240,210,'+(0.35+0.3*wet)+')'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(cx-sw(12),top+sw(20),sw(10),Math.PI*1.1,Math.PI*1.55); ctx.stroke();
-      ctx.restore();
-    }
+    // (the Isolator's rubber skin is drawn on the speaker box only, in render.js drawBody — Paulo, Oct 22)
     if(on()) for(const e of ENEMS){ if(!e._shorting||!e.alive) continue;   // enemies shorting out: the same crackle
       const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h*0.4), hw=sw(Math.max(e.w,30))*0.5;
       ctx.strokeStyle='rgba(255,250,150,0.9)'; ctx.lineWidth=2;
