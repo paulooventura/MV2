@@ -223,7 +223,7 @@
     B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[];
     B.echoNeed=0; B.revisitNote=0; B.safe=null;
     B.stats={shutdowns:0, permOff:0, booms:0, hits:0, frames:0, items:0}; B.popup=null; B.results=null; B.lastMask=0; B.shake=0;
-    B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]};
+    B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]}; B.magLock=null; B.magPark=null;
     const lv=raw.levels[0];
     B.sky=(F(lv,'skyRows')|0)||0;
     B.horizonRow=F(lv,'horizonRow')!=null?F(lv,'horizonRow'):B.sky+13;
@@ -930,8 +930,111 @@
       if(f){ c2.vx=(c2.vx||0)+f.fx; c2.vy=(c2.vy||0)+f.fy; }
     }
   }
+  // ── Magnet suction + parking (Paulo, Oct 22) ──────────────────
+  //   Near rock, the magnet's pull reaches out in an arc in front of the poles and
+  //   draws MIND to the surface (strong up close, fading with distance — enough to
+  //   lift him to a ceiling); it locks there with the poles flush and drains power.
+  //   Switch items while locked and the glove hand takes the cord from the magnet's
+  //   base and plugs it into the top back of the box (the RCA's animation): he hangs
+  //   from the magnet, power refills, the other items work. DOWN + JUMP lets go.
+  const SUCK={R:150, K:1.05, MAXV:9};
+  const PARK_FR=26, PARK_GRAB=0.3;
+  function suction(){
+    if(!(p.itemStamina>0)) return;
+    const t=magTip(), a0=Math.atan2(t.uy,t.ux); let best=null;
+    for(const da of [0,-0.32,0.32,-0.6,0.6]){
+      const a=a0+da, ux=Math.cos(a), uy=Math.sin(a);
+      for(let d=0; d<=SUCK.R; d+=5){
+        const x=t.x+ux*d, y=t.y+uy*d;
+        if(cubes().some(bw=>x>=bw.x&&x<=bw.x+T&&y>=bw.y&&y<=bw.y+T)) break;
+        if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)){ const w=d*(1+Math.abs(da)*0.8); if(!best||w<best.w) best={d,w,ux,uy,x,y}; break; }
+      }
+    }
+    if(!best) return;
+    const arc=Math.sin(Math.PI/2*Math.max(0,1-best.d/SUCK.R));          // the amplitude arc: strong close, gone at the edge
+    const s=arc*SUCK.K*(0.35+0.65*powNow());
+    p.vx+=best.ux*s; p.vy+=best.uy*s;
+    if(best.uy<-0.3) p.vy-=GRAV*Math.min(1.25,arc*1.6)*(-best.uy);          // enough to beat gravity up to a ceiling
+    const v=Math.hypot(p.vx,p.vy); if(v>SUCK.MAXV){ p.vx*=SUCK.MAXV/v; p.vy*=SUCK.MAXV/v; }
+    if(best.uy<-0.3&&s>0.2) p.og=false;
+    if(fr%2===0) PFXS.push({x:best.x-best.ux*4+(Math.random()-0.5)*20,y:best.y-best.uy*4+(Math.random()-0.5)*20,vx:-best.ux*2,vy:-best.uy*2,life:9,maxLife:9,r:1.5,col:Math.random()<0.5?'#ff5050':'#5080ff'});
+  }
+  // the poles meet the surface flush: aim straight into it, and slide him so the tip touches
+  function seatLock(L){
+    p.aimDX=L.ux; p.aimDY=L.uy;
+    const t=magTip(), tx=L.cx-L.ux*3, ty=L.cy-L.uy*3;
+    let dx=tx-t.x, dy=ty-t.y; const dl=Math.hypot(dx,dy); if(dl>24){ dx*=24/dl; dy*=24/dl; }
+    L.x=p.x+dx; L.y=p.y+dy;
+  }
+  B.magPark=null;
+  function parkStart(){
+    const L=B.magLock; if(!L) return;
+    p.aimDX=L.ux; p.aimDY=L.uy;
+    const t=magTip(), pose=computeConnectorArmPose(p);
+    B.magPark={st:'plug', t:0, px:L.x, py:L.y, ux:L.ux, uy:L.uy, cx:L.cx, cy:L.cy,
+      bx:isFinite(pose.tipX)?pose.tipX:t.x-L.ux*26, by:isFinite(pose.tipY)?pose.tipY:t.y-L.uy*26, ang:Math.atan2(L.uy,L.ux)};
+    B.magLock=null; p._swapHoldBlock=true;
+  }
+  function parkRelease(){
+    const P=B.magPark; if(!P) return; B.magPark=null;
+    try{ MV_BETA_AUDIO.magHum(false); sfx('omniblock_chip'); }catch(e){}
+    p.og=false; p.vx=-P.ux*2.5; p.vy=P.uy>0.3?-5:(P.uy<-0.3?1.5:-2.5);
+    for(let k=0;k<10;k++) PFXS.push({x:P.bx,y:P.by,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:12,maxLife:12,r:1.6,col:k%2?'#ff5050':'#5080ff'});
+  }
+  // the end of the cord the glove carries: magnet base → over the head → the socket
+  B.magCordEnd=function(){
+    const P=B.magPark; if(!P) return null;
+    const S=typeof hookAttachWorld==='function'?hookAttachWorld():{x:p.x+SW/2,y:p.y};
+    if(P.st!=='plug') return {x:S.x,y:S.y,k:1};
+    const k=Math.min(1,P.t/PARK_FR);
+    if(k<PARK_GRAB) return {x:P.bx,y:P.by,k:0,grab:true,gk:k/PARK_GRAB};
+    const u=(k-PARK_GRAB)/(1-PARK_GRAB), e=u*u*(3-2*u), C={x:p.x+SW/2+(p.fc?-1:1)*4,y:S.y-62};
+    return {x:(1-e)*(1-e)*P.bx+2*(1-e)*e*C.x+e*e*S.x, y:(1-e)*(1-e)*P.by+2*(1-e)*e*C.y+e*e*S.y, k:e};
+  };
+  function parkTick(){
+    const P=B.magPark;
+    if(Math.hypot(p.x-P.px,p.y-P.py)>160||(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)){ B.magPark=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} return false; }   // respawned / shut down
+    if(ITEM===3&&p.magOn){                                  // back on the MAG and holding it: the hand takes the magnet again
+      B.magLock={x:P.px,y:P.py,t:10,cx:P.cx,cy:P.cy,ux:P.ux,uy:P.uy}; B.magPark=null; return false; }
+    P.t++;
+    p.x=P.px; p.y=P.py; p.vx=0; p.vy=0; p.og=true;
+    if(P.st==='plug'){
+      p.itemStamina=Math.max(0,(p.itemStamina||0)-MAG.DRAIN*0.6);
+      if(p.itemStamina<=0){ parkRelease(); return true; }      // out of power before the plug seated: he drops
+      if(P.t>=PARK_FR){ P.st='parked'; p._plugArchT=12; try{ sfx('grap_attach'); MV_BETA_AUDIO.magClank(); }catch(e){} }
+    }
+    if(fr%5===0) PFXS.push({x:P.cx-P.ux*2+(Math.random()-0.5)*26*Math.abs(P.uy),y:P.cy-P.uy*2+(Math.random()-0.5)*26*Math.abs(P.ux),vx:(Math.random()-0.5),vy:-0.3-Math.random(),life:10,maxLife:10,r:1.5,col:Math.random()<0.5?'#ff5050':'#5080ff'});
+    return true;
+  }
+  B.parkInput=function(){                                  // before the game's own jump: DOWN + JUMP lets go; nothing else jumps
+    const P=B.magPark; if(!P||typeof isJumpJ!=='function') return;
+    if(!isJumpJ()) return;
+    if(P.st==='parked'&&typeof isDn==='function'&&isDn()) parkRelease();
+    OPT.binds.jump.forEach(c=>delete Kj[c]);
+  };
+  // the parked magnet and its cord (drawn in the world, behind MIND)
+  B.drawMagPark=function(){
+    const P=B.magPark; if(!P) return;
+    const E=B.magCordEnd(), bx=sx(P.bx), by=sy(P.by), ex=sx(E.x), ey=sy(E.y);
+    const back={x:bx-Math.cos(P.ang)*sw(6), y:by-Math.sin(P.ang)*sw(6)};
+    const mx=(back.x+ex)/2, my=(back.y+ey)/2+sw(10);
+    ctx.save(); ctx.lineCap='round';
+    for(const [c,wd] of [['#120a1c',sw(7)],[p.hero==='venture'?'#7a2638':'#3c1670',sw(5)],[p.hero==='venture'?'#c04a5e':'#6a3cc8',sw(2)]]){
+      ctx.strokeStyle=c; ctx.lineWidth=Math.max(1,wd); ctx.beginPath(); ctx.moveTo(back.x,back.y); ctx.quadraticCurveTo(mx,my,ex,ey); ctx.stroke(); }
+    ctx.restore();
+    try{ drawConnectorTip(bx,by,P.ang,0,3); }catch(e){}
+    if(P.st==='parked'){ const k=0.5+0.5*Math.sin(fr*0.15); ctx.fillStyle='rgba(200,180,255,'+(0.18*k)+')'; ctx.beginPath(); ctx.arc(sx(P.cx),sy(P.cy),sw(14),0,Math.PI*2); ctx.fill(); }
+  };
+  const _origCycleMag=window._cycleItem;
+  window._cycleItem=function(){
+    const was=B.on&&ITEM===3&&!!B.magLock&&(p.itemStamina||0)>0;
+    const r=_origCycleMag.apply(this, arguments);
+    if(was&&ITEM!==3) parkStart();
+    return r;
+  };
   function magnetTick(){
     const M=B.mag;
+    if(B.magPark&&parkTick()) return;
     const on=!!(p&&p.magOn&&ITEM===3);
     if(on){
       // the magnet keeps its own power while held (the game's 1.2/frame drain empties it in
@@ -953,15 +1056,16 @@
     const hit=!B.magLock&&!M.held.length?(rockAtTip()||((typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())?{x:p.x+SW/2,y:p.y+FEET_OFF,ux:0,uy:1}:null)):null;
     if(B.magLock||hit){
       if(!B.magLock){
-        B.magLock={x:p.x,y:p.y,t:0,cx:hit.x,cy:hit.y,ux:hit.ux,uy:hit.uy}; while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
+        B.magLock={x:p.x,y:p.y,t:0,cx:hit.x,cy:hit.y,ux:hit.ux,uy:hit.uy}; seatLock(B.magLock); while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
         try{ MV_BETA_AUDIO.magClank(); MV_BETA_AUDIO.magHum(true); }catch(e){}
         for(let k=0;k<14;k++){ const a=Math.atan2(-hit.uy,-hit.ux)+(Math.random()-0.5)*Math.PI; PFXS.push({x:hit.x-hit.ux*2,y:hit.y-hit.uy*2,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*2.5),life:14+Math.random()*8|0,maxLife:22,r:1.5+Math.random()*1.5,col:k%2?'#ff5050':'#5080ff'}); }
       }
       B.magLock.t++;
-      p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true;
+      p.x=B.magLock.x; p.y=B.magLock.y; p.vx=0; p.vy=0; p.og=true; p.aimDX=B.magLock.ux; p.aimDY=B.magLock.uy;   // the arm stays on the surface
       if(fr%3===0){ PFXS.push({x:B.magLock.cx-B.magLock.ux*2+(Math.random()-0.5)*30*Math.abs(B.magLock.uy),y:B.magLock.cy-B.magLock.uy*2+(Math.random()-0.5)*30*Math.abs(B.magLock.ux),vx:(Math.random()-0.5)*1.2,vy:-0.4-Math.random()*1.2,life:12,maxLife:12,r:1.8,col:Math.random()<0.5?'#ff5050':'#5080ff'}); }
       return;
     }
+    if(!M.held.length) suction();
     const tip=magTip();
     M.tips.push({x:tip.x,y:tip.y}); if(M.tips.length>6) M.tips.shift();
     // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
@@ -1407,6 +1511,7 @@
     if(_gameState!=='game') return;
     if(B.drawEnemyFx) B.drawEnemyFx();
     if(B.drawMagLock) B.drawMagLock();
+    if(B.drawMagPark) B.drawMagPark();
     if(B.drawCrateChips) B.drawCrateChips();
     if(B.drawImpactFx) B.drawImpactFx();
     if(B.laitu&&typeof drawLaituFigure==='function'){
@@ -1859,6 +1964,7 @@
       if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();
       return;
     }
+    if(B.on&&_gameState==='game'&&B.parkInput) B.parkInput();
     const r=_origUpdate.apply(this, arguments);
     if(B.on&&_gameState==='game') livesTick();
     return r;
