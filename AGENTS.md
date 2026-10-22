@@ -202,6 +202,12 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 241 — HRTF ears for positioned sounds; rain from boiled water (Oct 22, Claude)
+- Paulo's capture (07:47, 66 s): the music opens up and closes again each time he passes the gramophone (4 swells, highs to ~17 kHz up close, ~-45 dB vs -90 dB far) — working as designed; the L/R balance follows the gramophone's side. The stereo image measured narrow (side/mid ≈ 0.13–0.36), so positioned effects didn't stand out.
+- `beta_spatial.js` `chainAt` → `hrtf()`: positioned sounds use an HRTF PannerNode (ear timing + head shadow; behind = behind, a little up/down) at the same left/right as before; distance stays ours (rolloff 0). Falls back to a StereoPanner.
+- New `js/beta_weather.js` (after `beta_water.js`): vapor from boiling (`B.vaporNow`) builds a cloud deck (`MV_WEATHER.sky`, called from `beta_sky` draw) and, past 4 cells of vapor, rain: real `B.drops` (0.012 each, ≤5 a frame, `B.vaporTake`) from above the view wherever the air is open, inside the world. Stops below 1. Heavy rain flashes lightning + far thunder. Rain hiss by `MV_SPATIAL.env` (full outside, dull on the roof, far through rock); fine streaks over the screen outside (`MV_WEATHER.post` via `beta_sky` post). Mass stays conserved (water + vapor + drops + lost).
+- `B._testBoil(n)` (beta_water) for tests.
+
 ### Build 195 — damage feedback by HP phase
 HP 0–100 in 5 phases (20 each). `js/console16.js` `CRUSH` table drives everything: phase 5 = clean/posh; 4→1 = lower resolution (`f`), fewer colour levels with ordered dither (`lv`), row tearing, darker screen (`dark`, replaces ui.js `drawDamageOverlay`), slower music (`rate`, used by audio.js `updateGameBgm` and beta_audio `hurtTick` via `MV_CONSOLE.hurtRate()`). A fresh hit = ~0.5 s jolt: two phases deeper, red flash, music dip. Audio bit depth follows in `js/sound16.js` (`BITS` 6/5/4/3, WaveShaper after the master).
 

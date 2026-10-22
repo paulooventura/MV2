@@ -192,7 +192,19 @@
       pan*=Math.max(0.62,1-ot*0.06);                        // a wall dulls it; it stays on its side
     }
     const wet=Math.min(1,0.06+env.encl*0.35+d/22+ot*0.16+(along<0?0.14:0));
-    return {g, lp, pan, wet, d, ot, along};
+    return {g, lp, pan, wet, d, ot, along, dy};
+  }
+  // the ear: x = his left/right (from the pan), z = in front (−) or behind (+), y = above/below
+  function hrtf(a,P){
+    let n;
+    try{
+      n=a.createPanner(); n.panningModel='HRTF'; n.distanceModel='linear'; n.refDistance=1; n.maxDistance=1e4; n.rolloffFactor=0;   // distance is ours (gain + dulling)
+      const side=Math.max(-1,Math.min(1,P.pan*1.15)), az=Math.asin(side);                 // −90°..90° round the head
+      const back=P.along<0, el=Math.max(-0.6,Math.min(0.6,-(P.dy||0)/(6*T)));
+      const x=Math.sin(az), z=(back?1:-1)*Math.max(0.15,Math.cos(az));
+      if(n.positionX){ n.positionX.value=x; n.positionY.value=el; n.positionZ.value=z; } else n.setPosition(x,el,z);
+    }catch(e){ n=a.createStereoPanner(); n.pan.value=P.pan; }
+    return n;
   }
   // a fresh chain for one positioned sound; returns its input node
   function chainAt(a,x,y,opt){
@@ -200,7 +212,10 @@
     const g0=graph(a), dest=(opt&&opt.dest)||g0.main;
     const inp=a.createGain(); inp.gain.value=P.g*((opt&&opt.gain)||1);
     const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=P.lp; lp.Q.value=0.5;
-    const pan=a.createStereoPanner(); pan.pan.value=P.pan;
+    // Build 241 (Paulo's capture, Oct 22: the stereo image measured narrow, side/mid ≈ 0.2):
+    // positioned sounds go through an HRTF panner — real ear timing + head shadow — so a
+    // sound on one side is unmistakably there, and behind him sounds behind, not just quieter.
+    const pan=hrtf(a,P);
     inp.connect(lp); lp.connect(pan); pan.connect(dest);
     const w=a.createGain(); w.gain.value=P.wet*0.72; pan.connect(w); w.connect(g0.roomIn);
     if(P.d>6){ const w2=a.createGain(); w2.gain.value=Math.min(0.35,P.d/48); pan.connect(w2); w2.connect(g0.echoIn); }
