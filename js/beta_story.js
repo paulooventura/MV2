@@ -31,7 +31,8 @@
     if(B.storySlot==null||!B.stageId) return;
     const s=slots();
     s[B.storySlot]={stageId:B.stageId, mask:_unlockedMask|0, progress:B.progress|0, saves:JSON.parse(JSON.stringify(B.saves||{})),
-      popupSeen:Object.assign({},B.popupSeen||{}), isoOwned:!!B.isoOwned, t:Date.now()};
+      popupSeen:Object.assign({},B.popupSeen||{}), isoOwned:!!B.isoOwned, t:Date.now(),
+      hero:(typeof _heroChoice!=='undefined'?_heroChoice:'mind'), intro:true};   // intro: this run has had its story + hero pick
     writeSlots(s);
   }
   B.storySlots=slots;
@@ -51,12 +52,14 @@
     if(typeof _unlockAudio==='function') _unlockAudio();
     try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
     if(B.newRun) B.newRun();
+    if(save.hero&&typeof _heroChoice!=='undefined'){ _heroChoice=save.hero; if(typeof p!=='undefined'&&p) p.hero=save.hero; }
     B.saves=JSON.parse(JSON.stringify(save.saves||{})); B.progress=save.progress|0; B.popupSeen=Object.assign({},save.popupSeen||{}); B.isoOwned=!!save.isoOwned;
     B.results=null; B.popup=null; B.trans=null; B.ending=null; B.contScreen=null; B.overT=0;
     _paused=false; _gameState='game';
     startBetaLab(save.stageId, save.mask|0).catch(err=>console.error('stage load failed',err));
   }
   // GAME OVER: back to the last save in this slot (fresh lives + continues)
+  B.storyPlay=play;
   B.storyGameOver=function(){
     if(B.storySlot==null) return false;
     const s=slots()[B.storySlot]; if(!s) return false;
@@ -76,8 +79,11 @@
     if(i>=N){ close(); return; }
     const s=slots()[i]; close();
     B.storySlot=i;
-    if(s) play(s);
-    else _storyNew();                                        // a new story in this slot (intro, then 1.1)
+    // Paulo (Oct 22): a story always opens with its intro and the hero pick. A saved run made
+    // before that rule (no intro flag) gets them now, then carries on from its save.
+    if(s&&s.intro) play(s);
+    else if(s){ B.pendingSave=s; _storyNew(); }
+    else { B.pendingSave=null; _storyNew(); }                // a new story in this slot (intro, hero pick, then 1.1)
   }
   function eraseKey(){
     if(!pick||pick.idx>=N) return;
