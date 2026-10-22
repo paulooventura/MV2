@@ -59,11 +59,15 @@
     // cabinet honk around 1.4 kHz, the top rolled off — and the flyback transformer's faint
     // 15.7 kHz whine. Off, it's the clean line out.
     const tvIn=G(1), dryOut=G(1), tvOut=G(0);
-    C(out,crusher); C(crusher,tvIn); C(musicOut,tvIn); C(tvIn,dryOut); C(dryOut,ac.destination);
+    C(out,crusher); C(crusher,tvIn); C(musicOut,tvIn);
+    // Paulo (Oct 22): under water everything is muffled — music, effects, all of it — a low-pass that
+    // closes down as MIND's head goes under, a touch of low thump, a little quieter (MV_SOUND16.underwater)
+    const uwLP=F('lowpass',20000,0.9), uwLow=F('peaking',180,0.8,0), uwG=G(1);
+    C(tvIn,uwLP); C(uwLP,uwLow); C(uwLow,uwG); C(uwG,dryOut); C(dryOut,ac.destination);
     {
       const hp=F('highpass',62,0.6), hp2=F('highpass',45,0.5), honk=F('peaking',1400,0.9,1.6), lp=F('lowpass',10500,0.6);
       const sp=mk(ac.createChannelSplitter(2)), mg=mk(ac.createChannelMerger(2)), xs=[[0,0,0.82],[1,1,0.82],[0,1,0.18],[1,0,0.18]];
-      C(tvIn,hp); C(hp,hp2); C(hp2,honk); C(honk,lp); C(lp,sp);
+      C(uwG,hp); C(hp,hp2); C(hp2,honk); C(honk,lp); C(lp,sp);
       for(const [i,o,v] of xs){ const g=G(v); sp.connect(g,i); SKIP.add(g); g.connect(mg,0,o); }
       C(mg,tvOut); C(tvOut,ac.destination);
       const fly=mk(ac.createOscillator()); fly.frequency.value=15734; const flyG=G(0); C(fly,flyG); C(flyG,tvOut); try{ fly.start(); }catch(e){}
@@ -102,6 +106,7 @@
       }
     }
     b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5, tv:tvNodes, tvState:null};
+    b.uw={lp:uwLP, low:uwLow, g:uwG};
     BUS.set(ac,b);
     try{
       if(ac.audioWorklet&&!disabled){
@@ -214,5 +219,12 @@
   },120);
   const hook=()=>{ if(window.MV_CONSOLE&&MV_CONSOLE.on) MV_CONSOLE.on(applyMode); else setTimeout(hook,200); };
   hook();
-  window.MV_SOUND16={ musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
+  let uwNow=0;
+  function underwater(k){
+    k=Math.max(0,Math.min(1,k||0)); if(Math.abs(k-uwNow)<0.01) return; uwNow=k;
+    for(const ac of known){ const b=BUS.get(ac); if(!b||!b.uw) continue; const t=ac.currentTime;
+      try{ b.uw.lp.frequency.setTargetAtTime(20000*Math.pow(380/20000,k),t,0.05);
+        b.uw.low.gain.setTargetAtTime(5*k,t,0.08); b.uw.g.gain.setTargetAtTime(1-0.3*k,t,0.08); }catch(e){} }
+  }
+  window.MV_SOUND16={ underwater, musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
 })();
