@@ -21,7 +21,7 @@
 // ============================================================
 (function(){
   'use strict';
-  const IDLE=1150, RED=13500, LIMIT=13300;
+  const IDLE=620, RED=13500, LIMIT=13300;           // a low, slow idle: the purr
   const GEARS=[[0,0.2],[0.15,0.36],[0.3,0.54],[0.46,0.72],[0.64,0.92],[0.84,1.4]];
   const UP=12600, BASE=6200;                       // shift at 12.6k, lands at ~6.2k in the next gear
   const S={on:true, idle:0, rpm:IDLE, gear:0, thr:0, raw:0, cut:0, shiftT:0, boost:0, blip:0, lim:0, lastThr:0, bangs:[]};
@@ -32,7 +32,7 @@
   function noiseBuf(a){ const b=a.createBuffer(1,a.sampleRate,a.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
   async function build(a,dest){
     if(!a.audioWorklet) return null;
-    await a.audioWorklet.addModule('js/engine_worklet.js?v=244c');
+    await a.audioWorklet.addModule('js/engine_worklet.js?v=247');
     const core=new AudioWorkletNode(a,'mv-engine',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
     const out=a.createGain(); out.gain.value=0;
     const coreG=a.createGain(); coreG.gain.value=1;
@@ -53,8 +53,16 @@
     const e1=a.createOscillator(), e2=a.createOscillator(); e1.type='sawtooth'; e2.type='sawtooth';
     const ebp=a.createBiquadFilter(); ebp.type='bandpass'; ebp.Q.value=7; const eg=a.createGain(); eg.gain.value=0;
     e1.connect(ebp); e2.connect(ebp); ebp.connect(eg); eg.connect(out);
-    for(const o of [t1,t2,e1,e2]) o.start(); tn.start();
-    return {a,core,out,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB};
+    // the purr (Paulo, Oct 22: "a comfy purr from a giant feline"): a deep sub at half the firing
+    // rate, breathing in and out, strongest at idle and fading as the revs climb
+    const pu1=a.createOscillator(), pu2=a.createOscillator(); pu1.type='sine'; pu2.type='triangle';
+    const puLP=a.createBiquadFilter(); puLP.type='lowpass'; puLP.frequency.value=180; puLP.Q.value=0.7;
+    const puG=a.createGain(); puG.gain.value=0; const puAM=a.createGain(); puAM.gain.value=0.7;
+    const br=a.createOscillator(), brG=a.createGain(); br.frequency.value=0.55; brG.gain.value=0.3; br.connect(brG); brG.connect(puAM.gain);   // the breathing
+    const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);   // the rattle of a purr (~24 Hz)
+    pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
+    for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
+    return {a,core,out,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -86,7 +94,8 @@
     // ── the gearbox ──
     let target;
     if(!grounded||burn){                                          // free-revving: up to the limiter, which bounces
-      const lim=Math.min(LIMIT,6200+spd*7600);                    // Paulo: the top of the scream belongs to top speed — standing still it revs only so far
+      const wspd=Math.abs(p._wSpin||0)*(typeof WHEEL_R==='number'?WHEEL_R:20)/top;   // the free-spinning wheel (rope, mid-air)
+      const lim=burn?Math.min(LIMIT,6200+spd*7600):Math.min(LIMIT,IDLE+1200+Math.max(spd,wspd)*11000);                    // Paulo: the top of the scream belongs to top speed — standing still it revs only so far
       target=thr>0?lim+400:IDLE+900;
       if(S.rpm>=lim&&thr>0&&!(S.lim>0)) S.lim=5;
     }else{
@@ -123,7 +132,11 @@
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.022*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
     if(N_muffle) set(N_muffle.frequency,900+2800*Math.min(1,spd)*Math.min(1,spd),0.15);   // the highs open up only as you get really fast
-    const lvl=S.on?(0.13+0.08*S.thr+0.05*r):0;                    // was 0.34+0.2·thr+0.12·r: much quieter
+    const fire=S.rpm/60*4;                                          // V8 firing rate
+    set(N.pu1.frequency,fire/2,0.05); set(N.pu2.frequency,fire,0.05); set(N.ru.frequency,18+fire*0.15,0.2);
+    set(N.puG.gain,0.55*Math.pow(1-r,2)*(1-0.4*S.thr),0.12);
+    // the low end is the most present; the higher it revs, the further back it sits
+    const lvl=S.on?(0.16+0.05*S.thr-0.06*r):0;
     set(N.out.gain,lvl*sv(),S.on?0.04:0.4);
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};

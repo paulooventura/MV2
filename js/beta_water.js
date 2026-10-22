@@ -408,16 +408,20 @@
       const cx=cX(d.x), cy=cY(d.y);
       if(cy>=NY||cx<0||cx>=NX){ F.lost+=d.m; B.drops.splice(k,1); continue; }   // off the world
       if(cy<0) continue;
+      if(d.rain&&underRoof(d.x,d.y)){ F.vapor+=d.m; B.drops.splice(k,1); continue; }   // Paulo (Oct 22): no rain indoors — the roof takes it
       const i=cy*NX+cx;
       if(BLK[i]===1||BLK[i]===3){ d.x=px; d.y=py; deposit(d); landed(d); B.drops.splice(k,1); continue; }
       if(!BLK[i]&&M[i]>0.3&&d.vy>0){ deposit(d); landed(d); B.drops.splice(k,1); continue; }
     }
     if(B.drops.length>600){ const extra=B.drops.splice(0,B.drops.length-600); for(const d of extra) deposit(d); }
   }
+  function underRoof(x,y){ for(const r of B.rooms||[]) if(x>=r.x&&x<r.x+r.w&&y>=r.y-4&&y<r.y+r.h) return true;
+    for(const r of B.decor||[]) if(r.kind==='houseInside'&&x>=r.x&&x<r.x+r.w&&y>=r.y-4&&y<r.y+r.h) return true; return false; }
+  B.underRoof=underRoof;
   function landed(d){
     if(d.m<0.5) return;
     wave(d.x,-Math.min(6,d.m*2.5),2);
-    for(let k=0;k<Math.min(18,6+d.m*6);k++){ const a=-Math.PI*Math.random(); PFXS.push({x:d.x,y:d.y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.8,life:18,maxLife:18,r:2+Math.random()*2,col:k%2?'#9ad8ff':'#e8f6ff'}); }
+    for(let k=0;k<Math.min(18,6+d.m*6);k++){ const a=-Math.PI*Math.random(); PFXS.push({x:d.x,y:d.y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.8,life:18,maxLife:18,r:2+Math.random()*2,col:k%2?'#a8c8d8':'#e4eef2'}); }
     try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(Math.min(1,0.25+d.m*0.2)); }catch(e){}
   }
   // an impact throws water out of the hit point (real drops) and rings the surface;
@@ -430,7 +434,7 @@
     spray(sx0,sf.top-3,mass,Math.min(10,2+power),power,0);
     const n=Math.min(18,4+power*2|0);
     for(let k=0;k<n;k++){ const a=-Math.PI*(0.15+Math.random()*0.7);
-      PFXS.push({x:sx0+(Math.random()-0.5)*24,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*2.5),vy:Math.sin(a)*(1.5+Math.random()*power*0.5),life:18+Math.random()*12|0,maxLife:30,r:1.5+Math.random()*2,col:k%3?'#9ad8ff':'#e8f6ff'}); }
+      PFXS.push({x:sx0+(Math.random()-0.5)*24,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*2.5),vy:Math.sin(a)*(1.5+Math.random()*power*0.5),life:18+Math.random()*12|0,maxLife:30,r:1.5+Math.random()*2,col:k%3?'#a8c8d8':'#e4eef2'}); }
     try{ if(power>0.6&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/8)); } }catch(e){}
   }
   // push water along a row (adds to the flow between cells)
@@ -914,7 +918,7 @@
     const elec=live.length>0;
     if(bMax>tMin){
       const g=ctx.createLinearGradient(0,sy(tMin),0,sy(Math.min(bMax,tMin+12*T)));
-      g.addColorStop(0,elec?'rgba(150,220,255,0.55)':'rgba(70,150,230,0.46)'); g.addColorStop(1,elec?'rgba(60,110,220,0.74)':'rgba(18,46,124,0.74)');
+      g.addColorStop(0,elec?'rgba(150,215,240,0.5)':'rgba(96,150,178,0.34)'); g.addColorStop(0.35,elec?'rgba(80,140,210,0.62)':'rgba(34,82,118,0.56)'); g.addColorStop(1,elec?'rgba(40,80,170,0.8)':'rgba(8,26,48,0.84)');
       const ab=B.xBub;
       ctx.fillStyle=g;
       if(ab){                                               // the air pocket: a hole in the water
@@ -932,31 +936,31 @@
       // ripples running out through the water
       if(B.wRings.length){ ctx.save(); ctx.clip(pool);
         for(const g2 of B.wRings){ const a=(g2.life/60)*Math.min(1,0.35+0.4*g2.k);
-          ctx.strokeStyle=g2.kind==='mag'?'rgba(255,170,200,'+(a*0.7)+')':'rgba(220,245,255,'+(a*0.75)+')';
-          ctx.lineWidth=Math.max(2,sw(3)*(0.6+g2.life/60));
+          ctx.strokeStyle=g2.kind==='mag'?'rgba(255,170,200,'+(a*0.5)+')':'rgba(200,228,240,'+(a*0.35)+')';
+          ctx.lineWidth=Math.max(1,sw(2)*(0.5+g2.life/60));
           ctx.beginPath(); ctx.arc(sx(g2.x),sy(g2.y),sw(g2.r),0,Math.PI*2); ctx.stroke(); }
         ctx.restore(); }
       // caustics: soft light drifting through the water
       ctx.save(); ctx.clip(pool); ctx.globalCompositeOperation='lighter';
       for(let k=0;k<14;k++){
         const x=(b.x0+((k*37+fr*0.15)%Math.max(1,b.x1-b.x0+1)))*CS, y=tMin+20+((k*53+fr*0.1)%Math.max(20,bMax-tMin-20));
-        ctx.fillStyle='rgba(140,220,255,'+(0.05+0.035*Math.sin(fr*0.05+k))+')';
+        ctx.fillStyle='rgba(150,200,215,'+(0.03+0.02*Math.sin(fr*0.05+k))+')';
         ctx.beginPath(); ctx.ellipse(sx(x),sy(y),sw(26),sw(7),Math.sin(fr*0.01+k)*0.4,0,Math.PI*2); ctx.fill();
       }
       ctx.restore();
     }
     // falling water
-    ctx.fillStyle=elec?'rgba(170,225,255,0.7)':'rgba(120,190,255,0.62)'; ctx.fill(stream);
-    ctx.save(); ctx.clip(stream); ctx.fillStyle='rgba(235,250,255,0.35)';
-    for(let k=0;k<6;k++){ const yy=((fr*9+k*41)%H); ctx.fillRect(0,yy,W,2); }
-    ctx.restore();
+    ctx.fillStyle=elec?'rgba(170,220,250,0.6)':'rgba(120,165,190,0.42)'; ctx.fill(stream);
+    ctx.save(); ctx.clip(stream); ctx.strokeStyle='rgba(225,240,248,0.22)'; ctx.lineWidth=1; ctx.beginPath();   // fine streaks running down
+    for(let k=0;k<W;k+=5){ const o=((fr*11+k*29)%40); for(let yy=-40+o;yy<H;yy+=40){ ctx.moveTo(k+0.5,yy); ctx.lineTo(k+0.5,yy+14+(k%3)*4); } }
+    ctx.stroke(); ctx.restore();
     // the surface: a bright line where the water meets the air
     if(surf.length){
       ctx.lineJoin='round'; ctx.lineCap='round';
-      ctx.strokeStyle='rgba(225,247,255,0.82)'; ctx.lineWidth=Math.max(3,sw(4)); ctx.beginPath();
-      for(let k=0;k<surf.length;k+=4){ ctx.moveTo(sx(surf[k]),sy(surf[k+1])); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])); }
-      ctx.stroke();
-      for(let k=0;k<surf.length;k+=4){ const sl=Math.abs(surf[k+3]-surf[k+1]); if(sl>3){ ctx.fillStyle='rgba(255,255,255,'+Math.min(0.7,sl*0.05)+')'; ctx.beginPath(); ctx.ellipse(sx((surf[k]+surf[k+2])/2),sy((surf[k+1]+surf[k+3])/2),sw(CS*0.9),sw(2.5),0,0,Math.PI*2); ctx.fill(); } }
+      const line=(st,lw,dy)=>{ ctx.strokeStyle=st; ctx.lineWidth=lw; ctx.beginPath(); for(let k=0;k<surf.length;k+=4){ ctx.moveTo(sx(surf[k]),sy(surf[k+1])+dy); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])+dy); } ctx.stroke(); };
+      line('rgba(170,205,220,0.18)',Math.max(3,sw(5)),Math.max(2,sw(3)));        // the light just under the skin
+      line('rgba(232,244,250,0.55)',Math.max(1,sw(1.5)),0);                       // the thin bright meniscus
+      for(let k=0;k<surf.length;k+=4){ const sl=Math.abs(surf[k+3]-surf[k+1]); if(sl>4){ ctx.fillStyle='rgba(235,242,246,'+Math.min(0.35,sl*0.025)+')'; ctx.fillRect(sx(surf[k]),Math.min(sy(surf[k+1]),sy(surf[k+3]))-1,sw(CS),Math.max(1,sw(1.5))); } }   // a little foam where it churns
     }
     // lightning through live water
     if(elec){
@@ -969,10 +973,13 @@
       }
     }
     // drops in the air
-    for(const d of B.drops){
-      const r=Math.max(2,sw(Math.min(14,2.2+Math.sqrt(d.m)*6)));
-      ctx.fillStyle='rgba(150,210,255,0.85)'; ctx.beginPath(); ctx.ellipse(sx(d.x),sy(d.y),r*0.85,r*(1+Math.min(0.6,Math.abs(d.vy)*0.04)),0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fillRect(sx(d.x)-r*0.35,sy(d.y)-r*0.5,Math.max(1.5,r*0.3),Math.max(1.5,r*0.3));
+    ctx.strokeStyle='rgba(200,218,230,0.32)'; ctx.lineWidth=1; ctx.beginPath();
+    for(const d of B.drops) if(d.rain){ const x=sx(d.x), y=sy(d.y); ctx.moveTo(x,y); ctx.lineTo(x-d.vx*1.6,y-d.vy*1.6); }   // rain: thin streaks along the fall
+    ctx.stroke();
+    for(const d of B.drops){ if(d.rain) continue;
+      const r=Math.max(1.5,sw(Math.min(10,1.6+Math.sqrt(d.m)*4.5))), x=sx(d.x), y=sy(d.y), st=1+Math.min(0.8,Math.abs(d.vy)*0.06);
+      ctx.fillStyle='rgba(150,190,210,0.5)'; ctx.beginPath(); ctx.ellipse(x,y,r*0.8,r*st,Math.atan2(d.vx,d.vy)*-0.5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(240,248,252,0.55)'; ctx.beginPath(); ctx.arc(x-r*0.25,y-r*0.3,Math.max(0.8,r*0.22),0,Math.PI*2); ctx.fill();
     }
     // steam (the water that burned off)
     for(const s of B.steam){
@@ -982,9 +989,9 @@
     // bubbles: big enough to read at console resolution, with a glint
     for(const bb of B.bubbles){
       const x=sx(bb.x), y=sy(bb.y), r=Math.max(3,sw(bb.r));
-      ctx.fillStyle='rgba(200,240,255,0.18)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='rgba(230,250,255,0.85)'; ctx.lineWidth=Math.max(1.5,sw(2)); ctx.stroke();
-      ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(x-r*0.45,y-r*0.55,Math.max(2,r*0.35),Math.max(2,r*0.35));
+      ctx.fillStyle='rgba(190,225,240,0.1)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(220,240,250,0.5)'; ctx.lineWidth=Math.max(1,sw(1.2)); ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.arc(x-r*0.35,y-r*0.4,Math.max(1,r*0.2),0,Math.PI*2); ctx.fill();
     }
     // water on the magnet: the stream up to the tip and the blob it holds
     const Mg=B.magWater;

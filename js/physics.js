@@ -2387,6 +2387,18 @@ function _updateWheelSuspension(pl,prevVx){
 }
 function _rollWheelFromTravel(pl,x0,y0){
   if(!pl) return;
+  // Paulo (Oct 22): off the ground (on the rope, mid-jump) the motor still drives the wheel —
+  // it free-spins with the stick, spools up and coasts down, and the engine revs with it
+  const airborne=(pl.hook&&pl.hook.st==='on')||!(typeof _playerOnGround==='function'?_playerOnGround(pl):pl.og);
+  if(airborne&&!(pl.wallGrip>0)){
+    const dir=(typeof p!=='undefined'&&pl===p&&typeof _moveInputX==='function')?_moveInputX():0;
+    const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+    const thr=dir?((typeof isSprintHeld==='function'&&isSprintHeld())?1:0.7):0;
+    const want=dir*thr*top/WHEEL_R;
+    pl._wSpin=(pl._wSpin||0)+(want-(pl._wSpin||0))*(dir?0.05:0.018);
+    pl.wheelAngle=(pl.wheelAngle||0)+pl._wSpin;
+    return;
+  }
   if(pl.hook&&pl.hook.st==='on') return;
   if(pl.wallGrip>0) return;
   if(pl.xlrOn||pl.magOn) return;
@@ -2400,6 +2412,7 @@ function _rollWheelFromTravel(pl,x0,y0){
     dir=Math.sign(pl.vx||1);
   }
   pl.wheelAngle=(pl.wheelAngle||0)+dir*dist/WHEEL_R;
+  pl._wSpin=dir*dist/WHEEL_R;                         // carry the roll into the air
 }
 
 // ── Push / pull (XLR/MAG) ─────────────────────────────────────
