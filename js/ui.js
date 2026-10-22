@@ -263,7 +263,7 @@ const STORY_ART_Q=[];
 const TITLE_FRAME_N=12;
 let TITLE_FRAMES=null;
 let _titleAnimReady=false, _titleStaticReady=false;
-const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/story/title-frame-00.png'; return im; })();
+const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/story/title-frame-00.png?v=215'; return im; })();
 if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth) _titleStaticReady=true;
 function _titleArtMap(){
   const im=TITLE_STATIC;
@@ -654,7 +654,7 @@ function drawTitle(){
     if(_titleMenuIdx===1){
       const s=map.s;
       ctx.save(); ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(map.im,676,730,72,36, map.dx+676*s, map.dy+756*s, 72*s, 36*s);
+      ctx.drawImage(map.im,650,730,40,36, map.dx+650*s, map.dy+756*s, 40*s, 36*s);   // hide the art's arrow at STORY MODE
       ctx.restore();
       _titleArtCursor(map,668,820);
     }
