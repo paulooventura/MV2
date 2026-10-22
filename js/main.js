@@ -912,7 +912,8 @@ function update(){
   const _runQuiet=typeof _runItemQuiet==='function'&&_runItemQuiet(p);
   // the item button as the items see it: held (and not the start of a sprint), or a quick tap played back as a 3-frame press
   const _tapNow=(p._tapPulse||0)>0; if(_tapNow) p._tapPulse--;
-  const _itemHeld=(_bindDown('swap')&&!_runQuiet)||_tapNow;
+  if(p._swapHoldBlock&&!_bindDown('swap')) p._swapHoldBlock=false;   // switched items mid-hold (magnet park): the new item waits for a fresh press
+  const _itemHeld=((_bindDown('swap')&&!_runQuiet)||_tapNow)&&!p._swapHoldBlock;
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){

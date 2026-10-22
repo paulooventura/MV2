@@ -307,8 +307,12 @@
       const q=B.ropeClipPoint(), ang=q.ang*(1-q.k)+SEAT()*q.k, g=grip(q,ang);
       if(q.grab){ const e=q.gk*q.gk*(3-2*q.gk); hx=gx+(g.x-gx)*e; hy=gy+(g.y-gy)*e; up=false; }
       else { hx=g.x; hy=g.y; }
-    }else if(p._plugArchT>0&&p.hook&&p.hook.st==='on'&&!_ropeInHand()){
-      const g=grip(hookAttachWorld(),SEAT()); w=Math.min(1,p._plugArchT/5);
+    }else if(B.magPark&&B.magPark.st==='plug'&&B.magCordEnd){      // the magnet's cord: same reach, over the head, into the socket
+      const q=B.magCordEnd();
+      if(q.grab){ const e=q.gk*q.gk*(3-2*q.gk); hx=gx+(q.x-gx)*e; hy=gy+(q.y-gy)*e; up=false; }
+      else { hx=q.x; hy=q.y-4; }
+    }else if(p._plugArchT>0&&((p.hook&&p.hook.st==='on'&&!_ropeInHand())||(B.magPark&&B.magPark.st==='parked'))){
+      const g=(B.magPark&&!(p.hook&&p.hook.st==='on'))?(()=>{ const S=hookAttachWorld(); return {x:S.x,y:S.y-4}; })():grip(hookAttachWorld(),SEAT()); w=Math.min(1,p._plugArchT/5);
       hx=gx+(g.x-gx)*w; hy=gy+(g.y-gy)*w;
     }else return null;
     const dx=hx-shX, dy=hy-shY, d=Math.hypot(dx,dy)||1, L=Math.max(18,d*0.5+(up?11:4)), hh=Math.sqrt(Math.max(0,L*L-d*d/4));
