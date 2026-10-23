@@ -98,11 +98,24 @@
     });
   }
 
+  // ── the towers going on up behind their summits (air: you can't touch them) ──
+  // the same facade, pushed back into the dusk: darker, hazier, fewer lights
+  function farComm(c,r){
+    const base=comm(c,r,false);
+    return mk('farComm'+(hsh(c,r)>0.8?1:0)+(((r%4)+4)%4===3?1:0)+(c&1),g=>{ g.drawImage(base,0,0); R(g,0,0,32,32,'rgba(16,14,34,0.58)'); R(g,0,0,32,32,'rgba(255,120,90,0.05)'); });
+  }
+  function farTech(c,r){
+    const base=tech(c,r,false);
+    return mk('farTech'+(((r%2)+2)%2)+(hsh(c,r)>0.86?1:0)+((c+r)&1),g=>{ g.drawImage(base,0,0); R(g,0,0,32,32,'rgba(10,10,26,0.55)'); });
+  }
+
   // ── what beta_decor's world() asks for ──
   window.MV_CITY={
     img(c,r,s,top){ return s===7?resi(c,r,top):s===8?comm(c,r,top):s===9?tech(c,r,top):null; },
     solid(c,r,s,top){ const img=s===7?resi(c,r,top):s===8?comm(c,r,top):s===9?tech(c,r,top):null; if(!img) return false; ctx.drawImage(img,sx(c*T),sy(r*T),sw(T)+1,sw(T)+1); return true; },
-    air(c,r,s){ const img=s===10?inResi(c,r):s===11?inComm(c,r):s===12?inTech(c,r):null; if(!img) return false; ctx.drawImage(img,sx(c*T),sy(r*T),sw(T)+1,sw(T)+1); return true; },
+    air(c,r,s){
+      if(s===13||s===14){ ctx.drawImage(s===13?farComm(c,r):farTech(c,r),sx(c*T),sy(r*T),sw(T)+1,sw(T)+1); return true; }
+      const img=s===10?inResi(c,r):s===11?inComm(c,r):s===12?inTech(c,r):null; if(!img) return false; ctx.drawImage(img,sx(c*T),sy(r*T),sw(T)+1,sw(T)+1); return true; },
     // the vertical platforms: elevator cabs inside the residential tower, a hoist cage outside
     platform(m){
       const B=window.MV_BETA; if(!B||B.stageId!=='1.3'||!m.vert) return false;
@@ -130,9 +143,35 @@
       if(B.stageId!=='1.3') return;
       for(const d of B.decor){
         if(d.kind==='lobby') lobby(d);
+        else if(d.kind==='cube') cube(d);
       }
     },
   };
+  // the sky islands between the belts: cubes in oblique view, like the sheet — a square front face,
+  // the top and the right side receding up-right (matches the collision silhouette from the builder)
+  function cube(d){
+    const s=(d.cs||5)*T, k=(d.cd||2)*T, x=d.x, y=d.y+k;
+    const P=(pts,fill)=>{ ctx.beginPath(); pts.forEach(([a,b],i)=>i?ctx.lineTo(sx(a),sy(b)):ctx.moveTo(sx(a),sy(b))); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); };
+    // top face
+    const gt=ctx.createLinearGradient(sx(x),sy(y-k),sx(x+s+k),sy(y)); gt.addColorStop(0,'#e8d4c0'); gt.addColorStop(1,'#c8a890');
+    P([[x,y],[x+k,y-k],[x+s+k,y-k],[x+s,y]],gt);
+    // right side (in shade)
+    P([[x+s,y],[x+s+k,y-k],[x+s+k,y+s-k],[x+s,y+s]],'#6a4a3c');
+    // front face
+    const gf=ctx.createLinearGradient(0,sy(y),0,sy(y+s)); gf.addColorStop(0,'#b88a6c'); gf.addColorStop(1,'#8a6050');
+    P([[x,y],[x+s,y],[x+s,y+s],[x,y+s]],gf);
+    // a panel grid on the faces, so it reads as a solid block
+    ctx.strokeStyle='rgba(60,36,28,0.35)'; ctx.lineWidth=Math.max(1,sw(1));
+    for(let i=1;i<(d.cs||5);i++){ const t=i*T; ctx.beginPath(); ctx.moveTo(sx(x+t),sy(y)); ctx.lineTo(sx(x+t),sy(y+s)); ctx.moveTo(sx(x),sy(y+t)); ctx.lineTo(sx(x+s),sy(y+t)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx(x+s),sy(y+t)); ctx.lineTo(sx(x+s+k),sy(y+t-k)); ctx.stroke(); ctx.beginPath(); ctx.moveTo(sx(x+t),sy(y)); ctx.lineTo(sx(x+t+k),sy(y-k)); ctx.stroke(); }
+    // the edges: dark outline, a lit rim along the front-top edge
+    ctx.strokeStyle='#2a1a16'; ctx.lineWidth=Math.max(1,sw(2)); ctx.beginPath();
+    [[x,y],[x+k,y-k],[x+s+k,y-k],[x+s+k,y+s-k],[x+s,y+s],[x,y+s],[x,y]].forEach(([a,b],i)=>i?ctx.lineTo(sx(a),sy(b)):ctx.moveTo(sx(a),sy(b)));
+    ctx.moveTo(sx(x+s),sy(y)); ctx.lineTo(sx(x+s+k),sy(y-k)); ctx.moveTo(sx(x+s),sy(y)); ctx.lineTo(sx(x+s),sy(y+s)); ctx.stroke();
+    ctx.strokeStyle='rgba(255,240,220,0.8)'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.beginPath(); ctx.moveTo(sx(x+2),sy(y+1)); ctx.lineTo(sx(x+s-1),sy(y+1)); ctx.stroke();
+    // its shadow cast on the shaft wall behind, below
+    ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(sx(x+k*0.5),sy(y+s),sw(s),sw(k*0.6));
+  }
   function lobby(d){
     const x=d.x, y=d.y, w=d.w, h=d.h, f=y+h;                 // the residential tower's lobby
     const rr=(a,b,c2,e,col)=>{ ctx.fillStyle=col; ctx.fillRect(sx(a),sy(b),sw(c2),sw(e)); };

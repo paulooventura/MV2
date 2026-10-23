@@ -202,6 +202,21 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 283 — 1.3 notes round 2 + the knife's poses (Oct 22, Claude)
+- **The belts:** they loop inside the rock (`a=0` in the roof, `b=56/59` under the street or the lobby floor), 8 cabs each. In `beta_water.js` a vertical platform whose centre is inside rock is `hidden`: it can't be ridden and is drawn clipped to its shaft's air span (`clipT`/`clipB`, scanned once from the grid). A rider is let go (`_shed`) when the roof meets his head going up, or the floor meets his wheel going down.
+- **The cubes:** the two sky islands between the belts are oblique cubes. In `build-awdjoo-1-3.py`, `cube(c0,r0,s=5,d=2)` makes the collision silhouette (only the top-left and bottom-right corners cut) and adds a `Decor kind=cube` entity; `beta_city.js` `cube(d)` draws the faces. The decor carries `cs`/`cd`.
+- **The middle tower:** the D-D floor (cols 28–35) and the floor under it open only to the right, onto the elevator gap. The chimney, its lift and the rungs are gone. The ground floor (23–30, rows 44–53) opens from the street on the left. An electro wall (`laser` boxes, `plug='flood'`, cols 31–32, rows 44–53) holds the pool back.
+- **Background towers:** air skins 13/14 (`SK_BG_COMM`/`SK_BG_TECH`) are the commercial and high-tech towers rising behind their playable summits, darkened (`farComm`/`farTech` in `beta_city.js`). The elevator gap between them stays open sky.
+- **The knife (`beta_foes.js`):** angles are kept in an east frame (`armE`/`knE`) and mirrored by facing.
+  - At rest the arm hangs back and down (2.36) with the blade the same way.
+  - Walking, the arm sits at ~1.95 and the blade swings to 0.79 (forward-down).
+  - Aiming up or sprinting points it forward or up.
+  - A tap swings up (7 frames, hits along the arc); tapping again within 18 frames swings down.
+  - Hold: drawn back opposite the stick (`aimE()-BACK`). Release: `bigSlash(aimE())`, 8-way like the punch, hit box rotated along the aim.
+  - `computeConnectorArmPose` is wrapped so MIND's arm follows the pose, and only while drawing (the game's aim is untouched).
+- **Knife test start:** "Go to the knife" on `play-1-3.html` (or `?at=knife`), or "1.3: knife test" on `play-1-2.html`. It puts MIND on the knife in its chamber with three foes.
+- Known (not new): MIND dropped straight into the D-D floor gets shut down at once by the two mirrors and respawns. The same happens on 282.
+
 ### Build 282 — the kiritsuke's charged slash (Oct 22, Claude)
 - `js/beta_foes.js` `knifeTick`: a tap of the item button with the knife gives the quick slash (fired on release). Holding it draws the knife back over the shoulder for 34 frames (`CHARGE`). It rises in pitch while charging, glows, sparks, and plays `chargeReady` when full. Letting go when charged fires `bigSlash`: a flat sweep in the facing direction from 30 px behind MIND out to 176 px (`BIG_R`), ±78 px tall (`BIG_H`), 72 damage (`BIG_DMG`; the 360 HP boss takes 5), with heavy knockback and shake 10. It cuts vines and the rope holding MIND, and walls block it (line of sight from the chest).
 - The charge pose and the sweep only apply inside `drawCharacter`, so the HUD and crates keep a still knife. The sweep is in world coords minus `camX`/`camY`, because the arm tip is drawn in camera space.

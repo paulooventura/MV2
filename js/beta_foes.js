@@ -295,51 +295,100 @@
       }
     }else if(s) s.near=false;
   }
-  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE.','TAP X (Q): A QUICK SLASH. CUTS VINES,','ROPES THAT HOLD YOU, AND ENEMIES.','HOLD X TO DRAW IT BACK, LET GO FOR','A WIDE SLASH THAT HITS HARD.']};
+  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE.','TAP X (Q): SLASH UP, TAP AGAIN: DOWN.','CUTS VINES, ROPES THAT HOLD YOU, ENEMIES.','HOLD X TO DRAW IT BACK, AIM, LET GO:','A WIDE SLASH THAT HITS HARD.']};
 
-  // ── the knife: tap = quick slash, hold = wide charged slash ──────────────────────────────────
-  let slashT=0, slashCd=0, wasBtn=false, holdT=0, charged=false, big=null;
-  const CHARGE=34, BIG_R=176, BIG_H=78, BIG_DMG=72;
-  B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeBig=()=>big;
+  // ── the knife (Paulo, Oct 22) ─────────────────────────────────
+  // Held like a knife, not a jack: at rest the arm hangs down and BACK (facing east: toward
+  // SW) with the blade pointing down that same way; walking, the arm arches and the tip
+  // swings round to aim forward-down (SE). It only points forward / up when aiming up,
+  // sprinting, or loading a slash. Tap: a slash UP; keep tapping and it comes back DOWN
+  // from where the last one ended (up, down, up…). Hold: drawn back behind, let go for a
+  // wide slash in the stick's direction (8 ways, like the punch; no stick = straight ahead).
+  // Angles are kept in an "east frame" (facing right; 0 = ahead, +π/2 = down) and mirrored.
+  let slashCd=0, wasBtn=false, holdT=0, charged=false, big=null;
+  let armE=2.36, knE=2.36, swing=null, comboT=0, nextUp=true, poseOn=false;
+  const CHARGE=34, BIG_R=176, BIG_H=78, BIG_DMG=72, REST=2.36, WALK_ARM=1.95, WALK_KN=0.79, BACK=2.64, SWEEP=2.99;
+  B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeBig=()=>big; B.knifePose=()=>({armE,knE,swing:swing&&swing.up,comboT});
+  const dirOf=()=>p.fc?1:-1;
+  const toW=a=>dirOf()>0?a:Math.PI-a, toE=a=>dirOf()>0?a:Math.PI-a;
+  const wrap=a=>{ while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; return a; };
+  const ease=(cur,tgt,k)=>cur+wrap(tgt-cur)*k;
+  // the stick, snapped to 8 ways like the punch; nothing held = straight ahead
+  function aimE(){
+    const up=typeof isUp==='function'&&isUp(), dn=typeof isDn==='function'&&isDn(), lf=typeof isLf==='function'&&isLf(), rt=typeof isRt==='function'&&isRt();
+    const ax=(rt?1:0)-(lf?1:0), ay=(dn?1:0)-(up?1:0);
+    if(!ax&&!ay) return 0;
+    return toE(Math.atan2(ay,ax));
+  }
   function cutVine(bw){ const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; bw.hp=0; try{ if(typeof gridSmashCell==='function'&&bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow); }catch(er){} burst(bx,by,10,['#3a8a3a','#7ac060','#2a5a2a'],3); S('omniblock_chip'); }
+  function shoulder(){ const P=p._armPose; return P?{x:P.connShX,y:P.connShY}:{x:p.x+SW/2,y:p.y+FEET_OFF-70}; }
+  // the quick slash: the arc the blade sweeps hits what's along it
   function quickSlash(){
-    slashT=10; slashCd=16; S('punch_whiff',1.4);
-    const a=Math.atan2(p.aimDY||0,(p.aimDX||0)||(p.fc?1:-1)), ux=Math.cos(a), uy=Math.sin(a);
-    const t=typeof connectorTipWorld==='function'?connectorTipWorld(4):{x:p.x+SW/2+ux*40,y:p.y+FEET_OFF-60};
-    const hx=t.x+ux*20, hy=t.y+uy*20, R=46;
-    for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; if(Math.hypot(bw.x+bw.w/2-hx,bw.y+bw.h/2-hy)<R+12) cutVine(bw); }
-    for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2; if(Math.hypot(ex-hx,ey-hy)<R+e.w/2&&clearLine(p.x+SW/2,p.y+FEET_OFF-60,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,14,hx,hy,0.8); burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
-    // a rope that holds MIND: cut
+    const up=nextUp; nextUp=!nextUp;
+    const from=up?Math.max(0.55,Math.min(1.3,armE)):-1.15, to=up?-1.15:1.05;
+    swing={from,to,t:0,dur:7,up,hit:false}; comboT=0; slashCd=6;
+    S('punch_whiff',up?1.5:1.25);
     for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf){ B.releaseRopeOf(r.e); burst(p.x+SW/2,p.y+FEET_OFF-60,8,['#e8d0a0','#a08060'],3); } }
   }
-  // held, then let go: one wide flat sweep in the facing direction, from just behind MIND
+  function swingHit(sw){
+    const sh=shoulder(), pts=[];
+    for(let i=0;i<=4;i++){ const a=toW(sw.from+(sw.to-sw.from)*i/4); for(const r of [40,70]) pts.push({x:sh.x+Math.cos(a)*r,y:sh.y+Math.sin(a)*r}); }
+    const near=(x,y,pad)=>pts.some(q=>Math.hypot(q.x-x,q.y-y)<pad);
+    for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; if(near(bx,by,30)&&clearLine(sh.x,sh.y,bx,by)) cutVine(bw); }
+    for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
+      if(near(ex,ey,16+e.w/2)&&clearLine(sh.x,sh.y,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,14,sh.x,sh.y,0.8); burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
+  }
+  // held, then let go: one wide sweep out along the aimed direction, from just behind MIND
   // out to ~5.5 tiles; walls still block it (line of sight from the chest)
-  function bigSlash(){
-    const dir=p.fc?1:-1, cx=p.x+SW/2, cy=p.y+FEET_OFF-58;
-    big={x:cx,y:cy,dir,t:0}; slashT=0; slashCd=28;
+  function bigSlash(aE){
+    const ang=toW(aE), ux=Math.cos(ang), uy=Math.sin(ang), cx=p.x+SW/2, cy=p.y+FEET_OFF-58;
+    big={x:cx,y:cy,ang,aE,t:0}; swing=null; comboT=0; nextUp=true; slashCd=28;
     S('punch_whiff',0.7); S('punch_whiff',1.9); S('omniblock_chip',0.6);
     B.shake=Math.max(B.shake||0,10);
-    const inArc=(x,y,pad)=>{ const dx=(x-cx)*dir, dy=y-cy; return dx>-30-pad&&dx<BIG_R+pad&&Math.abs(dy)<BIG_H+pad; };
+    const inArc=(x,y,pad)=>{ const dx=x-cx, dy=y-cy, along=dx*ux+dy*uy, across=-dx*uy+dy*ux; return along>-30-pad&&along<BIG_R+pad&&Math.abs(across)<BIG_H+pad; };
     for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; if(inArc(bx,by,12)&&clearLine(cx,cy,bx,by)) cutVine(bw); }
     for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
       if(inArc(ex,ey,e.w/2)&&clearLine(cx,cy,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,BIG_DMG,cx,cy,2.2); burst(ex,ey,18,['#fff4e0','#ffb060','#ff5040'],5); } }
     for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf) B.releaseRopeOf(r.e); }
-    burst(cx+dir*80,cy,14,['#fff4e0','#ffd090','#e08040'],5);
+    burst(cx+ux*80,cy+uy*80,14,['#fff4e0','#ffd090','#e08040'],5);
   }
   function knifeTick(){
     if(!on()) return;
-    if(slashCd>0) slashCd--; if(slashT>0) slashT--; if(big){ big.drawn=false; if(++big.t>22) big=null; }
+    poseOn=ITEM===4&&!(p.hook&&p.hook.st!=='idle');
+    if(slashCd>0) slashCd--; if(big){ big.drawn=false; if(++big.t>22) big=null; }
     const btn=ITEM===4&&typeof _bindDown==='function'&&_bindDown('swap');
     if(btn&&slashCd<=0){
       holdT++;
-      if(holdT===CHARGE){ charged=true; S('chargeReady',0.9); burst(p.x+SW/2-(p.fc?1:-1)*20,p.y+FEET_OFF-80,8,['#ffe8b0','#ff9050'],2); }
+      if(holdT===CHARGE){ charged=true; S('chargeReady',0.9); burst(p.x+SW/2-dirOf()*20,p.y+FEET_OFF-80,8,['#ffe8b0','#ff9050'],2); }
       else if(holdT>8&&holdT<CHARGE&&holdT%6===0) S('omniblock_chip',0.25+holdT/CHARGE*0.5);
     }
-    if(!btn&&wasBtn&&holdT>0){ if(charged) bigSlash(); else quickSlash(); holdT=0; charged=false; }
-    if(ITEM!==4){ holdT=0; charged=false; }
+    if(!btn&&wasBtn&&holdT>0){ if(charged) bigSlash(aimE()); else quickSlash(); holdT=0; charged=false; }
+    if(ITEM!==4){ holdT=0; charged=false; swing=null; comboT=0; nextUp=true; }
     wasBtn=btn;
+    // ── the pose ──
+    if(big&&big.t<=6){ const u=Math.min(1,big.t/5); armE=knE=big.aE-BACK+SWEEP*(1-(1-u)*(1-u)); return; }
+    if(holdT>4){ const tg=aimE()-BACK; armE=ease(armE,tg,0.22); knE=ease(knE,tg-0.25*B.knifeCharge(),0.22); return; }
+    if(swing){ const u=Math.min(1,++swing.t/swing.dur), k=1-(1-u)*(1-u); armE=knE=swing.from+(swing.to-swing.from)*k;
+      if(!swing.hit&&swing.t>=3){ swing.hit=true; swingHit(swing); }
+      if(swing.t>=swing.dur){ swing=null; comboT=18; } return; }
+    if(comboT>0){ comboT--; if(!comboT) nextUp=true; return; }
+    const upAim=typeof isUp==='function'&&isUp();
+    let ta=REST, tk=REST;
+    if(upAim){ ta=tk=aimE(); }
+    else if(p._sprintMode){ ta=0.2; tk=0; }
+    else if(p.og!==false&&Math.abs(p.vx||0)>0.6){ const sp=Math.min(1,(Math.abs(p.vx)-0.6)/2.4); ta=REST+(WALK_ARM-REST)*sp; tk=REST+(WALK_KN-REST)*sp; }
+    else if(!p.og){ ta=2.1; tk=1.6; }                                             // in the air: tucked down and back
+    armE=ease(armE,ta,0.2); knE=ease(knE,tk,0.2);
   }
-  // only MIND's own arm takes the charge pose and anchors the sweep (the HUD and crates draw the knife too)
+  // the arm follows the knife's pose (only MIND's, only with the knife, not on the rope)
+  const _pose=window.computeConnectorArmPose;
+  if(typeof _pose==='function') window.computeConnectorArmPose=function(pl){
+    const who=pl||p;
+    if(!(on()&&poseOn&&who===p&&ITEM===4)) return _pose.apply(this,arguments);
+    const ax=who.aimDX, ay=who.aimDY, a=toW(armE); who.aimDX=Math.cos(a); who.aimDY=Math.sin(a);
+    try{ return _pose.apply(this,arguments); } finally{ who.aimDX=ax; who.aimDY=ay; }
+  };
+  // only MIND's own arm takes the pose and anchors the sweeps (the HUD and crates draw the knife too)
   let inChar=false; const _dc=window.drawCharacter;
   if(typeof _dc==='function') window.drawCharacter=function(){ inChar=true; try{ return _dc.apply(this,arguments); } finally{ inChar=false; } };
   // the knife in the hand (drawn at the arm's tip in place of a jack)
@@ -348,10 +397,10 @@
     const idx=itemOverride!=null?itemOverride:ITEM;
     if(inChar&&big&&!big.drawn){ big.drawn=true; drawBigSlash(); }
     if(idx!==4) return _tip.apply(this,arguments);
-    const k=inChar?B.knifeCharge():0, side=Math.cos(aimAngle)>=0?1:-1;
-    let rot=aimAngle+(slashT>0?Math.sin((10-slashT)/10*Math.PI)*-1.2:0);
-    if(k>0) rot=aimAngle-side*(0.4+k*1.9)+(k>=1?Math.sin(performance.now()/40)*0.05:0);   // drawn back over the shoulder
-    if(inChar&&big) rot=aimAngle+side*(-2.3+2.75*Math.min(1,big.t/4));                     // the swing through, ending level
+    const mine=inChar&&poseOn, k=mine?B.knifeCharge():0;
+    let rot=mine?toW(knE):aimAngle;
+    if(k>=1) rot+=Math.sin(performance.now()/40)*0.05;
+    if(mine&&swing) drawSwingTrail(swing);
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot);
     if(k>0){ ctx.shadowColor=k>=1?'#ffb050':'#ffe0a0'; ctx.shadowBlur=4+k*14; }
     drawKnife(0,0,1); ctx.restore();
@@ -362,15 +411,21 @@
       if(k>=1&&Math.random()<0.5){ ctx.fillStyle='#fff0c0'; ctx.fillRect(10+Math.random()*30,-4+Math.random()*4,2,2); }
       ctx.restore();
     }
-    if(slashT>0){                                                  // the slash's arc
-      ctx.save(); ctx.translate(cx,cy); ctx.rotate(aimAngle); ctx.strokeStyle='rgba(255,240,220,'+(slashT/10*0.8)+')'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(0,0,52,-0.9,0.9); ctx.stroke(); ctx.restore();
-    }
   };
+  // the quick slash's trail: a thin bright arc behind the blade, round the shoulder
+  function drawSwingTrail(sw){
+    const sh=shoulder(), P=p._armPose, R=(P?Math.hypot(P.tipX-P.connShX,P.tipY-P.connShY):40)+34;
+    const u=Math.min(1,sw.t/sw.dur), k=1-(1-u)*(1-u), cur=sw.from+(sw.to-sw.from)*k, a0=toW(sw.from), a1=toW(cur);
+    const ox=sh.x-(typeof camX!=='undefined'?camX:0), oy=sh.y-(typeof camY!=='undefined'?camY:0);
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+    for(const [w,al,rr] of [[6,0.25,R],[2.5,0.85,R],[1.5,0.5,R-12]]){
+      ctx.strokeStyle='rgba(255,240,215,'+(al*(1-u*0.6))+')'; ctx.lineWidth=w; ctx.beginPath(); ctx.arc(ox,oy,rr,a0,a1,a1<a0); ctx.stroke(); }
+    ctx.restore();
+  }
   // the wide slash: a flat crescent that sweeps out in the facing direction and fades
   function drawBigSlash(){
     const g=big, u=g.t/22, sw=Math.min(1,g.t/4), a=1-u;
-    ctx.save(); ctx.translate(g.x-(typeof camX!=="undefined"?camX:0),g.y-(typeof camY!=="undefined"?camY:0)); ctx.scale(g.dir,1); ctx.globalCompositeOperation="lighter";
+    ctx.save(); ctx.translate(g.x-(typeof camX!=="undefined"?camX:0),g.y-(typeof camY!=="undefined"?camY:0)); ctx.rotate(g.ang); ctx.globalCompositeOperation="lighter";
     for(let i=0;i<3;i++){
       const r=BIG_R*(0.6+0.17*i)*(0.8+0.2*sw), h=BIG_H*(0.42-0.08*i);
       ctx.strokeStyle=['rgba(255,250,235,','rgba(255,200,120,','rgba(255,110,70,'][i]+(a*(0.9-0.25*i))+')';
