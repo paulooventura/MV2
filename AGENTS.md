@@ -202,6 +202,15 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 286 — music sources + the heptagon's fall (Oct 22, Claude)
+- **New `js/beta_music.js`** (loaded after `beta_city.js` on all four pages) is a music director, run after each `update`. Each frame it picks the track and places it on its source, and sets `B.music` so the item window hands back the right one.
+  - 1.2: `B.music` from D (`e.mirror`) while D is on; the `calm` track from the exit gate once D is down.
+  - 1.3: the stage track from the heptagon. Entering the arena (x 52–91 tiles, above row 65) sets `B.bossOn`, wakes the boss, and starts `boss` (`pixel-quasar-gold-boss.mp3`) from the boss. Once it's down, `calm` (`crystal-memory-gate.mp3`) plays from the gate.
+  - It stays out of the way while the item window, the results, transitions, the ending or the freeze are up.
+- **Positional music (`beta_audio.js`):** `route()` puts a track's `<audio>` through Web Audio (low-pass, stereo panner, gain). `place(name,{gain,pan,lp})` eases it; `hear()` works these out from the distance, the facing (pan by MIND's ears) and how much rock is on the line.
+- **The fall:** the frame the boss goes from alive to down, `B.freeze` holds every update for 150 frames (~2.5 s). `_updateCamZoom` eases the zoom to 2.3 and back out at the end; `_cameraFollowTarget` centres MIND's body. `drawHUD` adds a flash, light rays and "THE HEPTAGON FALLS". `glory()` is a synthesized fanfare: a timpani roll, brass C–F–G–C, a choir pad, a trumpet line, cymbals.
+- The gate to 2.1 still needs every crystal and seed plus `B.bossDown` (`gateReady`).
+
 ### Build 285 — 1.3 open sky, futuristic tileset, secret rooms, crush, knife perma-shutdown (Oct 22, Claude)
 - **Open sky:** the builder shifts the whole of 1.3 down `K`=6 rows at export. The residential tower keeps a roof (rows 0..K+1; its belts still loop inside it, re-spaced evenly). Over the middle, the gap and the right, the old border rows open to air, with the background tower skins 13/14 going up. The top of the world is the limit, because `gridCell` is solid outside the grid. Trial-page coordinates moved +6.
 - **Tileset (`beta_city.js`):**
