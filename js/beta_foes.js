@@ -295,40 +295,94 @@
       }
     }else if(s) s.near=false;
   }
-  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE.','X (Q) SLASHES IN FRONT OF YOU: IT CUTS','VINES, CUTS A ROPE THAT HOLDS YOU,','AND CUTS ENEMIES. B (E) SWITCHES ITEMS.']};
+  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE.','TAP X (Q): A QUICK SLASH. CUTS VINES,','ROPES THAT HOLD YOU, AND ENEMIES.','HOLD X TO DRAW IT BACK, LET GO FOR','A WIDE SLASH THAT HITS HARD.']};
 
-  // ── the knife: a quick slash ──────────────────────────────────
-  let slashT=0, slashCd=0, wasBtn=false;
+  // ── the knife: tap = quick slash, hold = wide charged slash ──────────────────────────────────
+  let slashT=0, slashCd=0, wasBtn=false, holdT=0, charged=false, big=null;
+  const CHARGE=34, BIG_R=176, BIG_H=78, BIG_DMG=72;
+  B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeBig=()=>big;
+  function cutVine(bw){ const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; bw.hp=0; try{ if(typeof gridSmashCell==='function'&&bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow); }catch(er){} burst(bx,by,10,['#3a8a3a','#7ac060','#2a5a2a'],3); S('omniblock_chip'); }
+  function quickSlash(){
+    slashT=10; slashCd=16; S('punch_whiff',1.4);
+    const a=Math.atan2(p.aimDY||0,(p.aimDX||0)||(p.fc?1:-1)), ux=Math.cos(a), uy=Math.sin(a);
+    const t=typeof connectorTipWorld==='function'?connectorTipWorld(4):{x:p.x+SW/2+ux*40,y:p.y+FEET_OFF-60};
+    const hx=t.x+ux*20, hy=t.y+uy*20, R=46;
+    for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; if(Math.hypot(bw.x+bw.w/2-hx,bw.y+bw.h/2-hy)<R+12) cutVine(bw); }
+    for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2; if(Math.hypot(ex-hx,ey-hy)<R+e.w/2&&clearLine(p.x+SW/2,p.y+FEET_OFF-60,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,14,hx,hy,0.8); burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
+    // a rope that holds MIND: cut
+    for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf){ B.releaseRopeOf(r.e); burst(p.x+SW/2,p.y+FEET_OFF-60,8,['#e8d0a0','#a08060'],3); } }
+  }
+  // held, then let go: one wide flat sweep in the facing direction, from just behind MIND
+  // out to ~5.5 tiles; walls still block it (line of sight from the chest)
+  function bigSlash(){
+    const dir=p.fc?1:-1, cx=p.x+SW/2, cy=p.y+FEET_OFF-58;
+    big={x:cx,y:cy,dir,t:0}; slashT=0; slashCd=28;
+    S('punch_whiff',0.7); S('punch_whiff',1.9); S('omniblock_chip',0.6);
+    B.shake=Math.max(B.shake||0,10);
+    const inArc=(x,y,pad)=>{ const dx=(x-cx)*dir, dy=y-cy; return dx>-30-pad&&dx<BIG_R+pad&&Math.abs(dy)<BIG_H+pad; };
+    for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; if(inArc(bx,by,12)&&clearLine(cx,cy,bx,by)) cutVine(bw); }
+    for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
+      if(inArc(ex,ey,e.w/2)&&clearLine(cx,cy,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,BIG_DMG,cx,cy,2.2); burst(ex,ey,18,['#fff4e0','#ffb060','#ff5040'],5); } }
+    for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf) B.releaseRopeOf(r.e); }
+    burst(cx+dir*80,cy,14,['#fff4e0','#ffd090','#e08040'],5);
+  }
   function knifeTick(){
     if(!on()) return;
-    if(slashCd>0) slashCd--; if(slashT>0) slashT--;
+    if(slashCd>0) slashCd--; if(slashT>0) slashT--; if(big){ big.drawn=false; if(++big.t>22) big=null; }
     const btn=ITEM===4&&typeof _bindDown==='function'&&_bindDown('swap');
-    if(btn&&!wasBtn&&slashCd<=0){
-      slashT=10; slashCd=16; S('punch_whiff',1.4);
-      const a=Math.atan2(p.aimDY||0,(p.aimDX||0)||(p.fc?1:-1)), ux=Math.cos(a), uy=Math.sin(a);
-      const t=typeof connectorTipWorld==='function'?connectorTipWorld(4):{x:p.x+SW/2+ux*40,y:p.y+FEET_OFF-60};
-      const hx=t.x+ux*20, hy=t.y+uy*20, R=46;
-      for(const bw of BWALLS){ if(bw.hp<=0) continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2;
-        if(Math.hypot(bx-hx,by-hy)<R+12){
-          if(bw.only==='vine'){ bw.hp=0; try{ if(typeof gridSmashCell==='function'&&bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow); }catch(er){} burst(bx,by,10,['#3a8a3a','#7ac060','#2a5a2a'],3); S('omniblock_chip'); } } }
-      for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2; if(Math.hypot(ex-hx,ey-hy)<R+e.w/2&&clearLine(p.x+SW/2,p.y+FEET_OFF-60,ex,ey)){ if(typeof _damageEnemy==='function') _damageEnemy(e,14,hx,hy,0.8); burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
-      // a rope that holds MIND: cut
-      for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf){ B.releaseRopeOf(r.e); burst(p.x+SW/2,p.y+FEET_OFF-60,8,['#e8d0a0','#a08060'],3); } }
+    if(btn&&slashCd<=0){
+      holdT++;
+      if(holdT===CHARGE){ charged=true; S('chargeReady',0.9); burst(p.x+SW/2-(p.fc?1:-1)*20,p.y+FEET_OFF-80,8,['#ffe8b0','#ff9050'],2); }
+      else if(holdT>8&&holdT<CHARGE&&holdT%6===0) S('omniblock_chip',0.25+holdT/CHARGE*0.5);
     }
+    if(!btn&&wasBtn&&holdT>0){ if(charged) bigSlash(); else quickSlash(); holdT=0; charged=false; }
+    if(ITEM!==4){ holdT=0; charged=false; }
     wasBtn=btn;
   }
+  // only MIND's own arm takes the charge pose and anchors the sweep (the HUD and crates draw the knife too)
+  let inChar=false; const _dc=window.drawCharacter;
+  if(typeof _dc==='function') window.drawCharacter=function(){ inChar=true; try{ return _dc.apply(this,arguments); } finally{ inChar=false; } };
   // the knife in the hand (drawn at the arm's tip in place of a jack)
   const _tip=window.drawConnectorTip;
   window.drawConnectorTip=function(cx,cy,aimAngle,flash,itemOverride,enh){
     const idx=itemOverride!=null?itemOverride:ITEM;
+    if(inChar&&big&&!big.drawn){ big.drawn=true; drawBigSlash(); }
     if(idx!==4) return _tip.apply(this,arguments);
-    ctx.save(); ctx.translate(cx,cy); ctx.rotate(aimAngle+(slashT>0?Math.sin((10-slashT)/10*Math.PI)*-1.2:0));
+    const k=inChar?B.knifeCharge():0, side=Math.cos(aimAngle)>=0?1:-1;
+    let rot=aimAngle+(slashT>0?Math.sin((10-slashT)/10*Math.PI)*-1.2:0);
+    if(k>0) rot=aimAngle-side*(0.4+k*1.9)+(k>=1?Math.sin(performance.now()/40)*0.05:0);   // drawn back over the shoulder
+    if(inChar&&big) rot=aimAngle+side*(-2.3+2.75*Math.min(1,big.t/4));                     // the swing through, ending level
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot);
+    if(k>0){ ctx.shadowColor=k>=1?'#ffb050':'#ffe0a0'; ctx.shadowBlur=4+k*14; }
     drawKnife(0,0,1); ctx.restore();
+    if(k>0.25){                                                    // the edge gathering light
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(rot); ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle='rgba(255,'+(k>=1?190:230)+',140,'+(0.25+0.5*k)+')'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(6,-2); ctx.lineTo(10+30*k,-2); ctx.stroke();
+      if(k>=1&&Math.random()<0.5){ ctx.fillStyle='#fff0c0'; ctx.fillRect(10+Math.random()*30,-4+Math.random()*4,2,2); }
+      ctx.restore();
+    }
     if(slashT>0){                                                  // the slash's arc
       ctx.save(); ctx.translate(cx,cy); ctx.rotate(aimAngle); ctx.strokeStyle='rgba(255,240,220,'+(slashT/10*0.8)+')'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(0,0,52,-0.9,0.9); ctx.stroke(); ctx.restore();
     }
   };
+  // the wide slash: a flat crescent that sweeps out in the facing direction and fades
+  function drawBigSlash(){
+    const g=big, u=g.t/22, sw=Math.min(1,g.t/4), a=1-u;
+    ctx.save(); ctx.translate(g.x-(typeof camX!=="undefined"?camX:0),g.y-(typeof camY!=="undefined"?camY:0)); ctx.scale(g.dir,1); ctx.globalCompositeOperation="lighter";
+    for(let i=0;i<3;i++){
+      const r=BIG_R*(0.6+0.17*i)*(0.8+0.2*sw), h=BIG_H*(0.42-0.08*i);
+      ctx.strokeStyle=['rgba(255,250,235,','rgba(255,200,120,','rgba(255,110,70,'][i]+(a*(0.9-0.25*i))+')';
+      ctx.lineWidth=(10-3*i)*a+1;
+      ctx.beginPath(); ctx.ellipse(-20,0,r,h,0,-Math.PI/2*sw,Math.PI/2*sw); ctx.stroke();
+    }
+    ctx.fillStyle='rgba(255,240,210,'+(a*0.18)+')';
+    ctx.beginPath(); ctx.ellipse(-20,0,BIG_R*0.9*sw,BIG_H*0.45,0,-Math.PI/2,Math.PI/2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,245,'+a+')'; ctx.lineWidth=2.5*a+0.5; ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(-20+BIG_R*sw,0); ctx.stroke();   // the cut line
+    for(let i=0;i<6;i++){ const yy=-BIG_H*0.4+i*BIG_H*0.16; ctx.fillStyle='rgba(255,230,180,'+(a*0.7)+')'; ctx.fillRect(BIG_R*(0.3+u*0.7)-20,yy,18*a+2,1.5); }
+    ctx.restore();
+  }
   // a kiritsuke: long flat edge, the tip clipped at an angle; copper core showing as a
   // warm stripe along the damascus ripples; a dark handle with a copper ferrule
   function drawKnife(x,y,s){
