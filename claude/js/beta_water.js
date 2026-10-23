@@ -294,7 +294,7 @@
     if(!pl||pl!==p) return null;
     const feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
     if(typeof _mvDropThru!=='undefined'&&_mvDropThru>0) return null;      // dropping through (DOWN + JUMP)
-    for(const m of B.platforms) if(cx>=m.x-8&&cx<=m.x+m.w+8&&Math.abs(feet-m.y)<=3&&(pl.vy||0)>=-0.01) return m;
+    for(const m of B.platforms) if(!m.hidden&&cx>=m.x-8&&cx<=m.x+m.w+8&&Math.abs(feet-m.y)<=3&&(pl.vy||0)>=-0.01) return m;
     return null;
   }
   const _origGrounded=window._playerGrounded;
@@ -308,7 +308,17 @@
         const y0=m.y; m.y+=m.spd*m.dir; m.dx=0; m.wrapped=false;
         if(m.loop){ if(m.dir>0&&m.y>m.yb){ m.y=m.ya; m.wrapped=true; } else if(m.dir<0&&m.y<m.ya){ m.y=m.yb; m.wrapped=true; } }
         else if(m.y>=m.yb){ m.y=m.yb; m.dir=-1; } else if(m.y<=m.ya){ m.y=m.ya; m.dir=1; }
-        m.dy=m.wrapped?0:m.y-y0; continue;
+        m.dy=m.wrapped?0:m.y-y0;
+        // Paulo (Oct 22): the belts never pop in or out in plain sight — they run on into the roof
+        // and under the floor and come round there. Inside rock a cab is hidden and can't be ridden;
+        // in the open it's drawn clipped to its shaft's air
+        if(typeof gridWorldSolid==='function'&&typeof _gridReady==='function'&&_gridReady()){
+          const cx=m.x+m.w/2; m.hidden=gridWorldSolid(cx,m.y+m.h/2);
+          if(m.clipT==null){ const t=MV_GRID.tile, c=Math.floor(cx/t); let r0=Math.floor((m.ya+m.yb)/2/t), r1=r0;
+            while(r0>0&&!gridSolid(c,r0-1)) r0--; while(r1<MV_GRID.rows-1&&!gridSolid(c,r1+1)) r1++;
+            m.clipT=r0*t; m.clipB=(r1+1)*t; }
+        }
+        continue;
       }
       const x0=m.x;
       m.x+=m.spd*m.dir;
@@ -317,13 +327,17 @@
     }
     // riding: carried along (and up / down) with it; a belt platform that wraps leaves you behind
     const m0=B.ridePlat;
-    if(m0&&m0.vert&&!m0.wrapped&&p&&Math.abs(p.y+FEET_OFF-(m0.y-m0.dy))<=6&&p.x+SW/2>=m0.x-8&&p.x+SW/2<=m0.x+m0.w+8&&(p.vy||0)>=-0.01){ p.y=m0.y-FEET_OFF; }
+    if(m0&&m0.vert&&!m0.wrapped&&!m0.hidden&&p&&Math.abs(p.y+FEET_OFF-(m0.y-m0.dy))<=6&&p.x+SW/2>=m0.x-8&&p.x+SW/2<=m0.x+m0.w+8&&(p.vy||0)>=-0.01){
+      // carried, unless the roof is at his head (rising) or the floor under his wheel (sinking): he stays, the cab goes on
+      const ny=m0.y-FEET_OFF, hx=p.x+SW/2, blocked=typeof gridWorldSolid==='function'&&(m0.dy<0?(gridWorldSolid(hx-14,ny+8)||gridWorldSolid(hx+14,ny+8)):gridWorldSolid(hx,ny+FEET_OFF-2));
+      if(!blocked) p.y=ny; else m0._shed=8;
+    }
     const m=ridingPlat(p);
-    if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
+    if(m&&m._shed>0){ m._shed--; B.ridePlat=null; } else if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
     // other bodies (the sibling, the NPC at home) ride them too (Paulo, Oct 22)
     for(const o of B.platRiders?B.platRiders():[]){ const q=o._ridePlat; if(!q) continue;
       const cx=o.x+SW/2, feet=o.y+FEET_OFF;
-      if(!q.wrapped&&cx>=q.x-8&&cx<=q.x+q.w+8&&Math.abs(feet-(q.y-(q.dy||0)))<=6&&(o.vy||0)>=-0.01){ o.x+=q.dx; o.y=q.y-FEET_OFF; } else o._ridePlat=null; }
+      if(!q.wrapped&&!q.hidden&&cx>=q.x-8&&cx<=q.x+q.w+8&&Math.abs(feet-(q.y-(q.dy||0)))<=6&&(o.vy||0)>=-0.01){ o.x+=q.dx; o.y=q.y-FEET_OFF; } else o._ridePlat=null; }
     // the hook rides the platform it bit
     const h=p.hook;
     if(h&&h.st==='on'&&!h.tgt){
@@ -1045,7 +1059,9 @@
   B.drawWorldExtras=function(){
     const D=window.MV_BETA_DECOR;
     for(const m of B.platforms){
-      if(window.MV_CITY&&MV_CITY.platform(m)) continue;          // 1.3: elevator cabs / the hoist (beta_city.js)
+      if(m.clipT!=null){ ctx.save(); ctx.beginPath(); ctx.rect(sx(m.x)-sw(40),sy(m.clipT),sw(m.w)+sw(80),sw(m.clipB-m.clipT)); ctx.clip();
+        const done=window.MV_CITY&&MV_CITY.platform(m); ctx.restore(); if(done) continue; }
+      else if(window.MV_CITY&&MV_CITY.platform(m)) continue;          // 1.3: elevator cabs / the hoist (beta_city.js)
       // (no rail: the arrows in the sketch only mark how far it travels)
       // the platform: wooden planks on an iron frame, glowing ends
       const x=sx(m.x), y=sy(m.y), w=sw(m.w), h=sw(m.h);

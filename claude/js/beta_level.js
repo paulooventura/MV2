@@ -330,7 +330,7 @@
         case 'GateShell':
           B.shells.push({x:cx, y:y+T/2, slot:F(e,'slot')}); break;
         case 'Decor':
-          B.decor.push({kind:F(e,'kind'), c:g.c, r:g.r, x, y, w:g.w*T, h:g.h*T, dx:F(e,'dx')|0, dy:F(e,'dy')|0, len:F(e,'len')|0}); break;
+          B.decor.push({kind:F(e,'kind'), c:g.c, r:g.r, x, y, w:g.w*T, h:g.h*T, dx:F(e,'dx')|0, dy:F(e,'dy')|0, len:F(e,'len')|0, cs:F(e,'s')|0, cd:F(e,'d')|0}); break;
       }
     }
     B.itemsTotal=ents.filter(e=>e.__identifier==='Item'||e.__identifier==='Rca'||e.__identifier==='Isolator').length;

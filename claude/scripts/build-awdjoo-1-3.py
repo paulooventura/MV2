@@ -40,6 +40,9 @@ SK_DIRT, SK_ROOF, SK_BRICK, SK_WOOD, SK_STONE_BG, SK_CAVE_BG, SK_SCALES = 0, 1, 
 # 8 commercial glass (middle), 9 high-tech (right). Interiors (air): 10 apartments' halls,
 # 11 offices, 12 the high-tech vault (the secret area).
 SK_RESI, SK_COMM, SK_TECH, SK_IN_RESI, SK_IN_COMM, SK_IN_TECH = 7, 8, 9, 10, 11, 12
+# Paulo (Oct 22, later): the middle and right towers keep rising behind their playable summits —
+# 13 / 14 = their facades in the background (air: no collision); the gap between them stays open sky
+SK_BG_COMM, SK_BG_TECH = 13, 14
 LDTK_TILE = 16
 
 g = [[SOLID] * COLS for _ in range(ROWS)]
@@ -87,18 +90,24 @@ for i in range(4): rect(10 + i, 13, 57 - i, 57 - i, SOLID)   # the stairs up (sl
 # the lift shaft, open to the top band
 rect(6, 22, 2, 53, AIR)
 poly([(1, 11), (6, 17), (6, 2), (1, 2)], AIR)           # the top-left nook over the diagonal
-poly([(13, 10), (17, 10), (18, 12), (18, 14), (16, 16), (13, 16), (12, 14), (12, 12)], SOLID)   # upper octagon
-poly([(13, 41), (16, 41), (17, 43), (17, 45), (16, 46), (13, 46), (12, 45), (12, 43)], SOLID)   # lower octagon
+# the two sky islands between the belts are CUBES, drawn in oblique view like the sheet: a 5x5 front
+# face with its top and right side receding 2 tiles up-right (so only those two corners are cut)
+def cube(c0, r0, s=5, d=2):
+    poly([(c0, r0 + d), (c0 + d, r0), (c0 + s + d, r0), (c0 + s + d, r0 + s), (c0 + s, r0 + s + d), (c0, r0 + s + d)], SOLID)
+    ent('Decor', c0, r0, s + d, s + d, kind='cube', s=s, d=d)
+cube(12, 9)                                             # upper cube (C's lift runs under it)
+cube(12, 41)                                            # lower cube (an A sits on it)
 # the top band over the spire mass
 rect(22, 37, 2, 16, AIR)
 poly([(23, 16), (29, 16), (29, 12), (30, 12), (30, 5), (32, 3), (35, 9), (35, 14), (37, 16), (37, 21), (23, 21)], SOLID)   # the spire mass
-rect(23, 26, 21, 53, AIR)                               # the chimney
-rect(27, 35, 21, 28, AIR)                               # the D-D room (floor row 29)
-rect(27, 27, 21, 24, SOLID)                             # its left wall, doorway rows 25-28 from the chimney
-rect(27, 35, 35, 42, AIR)                               # the lower room (floor row 43 on the left, the pool on the right)
-rect(31, 32, 43, 57, SOLID)                             # pool's left wall
-rect(28, 30, 44, 53, AIR)                               # the rung column from the long floor up into the lower room
-rect(29, 30, 43, 43, AIR)                               # the hole in the lower room's floor
+# the middle (commercial) tower: its two floors (the D-D offices, the one under it) open only on
+# its RIGHT side, onto the elevator gap; its ground floor opens on the LEFT, to the street, and an
+# electro-block wall in the middle of it holds the pool back (shoot it with the TRS: the flood)
+rect(28, 35, 21, 28, AIR)                               # the D-D floor (floor row 29), open to the gap on the right
+rect(27, 35, 35, 42, AIR)                               # the floor under it (floor row 43 on the left, the pool on the right)
+rect(23, 30, 44, 53, AIR)                               # the ground floor, in from the street
+rect(31, 32, 43, 57, SOLID)                             # pool's left wall (rows 44-53 become the electro wall)
+rect(31, 32, 44, 53, AIR)                               # (the electro blocks fill this: the boxes below)
 # the elevator column, the pool and the slope out of it
 rect(36, 37, 2, 57, AIR)
 rect(33, 50, 43, 57, AIR)                               # the pool basin + the submerged run under the rock
@@ -126,10 +135,7 @@ def rungs(c0, c1, r0, r1):
     for r in range(r0, r1 + 1, 2):
         for c in range(c0, c1 + 1):
             if g[r][c] == AIR: put(c, r, ONEWAY); skin[r][c] = SK_WOOD
-rungs(29, 30, 45, 53)                                   # long floor -> lower room
 rungs(50, 51, 41, 49)                                   # slope top -> arena ledge (and the vault's hidden door at rows 36-40)
-# chimney ledges
-put(25, 29, ONEWAY); put(26, 29, ONEWAY); put(23, 37, ONEWAY); put(24, 37, ONEWAY)
 # the towers' skins (solid = facade, air = interior); the street, the pit and the arena keep their own
 for r in range(ROWS):
     for c in range(COLS):
@@ -138,10 +144,12 @@ for r in range(ROWS):
         if c <= 22 and r <= 57: skin[r][c] = SK_RESI if solid else SK_IN_RESI
         elif 23 <= c <= 35 and r <= 53:
             if solid: skin[r][c] = SK_COMM
-            elif r >= 17: skin[r][c] = SK_IN_COMM           # (the band over the crown is open sky)
+            elif r >= 21: skin[r][c] = SK_IN_COMM
+            else: skin[r][c] = SK_BG_COMM                   # the tower going on up behind its summit
         elif 38 <= c <= 51 and r <= 43:
             if solid: skin[r][c] = SK_TECH
             elif 42 <= c <= 49 and 15 <= r <= 40: skin[r][c] = SK_IN_TECH
+            elif r <= 14: skin[r][c] = SK_BG_TECH
 paint(0, 33, 54, 54, SK_BRICK)                              # the sidewalk
 
 # ── Entities ──────────────────────────────────────────────────────
@@ -158,16 +166,17 @@ ent('Crystal', 44, 51)                                  # on the slope, under th
 ent('Crystal', 50, 43)                                  # the arena ledge over the rungs
 ent('Crystal', 45, 38)                                  # bottom of the secret area
 # the 10 seeds (snap=1: sits on the ground under it)
-for c, r, snap in [(26, 15, 1), (34, 5, 0), (51, 12, 1), (33, 28, 1), (28, 42, 1), (24, 53, 1),
+for c, r, snap in [(26, 15, 1), (34, 5, 0), (51, 12, 1), (33, 28, 1), (28, 42, 1), (26, 53, 1),
                    (8, 57, 1), (40, 26, 0), (60, 70, 1), (75, 70, 1)]:
     ent('Knowl', c, r, snap=snap)
 # moving platforms. Horizontal: a..b = left edge range. Vertical (axis='y'): a..b = top row range;
 # loop=1 rides one way forever and comes back round (the belts); speed in tenths of px/frame
-for k in range(6): ent('MovingPlatform', 8, 12 + k * 7, 3, 1, axis='y', a=12, b=52, speed=16, loop=1, dir=1)    # left belt: DOWN
-for k in range(6): ent('MovingPlatform', 19, 12 + k * 7, 3, 1, axis='y', a=12, b=52, speed=16, loop=1, dir=-1)  # right belt: UP
+# the belts come round INSIDE the rock (the roof at the top, under the street / the lobby floor at the
+# bottom), so a cab only ever appears or vanishes behind a floor — never in plain sight
+for k in range(8): ent('MovingPlatform', 8, round(k * 59 / 8), 3, 1, axis='y', a=0, b=59, speed=16, loop=1, dir=1)    # left belt: DOWN
+for k in range(8): ent('MovingPlatform', 19, k * 7, 3, 1, axis='y', a=0, b=56, speed=16, loop=1, dir=-1)              # right belt: UP
 ent('MovingPlatform', 12, 18, 6, 1, axis='y', a=17, b=27, speed=9)      # purple lift: C rides it
 ent('MovingPlatform', 12, 30, 6, 1, axis='y', a=28, b=39, speed=9)      # purple lift: B rides it
-ent('MovingPlatform', 24, 50, 2, 1, axis='y', a=24, b=52, speed=11)     # the chimney lift
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=55, speed=12)      # the long elevator
 ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=12, speed=9)        # the little lift at the arena's top-left
 # water: the pool and the run under the rock
@@ -176,6 +185,7 @@ ent('Water', 33, 46, 18, 12)
 # the vine wall (only the knife cuts it)
 def boxes(kind, cells, **f):
     for c, r in cells: ent('Box', c, r, kind=kind, **f)
+boxes('laser', [(c, r) for c in (31, 32) for r in range(44, 54)], plug='flood')   # the electro wall holding the pool
 boxes('seal', [(c, r) for c in range(62, 74) for r in range(56, 60)])
 boxes('vine', [(c, r) for c in (79, 80) for r in range(61, 71)])
 # enemies
@@ -251,7 +261,7 @@ for r in range(ROWS):
         v, sk = g[r][c], skin[r][c]; x, y = c * S, r * S
         if v == AIR and sk in (SK_STONE_BG, SK_CAVE_BG): d.rectangle([x, y, x + S - 1, y + S - 1], fill='#2c2430' if sk == SK_CAVE_BG else '#3a302c')
         col = {SK_WOOD: '#9a6a3a', SK_BRICK: '#8a5a4a', SK_RESI: '#a0705a', SK_COMM: '#5a7a9a', SK_TECH: '#3a4a5a'}.get(sk, '#6b4a32')
-        if v == AIR and sk in (SK_IN_RESI, SK_IN_COMM, SK_IN_TECH): d.rectangle([x, y, x + S - 1, y + S - 1], fill={SK_IN_RESI: '#3a2c28', SK_IN_COMM: '#26303a', SK_IN_TECH: '#1a2430'}[sk])
+        if v == AIR and sk in (SK_IN_RESI, SK_IN_COMM, SK_IN_TECH, SK_BG_COMM, SK_BG_TECH): d.rectangle([x, y, x + S - 1, y + S - 1], fill={SK_IN_RESI: '#3a2c28', SK_IN_COMM: '#26303a', SK_IN_TECH: '#1a2430', SK_BG_COMM: '#2a3a4c', SK_BG_TECH: '#1e2834'}[sk])
         if v == SOLID: d.rectangle([x, y, x + S - 1, y + S - 1], fill=col)
         elif v == ONEWAY: d.rectangle([x, y, x + S - 1, y + 3], fill='#c08040')
         elif v == SLOPE_L: d.polygon([(x, y), (x + S, y + S), (x, y + S)], fill=col)

@@ -22,10 +22,10 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;max-width:100%;heig
   cursor:crosshair;touch-action:none;background:var(--bg)}
 canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </style>
-<script>window.MV_BUILD='282'; window.MV_BETA_LAB=1; window.MV_BETA_START='1.2';</script>
+<script>window.MV_BUILD='283'; window.MV_BETA_LAB=1; window.MV_BETA_START='1.2';</script>
 <h1>AWDJOO TOWN 1.2 · TRIAL RUN</h1>
 <div id="helpLine">Water test: starts at 1.2 with all four jacks. <b>Flooded room</b> drops MIND in the lower corridor by the electro plug (shoot it with the TRS and the water rushes out and floods the corridor; D, the mirror enemy, patrols here). Water flows like Terraria: it falls, spreads and finds its level, and never vanishes — zap it with the TRS to boil it off as steam. <b>Go to the water</b> drops MIND on the ledge by the pool with the Isolator on (it doesn't wear off, but any hit knocks it off — grab it again; the crate regrows 30 s after you take it). <b>Weather:</b> boil water with the TRS — a little makes a haze; the bottom-left pool's worth brews a storm for 30 s (thunder building) and then it rains; boil the flooded room too and lightning strikes the high places (a crackle marks the spot a second before). Out in that storm MIND builds static and draws the bolts — get under cover. Boil a lot at once for a torrent. Under water, hold the XLR to blow an air pocket (3×3 blocks at full charge) and watch the pool rise and spill over the ledge; let go and it floats up and bursts. Hold the MAG under water to pull the surface down over its tip. Pick the look under the screen (A · SNES / B · Mega Drive / C · Posh). Click the game once to start the sound.
-  <br><button id="goW" type="button">Go to the water</button> <button id="goF" type="button">Flooded room</button> <button id="go12" type="button">Restart 1.2</button> <button id="go11" type="button">Play 1.1 instead</button> <button id="go13" type="button">Play 1.3 (boss)</button></div>
+  <br><button id="goW" type="button">Go to the water</button> <button id="goF" type="button">Flooded room</button> <button id="go12" type="button">Restart 1.2</button> <button id="go11" type="button">Play 1.1 instead</button> <button id="go13" type="button">Play 1.3 (boss)</button> <button id="go13k" type="button">1.3: knife test</button></div>
 <div class="keys">
   <span><b>A/D ←/→</b> move</span><span><b>Space</b> jump (hold S first for a super jump)</span>
   <span><b>Space / pad A</b> in water: swim kick</span><span><b>Q / pad X</b> use item</span><span><b>E / pad B</b> switch item</span><span><b>F / pad Y</b> punch</span><span><b>arrows / stick</b> aim</span><span><b>W/S</b> reel the RCA</span>
@@ -64,23 +64,23 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script src="js/beta_ambience.js?v=280"></script>
 <script src="js/beta_decor.js?v=281"></script>
 <script src="js/beta_sky.js?v=281"></script>
-<script src="js/beta_level.js?v=280"></script>
+<script src="js/beta_level.js?v=283"></script>
 <script src="js/beta_feel.js?v=270"></script>
-<script src="js/beta_water.js?v=281"></script>
+<script src="js/beta_water.js?v=283"></script>
 <script src="js/beta_weather.js?v=279"></script>
 <script src="js/beta_enemies.js?v=280"></script>
 <script src="js/beta_impact.js?v=201"></script>
 <script src="js/beta_crates.js?v=203"></script>
 <script src="js/beta_mirror.js?v=222"></script>
 <script src="js/beta_sibling.js?v=279"></script>
-<script src="js/beta_foes.js?v=282"></script>
-<script src="js/beta_city.js?v=281"></script>
+<script src="js/beta_foes.js?v=283"></script>
+<script src="js/beta_city.js?v=283"></script>
 <script src="js/console16.js?v=248"></script>
 <script src="js/beta_splash.js?v=254"></script>
 <script src="js/beta_telemetry.js?v=276"></script>
 <script>
   // stage buttons: load in place (keeps the page and its music unlocked); give focus back to the game
-  const go=(id,mask)=>{ if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; } startBetaLab(id,mask,{fresh:true}).then(()=>document.getElementById('c').focus()); };
+  const go=(id,mask)=>{ if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; } return startBetaLab(id,mask,{fresh:true}).then(()=>document.getElementById('c').focus()); };
   document.getElementById('go12').addEventListener('click',()=>go('1.2',15));
   document.getElementById('goW').addEventListener('click',()=>{
     const B=window.MV_BETA; if(!B||!B.on||B.stageId!=='1.2'||!B.waters||!B.waters.length){ go('1.2',15); setTimeout(()=>document.getElementById('goW').click(),1200); return; }
@@ -97,4 +97,10 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   });
   document.getElementById('go11').addEventListener('click',()=>go('1.1',0));
   document.getElementById('go13').addEventListener('click',()=>go('1.3',15));
+  // the knife test: 1.3's knife chamber, standing on the knife, with three foes to cut
+  document.getElementById('go13k').addEventListener('click',()=>{
+    const run=()=>{ const B=MV_BETA, k=B.knifePickup; B.popup=null; p.x=(k?Math.floor(k.x/32):67)*32+16-SW/2; p.y=71*32-FEET_OFF-1; p.vx=p.vy=0; p.fc=true; _unlockedMask|=15;
+      if(B.mkAiEnemy) for(const [ai,c,r] of [['tri',72,71],['tri',75,71],['circle',79,71]]){ const e=B.mkAiEnemy(ai,c*32+16,r*32,{range:2*32}); if(e) ENEMS.push(e); }
+      document.getElementById('c').focus(); };
+    const B=window.MV_BETA; if(B&&B.on&&B.stageId==='1.3') run(); else go('1.3',15).then(()=>setTimeout(run,600)); });
 </script>
