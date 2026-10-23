@@ -22,9 +22,9 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;max-width:100%;heig
   cursor:crosshair;touch-action:none;background:var(--bg)}
 canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </style>
-<script>window.MV_BUILD='284'; window.MV_BETA_LAB=1; window.MV_BETA_START='1.3';</script>
+<script>window.MV_BUILD='285'; window.MV_BETA_LAB=1; window.MV_BETA_START='1.3';</script>
 <h1>AWDJOO TOWN 1.3 · TRIAL RUN</h1>
-<div id="helpLine">Level 1.3 from your Oct 22 sheet, with all four jacks. The left shaft's green belts run forever (left DOWN, right UP); purple lifts go up and down. Enemy E (the eye) floats and fires a laser through its lens; Enemy F (the clear cube) sleeps in the pool until you swim near. The heptagon floats up when you come near the bowl and fires from its seven corners — beat it and the bowl gives way to the gaucho knife (item 5: slash with X / Q — it cuts the vine wall). It's a skyscraper site: the residential tower (left, its elevators run forever — left shafts down, right shafts up), the commercial tower (middle) and the high-tech tower (right). The high-tech tower hides a vault with the save-state item (S) and an Isolator — find the secret door at its bottom right. Pick the look under the screen. Click the game once to start the sound.
+<div id="helpLine">Level 1.3 from your Oct 22 sheet, with all four jacks. The left shaft's green belts run forever (left DOWN, right UP); purple lifts go up and down. Enemy E (the eye) floats and fires a laser through its lens; Enemy F (the clear cube) sleeps in the pool until you swim near. The heptagon floats up when you come near the bowl and fires from its seven corners — only the gaucho knife's loaded slash hurts it (five fully heated 9-second slashes beat it). The knife waits in a secret room: drop down the shaft right of the arena and find the way in through its wall (item 5: tap X / Q to slash up and down, hold to heat it — it cuts the vines before the exit). It's a skyscraper site: the residential tower (left, its elevators run forever — left shafts down, right shafts up), the commercial tower (middle) and the high-tech tower (right). The high-tech tower hides a vault with the save-state item (S) and an Isolator — its only door is a secret one at its bottom right; secret rooms only show once you're inside. Pick the look under the screen. Click the game once to start the sound.
   <br><button id="go13" type="button">Restart 1.3</button> <button id="goBoss" type="button">Go to the boss</button> <button id="goPool" type="button">Go to the pool</button> <button id="goKnife" type="button">Go to the knife</button> <button id="go12" type="button">Play 1.2 instead</button></div>
 <div class="keys">
   <span><b>A/D ←/→</b> move</span><span><b>Space</b> jump (hold S first for a super jump)</span>
@@ -62,10 +62,10 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script src="js/beta_engine.js?v=278"></script>
 <script src="js/beta_air.js?v=252"></script>
 <script src="js/beta_ambience.js?v=280"></script>
-<script src="js/beta_decor.js?v=281"></script>
+<script src="js/beta_decor.js?v=285"></script>
 <script src="js/beta_sky.js?v=281"></script>
-<script src="js/beta_level.js?v=283"></script>
-<script src="js/beta_feel.js?v=270"></script>
+<script src="js/beta_level.js?v=285"></script>
+<script src="js/beta_feel.js?v=285"></script>
 <script src="js/beta_water.js?v=283"></script>
 <script src="js/beta_weather.js?v=279"></script>
 <script src="js/beta_enemies.js?v=280"></script>
@@ -73,8 +73,8 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script src="js/beta_crates.js?v=203"></script>
 <script src="js/beta_mirror.js?v=222"></script>
 <script src="js/beta_sibling.js?v=279"></script>
-<script src="js/beta_foes.js?v=284"></script>
-<script src="js/beta_city.js?v=283"></script>
+<script src="js/beta_foes.js?v=285"></script>
+<script src="js/beta_city.js?v=285"></script>
 <script src="js/console16.js?v=248"></script>
 <script src="js/beta_splash.js?v=254"></script>
 <script src="js/beta_telemetry.js?v=276"></script>
@@ -84,13 +84,13 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   const place=(c,r)=>{ MV_BETA.popup=null; p.x=c*32+16-SW/2; p.y=r*32-FEET_OFF-1; p.vx=0; p.vy=0; p.fc=true; _unlockedMask|=15; if(ITEM<0) ITEM=0; document.getElementById('c').focus(); };
   const when13=f=>{ const B=window.MV_BETA; if(!B||!B.on||B.stageId!=='1.3'){ go('1.3',15).then(()=>setTimeout(f,600)); return; } f(); };
   document.getElementById('go13').addEventListener('click',()=>go('1.3',15));
-  document.getElementById('goBoss').addEventListener('click',()=>when13(()=>place(51,43)));
-  document.getElementById('goPool').addEventListener('click',()=>when13(()=>place(34,43)));
+  document.getElementById('goBoss').addEventListener('click',()=>when13(()=>place(51,49)));
+  document.getElementById('goPool').addEventListener('click',()=>when13(()=>place(34,49)));
   document.getElementById('go12').addEventListener('click',()=>go('1.2',15));
   // the knife test (Paulo, Oct 22): straight into the knife's chamber, on the knife, with a few foes to cut
   // (also: open the page with ?at=knife)
-  const knifeTest=()=>when13(()=>{ const B=MV_BETA, k=B.knifePickup; place(k?Math.floor(k.x/32):67,71); p.fc=true;
-    if(B.mkAiEnemy){ for(const [ai,c,r] of [['tri',72,71],['tri',75,71],['circle',79,71]]){ const e=B.mkAiEnemy(ai,c*32+16,r*32,{range:2*32}); if(e) ENEMS.push(e); } } });
+  const knifeTest=()=>when13(()=>{ const B=MV_BETA, k=B.knifePickup; place(k?Math.floor(k.x/32):67,77); p.fc=true;
+    if(B.mkAiEnemy){ for(const [ai,c,r] of [['tri',72,77],['tri',75,77],['circle',79,77]]){ const e=B.mkAiEnemy(ai,c*32+16,r*32,{range:2*32}); if(e) ENEMS.push(e); } } });
   document.getElementById('goKnife').addEventListener('click',knifeTest);
   if(/[?&]at=knife/.test(location.search)) setTimeout(()=>knifeTest(),2500);
 </script>

@@ -857,7 +857,8 @@
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); ctx.lineTo(x+z,y+z); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); ctx.lineTo(x,y+z); }
         const sTex=(s>=7&&window.MV_CITY&&MV_CITY.img(c,r,s,false))||(s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7]);
         ctx.closePath(); ctx.clip(); ctx.drawImage(sTex,x,y,z,z); ctx.restore();
-        ctx.strokeStyle=s===6?'#6e2a1e':s===3?P.woodH:P.grass; ctx.lineWidth=S(5); ctx.beginPath();
+        const neon=s===7?'#ffc070':s===8?'#6ef4ff':s===9?'#40ffd0':null;           // 1.3: the towers' slopes get a neon edge, not grass
+        ctx.strokeStyle=neon||(s===6?'#6e2a1e':s===3?P.woodH:P.grass); ctx.lineWidth=neon?S(3):S(5); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); } ctx.stroke();
         continue;
       }
@@ -886,7 +887,7 @@
 
   // pass 4 (Oct 22): the blocks get the key art's light — a moonlit rim on open tops, soft
   // shadow under overhangs and down open sides, and vines hanging from ledges outside
-  const RIM={'1.1':'rgba(190,255,200,','1.2':'rgba(210,195,255,','1.3':'rgba(255,200,190,'};
+  const RIM={'1.1':'rgba(190,255,200,','1.2':'rgba(210,195,255,','1.3':'rgba(150,235,255,'};
   const vh=(c,r)=>{ let h=(c*73856093^r*19349663)>>>0; h=(h^(h>>>13))*1274126177>>>0; return (h>>>8)/16777216; };
   function edges(B,cells,r0,r1,c0,c1){
     const rim=RIM[B.stageId]||RIM['1.1'], z=S(T)+1, sh=Math.max(2,S(10));
@@ -918,5 +919,8 @@
     const ox=typeof _mapEdScreenOx==='function'?_mapEdScreenOx():0;
     itemCrate(idx, (cx-ox)/Z+_rcamX, bottom/Z+_rcamY, false, noName);
   }
-  window.MV_BETA_DECOR={P, world, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
+  // the texture a solid tile of skin s is drawn with (1.3's secret rooms paint their walls back over themselves)
+  function solidTex(c,r,s){ if(s>=7&&window.MV_CITY){ const im=MV_CITY.img(c,r,s,false); if(im) return im; }
+    return s===1?tex.roof:s===2?tex.brick[r&1]:s===3?tex.wood:s===6?tex.scales:tex.dirt[(c*5+r*3)&7]; }
+  window.MV_BETA_DECOR={P, world, solidTex, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
 })();

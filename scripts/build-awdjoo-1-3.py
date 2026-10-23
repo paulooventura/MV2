@@ -100,6 +100,7 @@ cube(12, 41)                                            # lower cube (an A sits 
 # the top band over the spire mass
 rect(22, 37, 2, 16, AIR)
 poly([(23, 16), (29, 16), (29, 12), (30, 12), (30, 5), (32, 3), (35, 9), (35, 14), (37, 16), (37, 21), (23, 21)], SOLID)   # the spire mass
+rect(30, 32, 3, 5, SOLID)                               # its summit: a small flat pad (not a needle you'd slide off)
 # the middle (commercial) tower: its two floors (the D-D offices, the one under it) open only on
 # its RIGHT side, onto the elevator gap; its ground floor opens on the LEFT, to the street, and an
 # electro-block wall in the middle of it holds the pool back (shoot it with the TRS: the flood)
@@ -118,14 +119,21 @@ rect(42, 51, 32, 42, SOLID)                             # the rock over the wate
 rect(38, 52, 2, 12, AIR)
 poly([(38, 13), (40, 11), (41, 9), (43, 9), (43, 11), (45, 11), (47, 13), (51, 13), (51, 14), (38, 14)], SOLID)
 rect(42, 48, 15, 39, AIR)                               # the secret area (the high-tech vault)
+rect(41, 41, 24, 40, SOLID)                             # its left wall: the only way in is the door at the bottom right
 rect(49, 49, 36, 40, AIR)                               # its SECRET ENTRANCE at the tower's bottom right, off the rung shaft
+rect(50, 51, 34, 39, AIR)                               # the rung shaft runs on up past the door, so MIND can step in (and back out)
 rect(50, 51, 40, 49, AIR)                               # the rungs from the slope up to the arena ledge (open to the arena)
 rect(52, 91, 2, 59, AIR)                                # the arena's open air (the bowl is cut back in below)
 rect(52, 57, 52, ROWS - 1, AIR)                         # the pit beside the bowl (no floor: shutdown)
 poly([(54, 52), (56, 52), (60, 56), (77, 56), (81, 52), (82, 52), (82, 56), (79, 60), (58, 60), (54, 55)], SOLID)   # the stone bowl
 rect(58, 78, 60, 70, AIR)                               # the knife's chamber under it (floor row 71)
 rect(79, 90, 52, 70, AIR)                               # the way down to the exit (floor row 71)
-paint(58, 78, 56, 72, SK_BRICK)
+# Paulo (Oct 22): the knife's chamber is a SECRET room, only reached from the right, off the shaft
+# that drops from the arena toward the exit: walled off from the pit on its left, sealed under the
+# bowl, and its right wall has a 2x4 doorway at the bottom that looks like wall until MIND walks in
+rect(56, 57, 60, 70, SOLID)                             # its left wall (the pit stays outside)
+rect(79, 80, 60, 66, SOLID)                             # its right wall; rows 67-70 are the secret doorway
+paint(56, 80, 54, 71, SK_BRICK)
 # borders
 rect(0, COLS - 1, 0, 1, SOLID); rect(0, 0, 0, ROWS - 1, SOLID); rect(COLS - 1, COLS - 1, 0, ROWS - 1, SOLID)
 rect(58, COLS - 1, ROWS - 1, ROWS - 1, SOLID)
@@ -135,7 +143,7 @@ def rungs(c0, c1, r0, r1):
     for r in range(r0, r1 + 1, 2):
         for c in range(c0, c1 + 1):
             if g[r][c] == AIR: put(c, r, ONEWAY); skin[r][c] = SK_WOOD
-rungs(50, 51, 41, 49)                                   # slope top -> arena ledge (and the vault's hidden door at rows 36-40)
+rungs(50, 51, 35, 49)                                   # slope top -> arena ledge, and on up to the vault's hidden door (rows 36-40)
 # the towers' skins (solid = facade, air = interior); the street, the pit and the arena keep their own
 for r in range(ROWS):
     for c in range(COLS):
@@ -186,8 +194,7 @@ ent('Water', 33, 46, 18, 12)
 def boxes(kind, cells, **f):
     for c, r in cells: ent('Box', c, r, kind=kind, **f)
 boxes('laser', [(c, r) for c in (31, 32) for r in range(44, 54)], plug='flood')   # the electro wall holding the pool
-boxes('seal', [(c, r) for c in range(62, 74) for r in range(56, 60)])
-boxes('vine', [(c, r) for c in (79, 80) for r in range(61, 71)])
+boxes('vine', [(c, r) for c in (84, 85) for r in range(60, 71)])   # the vines between the shaft and the exit (the knife cuts them)
 # enemies
 ent('Enemy', 15, 53, ai='circle', range=1)
 ent('Enemy', 21, 53, ai='circle', range=1)
@@ -201,7 +208,8 @@ ent('Enemy', 40, 52, ai='cube', range=6)                # F: the transparent cub
 ent('Boss', 66, 36, 3, 3, kind='heptagon')              # the heptagon over the bowl
 # background
 ent('Decor', 88, 66, kind='lamp')
-ent('Decor', 42, 15, 8, 26, kind='vault')                 # hides the vault until MIND finds the door
+ent('Decor', 42, 15, 8, 26, kind='vault', door=1)        # hides the vault until MIND has gone in through its door (the last column)
+ent('Decor', 58, 60, 23, 11, kind='secret', door=2)      # hides the knife's chamber the same way (its door: the last 2 columns)
 ent('Decor', 3, 45, 10, 9, kind='lobby')                 # the residential tower's lobby
 
 def solid_at(c, r):
@@ -214,6 +222,34 @@ assert counts == {'Knowl': 10, 'Crystal': 5}, counts
 for e in ents:                                          # nothing placed inside rock
     if e['kind'] in ('Knowl', 'Crystal', 'MindSpawn', 'Isolator', 'SaveState', 'Knife') and solid_at(e['c'], e['r']) and g[e['r']][e['c']] != ONEWAY:
         sys.exit('%s inside rock at %d,%d' % (e['kind'], e['c'], e['r']))
+
+# ── Open sky over the towers (Paulo, Oct 22): no ceiling over the middle and the right — the
+# top of the world is the limit (the grid reads solid above row 0), so nobody bumps a drawn
+# roof. Everything moves down K rows; the residential tower keeps a roof (its elevators loop
+# inside it), the old border rows over the rest open up, and the background towers rise on.
+K = 6
+g = [[AIR] * COLS for _ in range(K)] + g
+skin = [[SK_DIRT] * COLS for _ in range(K)] + skin
+ROWS += K
+for r in range(K + 2):
+    for c in range(COLS):
+        if c <= 22: g[r][c] = SOLID; skin[r][c] = SK_RESI          # the residential tower's roof
+        elif c == COLS - 1: g[r][c] = SOLID
+        else:
+            g[r][c] = AIR
+            skin[r][c] = SK_BG_COMM if 23 <= c <= 35 else SK_BG_TECH if 38 <= c <= 51 else 0
+for e in ents:
+    e['r'] += K
+    f = e['fields']
+    if e['kind'] == 'MovingPlatform' and f.get('axis') == 'y':
+        if f.get('loop'): f['b'] += K                           # the belts still come round inside the roof (a = 0)
+        else: f['a'] += K; f['b'] += K
+belts = {}
+for e in ents:
+    if e['kind'] == 'MovingPlatform' and e['fields'].get('loop'): belts.setdefault(e['c'], []).append(e)
+for col, es in belts.items():                                  # evenly spaced round the longer loop
+    a, b = es[0]['fields']['a'], es[0]['fields']['b']
+    for k, e in enumerate(sorted(es, key=lambda q: q['r'])): e['r'] = round(a + k * (b - a) / len(es))
 
 # ── LDtk export ───────────────────────────────────────────────────
 def fval(name, v):
@@ -239,7 +275,7 @@ project = {
     'levels': [{
         'identifier': 'Awdjoo_1_3', 'iid': 'awdjoo-1-3', 'uid': 13, 'worldX': 0, 'worldY': 0,
         'pxWid': COLS * LDTK_TILE, 'pxHei': ROWS * LDTK_TILE, '__bgColor': '#0c0a14',
-        'fieldInstances': [fval('skyRows', 0), fval('horizonRow', 18), fval('stageName', 'AWDJOO TOWN 1.3'),
+        'fieldInstances': [fval('skyRows', 0), fval('horizonRow', 18 + K), fval('stageName', 'AWDJOO TOWN 1.3'),
                            fval('stageSub', 'The Heptagon'), fval('music', 'stage2'), fval('stageId', '1.3')],
         'layerInstances': [coll_inst, skin_inst,
             {'__identifier': 'Entities', '__type': 'Entities', '__cWid': COLS, '__cHei': ROWS,
