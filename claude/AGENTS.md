@@ -202,6 +202,10 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 282 — the kiritsuke's charged slash (Oct 22, Claude)
+- `js/beta_foes.js` `knifeTick`: a tap of the item button with the knife gives the quick slash (fired on release). Holding it draws the knife back over the shoulder for 34 frames (`CHARGE`). It rises in pitch while charging, glows, sparks, and plays `chargeReady` when full. Letting go when charged fires `bigSlash`: a flat sweep in the facing direction from 30 px behind MIND out to 176 px (`BIG_R`), ±78 px tall (`BIG_H`), 72 damage (`BIG_DMG`; the 360 HP boss takes 5), with heavy knockback and shake 10. It cuts vines and the rope holding MIND, and walls block it (line of sight from the chest).
+- The charge pose and the sweep only apply inside `drawCharacter`, so the HUD and crates keep a still knife. The sweep is in world coords minus `camX`/`camY`, because the arm tip is drawn in camera space.
+
 ### Build 281 — 1.3 is a skyscraper site (Oct 22, Claude)
 
 - Paulo: three towers — residential (left), commercial (middle), high tech (right); the vault with the save-state is hidden inside the high-tech tower behind a secret door at its bottom right; the left lifts are a residential tower's elevators.
