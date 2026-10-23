@@ -202,6 +202,16 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 284 — the kiritsuke, heat, pull/push, boss rule, belt (Oct 22, Claude)
+- **Art (`drawKnife(x,y,s,heat)` in `beta_foes.js`):** a real kiritsuke. A straight spine dropping in one long clipped line to a low K-tip, and a near-flat edge. Polished bevel under the shinogi line, damascus flats, a copper core line, a mirror edge, and a glint that sweeps up the blade. Octagonal ebony wa handle with a copper spacer and a horn ferrule.
+- **The hand:** in MIND's hand, the arm ends in a chrome ring (`chromeRing`) round the handle's middle. Its far half is drawn behind the handle and its near half over it.
+- **Heat:** the hold runs to `MAXH`=540 frames (9 s). `heatOf` tints and glows the blade dull red, orange, yellow, then bright yellow-white (`heatRGB`). Cues sound at 34 frames (the slash is armed), 120 (2 s) and 540 (max, with shake). Sparks and a ticking sound rise as it heats.
+- **Release (`bigSlash(aE,t)`):** reach 176–430 px, height 78–132, damage 72–200, all scaled by `fullOf(t)`. The push (enemy knockback and `B.throwCube` on movable cubes in the arc) scales with heat.
+- **The pull while held (`pull`):** enemies (not the boss) and loose cubes are drawn toward a point 60 px in front of MIND along the aim. The radius (70–400) and strength grow with heat; walls block it. Motes stream in.
+- **The boss:** `_damageEnemy` is wrapped so the 1.3 boss ignores everything except the knife's loaded slash (a spark and clink instead). A loaded slash deals `BOSS_FULL*fullOf(t)`, so a full 9 s slash does 72 of 360 and five win. Quick slashes clink off it.
+- **On the belt:** with the knife owned but not in hand, the `drawCharacter` wrapper (`holster`) draws it on the back side of the speaker box at the belt line, pointing down and back, with a chrome clip.
+- Charging ignores the item button while sprinting (`_runItemQuiet`).
+
 ### Build 283 — 1.3 notes round 2 + the knife's poses (Oct 22, Claude)
 - **The belts:** they loop inside the rock (`a=0` in the roof, `b=56/59` under the street or the lobby floor), 8 cabs each. In `beta_water.js` a vertical platform whose centre is inside rock is `hidden`: it can't be ridden and is drawn clipped to its shaft's air span (`clipT`/`clipB`, scanned once from the grid). A rider is let go (`_shed`) when the roof meets his head going up, or the floor meets his wheel going down.
 - **The cubes:** the two sky islands between the belts are oblique cubes. In `build-awdjoo-1-3.py`, `cube(c0,r0,s=5,d=2)` makes the collision silhouette (only the top-left and bottom-right corners cut) and adds a `Decor kind=cube` entity; `beta_city.js` `cube(d)` draws the faces. The decor carries `cs`/`cd`.
