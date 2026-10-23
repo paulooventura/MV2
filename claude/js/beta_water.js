@@ -1045,6 +1045,7 @@
   B.drawWorldExtras=function(){
     const D=window.MV_BETA_DECOR;
     for(const m of B.platforms){
+      if(window.MV_CITY&&MV_CITY.platform(m)) continue;          // 1.3: elevator cabs / the hoist (beta_city.js)
       // (no rail: the arrows in the sketch only mark how far it travels)
       // the platform: wooden planks on an iron frame, glowing ends
       const x=sx(m.x), y=sy(m.y), w=sw(m.w), h=sw(m.h);

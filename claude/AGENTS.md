@@ -202,6 +202,12 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 281 — 1.3 is a skyscraper site (Oct 22, Claude)
+
+- Paulo: three towers — residential (left), commercial (middle), high tech (right); the vault with the save-state is hidden inside the high-tech tower behind a secret door at its bottom right; the left lifts are a residential tower's elevators.
+- Builder skins: solid 7 residential / 8 commercial glass / 9 high-tech; air 10 halls (+ elevator shafts) / 11 offices / 12 the vault. The vault's entrance moved to the tower's bottom right (col 49 rows 36–40, off the rung shaft cols 50–51, rungs from row 41); the old face rungs + omni plug are gone. Decor `vault` (cover) and `lobby`.
+- New `js/beta_city.js`: cached procedural tiles for the six skins (windows in bays and floors, balcony rails, glass mullions and glints, neon seams, apartment doors and lamps, office blinds and desks, server racks); vertical platforms drawn as elevator cabs (cable, lit cab, ▲/▼ lamp) in the residential tower and a hazard-striped hoist cage outside; the vault cover (high-tech wall painted over the vault + its pickups until MIND is at the door or inside, fading). `beta_decor.js` world() calls `MV_CITY.solid/air/img/over`; no ledge vines on 1.3. `beta_sky.js` 1.3 theme `city:true` = a skyline of towers, antennas and cranes.
+
 ### Build 280 — Awdjoo Town 1.3 + the heptagon boss + the gaucho knife (Oct 22, Claude)
 
 - Level: `python3 scripts/build-awdjoo-1-3.py` → `assets/levels/awdjoo-1-3.ldtk` (92×74, 1 sheet square = 2 tiles, same scale as 1.2) + preview png. Carved out of solid rock; polygons with auto 45° slopes. `LEVELS['1.2'].next='1.3'`. Trial page `play-1-3.html` (Restart / Go to the boss / Go to the pool). Reach check `--lvl=1.3`: beatable, 0 dead ends.

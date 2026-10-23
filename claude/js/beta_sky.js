@@ -28,7 +28,7 @@
     // 1.3 (The Heptagon): an ember dusk over the arena — dark wine up top, a hot horizon
     '1.3':{bands:['#140408','#220812','#320c1a','#461224','#5c1a2c','#7a2a30'], swirl:'#5a1a2a', swirlHi:'#a04050', star:'#ffe0d8',
            far:'#2a0a14', farHi:'#40121e', pine:'#16050a', town:'#220a12', roof:'#34101c', win:'#ffc070', winDim:'#b07030', pole:'#0c0306',
-           grade:'rgba(170,50,60,0.12)', vig:0.62, moon:{x:0.7,y:0.2,r:30,col:'#ffd8c8',edge:'#c86a5a'}, glow:'rgba(255,120,110,'},
+           grade:'rgba(170,50,60,0.12)', vig:0.62, moon:{x:0.7,y:0.2,r:30,col:'#ffd8c8',edge:'#c86a5a'}, glow:'rgba(255,120,110,', city:true},
   };
   THEMES.default=THEMES['1.1'];
   const cache={};
@@ -90,6 +90,17 @@
   // ── the town strip: houses, lit windows, chimneys, poles ──
   function townTex(th){
     const w=Math.ceil(1024/PXS)*3, h=90;
+    if(th.city) return mk(w,h,(g)=>{                 // 1.3: a skyline of towers, cranes and lit floors
+      let x=0, i=0;
+      while(x<w){
+        const bw=12+Math.floor(hash(i,71)*20), bh=30+Math.floor(hash(i,72)*58), gap=1+Math.floor(hash(i,73)*6), top=h-bh;
+        g.fillStyle=th.town; g.fillRect(x,top,bw,bh);
+        if(hash(i,74)<0.3){ g.fillRect(x+Math.floor(bw/2),top-8,1,8); g.fillStyle='#ff4040'; g.fillRect(x+Math.floor(bw/2),top-9,1,1); g.fillStyle=th.town; }   // an antenna + its light
+        for(let wy=top+3;wy<h-2;wy+=4) for(let wx=x+2;wx<x+bw-2;wx+=3){ const r=hash(wx*5+i,wy*7); if(r<0.7) continue; g.fillStyle=r>0.9?th.win:th.winDim; g.fillRect(wx,wy,1,2); }
+        if(hash(i,75)<0.12){ g.fillStyle=th.pole; g.fillRect(x+bw-2,top-26,1,26); g.fillRect(x+bw-14,top-26,22,1); g.fillRect(x+bw+6,top-25,1,8); }   // a tower crane
+        x+=bw+gap; i++;
+      }
+    });
     return mk(w,h,(g)=>{
       let x=0, i=0; const poles=[];
       while(x<w){
