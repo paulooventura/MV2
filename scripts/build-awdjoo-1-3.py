@@ -36,6 +36,10 @@ import json, os, sys
 COLS, ROWS = 92, 74
 AIR, SOLID, ONEWAY, DESTRUCT, SLOPE_L, SLOPE_R = 0, 1, 2, 3, 4, 5
 SK_DIRT, SK_ROOF, SK_BRICK, SK_WOOD, SK_STONE_BG, SK_CAVE_BG, SK_SCALES = 0, 1, 2, 3, 4, 5, 6
+# Paulo (Oct 22): 1.3 is a skyscraper site — three towers. Solid facades: 7 residential (left),
+# 8 commercial glass (middle), 9 high-tech (right). Interiors (air): 10 apartments' halls,
+# 11 offices, 12 the high-tech vault (the secret area).
+SK_RESI, SK_COMM, SK_TECH, SK_IN_RESI, SK_IN_COMM, SK_IN_TECH = 7, 8, 9, 10, 11, 12
 LDTK_TILE = 16
 
 g = [[SOLID] * COLS for _ in range(ROWS)]
@@ -104,8 +108,8 @@ rect(42, 51, 32, 42, SOLID)                             # the rock over the wate
 # the right rock mass (with its stepped top) and the arena edge
 rect(38, 52, 2, 12, AIR)
 poly([(38, 13), (40, 11), (41, 9), (43, 9), (43, 11), (45, 11), (47, 13), (51, 13), (51, 14), (38, 14)], SOLID)
-rect(38, 39, 15, 24, AIR)                               # the rung alcove on the rock's face
-rect(42, 48, 15, 39, AIR); paint(42, 48, 15, 39, SK_CAVE_BG)   # the secret area
+rect(42, 48, 15, 39, AIR)                               # the secret area (the high-tech vault)
+rect(49, 49, 36, 40, AIR)                               # its SECRET ENTRANCE at the tower's bottom right, off the rung shaft
 rect(50, 51, 40, 49, AIR)                               # the rungs from the slope up to the arena ledge (open to the arena)
 rect(52, 91, 2, 59, AIR)                                # the arena's open air (the bowl is cut back in below)
 rect(52, 57, 52, ROWS - 1, AIR)                         # the pit beside the bowl (no floor: shutdown)
@@ -123,11 +127,22 @@ def rungs(c0, c1, r0, r1):
         for c in range(c0, c1 + 1):
             if g[r][c] == AIR: put(c, r, ONEWAY); skin[r][c] = SK_WOOD
 rungs(29, 30, 45, 53)                                   # long floor -> lower room
-rungs(38, 39, 16, 24)                                   # the rock face -> the secret tunnel
-rungs(50, 51, 45, 49)                                   # slope top -> arena ledge
+rungs(50, 51, 41, 49)                                   # slope top -> arena ledge (and the vault's hidden door at rows 36-40)
 # chimney ledges
 put(25, 29, ONEWAY); put(26, 29, ONEWAY); put(23, 37, ONEWAY); put(24, 37, ONEWAY)
-paint(23, 37, 21, 53, SK_STONE_BG)
+# the towers' skins (solid = facade, air = interior); the street, the pit and the arena keep their own
+for r in range(ROWS):
+    for c in range(COLS):
+        solid = g[r][c] != AIR and g[r][c] != ONEWAY
+        if r >= 54 and c <= 33 and not (c <= 13 and r <= 57 and not solid): continue   # the street and the ground under it (the lobby stays inside)
+        if c <= 22 and r <= 57: skin[r][c] = SK_RESI if solid else SK_IN_RESI
+        elif 23 <= c <= 35 and r <= 53:
+            if solid: skin[r][c] = SK_COMM
+            elif r >= 17: skin[r][c] = SK_IN_COMM           # (the band over the crown is open sky)
+        elif 38 <= c <= 51 and r <= 43:
+            if solid: skin[r][c] = SK_TECH
+            elif 42 <= c <= 49 and 15 <= r <= 40: skin[r][c] = SK_IN_TECH
+paint(0, 33, 54, 54, SK_BRICK)                              # the sidewalk
 
 # ── Entities ──────────────────────────────────────────────────────
 ent('MindSpawn', 4, 55, 1, 3)
@@ -161,7 +176,6 @@ ent('Water', 33, 46, 18, 12)
 # the vine wall (only the knife cuts it)
 def boxes(kind, cells, **f):
     for c, r in cells: ent('Box', c, r, kind=kind, **f)
-boxes('omni', [(c, r) for c in (40, 41) for r in (15, 16)])
 boxes('seal', [(c, r) for c in range(62, 74) for r in range(56, 60)])
 boxes('vine', [(c, r) for c in (79, 80) for r in range(61, 71)])
 # enemies
@@ -177,6 +191,8 @@ ent('Enemy', 40, 52, ai='cube', range=6)                # F: the transparent cub
 ent('Boss', 66, 36, 3, 3, kind='heptagon')              # the heptagon over the bowl
 # background
 ent('Decor', 88, 66, kind='lamp')
+ent('Decor', 42, 15, 8, 26, kind='vault')                 # hides the vault until MIND finds the door
+ent('Decor', 3, 45, 10, 9, kind='lobby')                 # the residential tower's lobby
 
 def solid_at(c, r):
     return not (0 <= r < ROWS and 0 <= c < COLS) or g[r][c] in (SOLID, SLOPE_L, SLOPE_R, ONEWAY)
@@ -234,7 +250,8 @@ for r in range(ROWS):
     for c in range(COLS):
         v, sk = g[r][c], skin[r][c]; x, y = c * S, r * S
         if v == AIR and sk in (SK_STONE_BG, SK_CAVE_BG): d.rectangle([x, y, x + S - 1, y + S - 1], fill='#2c2430' if sk == SK_CAVE_BG else '#3a302c')
-        col = {SK_WOOD: '#9a6a3a', SK_BRICK: '#8a5a4a'}.get(sk, '#6b4a32')
+        col = {SK_WOOD: '#9a6a3a', SK_BRICK: '#8a5a4a', SK_RESI: '#a0705a', SK_COMM: '#5a7a9a', SK_TECH: '#3a4a5a'}.get(sk, '#6b4a32')
+        if v == AIR and sk in (SK_IN_RESI, SK_IN_COMM, SK_IN_TECH): d.rectangle([x, y, x + S - 1, y + S - 1], fill={SK_IN_RESI: '#3a2c28', SK_IN_COMM: '#26303a', SK_IN_TECH: '#1a2430'}[sk])
         if v == SOLID: d.rectangle([x, y, x + S - 1, y + S - 1], fill=col)
         elif v == ONEWAY: d.rectangle([x, y, x + S - 1, y + 3], fill='#c08040')
         elif v == SLOPE_L: d.polygon([(x, y), (x + S, y + S), (x, y + S)], fill=col)

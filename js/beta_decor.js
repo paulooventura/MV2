@@ -840,6 +840,7 @@
       if(cells[r][c]) continue;
       const s=sk(c,r);
       if(s===4) blit(tex.stone[r%2],c,r); else if(s===5) blit(tex.cave[(c*7+r*3)&3],c,r);
+      else if(s>=10&&window.MV_CITY) MV_CITY.air(c,r,s);            // 1.3: inside the towers (beta_city.js)
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
     for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
@@ -854,12 +855,13 @@
         const x=X(c*T), y=Y(r*T), z=S(T)+1;
         ctx.save(); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); ctx.lineTo(x+z,y+z); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); ctx.lineTo(x,y+z); }
-        const sTex=s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7];
+        const sTex=(s>=7&&window.MV_CITY&&MV_CITY.img(c,r,s,false))||(s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7]);
         ctx.closePath(); ctx.clip(); ctx.drawImage(sTex,x,y,z,z); ctx.restore();
         ctx.strokeStyle=s===6?'#6e2a1e':s===3?P.woodH:P.grass; ctx.lineWidth=S(5); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); } ctx.stroke();
         continue;
       }
+      if(s>=7&&window.MV_CITY&&MV_CITY.solid(c,r,s,top)) continue;   // 1.3: the towers' facades
       if(s===1){ blit(top?tex.roofTop:tex.roof,c,r); continue; }
       if(s===2){ blit(tex.brick[r&1],c,r); continue; }
       if(s===3){ blit(tex.wood,c,r); continue; }
@@ -870,6 +872,7 @@
       if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
     }
     edges(B,cells,r0,r1,c0,c1);
+    if(window.MV_CITY) MV_CITY.over(B);
     for(const d of B.decor){
       if(d.kind==='attic') atticWindow(d.x, d.y+12);
       else if(d.kind==='lamp') lampPost(d.x, d.y);
@@ -898,7 +901,7 @@
       if(rt){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.fillRect(x+z-Math.max(1,S(4)),y,Math.max(1,S(4)),z); }
       if(up){ ctx.fillStyle=rim+'0.22)'; ctx.fillRect(x,y,z,Math.max(1,S(2))); }
       // vines from ledges that face the night air
-      if(dn&&r<=(B.horizonRow!=null?B.horizonRow:30)+12&&vh(c,r)<0.22){
+      if(dn&&B.stageId!=='1.3'&&r<=(B.horizonRow!=null?B.horizonRow:30)+12&&vh(c,r)<0.22){   // (no vines on the 1.3 towers)
         const len=2+Math.floor(vh(c+7,r)*5), vx=x+S(6+vh(c,r+3)*20), sway=Math.sin(fr*0.03+c)*S(1.5);
         for(let k=0;k<len;k++){
           const yy=y+z+k*S(5), xx=vx+Math.sin(k*1.3+c)*S(2)+sway*(k/len);
