@@ -15,7 +15,9 @@
     stage:'assets/bgm/canopy-quest-gold.mp3',
     stage2:'assets/bgm/crystal-cavern-drift-gold.mp3',
     item:'assets/bgm/lost-save-shrine-diam.mp3',
-    results:'assets/bgm/crystal-memory-gate.mp3'
+    results:'assets/bgm/crystal-memory-gate.mp3',
+    boss:'assets/bgm/pixel-quasar-gold-boss.mp3',        // 1.3: the heptagon's arena
+    calm:'assets/bgm/crystal-memory-gate.mp3'            // the slow, smooth track the exit gate plays once the level's source is down
   };
   const els={};
   let current=null, wantPlay=null, ensureN=0;
@@ -65,6 +67,25 @@
     const presence=1+0.2*Math.max(0,1-f);
     a.volume=Math.min(1,Math.max(0.05,vol()*(a._baseVol||1)*presence));
   }
+  // Positional music (Paulo, Oct 22: "level 1.2's music source is the D enemy…"): a track can be
+  // routed through Web Audio — low-pass (rock in between), stereo pan (MIND's ears), gain
+  // (distance). place(name,{gain,pan,lp}) eases it there; unplace(name) puts it back to plain.
+  const routed={};
+  function route(name){
+    if(routed[name]!==undefined) return routed[name];
+    const a=ac(); if(!a||!els[name]) return null;
+    try{ const src=a.createMediaElementSource(els[name]), lp=a.createBiquadFilter(), pan=a.createStereoPanner(), g=a.createGain();
+      lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.5; src.connect(lp); lp.connect(pan); pan.connect(g); g.connect(a.destination);
+      routed[name]={lp,pan,g}; }catch(e){ routed[name]=null; }
+    return routed[name];
+  }
+  function place(name,{gain=1,pan=0,lp=20000}={}){
+    if(!els[name]) el(name);
+    const r=route(name), a=ac(); if(!r||!a) return;
+    const t=a.currentTime;
+    r.g.gain.setTargetAtTime(gain,t,0.12); r.pan.pan.setTargetAtTime(Math.max(-1,Math.min(1,pan)),t,0.12); r.lp.frequency.setTargetAtTime(lp,t,0.15);
+  }
+  function unplace(name){ const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000}); }
   function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
   // browsers only allow sound after a click / key: retry then
   const kick=()=>{ if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay); };
@@ -232,5 +253,5 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, stopAll, ensure, hurtTick, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
 })();
