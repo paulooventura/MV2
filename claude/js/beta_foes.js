@@ -365,9 +365,13 @@
       else if(bw.movable&&!bw._carried&&B.throwCube){ const d=Math.max(1,Math.hypot(bx-cx,by-cy)), k=push*(1-0.5*Math.min(1,d/Rr)); B.throwCube(bw,(bx-cx)/d*k,(by-cy)/d*k-2); } }   // shoved away
     for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
       if(!inArc(ex,ey,e.w/2)||!clearLine(cx,cy,ex,ey)) continue;
-      const hit=e._boss?Math.round(BOSS_FULL*f):dmg;
+      // Paulo (Oct 22): one loaded slash shuts A, B, C and D down for good
+      const perm=!e._boss&&(e.mirror||(e._betaEnemy&&['circle','tri','square'].includes(e._ai)));
+      if(perm) e._downs=Math.max(e._downs||0,2);
+      const hit=e._boss?Math.round(BOSS_FULL*f):perm?9999:dmg;
       if(e._boss&&hit<=0){ clink(e,cx,cy); continue; }
       knifeHit=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,hit,cx,cy,e._boss?0.3:kb); } finally{ knifeHit=false; }
+      if(perm&&!e.alive){ e._permOff=true; e._stayDown=true; }
       burst(ex,ey,18+Math.round(14*f),['#fff4e0',rgba(heatRGB(h),1),'#ff5040'],5+3*f); }
     for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf) B.releaseRopeOf(r.e); }
     burst(cx+ux*80,cy+uy*80,14+Math.round(16*f),['#fff4e0',rgba(heatRGB(h),1),'#e08040'],5+4*f);

@@ -576,3 +576,59 @@
     }
   };
 })();
+
+// ── Crushed (Paulo, Oct 22) ─────────────────────────────────────
+// Whatever shoves MIND (a C square pressing up, a lift rising under a cube, a body against a
+// wall), he never ends up inside the rock: after every update, if his body is in solid he's put
+// back at the nearest free spot that isn't inside the thing pushing him. If it keeps pushing,
+// that's pressure: it drains the power bar first, then his energy, and squeezed hard enough for
+// long enough he shuts down. Sparks and a creak while it lasts.
+(function(){
+  'use strict';
+  const B=window.MV_BETA; if(!B) return;
+  let press=0;
+  const solidAt=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
+  function box(x,y){ const ca=p.crouchAmt||0, feet=y+FEET_OFF, head=feet-((typeof STAND_H!=='undefined'?STAND_H:70)+((typeof DUCK_H!=='undefined'?DUCK_H:40)-(typeof STAND_H!=='undefined'?STAND_H:70))*ca)-(typeof WHEEL_R!=='undefined'?WHEEL_R:20);
+    return {cx:x+SW/2, head, feet}; }
+  function inside(x,y){ const b=box(x,y);
+    for(const yy of [b.head+3,(b.head+b.feet)/2-6,b.feet-24]) for(const xx of [b.cx-16,b.cx,b.cx+16]) if(solidAt(xx,yy)) return true;
+    return false; }
+  function pushedBy(x,y){ const b=box(x,y), L=b.cx-18, R=b.cx+18;
+    for(const m of B.platforms||[]) if(!m.hidden&&R>m.x&&L<m.x+m.w&&b.feet>m.y+3&&b.head<m.y+m.h) return true;
+    for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])) if(e&&e.alive&&R>e.x+2&&L<e.x+e.w-2&&b.feet>e.y+2&&b.head<e.y+e.h-2) return true;
+    return false; }
+  const DIRS=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1]];
+  function escape(allowPusher){
+    for(let d=2;d<=56;d+=2) for(const [ux,uy] of DIRS){ const dx=ux*d, dy=uy*d;
+      if(!inside(p.x+dx,p.y+dy)&&(allowPusher||!pushedBy(p.x+dx,p.y+dy))){ p.x+=dx; p.y+=dy; return d; } }
+    return 0;
+  }
+  function crushTick(){
+    if(!B.on||!p||typeof _gridReady!=='function'||!_gridReady()) return;
+    if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0){ press=0; return; }
+    let hard=false, depth=0;
+    if(!inside(p.x,p.y)){
+      // not in the rock, but pinned: something pushing into him with rock on the far side
+      const pin=pushedBy(p.x,p.y)&&(inside(p.x,p.y-6)||inside(p.x,p.y+6)||inside(p.x-6,p.y)||inside(p.x+6,p.y));
+      if(!pin){ press=Math.max(0,press-0.25); B.crushK=press/120; return; }
+    } else { depth=escape(false); if(!depth){ hard=true; depth=escape(true)||24; if(depth===24){ p.vx=0; p.vy=0; } } }
+    if(p.vy<0) p.vy=0;
+    press+=Math.max(0.4,depth/8)+(hard?3:0); B.crushK=Math.min(1,press/120);       // the harder the shove (the deeper it drove him in), the faster it builds
+    if(press<6) return;                                            // a one-off nudge out of a wall costs nothing
+    const k=Math.min(1,press/120);
+    p._lifeRegenT=0; p._crushedF=fr;                                // no healing while squeezed
+    p.itemStamina=Math.max(0,(p.itemStamina||0)-(2.4+4*k));
+    if(p.itemStamina<=0||hard){
+      const dmg=0.15+1.4*k;
+      if(p.hp-dmg<=0){ if(typeof applyPlayerHit==='function') applyPlayerHit(p.x+SW/2,p.y+FEET_OFF+30,Math.max(1,p.hp)); press=0; }
+      else { p.hp-=dmg; p._lifeRegenT=0; if(typeof _syncLivesFromHp==='function') _syncLivesFromHp(p); }
+    }
+    if(typeof fr!=='undefined'&&fr%7===0){ try{ sfx('omniblock_chip',0.45+0.2*k); }catch(e){} }
+    if(Math.random()<0.3+0.5*k&&typeof PFXS!=='undefined'){ const b=box(p.x,p.y), cols=['#ffd080','#ff6040','#ffffff'];
+      for(let i=0;i<2;i++){ const an=Math.random()*Math.PI*2, sp=1+Math.random()*2; PFXS.push({x:b.cx+(Math.random()-0.5)*40,y:b.head+Math.random()*20,vx:Math.cos(an)*sp,vy:Math.sin(an)*sp,life:14,maxLife:20,r:1.5+Math.random(),col:cols[i%3]}); } }
+    p.flashF=Math.max(p.flashF||0,4); B.shake=Math.max(B.shake||0,1+3*k);
+  }
+  B.crushTick=crushTick; B.crushInside=()=>inside(p.x,p.y);
+  const _up=window.update;
+  if(typeof _up==='function') window.update=function(){ const r=_up.apply(this,arguments); try{ crushTick(); }catch(e){} return r; };
+})();

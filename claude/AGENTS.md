@@ -202,6 +202,26 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 285 — 1.3 open sky, futuristic tileset, secret rooms, crush, knife perma-shutdown (Oct 22, Claude)
+- **Open sky:** the builder shifts the whole of 1.3 down `K`=6 rows at export. The residential tower keeps a roof (rows 0..K+1; its belts still loop inside it, re-spaced evenly). Over the middle, the gap and the right, the old border rows open to air, with the background tower skins 13/14 going up. The top of the world is the limit, because `gridCell` is solid outside the grid. Trial-page coordinates moved +6.
+- **Tileset (`beta_city.js`):**
+  - Residential: white cladding, ribbon windows (warm, cool or dark), glass balconies with planters, an amber LED strip on each slab.
+  - Commercial: a dark teal curtain wall, chrome mullions, cyan neon spandrels, offices lit in bands, and a diagonal reflection whose phase comes from the tile's place so it runs across the facade.
+  - High-tech: circuit traces and light bars.
+  - Interiors restyled. Far towers via `farOf(base, veil)`.
+  - Sky: holo billboards (AWDJOO MALL, MV LABS) and hover-cars (`sky(B)`).
+  - In `beta_decor.js`: slope edges are neon on tower skins, and the 1.3 rim light is cyan.
+- **Secret rooms:**
+  - The vault got a left wall (col 41); the rung shaft now runs up past its door (cols 50–51, rows 34–39 in sheet coords).
+  - The knife chamber is walled from the pit (56–57), its bowl seal is gone, and its only way in is a 2×4 doorway at the bottom of its right wall (79–80, rows 67–70), off the shaft right of the arena. The vines moved to 84–85, before the gate.
+  - The spire got a flat 3-wide summit pad.
+  - Decor `vault`/`secret` carry `door` = the number of door columns on their right. `cover()` paints the walls back over the room and its door (`MV_BETA_DECOR.solidTex`) until MIND's centre is inside past the door; found rooms stay open (`B._secrets`, reset per stage load).
+- **Crush (`beta_feel.js`, after `update`):**
+  - If MIND's body is inside solid, he's moved to the nearest free spot that's clear of the pusher (platforms, enemies); failing that, any free spot.
+  - Pressure builds with how deep he was driven in (+3 when he's truly squeezed), and also when he's pinned between a pusher and rock.
+  - From 6 pressure up: the power bar drains, then HP, and regen pauses. HP at 0 calls `applyPlayerHit`, which shuts him down. Sparks and a creak meanwhile.
+- **Knife:** any loaded slash shuts A, B, C and D down for good (`_downs`≥2, 9999 damage, `_permOff`/`_stayDown`).
+
 ### Build 284 — the kiritsuke, heat, pull/push, boss rule, belt (Oct 22, Claude)
 - **Art (`drawKnife(x,y,s,heat)` in `beta_foes.js`):** a real kiritsuke. A straight spine dropping in one long clipped line to a low K-tip, and a near-flat edge. Polished bevel under the shinogi line, damascus flats, a copper core line, a mirror edge, and a glint that sweeps up the blade. Octagonal ebony wa handle with a copper spacer and a horn ferrule.
 - **The hand:** in MIND's hand, the arm ends in a chrome ring (`chromeRing`) round the handle's middle. Its far half is drawn behind the handle and its near half over it.
