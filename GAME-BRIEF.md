@@ -121,6 +121,7 @@ Never replace Awdjoo until Wall says **promote**.
 | D | `physics-lab.html?ab=d` | Slopes, coast, pass-ramps, omniblock door |
 | E | `sketch-lab.html?ab=e` | Piskel 256 cave sketch (screenshot extract) |
 | F | `ldtk-lab.html?ab=f` | LDtk → typed grid (promote-later path; not live) |
+| H | `ink-vinyl.html?ab=h` | Ink & Vinyl look (artwork0199 woodblock print) over the live game; `claude/js/ink_vinyl.js`; **I** toggles it |
 
 ### Not done / do not pretend it is
 

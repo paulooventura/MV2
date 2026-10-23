@@ -1,9 +1,10 @@
 /* MV2 A/B switcher — never overwrite A with an experiment.
    A = live game (Awdjoo 1.1 → 1.2, beta/js modules). B = clean-collision. C = item lab. D = physics lab.
    E = Piskel cave. F = LDtk loader lab. G = Classic Awdjoo (old main game).
+   H = Ink & Vinyl (live game finished as a woodblock print).
    Bookmark: index.html?ab=a | clean-collision-core.html?ab=b | item-lab.html?ab=c
              physics-lab.html?ab=d | sketch-lab.html?ab=e | ldtk-lab.html?ab=f
-             awdjoo-classic.html?ab=g
+             awdjoo-classic.html?ab=g | ink-vinyl.html?ab=h
 */
 (function () {
   var page = (document.documentElement.getAttribute('data-ab') || 'a').toLowerCase();
@@ -16,7 +17,8 @@
   if (want === 'e' && page !== 'e') { location.replace('sketch-lab.html?ab=e'); return; }
   if (want === 'f' && page !== 'f') { location.replace('ldtk-lab.html?ab=f'); return; }
   if (want === 'g' && page !== 'g') { location.replace('awdjoo-classic.html?ab=g'); return; }
-  try { localStorage.setItem('mv_ab', 'abcdefg'.indexOf(want) >= 0 ? want : page); } catch (e) {}
+  if (want === 'h' && page !== 'h') { location.replace('ink-vinyl.html?ab=h'); return; }
+  try { localStorage.setItem('mv_ab', 'abcdefgh'.indexOf(want) >= 0 ? want : page); } catch (e) {}
 
   var css = document.createElement('style');
   css.textContent =
@@ -42,7 +44,8 @@
     '<a class="' + (page === 'd' ? 'on' : '') + '" href="physics-lab.html?ab=d">D · Physics lab</a>' +
     '<a class="' + (page === 'e' ? 'on' : '') + '" href="sketch-lab.html?ab=e">E · Piskel cave</a>' +
     '<a class="' + (page === 'f' ? 'on' : '') + '" href="ldtk-lab.html?ab=f">F · LDtk</a>' +
-    '<a class="' + (page === 'g' ? 'on' : '') + '" href="awdjoo-classic.html?ab=g">G · Classic Awdjoo</a>';
+    '<a class="' + (page === 'g' ? 'on' : '') + '" href="awdjoo-classic.html?ab=g">G · Classic Awdjoo</a>' +
+    '<a class="' + (page === 'h' ? 'on' : '') + '" href="ink-vinyl.html?ab=h">H · Ink &amp; Vinyl</a>';
 
   function mount() {
     if (!document.body || document.getElementById('mvAbBar')) return;
