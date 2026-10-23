@@ -575,7 +575,7 @@ function drawOptions(){
   const padX=80, panelW=W-padX*2, rowH=34, scl=2;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
-    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
+    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':MV_CONSOLE.mode==='ink'?'D  INK & VINYL':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'?'WOODBLOCK PRINT - WASHI, SUMI, VINYL':window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
     {label:'MANUAL & CREDITS',val:'OPEN >'}];

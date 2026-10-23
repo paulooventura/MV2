@@ -35,14 +35,16 @@
     md:  {name:'MEGA DRIVE', w:320, h:224, hw:640, hh:448}
   };
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
-  let mode=(()=>{ if(qs&&(MODES[qs]||qs==='off')) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||v==='off') return v; }catch(e){} return 'off'; })();
+  // 'ink' (D · INK & VINYL, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
+  const plain=m=>m==='off'||m==='ink';
+  let mode=(()=>{ if(qs&&(MODES[qs]||plain(qs))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||plain(v)) return v; }catch(e){} return 'off'; })();
   const listeners=[];
   const api={
     get mode(){ return mode; },
-    get name(){ return MODES[mode]?MODES[mode].name:'POSH'; },
-    set(m){ if(!(MODES[m]||m==='off')||m===mode) return; const was=mode; mode=m;
-      try{ if(window.MV_TV){ if(m==='off') MV_TV.on=false; else if(was==='off') MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); },
-    cycle(dir){ const L=['off','snes','md']; const i=L.indexOf(mode); api.set(L[(i+(dir<0?2:1))%3]); },
+    get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':'POSH'; },
+    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; const was=mode; mode=m;
+      try{ if(window.MV_TV){ if(plain(m)) MV_TV.on=false; else if(plain(was)) MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); },
+    cycle(dir){ const L=['off','snes','md','ink']; const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES
@@ -231,7 +233,7 @@
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';
     bar.style.cssText='display:flex;gap:6px;justify-content:center;align-items:center;margin:8px auto 2px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;color:#7868a0';
-    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
+    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH'],['ink','D · INK & VINYL']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
     if(window.MV_TV){ bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><button type="button" class="mv-tvbtn" aria-pressed="'+MV_TV.on+'">'+(MV_TV.on?'CRT TV: ON':'CRT TV: OFF')+'</button>'); }
     bar.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.classList.contains('mv-tvbtn')){ MV_TV.toggle(); const c=document.getElementById('c'); if(c&&c.focus) c.focus(); return; }

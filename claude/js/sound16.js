@@ -28,7 +28,7 @@
   const origConnect=AudioNode.prototype.connect;
   let disabled=false;
   try{ if(/[?&]sfx16=0/.test(location.search)) disabled=true; }catch(e){}
-  const mode=()=>{ const C=window.MV_CONSOLE; return disabled||!C?'off':C.mode; };
+  const mode=()=>{ const C=window.MV_CONSOLE; if(disabled||!C) return 'off'; const m=C.mode; return (m==='snes'||m==='md')?m:'off'; };   // INK & VINYL plays the clean (posh) chain
 
   function stepCurve(bits,drive){                   // DAC steps (+ a soft knee)
     const N=4096, c=new Float32Array(N), steps=Math.pow(2,bits-1);

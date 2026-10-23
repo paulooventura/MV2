@@ -7,7 +7,8 @@
 //  https://claude.ai/artifact/5SXjuCifasvByVpC1uEV1C
 //
 //  This runs the live game (claude/ build) untouched and finishes each frame
-//  like a print. Only active when window.MV_INK is set (ink-vinyl.html).
+//  like a print. Live game: Options → CONSOLE → D · INK & VINYL (console16
+//  mode 'ink'). Lab H (ink-vinyl.html, window.MV_INK) forces it on.
 //
 //  PICTURE (one WebGL pass over #c; #c keeps all input):
 //   · the world becomes washi paper and diluted sumi: luminance → 5 wash
@@ -25,18 +26,22 @@
 // ============================================================
 (function(){
   'use strict';
-  if(!window.MV_INK) return;
   const cv=document.getElementById('c');
   if(!cv) return;
 
   const INK={on:true, gl:null, age:0, lo:0.05, hi:0.6, frames:0};
   window.MV_INK_API=INK;
+  // live game: Options → CONSOLE → D · INK & VINYL (MV_CONSOLE.mode 'ink'); lab H forces it on
+  const forced=!!window.MV_INK;
+  function active(){ return forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'); }
+  function enabled(){ return INK.on&&active(); }
+  INK.active=active; INK.enabled=enabled;
 
   // ── overlay canvas ─────────────────────────────────────────────
   const oc=document.createElement('canvas');
   oc.className='mv-ink';
   oc.setAttribute('aria-hidden','true');
-  oc.style.cssText='position:absolute;pointer-events:none;z-index:6;image-rendering:auto;';
+  oc.style.cssText='position:absolute;pointer-events:none;z-index:6;image-rendering:auto;display:none;';
   function mount(){
     const par=cv.parentNode; if(!par) return;
     if(getComputedStyle(par).position==='static') par.style.position='relative';
@@ -50,10 +55,13 @@
     if(oc.style.width!==w) oc.style.width=w; if(oc.style.height!==h) oc.style.height=h;
   }
 
-  // ── GL ─────────────────────────────────────────────────────────
-  const gl=oc.getContext('webgl',{alpha:false,antialias:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
-  if(!gl){ console.warn('MV ink: no WebGL — lab H shows the plain game'); oc.remove(); return; }
-  INK.gl=gl;
+  // ── GL (built the first time the print is switched on) ────────
+  let gl=null,tex=null,wtex=null,U=null,glState=0;   // 0 untried · 1 ready · -1 unavailable
+  function initGL(){
+    if(glState) return glState>0;
+    glState=-1;
+  gl=oc.getContext('webgl',{alpha:false,antialias:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
+  if(!gl){ console.warn('MV ink: no WebGL — Ink & Vinyl shows the plain picture'); return false; }
   const VS='attribute vec2 p; varying vec2 uv; void main(){ uv=p*.5+.5; gl_Position=vec4(p,0.,1.); }';
   const FS=`precision mediump float;
   uniform sampler2D t; uniform sampler2D wt; uniform float wok; uniform float menu;
@@ -140,35 +148,38 @@
   }`;
   function sh(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error('MV ink shader',gl.getShaderInfoLog(s)); return null; } return s; }
   const vs=sh(gl.VERTEX_SHADER,VS), fs=sh(gl.FRAGMENT_SHADER,FS);
-  if(!vs||!fs){ oc.remove(); return; }
+  if(!vs||!fs) return false;
   const pr=gl.createProgram(); gl.attachShader(pr,vs); gl.attachShader(pr,fs); gl.linkProgram(pr);
-  if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){ console.error('MV ink link',gl.getProgramInfoLog(pr)); oc.remove(); return; }
+  if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){ console.error('MV ink link',gl.getProgramInfoLog(pr)); return false; }
   gl.useProgram(pr);
   const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
   const ap=gl.getAttribLocation(pr,'p'); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,2,gl.FLOAT,false,0,0);
-  const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+  tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
-  const U={}; ['t','wt','wok','menu','res','lo','hi','age','time'].forEach(n=>U[n]=gl.getUniformLocation(pr,n));
+  U={}; ['t','wt','wok','menu','res','lo','hi','age','time'].forEach(n=>U[n]=gl.getUniformLocation(pr,n));
   gl.uniform1i(U.t,0); gl.uniform1i(U.wt,1);
-  const wtex=gl.createTexture(); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,wtex);
+  wtex=gl.createTexture(); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,wtex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   gl.activeTexture(gl.TEXTURE0);
+    glState=1; INK.gl=gl; return true;
+  }
   // the world, captured the moment the HUD starts (same seam console16.js uses)
   const wc=document.createElement('canvas'), wg=wc.getContext('2d');
   let worldOk=false, inGameFrame=false;
   function snapWorld(){
-    if(!inGameFrame||worldOk||!INK.on) return;
+    if(!inGameFrame||worldOk||!enabled()) return;
     if(wc.width!==cv.width||wc.height!==cv.height){ wc.width=cv.width; wc.height=cv.height; }
     wg.globalCompositeOperation='copy'; wg.drawImage(cv,0,0); worldOk=true;
   }
   // the console's darkening + bit-crush damage overlay is swapped for the ageing print (shader)
-  window.drawDamageOverlay=function(){};
+  const _dmg=window.drawDamageOverlay, _atm=window.drawAtmosphere;
+  window.drawDamageOverlay=function(){ if(enabled()) return; if(typeof _dmg==='function') return _dmg.apply(this,arguments); };
   // the glass-TV vignette would read as HUD to the layer mask; the print has its own margin
-  window.drawAtmosphere=function(){};
+  window.drawAtmosphere=function(){ if(enabled()) return; if(typeof _atm==='function') return _atm.apply(this,arguments); };
   for(const name of ['drawDamageOverlay','drawItemTutorial','drawHUD']){
     const orig=window[name]; if(typeof orig!=='function') continue;
     window[name]=function(){ snapWorld(); return orig.apply(this,arguments); };
@@ -201,8 +212,13 @@
   }
 
   function render(){
-    if(!INK.on){ if(oc.style.display!=='none') oc.style.display='none'; return; }
+    if(!enabled()||!initGL()){
+      if(oc.style.display!=='none') oc.style.display='none';
+      if(A&&A.bed&&A.bed.g.gain.value) A.bed.g.gain.value=0;
+      return;
+    }
     if(oc.style.display==='none') oc.style.display='';
+    if(A&&A.bed&&!A.bed.g.gain.value) A.bed.g.gain.value=0.22;
     syncBox();
     if((INK.frames++&7)===0) expose();
     const at=ageTarget(); INK.age+=(at-INK.age)*(at>INK.age?0.35:0.06);
@@ -241,7 +257,7 @@
     'TO PROCEED':'TO OPEN THE ARCH',
     'PRESS START':'PRESS START TO PULL THE PRINT'
   };
-  const sub=s=>{ if(typeof s!=='string') return s; const r=WORDS[s]; return r!==undefined?r:s; };
+  const sub=s=>{ if(typeof s!=='string'||!enabled()) return s; const r=WORDS[s]; return r!==undefined?r:s; };
   for(const name of ['drawText','textW']){
     const orig=window[name]; if(typeof orig!=='function') continue;
     window[name]=function(s){ const a=Array.prototype.slice.call(arguments); a[0]=sub(s); return orig.apply(this,a); };
@@ -313,13 +329,13 @@
   };
   function hookSfx(){
     const orig=window.sfx; if(typeof orig!=='function'){ setTimeout(hookSfx,100); return; }
-    window.sfx=function(t){ const r=orig.apply(this,arguments); try{ if(INK.on){ bed(); const f=LAYER[t]; if(f) f(); } }catch(e){} return r; };
+    window.sfx=function(t){ const r=orig.apply(this,arguments); try{ if(enabled()){ bed(); const f=LAYER[t]; if(f) f(); } }catch(e){} return r; };
   }
   // sfxAt resolves sfx through the global at call time, so one wrapper covers both
   if(document.readyState==='complete') hookSfx(); else window.addEventListener('load',hookSfx);
   // start the crackle with the first input after the game unlocks audio
-  ['keydown','pointerdown','touchstart'].forEach(ev=>addEventListener(ev,()=>{ setTimeout(()=>{ try{ if(INK.on) bed(); }catch(e){} },60); },{passive:true}));
-  INK.toggle=function(){ INK.on=!INK.on; if(A&&A.bed) A.bed.g.gain.value=INK.on?0.22:0; };
+  ['keydown','pointerdown','touchstart'].forEach(ev=>addEventListener(ev,()=>{ setTimeout(()=>{ try{ if(enabled()) bed(); }catch(e){} },60); },{passive:true}));
+  INK.toggle=function(){ INK.on=!INK.on; };
   // I: flip the print on/off to compare with the live look
-  addEventListener('keydown',e=>{ if(e.code==='KeyI'&&!e.repeat&&!e.ctrlKey&&!e.metaKey) INK.toggle(); });
+  addEventListener('keydown',e=>{ if(e.code==='KeyI'&&!e.repeat&&!e.ctrlKey&&!e.metaKey&&active()) INK.toggle(); });
 })();
