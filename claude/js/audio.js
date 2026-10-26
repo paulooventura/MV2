@@ -532,7 +532,7 @@ if(typeof document!=='undefined'){
 const SFX_BUILD=3;
 const SFX_SAMPLE_PATHS={
   enemy_shut:    'assets/SFX/enemy shut.wav',
-  hit_enemy:     'assets/SFX/hit enemy.wav',
+  hit_enemy:     'assets/SFX/hit enemy.ogg',
   hook_latch:    'assets/SFX/grap attach.wav',
   player_hit:    'assets/SFX/hit.wav',
   jump_reg:      'assets/SFX/jump reg.wav',

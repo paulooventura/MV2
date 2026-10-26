@@ -428,6 +428,24 @@
     }
     return got;
   }
+  // wider sip for the magnet column: center first, so a full swirl-sized ball
+  // can fill while the tip is held over the pool (takeSurface only reaches 3 columns)
+  function takeBand(sf,amt,half){
+    if(!sf||amt<=0) return 0;
+    const {NX,M,BLK}=F; let got=0;
+    const take=dx=>{
+      if(got>=amt) return;
+      const x=sf.x+dx; if(x<0||x>=NX) return;
+      let i=sf.y*NX+x; if(i<0||i>=M.length||BLK[i]) return;
+      if(M[i]<0.05){ i+=NX; if(i>=M.length||BLK[i]||M[i]<0.05) return; }
+      else while(i-NX>=0&&!BLK[i-NX]&&M[i-NX]>0.05) i-=NX;
+      const t=Math.min(M[i]*0.85,amt-got); if(t<=0) return;
+      M[i]-=t; got+=t;
+    };
+    take(0);
+    for(let dx=1;dx<=half&&got<amt;dx++){ take(-dx); take(dx); }
+    return got;
+  }
   // drops: water in the air. Each carries its share and puts it back where it lands.
   B.drops=[]; B.steam=[];
   function spray(x,y,mass,n,power,dirx){
@@ -531,7 +549,9 @@
     C.held=fr; C.r+=(Math.max(12,48*bar)-C.r)*0.3; C.spin+=(0.08+0.16*bar-C.spin)*0.12; C.ang+=C.spin;
     placeDisc(C,t,t.ux||0,t.uy||0,C.r,0.8,0.55);
     const cap=coreCap(C);
-    if(C.mass<cap){ const got=takeSurface(sf,Math.min(cap-C.mass,0.05+0.2*k)); C.mass+=got; fz.flow=got>0; }
+    // Paulo (Oct 23): fill up to a swirl-sized ball while the column is on it.
+    // The eye grows to r≈48 over ~10 frames (cap climbs ~6 cells/frame); the old sip was 0.25.
+    if(C.mass<cap){ const got=takeBand(sf,Math.min(cap-C.mass,0.8+6.5*k),8); C.mass+=got; fz.flow=got>0; }
     if(fz.flow&&fr%10===0){ ring(hit.x,top+6,'mag',0.6+k); const m=takeSurface(sf,0.04*k); spray(hit.x,top-3,m,2,4+4*k,0); }
     if(fz.flow) PFXS.push({x:hit.x+(Math.random()-0.5)*20,y:top-2,vx:(Math.random()-0.5)*1.2,vy:-1-Math.random()*2*k,life:12,maxLife:12,r:1.6,col:'#bfe6ff'});
   }
@@ -659,15 +679,25 @@
     const path=new Path2D(); path.moveTo(cx+px*L,cy+py*L); path.lineTo(cx-px*L,cy-py*L); path.lineTo(cx-px*L-ux*L,cy-py*L-uy*L); path.lineTo(cx+px*L-ux*L,cy+py*L-uy*L); path.closePath(); ctx.clip(path); }
   const discWet=o=>waterAt(o.x-(o.cut?o.cut.ux*10:0),o.y-(o.cut?o.cut.uy*10:0));
   const solidPt=(x,y)=>gridWorldSolid(x,y);
-  // the core's capacity: a disc of radius r, in fluid cells (half of it against a wall)
-  const coreCap=C=>Math.PI*C.r*C.r/(F.CS*F.CS)*0.85*(C.cut?0.5:1);
+  // Paulo (Oct 23): a full core is a disc 1.1× the swirl eye — between the eye (r)
+  // and its glow (r×1.25) — so the ball carried out of the water matches that swirl.
+  // Half of it against a wall. The old cap was 0.85 of the eye, and absorb was too
+  // slow to reach it, so the ball came out a fraction of the animation.
+  const CORE_VIS=1.1;
+  const coreCap=C=>Math.PI*(C.r*CORE_VIS)*(C.r*CORE_VIS)/(F.CS*F.CS)*(C.cut?0.5:1);
+  // mass 30 was "a full ball" at the old cap. Scale it so a full ball still costs the same.
+  const CORE_DRAIN=30*(CORE_VIS*CORE_VIS)/0.85;
+  function coreShowR(C){
+    const pack=C.cut?0.5:1;
+    return Math.min(C.r*CORE_VIS, Math.sqrt(Math.max(0,C.mass)*F.CS*F.CS/(Math.PI*pack)));
+  }
   function coreAbsorb(C){
     const cap=coreCap(C); if(C.mass>=cap) return;
-    const {NX,NY,M,BLK,CS}=F, r=C.r, x0=Math.max(0,cX(C.x-r)), x1=Math.min(NX-1,cX(C.x+r)), y0=Math.max(0,cY(C.y-r)), y1=Math.min(NY-1,cY(C.y+r));
+    const {NX,NY,M,BLK,CS}=F, r=C.r*CORE_VIS, x0=Math.max(0,cX(C.x-r)), x1=Math.min(NX-1,cX(C.x+r)), y0=Math.max(0,cY(C.y-r)), y1=Math.min(NY-1,cY(C.y+r));
     for(let y=y0;y<=y1&&C.mass<cap;y++) for(let x=x0;x<=x1&&C.mass<cap;x++){
       const dx=(x+0.5)*CS-C.x, dy=(y+0.5)*CS-C.y; if(dx*dx+dy*dy>r*r) continue;
       const i=y*NX+x; if(BLK[i]||M[i]<0.02) continue;
-      const t=Math.min(M[i],0.12,cap-C.mass); M[i]-=t; C.mass+=t; grow(i);
+      const t=Math.min(M[i],0.55,cap-C.mass); M[i]-=t; C.mass+=t; grow(i);
     }
   }
   // more water than the core can hold (the bar fell, so it shrank): the extra rains off it
@@ -688,7 +718,7 @@
     const C=B.magCore; if(!C) return;
     // held: the magnet keeps its water at a cost (heavier = more power)
     if(C.held===fr||C.held===fr-1){
-      if(C.mass>0.05&&B.mag){ const d=0.02+0.08*Math.min(1,C.mass/30); B.mag.power=Math.max(0,(B.mag.power||0)-d); p.itemStamina=Math.max(0,(p.itemStamina||0)-d); }
+      if(C.mass>0.05&&B.mag){ const d=0.02+0.08*Math.min(1,C.mass/CORE_DRAIN); B.mag.power=Math.max(0,(B.mag.power||0)-d); p.itemStamina=Math.max(0,(p.itemStamina||0)-d); }
       return;
     }
     // let go
@@ -1228,7 +1258,9 @@
     for(const d of B.drops) if(d.rain){ const x=sx(d.x), y=sy(d.y); ctx.moveTo(x,y); ctx.lineTo(x-d.vx*1.6,y-d.vy*1.6); }   // rain: thin streaks along the fall
     ctx.stroke();
     for(const d of B.drops){ if(d.rain) continue;
-      const r=Math.max(1.5,sw(Math.min(10,1.6+Math.sqrt(d.m)*4.5))), x=sx(d.x), y=sy(d.y), st=1+Math.min(0.8,Math.abs(d.vy)*0.06);
+      // a dropped core falls as the same disc of water that was on the magnet (small drops stay droplets)
+      const r=d.big?Math.max(4,sw(Math.sqrt(Math.max(0,d.m)*CS*CS/Math.PI))):Math.max(1.5,sw(Math.min(10,1.6+Math.sqrt(d.m)*4.5)));
+      const x=sx(d.x), y=sy(d.y), st=d.big?1+Math.min(0.12,Math.abs(d.vy)*0.008):1+Math.min(0.8,Math.abs(d.vy)*0.06);
       ctx.fillStyle='rgba(150,190,210,0.5)'; ctx.beginPath(); ctx.ellipse(x,y,r*0.8,r*st,Math.atan2(d.vx,d.vy)*-0.5,0,Math.PI*2); ctx.fill();
       ctx.fillStyle='rgba(240,248,252,0.55)'; ctx.beginPath(); ctx.arc(x-r*0.25,y-r*0.3,Math.max(0.8,r*0.22),0,Math.PI*2); ctx.fill();
     }
@@ -1262,10 +1294,11 @@
         for(let i=0;i<6;i++){ const t2=((fr*0.045+i/6)%1), q=P(t2,0); ctx.fillStyle='rgba(235,250,255,0.85)'; ctx.beginPath(); ctx.arc(q[0],q[1],Math.max(1.2,sw(2.2)*(1-t2*0.5)),0,Math.PI*2); ctx.fill(); }   // water climbing the column
       }
     }
-    // the magnet's core carried out of the water: a spinning ball of water at the tip
+    // the magnet's core carried out of the water: a spinning ball as big as the swirl
+    // (a full core draws at 1.1× the eye — the radius of the water it actually holds)
     const MC2=B.magCore;
     if(MC2&&MC2.mass>0.05&&!discWet(MC2)){
-      const R=sw(Math.min(MC2.r,Math.sqrt(MC2.mass*F.CS*F.CS/Math.PI)/0.92)), cx=sx(MC2.x), cy=sy(MC2.y), wob=Math.sin(fr*0.4)*0.06;
+      const R=sw(coreShowR(MC2)), cx=sx(MC2.x), cy=sy(MC2.y), wob=Math.sin(fr*0.4)*0.06;
       ctx.save(); clipCut(MC2,R); ctx.translate(cx,cy); ctx.scale(1+wob,1-wob);
       const g4=ctx.createRadialGradient(-R*0.3,-R*0.3,1,0,0,R); g4.addColorStop(0,'rgba(210,240,255,0.92)'); g4.addColorStop(0.45,'rgba(80,160,230,0.78)'); g4.addColorStop(1,'rgba(20,70,160,0.75)');
       ctx.fillStyle=g4; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
