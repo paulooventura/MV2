@@ -9,15 +9,21 @@
   let stage=null;
   function gore(){ return !!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore'); }
   function playing(){ return gore()&&typeof _gameState!=='undefined'&&_gameState==='game'; }
+  const lens=[];
   function spray(x,y,n,bias){
     if(!playing()||!isFinite(x)||!isFinite(y)) return;
     const base=bias==null?-Math.PI/2:bias;
     for(let i=0;i<n;i++){
-      const a=base+(Math.random()-0.5)*1.7;
-      const sp=1.4+Math.random()*4.2;
-      drops.push({x,y,px:x,py:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.8,r:1.4+Math.random()*2.6,t:0,max:26+Math.random()*22|0});
+      const a=base+(Math.random()-0.5)*2.4;
+      const sp=2.2+Math.random()*7.5;
+      const chunk=i%7===0;
+      drops.push({x,y,px:x,py:y,vx:Math.cos(a)*sp*(chunk?0.7:1),vy:Math.sin(a)*sp-1.4,r:(chunk?3.2:1.1)+Math.random()*(chunk?3.4:2.2),t:0,max:(chunk?40:18)+Math.random()*24|0,chunk});
     }
-    if(drops.length>180) drops.splice(0,drops.length-180);
+    if(n>=10&&typeof W==='number'){
+      for(let k=0;k<2+Math.min(6,n/12)|0;k++) lens.push({x:Math.random()*W,y:Math.random()*H*0.85,r:8+Math.random()*28,a:0.35+Math.random()*0.4,rot:Math.random()*6});
+      if(lens.length>28) lens.splice(0,lens.length-28);
+    }
+    if(drops.length>520) drops.splice(0,drops.length-520);
   }
   function hitFloor(x,y){
     try{
@@ -28,12 +34,12 @@
   }
   function splat(x,y,r){
     stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:8+Math.random()*18,bits:2+Math.random()*3|0});
-    if(stains.length>90) stains.splice(0,stains.length-90);
+    if(stains.length>220) stains.splice(0,stains.length-220);
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; drops.length=0; stains.length=0; }
-    if(!playing()){ drops.length=0; if(!gore()) stains.length=0; return; }
+    if(id!==stage){ stage=id; drops.length=0; stains.length=0; lens.length=0; }
+    if(!playing()){ drops.length=0; if(!gore()){ stains.length=0; lens.length=0; } return; }
     if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%36===0&&Math.abs(p.vx||0)>0.4){
       const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-8;
       spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
@@ -70,10 +76,15 @@
       ctx.beginPath(); ctx.arc(sx(d.x),sy(d.y),Math.max(1,sw(d.r*0.45)),0,Math.PI*2); ctx.fill();
     }
     if(typeof _worldZoomEnd==='function') _worldZoomEnd();
-    const g=ctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.72);
-    const breath=0.45+0.08*Math.sin((typeof fr==='number'?fr:0)*0.04);
-    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(40,0,8,'+breath.toFixed(2)+')');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    for(let i=lens.length-1;i>=0;i--){
+      const s=lens[i]; s.a*=0.985; if(s.a<0.03){ lens.splice(i,1); continue; }
+      ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.rot);
+      ctx.fillStyle='rgba(120,0,12,'+s.a.toFixed(2)+')';
+      ctx.beginPath(); ctx.ellipse(0,0,s.r,s.r*0.38,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(180,8,16,'+(s.a*0.7).toFixed(2)+')';
+      ctx.fillRect(-1,0,2,s.r*0.8);
+      ctx.restore();
+    }
   }
   function metal(name){
     try{
@@ -99,7 +110,7 @@
   hook('applyPlayerHit',function(){
     if(typeof p==='undefined'||!p) return;
     const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-26;
-    spray(x,y,16,Math.PI/2);
+    spray(x,y,56,Math.PI/2);
   });
   if(typeof window.sfx==='function'&&!window.sfx._goreMetal){
     const origSfx=window.sfx;
@@ -112,7 +123,8 @@
   }
   hook('_damageEnemy',function(e){
     if(!e) return;
-    spray((e.x||0)+(e.w||32)*0.5, (e.y||0)+(e.h||32)*0.4, e.hp<=0?18:8, -Math.PI/2);
+    const dir=(typeof p!=='undefined'&&p&&p.fc)?0:Math.PI;
+    spray((e.x||0)+(e.w||32)*0.5, (e.y||0)+(e.h||32)*0.4, e.hp<=0?84:40, dir);
   });
   const _draw=window.draw, _update=window.update;
   window.update=function(){
@@ -178,19 +190,23 @@ void main(){
   float h=fract(signedH*0.38);
   float s=min(1.0,k.y*1.08);
   float v=k.z;
-  float g=greenAmt(c);
+    float g=greenAmt(c);
+  // darken the picture. Panels stay dark. Bright greens (words, juice) stay hot.
+  v=pow(v,1.18)*0.78;
   h=mix(h,0.0,g);
-  s=mix(s,1.0,g);
-  v=mix(v,min(1.0,v*1.28+0.14),g);
+  s=mix(s,max(s,0.9),g);
+  float hot=smoothstep(0.42,0.78,k.z);
+  v=mix(v*0.62, min(1.0,k.z*1.05+0.02), hot);
+  v=mix(v, mix(v, min(1.0,k.z), hot), g);
   vec3 o=hsv2rgb(vec3(h,s,v));
-  vec2 px=6.0/res;
-  float glow=greenAmt(texture2D(tex,uv+vec2(px.x,0.0)).rgb);
+  // words were green. They have to stay lighter than the panel or the menu is a red box.
+  float ink=g*smoothstep(0.5,0.86,k.z);
+  o=mix(o, vec3(1.0,0.93,0.9)*(0.82+0.18*k.z), ink);
+  vec2 px=3.0/res;
+  float glow=greenAmt(texture2D(tex,uv+vec2(px.x,0.0)).rgb)*step(0.45,texture2D(tex,uv+vec2(px.x,0.0)).g);
   glow+=greenAmt(texture2D(tex,uv-vec2(px.x,0.0)).rgb);
-  glow+=greenAmt(texture2D(tex,uv+vec2(0.0,px.y)).rgb);
-  glow+=greenAmt(texture2D(tex,uv-vec2(0.0,px.y)).rgb);
-  glow+=greenAmt(texture2D(tex,uv+px).rgb)*0.7;
-  glow+=greenAmt(texture2D(tex,uv-px).rgb)*0.7;
-  o+=vec3(1.0,0.05,0.07)*(glow*0.16+g*0.45);
+  glow*=(1.0-ink);
+  o+=vec3(0.45,0.02,0.03)*glow*0.05;
   gl_FragColor=vec4(min(o,1.0),1.0);
 }`;
     function sh(type,src){
