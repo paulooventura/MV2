@@ -533,10 +533,14 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     irisDark=_mixHex(isVen?'#6a0a18':'#4a1a9a','#184820',g);
     if(lampReady){ irisCol='#38c868'; irisDark='#1a6838'; }
   }
-  // Paulo (Oct 21): hurt, the eye goes red and veiny — more the lower his HP
-  const hd=!hostile?Math.min(1,window._mindHeadDmg||0):0;
+  // Paulo (Oct 21): hurt, the eye goes red and veiny — more the lower his HP.
+  // GORE: already mad, even at full health.
+  const goreFace=!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
+  let hd=!hostile?Math.min(1,window._mindHeadDmg||0):0;
+  if(goreFace){ hd=Math.max(hd,hostile?0.7:0.9); scleraCol='#f4c8c8'; irisCol='#b00018'; irisDark='#3a0008'; }
   if(hd>0.02) scleraCol=_mixHex(scleraCol.charAt(0)==='#'?scleraCol:'#d0d4dc','#e86a6a',Math.min(1,hd*0.9));
-  ctx.beginPath();ctx.ellipse(cx,drawY+2,10,9,0,0,Math.PI*2);ctx.fillStyle=scleraCol;ctx.fill();
+  const eyeRy=goreFace?5.4:9;
+  ctx.beginPath();ctx.ellipse(cx,drawY+2,10,eyeRy,0,0,Math.PI*2);ctx.fillStyle=scleraCol;ctx.fill();
   if(hd>0.08){
     const n=Math.round(2+hd*9);
     ctx.save(); ctx.beginPath(); ctx.ellipse(cx,drawY+2,10,9,0,0,Math.PI*2); ctx.clip();
@@ -553,10 +557,15 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     if(hd>0.6){ const g=ctx.createRadialGradient(cx,drawY+2,4,cx,drawY+2,10); g.addColorStop(0,'rgba(200,20,30,0)'); g.addColorStop(1,'rgba(200,20,30,'+(0.35*(hd-0.6)/0.4).toFixed(2)+')'); ctx.fillStyle=g; ctx.fillRect(cx-11,drawY-8,22,20); }
     ctx.restore();
   }
-  ctx.beginPath();ctx.ellipse(cx,drawY+2,6,6,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
-  ctx.beginPath();ctx.ellipse(cx,drawY+2,5,5,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
+  const iRy=goreFace?3.2:6, iDy=goreFace?3.4:5;
+  ctx.beginPath();ctx.ellipse(cx,drawY+3,6,iRy,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx,drawY+3,5,iDy,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
+  if(goreFace){
+    ctx.strokeStyle='#1a0608'; ctx.lineWidth=1.6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-9,drawY-eyeRy-1); ctx.lineTo(cx-1,drawY-eyeRy+2); ctx.moveTo(cx+9,drawY-eyeRy-1); ctx.lineTo(cx+1,drawY-eyeRy+2); ctx.stroke();
+  }
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5.5,5.5,0,0,Math.PI*2);
-  ctx.strokeStyle=hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#ff6a7a':'#c49aff'));ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=goreFace?'#ff3040':(hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#ff6a7a':'#c49aff')));ctx.lineWidth=1;ctx.stroke();
   const px=cx+pupilX,py=drawY+2+pupilY;
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();

@@ -27,35 +27,38 @@
     }catch(e){ return false; }
   }
   function splat(x,y,r){
-    stains.push({x,y,r:r*1.8+Math.random()*4,a:0.45+Math.random()*0.4,rot:Math.random()*Math.PI});
+    stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:8+Math.random()*18,bits:2+Math.random()*3|0});
     if(stains.length>90) stains.splice(0,stains.length-90);
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
     if(id!==stage){ stage=id; drops.length=0; stains.length=0; }
     if(!playing()){ drops.length=0; if(!gore()) stains.length=0; return; }
-    if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%8===0){
-      const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-22;
-      spray(x+(p.fc?8:-8), y, 1, Math.PI/2);
+    if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%36===0&&Math.abs(p.vx||0)>0.4){
+      const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-8;
+      spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
     }
     for(let i=drops.length-1;i>=0;i--){
       const d=drops[i];
       d.px=d.x; d.py=d.y;
       d.vy+=0.32; d.x+=d.vx; d.y+=d.vy; d.vx*=0.985; d.t++;
-      if(d.t>4&&hitFloor(d.x,d.y+2)){ splat(d.px,d.py,d.r); drops.splice(i,1); continue; }
-      if(d.t>=d.max){ splat(d.x,d.y,d.r); drops.splice(i,1); }
+      if(d.t>4&&hitFloor(d.x,d.y+2)){ splat(d.px,d.py,d.r*0.4); drops.splice(i,1); continue; }
+      if(d.t>=d.max){ splat(d.x,d.y,d.r*0.45); drops.splice(i,1); }
     }
   }
   function drawBlood(){
     if(!playing()||typeof sx!=='function') return;
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
     for(const s of stains){
+      if(s.drip>0){ s.y+=0.35; s.drip--; }
       ctx.save();
       ctx.translate(sx(s.x),sy(s.y)); ctx.rotate(s.rot);
-      ctx.fillStyle='rgba(120,0,12,'+s.a.toFixed(2)+')';
-      ctx.beginPath(); ctx.ellipse(0,0,sw(s.r),sw(s.r*0.55),0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(70,0,8,'+(s.a*0.7).toFixed(2)+')';
-      ctx.beginPath(); ctx.ellipse(sw(s.r*0.3),sw(1),sw(s.r*0.35),sw(s.r*0.2),0.4,0,Math.PI*2); ctx.fill();
+      for(let b=0;b<(s.bits||3);b++){
+        const ox=((b*5)%7)-3, oy=((b*3)%5)-1;
+        ctx.fillStyle='rgba('+(90+b*20)+',0,10,'+s.a.toFixed(2)+')';
+        ctx.beginPath(); ctx.arc(sw(ox),sw(oy+ (s.drip?0:b)),Math.max(1,sw(s.r*(0.7+b*0.15))),0,Math.PI*2); ctx.fill();
+      }
+      if(s.drip>0){ ctx.fillStyle='rgba(120,0,12,'+s.a.toFixed(2)+')'; ctx.fillRect(-0.6,0,1.2,sw(3)); }
       ctx.restore();
     }
     ctx.lineCap='round';
@@ -67,6 +70,25 @@
       ctx.beginPath(); ctx.arc(sx(d.x),sy(d.y),Math.max(1,sw(d.r*0.45)),0,Math.PI*2); ctx.fill();
     }
     if(typeof _worldZoomEnd==='function') _worldZoomEnd();
+    const g=ctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.72);
+    const breath=0.45+0.08*Math.sin((typeof fr==='number'?fr:0)*0.04);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(40,0,8,'+breath.toFixed(2)+')');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+  function metal(name){
+    try{
+      const a=typeof ga==='function'?ga():null; if(!a) return;
+      const t=a.currentTime, sv=Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1));
+      const hit=/hit|punch|land|stomp|hurt|shut|enemy/.test(name||'');
+      const freqs=hit?[146,220,311,466]:[98,147,220];
+      freqs.forEach((f,i)=>{
+        const o=a.createOscillator(), g=a.createGain();
+        o.type=i%2?'triangle':'square'; o.frequency.value=f;
+        g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime((hit?0.05:0.025)*sv,t+0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+(hit?0.22:0.45));
+        o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+0.5);
+      });
+    }catch(e){}
   }
   function hook(name,fn){
     const orig=window[name];
@@ -79,6 +101,15 @@
     const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-26;
     spray(x,y,16,Math.PI/2);
   });
+  if(typeof window.sfx==='function'&&!window.sfx._goreMetal){
+    const origSfx=window.sfx;
+    const wrapped=function(t){
+      const r=origSfx.apply(this,arguments);
+      if(gore()&&typeof _gameState!=='undefined'&&_gameState==='game') metal(t);
+      return r;
+    };
+    wrapped._goreMetal=true; window.sfx=wrapped;
+  }
   hook('_damageEnemy',function(e){
     if(!e) return;
     spray((e.x||0)+(e.w||32)*0.5, (e.y||0)+(e.h||32)*0.4, e.hp<=0?18:8, -Math.PI/2);
