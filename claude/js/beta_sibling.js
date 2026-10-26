@@ -13,7 +13,8 @@
 //     never in front, never on top of you. It's a ghost to everything: it
 //     doesn't push you, block enemies, move blocks, take seeds, crystals,
 //     crates or items, open arches or trip anything.
-//   · Lost (a respawn, a stage change, a long fall) it blinks back beside you.
+//   · Lost (a respawn, a stage change, 6 s stuck) it re-enters OFF-SCREEN on
+//     your trail and rides in; never a blink next to you (Paulo, Oct 25).
 //   · It watches for trouble: the enemy that is coming for YOU (closest to you,
 //     heading your way, in clear line of sight) — its eye follows it, and it
 //     fires bolts from its jack at it. Assist, not steal: a bolt never takes an
@@ -34,13 +35,15 @@
   const KEY='mv2.sibling';
   const read=()=>{ try{ const v=localStorage.getItem(KEY); return v==null?true:v==='1'; }catch(e){ return true; } };
   let on=read();
+  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0};
   let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return ff; }, set ff(v){ ff=!!v; try{ localStorage.setItem(KEY+'.ff',ff?'1':'0'); }catch(e){} },   // friendly fire
-    state:()=>S, npc:()=>npc&&npc.s };
+    state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail };
   B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
-  const DELAY=24, KEEP=220, MIN_GAP=62, LOST=560;
+  const KEEP=900, MIN_GAP=62, LOST=560;
+  const NEAR_IN=110, NEAR_OUT=150, HOVER_MAX=90, LOST_T=360, FAR=1400, UP_MAX=15.5;
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
 
   function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results; }
@@ -49,8 +52,9 @@
     S=mkP(); S._aiCompanion=true; S._betaSib=true;
     S.hero=p.hero==='venture'?'mind':'venture';
     S.x=p.x-(p.fc?1:-1)*MIN_GAP; S.y=p.y; S.fc=p.fc; S.og=true; S.hp=S.maxHp;
-    S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=12;
+    S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=0;
     lastLevel=B.level; lastHero=p.hero;
+    record(); reenter();
   }
   const centre=pl=>({x:pl.x+SW/2, y:pl.y+FEET_OFF-STAND_H*0.45});
   function clearLine(x0,y0,x1,y1){
@@ -134,105 +138,232 @@
       S._ropeCd=ROPE_CD; S._launchT=50; S._ropeT=0;
     }
   }
-  function follow(){
-    // record where YOU have been (only when you move, so standing still parks the sibling)
+  // ── where it can stand, what it can see, where it can't go ──
+  const solidAt=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
+  function record(){
+    // where YOU have been (only when you move, so standing still parks the sibling)
     const last=trail[trail.length-1];
-    if(!last||Math.hypot(p.x-last.x,p.y-last.y)>1.2) trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:p.crouchAmt||0});
-    if(trail.length>KEEP) trail.splice(0,trail.length-KEEP);
-    const cov=coverSpot(S._threat);
-    if(Math.hypot(S.x-p.x,S.y-p.y)>LOST||B.level!==lastLevel||(last&&Math.hypot(p.x-last.x,p.y-last.y)>LOST)||(S._stuck||0)>150){   // lost: a respawn, a stage change, a teleport, or really stuck
-      trail.length=0; trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:0}); lastLevel=B.level;
-      blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); S.vx=S.vy=S._hvx=S._hvy=0; S._stuck=0; S._fly=false; return;
+    if(!last||Math.hypot(p.x-last.x,p.y-last.y)>1.2) trail.push({x:p.x,y:p.y,og:!!p.og,rope:!!(p.hook&&p.hook.st==='on')});
+    if(trail.length>KEEP){ const n=trail.length-KEEP; trail.splice(0,n); if(S&&S._ti!=null) S._ti-=n; }
+  }
+  function view(){
+    const vw=typeof camViewW==='function'?camViewW():W, vh=typeof camViewH==='function'?camViewH():H;
+    const cx=typeof camX==='number'?camX:0, cy=typeof camY==='number'?camY:0;
+    return {x0:cx, y0:cy, x1:cx+vw, y1:cy+vh};
+  }
+  // off the camera as it is AND as it will be once it has caught up with you (a respawn or a
+  // stage change moves you before the camera follows)
+  function offScreen(x,y,m){
+    const v=view(), w=v.x1-v.x0, h=v.y1-v.y0, px=p.x+SW/2-w/2, py=p.y+FEET_OFF-h*0.6; m=m||0;
+    const out=(a0,b0)=>x+SW<a0-m||x>a0+w+m||y+FEET_OFF<b0-m||y+FEET_OFF-130>b0+h+m;
+    return out(v.x0,v.y0)&&out(px,py);
+  }
+  function deadly(x,y){
+    const cx=x+SW/2, f=y+FEET_OFF;
+    if(typeof WH==='number'&&f>WH-40) return true;                      // the bottom of the world
+    return !!(B.elecAt&&B.elecAt(cx,f-20));                             // live water
+  }
+  function standOk(x,y){ const cx=x+SW/2, f=y+FEET_OFF; return solidAt(cx,f+6)&&!solidAt(cx,f-30)&&!solidAt(cx,f-60)&&!deadly(x,y); }
+  // the floor in this column nearest a feet height (null if there's none to stand on)
+  function groundNear(x,feet){
+    const cx=x+SW/2; let best=null, bd=1e9;
+    for(let yy=feet-200;yy<=feet+300;yy+=8){
+      if(!solidAt(cx,yy)||solidAt(cx,yy-8)||solidAt(cx,yy-40)||solidAt(cx,yy-70)) continue;
+      if(deadly(x,yy-FEET_OFF)) continue;
+      const d=Math.abs(yy-feet); if(d<bd){ bd=d; best=yy; }
     }
+    return best;
+  }
+  // ── lost: it comes back from OFF-SCREEN (Paulo, Oct 25: "sometimes it just spawns next to the
+  //    player out of the blue"). The newest spot on your trail the camera can't see, on solid
+  //    ground; else floor just past the screen edge behind you; else a quick zip in from the edge.
+  function reenter(){
+    ropeIdle(S); S.vx=S.vy=S._hvx=S._hvy=0; S._fly=false; S._flying=false; S._plan=null; S._stuck=0; S._noProg=0; S._best=null; S._launchT=0; S._zip=null; S._trailMode=false;
+    const back=p.fc?-1:1, v=view();
+    for(const behindOnly of [true,false]) for(let i=trail.length-1;i>=0;i--){
+      const c=trail[i]; if(!c.og||c.rope) continue;
+      if(behindOnly&&(c.x-p.x)*back<0) continue;
+      if(!offScreen(c.x,c.y,40)||!standOk(c.x,c.y)) continue;
+      S.x=c.x; S.y=c.y; S.og=true; S._ti=i; S._trailMode=true; stats.reenter++; return;
+    }
+    if(!(S._scanFail>0)) for(let k=0;k<30;k++){
+      const x=back<0?v.x0-48-SW-k*16:v.x1+48+k*16, fy=groundNear(x,p.y+FEET_OFF);
+      if(fy==null) continue;
+      S.x=x; S.y=fy-FEET_OFF; S.og=true; S._ti=null; S._scanFail=1; stats.reenter++; return;
+    }
+    let tx=p.x+back*70, fy=groundNear(tx,p.y+FEET_OFF);
+    if(fy==null){ tx=p.x; fy=p.y+FEET_OFF; }
+    const x0=back<0?v.x0-SW:v.x1;
+    S._zip={x0, y0:fy-FEET_OFF-40, x1:tx, y1:fy-FEET_OFF, t:0, n:18};
+    S.x=x0; S.y=S._zip.y0; S._ti=null; S._scanFail=0; stats.zip++;
+    try{ sfx('swap',1.6); }catch(e){}
+  }
+  function zipTick(){
+    const z=S._zip; z.t++;
+    const k=Math.min(1,z.t/z.n), e=1-Math.pow(1-k,3), x0=S.x;
+    S.x=z.x0+(z.x1-z.x0)*e; S.y=z.y0+(z.y1-z.y0)*e; S.vx=S.x-x0; S.vy=0; S.og=false;
+    if(Math.abs(S.vx)>0.5) S.fc=S.vx>0;
+    const col=S.hero==='venture'?'#ff6a7a':'#c49aff';
+    for(let q=0;q<3;q++) PFXS.push({x:S.x+SW/2-S.vx*q*0.5,y:S.y+FEET_OFF-20-Math.random()*60,vx:-S.vx*0.3,vy:0,life:10,maxLife:10,r:2,col});
+    S.wheelAngle=(S.wheelAngle||0)+S.vx/WHEEL_R;
+    if(k>=1){ S._zip=null; S.vx*=0.2; }
+  }
+  // ── the XLR hover: a last resort (you're on a rope, or the trail needs a move it can't make),
+  //    1.5 s at most, toward a spot on your trail, never parked next to you; then it falls ──
+  function startHover(T){
+    if(S._flyCd>0||!T) return false;
+    const A=!(S._ropeCd>0)&&(S._ropeMiss||0)<2?findAnchor(ropeGoal()):null;   // its own rope first, when there's something to latch on its way
+    if(A){ throwRope(A); S._stuck=0; return true; }
+    S._fly=true; S._flyT=0; S._flyTo={x:T.x,y:T.y}; S._hvx=S.vx||0; S._hvy=Math.min(0,S.vy||0); S._plan=null; S._stuck=0;
+    return true;
+  }
+  function hoverTick(){
+    const x0=S.x, y0=S.y, T=S._flyTo, tx=T.x, ty=T.y-24;
+    S._flyT++; stats.hoverF++; if(S._flyT>stats.hoverMax) stats.hoverMax=S._flyT;
+    const cap=Math.max(7,Math.hypot(p.vx||0,p.vy||0)+3);
+    S._hvx=S._hvx*0.86+(tx-S.x)*0.02; S._hvy=S._hvy*0.86+(ty-S.y)*0.02;
+    const sp=Math.hypot(S._hvx,S._hvy); if(sp>cap){ S._hvx*=cap/sp; S._hvy*=cap/sp; }
+    if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S._hvx,S._hvy); else { S.x+=S._hvx; S.y+=S._hvy; }
+    S.og=false; S.vx=S.x-x0; S.vy=S.y-y0;
+    S._flying=true;
+    S.fc=Math.abs(S.vx)>1.2?S.vx>0:p.fc;
+    S.wheelAngle=(S.wheelAngle||0)+0.12*(S.fc?1:-1);
+    if(!(S._shootT>0)&&!S._threat){ S.aimDX+=(S.vx*0.04-S.aimDX)*0.12; S.aimDY+=(1-S.aimDY)*0.12; }   // the jack points down: the XLR holds it up
+    if(fr%5===0){ const tp=tipOf(S); PFXS.push({x:tp.x+(Math.random()-0.5)*4,y:tp.y+4,vx:(Math.random()-0.5)*0.8-S.vx*0.2,vy:1.6+Math.random(),life:12,maxLife:12,r:2,col:'#aaddff'}); }
+    if(Math.hypot(tx-S.x,ty-S.y)<28||S._flyT>=HOVER_MAX){ S._fly=false; S._flying=false; S._flyCd=90; S.vx*=0.6; S.vy=Math.max(0,S.vy); S._ti=null; }
+  }
+  // ── following your path: the trail point it's on, and what's next on it ──
+  function trackTrail(){
+    if(!trail.length) return;
+    if(S._ti==null||S._ti<0||S._ti>=trail.length){
+      let b=trail.length-1, bd=1e9;                                  // your latest pass by here, if your path doubled back
+      for(let i=trail.length-1;i>=0;i--){ const d=Math.hypot(trail[i].x-S.x,(trail[i].y-S.y)*1.5); if(d<bd-8){ bd=d; b=i; } }
+      S._ti=b; return;
+    }
+    const i0=S._ti, lim=Math.min(trail.length-1,i0+40);
+    let b=i0, bd=Math.hypot(trail[i0].x-S.x,(trail[i0].y-S.y)*1.5);
+    for(let j=i0+1;j<=lim;j++){ const d=Math.hypot(trail[j].x-S.x,(trail[j].y-S.y)*1.5); if(d<=bd){ b=j; bd=d; } }
+    S._ti=b;
+  }
+  // the jump that takes it from where it stands to where you came down: real gravity, real arc
+  function planJump(k0,m){
+    const L=trail[m]; let top=trail[k0].y, rope=false;
+    for(let j=k0;j<=m;j++){ if(trail[j].y<top) top=trail[j].y; if(trail[j].rope) rope=true; }
+    const failed=S._failL&&Math.hypot(S._failL.x-L.x,S._failL.y-L.y)<40&&S._failL.n>=2;
+    const rise=S.y-top, dy=L.y-S.y;
+    let up=rise>4?Math.sqrt(2*GRAV*(rise+12)):0;
+    if(dy<0) up=Math.max(up,Math.sqrt(2*GRAV*(-dy+16)));
+    const t=Math.max(1,(up+Math.sqrt(Math.max(0,up*up+2*GRAV*dy)))/GRAV), vx=(L.x-S.x)/t;
+    if(rope||failed||up>UP_MAX||Math.abs(vx)>MOVE_RUN) return {L, can:false};
+    return {L, can:true, up, vx, n:Math.ceil(t)+40};
+  }
+  function follow(){
+    const last=trail[trail.length-1], tele=last&&Math.hypot(p.x-last.x,p.y-last.y)>LOST;
+    if(B.level!==lastLevel||tele){ trail.length=0; lastLevel=B.level; record(); reenter(); return; }   // a stage change or a respawn
+    record();
+    if(S._flyCd>0) S._flyCd--;
+    if(S._zip){ zipTick(); return; }
     if(S._ropeCd>0) S._ropeCd--;
     if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
-    // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". It rides the ground with real
-    // physics — eases up to a spot behind you, eases to a stop, hops ledges and walls — and only takes
-    // to the air when it has to (you're high above it, far off, or it's stuck) — on its own rope if
-    // there's an anchor on its way (Oct 25), on its XLR if there isn't —
-    // gliding smoothly and landing again as soon as it can. The side it keeps changes only after you've
-    // faced the other way for a while, so turning around doesn't send it darting across.
-    const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
+    if(S._fly){ hoverTick(); return; }
+    const cov=coverSpot(S._threat);
+    // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". Close by it eases up to a
+    // spot behind you and stops; further off it rides your trail (Oct 25), jumping where you jumped.
+    // The side it keeps changes only after you've faced the other way for a while.
+    const solid=solidAt;
     const want=p.fc?-1:1;
     if(S._side==null) S._side=want;
     if(want!==S._side){ if(++S._sideT>50){ S._side=want; S._sideT=0; } } else S._sideT=0;
-    const dxP=p.x-S.x, dyP=p.y-S.y;                                   // dyP < 0: you're above it
-    const needFly=dyP<-150||Math.abs(dxP)>340||(S._stuck||0)>40;
-    const hookIdle=!S.hook||S.hook.st==='idle';
-    if(!S._fly&&needFly&&!cov&&hookIdle){
-      // its own rope first, when there's something to latch on its way; the XLR when there isn't
-      const A=!(S._ropeCd>0)&&(S._ropeMiss||0)<2&&Math.abs(dxP)<700?findAnchor(ropeGoal()):null;
-      if(A){ throwRope(A); S._stuck=0; }
-      else{ S._fly=true; S._flyT=0; S._hvx=S.vx||0; S._hvy=Math.min(0,S.vy||0); S._stuck=0; S._ropeMiss=0; }
-    }
-    const x0=S.x, y0=S.y;
-    if(S._fly){
-      S._flyT++;
-      const groundOk=p.og&&Math.abs(dyP)<110&&Math.abs(dxP)<220;
-      if(groundOk&&S._flyT>40){ S._fly=false; S.vx=S._hvx*0.6; S.vy=Math.max(0,S._hvy); }
-    }
-    if(S._fly){
-      // the slot: your back shoulder, a little above; up over your head if that's in rock
-      const bob=Math.sin(fr*0.035)*3;
-      let tx=p.x+S._side*72, ty=p.y-64+bob;
-      if(solid(tx+SW/2,ty+FEET_OFF-20)||solid(tx+SW/2,ty+FEET_OFF-90)){ tx=p.x+S._side*30; ty=p.y-112+bob; }
-      const cap=Math.max(7,Math.hypot(p.vx||0,p.vy||0)+3);
-      S._hvx=S._hvx*0.86+(tx-S.x)*0.014; S._hvy=S._hvy*0.86+(ty-S.y)*0.014;
-      const sp=Math.hypot(S._hvx,S._hvy); if(sp>cap){ S._hvx*=cap/sp; S._hvy*=cap/sp; }
-      const before=Math.hypot(tx-S.x,ty-S.y);
-      if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S._hvx,S._hvy); else { S.x+=S._hvx; S.y+=S._hvy; }
-      S.og=false; S.vx=S.x-x0; S.vy=S.y-y0;
-      if(before>160&&Math.hypot(S.vx,S.vy)<0.4) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
-      S._flying=true;
-      S.fc=Math.abs(S.vx)>1.2?S.vx>0:p.fc;
-      S.wheelAngle=(S.wheelAngle||0)+0.12*(S.fc?1:-1);
-      if(!(S._shootT>0)&&!S._threat){ S.aimDX+=(S.vx*0.04-S.aimDX)*0.12; S.aimDY+=(1-S.aimDY)*0.12; }   // the jack points down: the XLR holds it up
-      if(fr%5===0){ const tp=tipOf(S); PFXS.push({x:tp.x+(Math.random()-0.5)*4,y:tp.y+4,vx:(Math.random()-0.5)*0.8-S.vx*0.2,vy:1.6+Math.random(),life:12,maxLife:12,r:2,col:'#aaddff'}); }
-      return;
-    }
-    // ── on the ground ──
-    S._flying=false;
-    let tx=cov?cov.x:p.x+S._side*70;
-    if(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60)) tx=p.x+S._side*34;   // a wall there: tuck in closer
+    const dxP=p.x-S.x, dyP=p.y-S.y, dist=Math.hypot(dxP,dyP);           // dyP < 0: you're above it
     const pm=B.ridePlat;                                              // you're on a moving platform: its spot is on it too
-    if(pm&&!cov){ const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
+    // really stuck (6 s far off and not getting closer), or far beyond the screen: back in from off-screen
+    const youMoving=!p.og||(p.hook&&p.hook.st!=='idle');
+    if(dist>200&&!S._waiting&&!youMoving){ if(S._best==null||dist<S._best-40){ S._best=dist; S._noProg=0; } else S._noProg=(S._noProg||0)+1; }
+    else if(dist<=200){ S._best=null; S._noProg=0; S._scanFail=0; }
+    if((S._noProg||0)>LOST_T||(S._stuck||0)>LOST_T||(dist>FAR&&offScreen(S.x,S.y,0))){ reenter(); return; }
+    if(S._trailMode){ if((dist<NEAR_IN&&Math.abs(dyP)<60)||pm||trail.length<4) S._trailMode=false; }
+    else if(trail.length>=4&&!pm&&!cov&&(dist>NEAR_OUT||dyP<-100)){ S._trailMode=true; S._ti=null; }
+    S._waiting=false;
+    const x0=S.x;
+    let tx, maxV, plan=S._plan;
+    if(plan&&S.og&&plan.t>2){                                         // came down: did it land where you did?
+      if(Math.hypot(S.x-plan.L.x,S.y-plan.L.y)>70){
+        if(S._failL&&Math.hypot(S._failL.x-plan.L.x,S._failL.y-plan.L.y)<40) S._failL.n++; else S._failL={x:plan.L.x,y:plan.L.y,n:1};
+      }
+      S._plan=plan=null;
+    }
+    if(plan){ plan.t++; if(plan.t>plan.n) S._plan=plan=null; }
+    if(S._trailMode&&trail.length){
+      trackTrail();
+      const ti=S._ti;
+      let T=trail[ti], len=0, k0=-1;
+      for(let j=ti+1;j<trail.length;j++){
+        const a=trail[j-1], c=trail[j];
+        if(a.og&&!c.og){ k0=j-1; break; }                             // you left the ground here
+        len+=Math.hypot(c.x-a.x,c.y-a.y); T=c; if(len>56) break;
+      }
+      tx=T.x;
+      if(deadly(T.x,T.y)){ tx=S.x; S._waiting=true; }                // live water / a pit ahead: wait at the edge
+      if(k0>=0&&!plan){
+        const K=trail[k0];
+        let m=-1; for(let j=k0+1;j<trail.length;j++) if(trail[j].og){ m=j; break; }
+        tx=K.x;
+        if(m<0) S._waiting=true;                                      // you haven't come down yet
+        else if(deadly(trail[m].x,trail[m].y)) S._waiting=true;
+        else if(S.og&&Math.abs(K.x-S.x)<24){                          // wider than the 16 px it stops within
+          const J=planJump(k0,m);
+          if(J.can){ S.vy=-J.up; S.og=false; S._plan=plan={L:J.L, vx:J.vx, t:0, n:J.n}; S._ti=m; stats.jumps++; }
+          else if(!startHover(J.L)) S._waiting=true;
+          if(S._fly){ hoverTick(); return; }
+        }
+      }
+      maxV=Math.min(MOVE_RUN,Math.max(4.5,Math.abs(p.vx||0)+1.8));    // a touch faster than you, to catch up
+    }else{
+      tx=cov?cov.x:p.x+S._side*70;
+      if(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60)) tx=p.x+S._side*34;   // a wall there: tuck in closer
+      if(pm&&!cov){ const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
+      maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
+    }
+    S._flying=false;
     const dx=tx-S.x, adx=Math.abs(dx), dead=16, dir=Math.sign(dx);
-    const maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
     if(S._launchT>0&&S.og) S._launchT=0;
-    if(S._launchT>0){ S._launchT--; S.vx*=0.995; }                  // just let go of its rope: the swing carries it until it lands
+    if(plan&&!S.og){ S.vx+=(plan.vx-S.vx)*0.5; }                     // in its jump: steer along the arc it planned
+    else if(S._launchT>0){ S._launchT--; S.vx*=0.995; }             // just let go of its rope: the swing carries it until it lands
     else if(adx>dead){
       S.vx=(S.vx||0)+dir*Math.min(0.42,0.1+adx/260);
       const vStop=Math.sqrt(2*0.32*(adx-dead))+0.4;                   // brake in time: eases to a stop on its mark
       if(Math.sign(S.vx)===dir&&Math.abs(S.vx)>vStop) S.vx=dir*vStop;
       if(Math.sign(S.vx)!==dir) S.vx*=0.8;
     }else S.vx=(S.vx||0)*(S.og?0.75:0.97);
-    if(!(S._launchT>0)) S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
+    if(!(S._launchT>0)&&!(plan&&!S.og)) S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
     const feet=S.y+FEET_OFF;
-    if(S.og){
+    if(S.og&&!S._plan){
       const ax=S.x+SW/2+dir*(SW/2+10);
       const wall=adx>dead&&(solid(ax,feet-24)||solid(ax,feet-52));
-      const ledge=dyP<-48&&Math.abs(dxP)<150&&p.og;                    // you're up a step: hop up after you
-      // a gap ahead (no floor under the next stretch) with somewhere to land at about this height: leap it
-      let gap=false;
-      if(adx>40&&Math.abs(S.vx)>1.2){ const fx=S.x+SW/2+dir*(SW/2+18); let floorAhead=false; for(let yy=feet+4;yy<feet+90;yy+=12) if(solid(fx,yy)){ floorAhead=true; break; }
-        if(!floorAhead&&dyP<40) gap=true; }
-      const ontoPlat=pm&&S._ridePlat!==pm&&dyP<-20&&Math.abs(dxP)<170;   // hop onto the platform you're riding
+      let ledge=false, gap=false, ontoPlat=false;
+      if(!S._trailMode){                                               // on the trail, your own jumps are the plan
+        ledge=dyP<-48&&Math.abs(dxP)<150&&p.og;                         // you're up a step: hop up after you
+        // a gap ahead (no floor under the next stretch) with somewhere to land at about this height: leap it
+        if(adx>40&&Math.abs(S.vx)>1.2){ const fx=S.x+SW/2+dir*(SW/2+18); let floorAhead=false; for(let yy=feet+4;yy<feet+90;yy+=12) if(solid(fx,yy)){ floorAhead=true; break; }
+          if(!floorAhead&&dyP<40&&!deadly(S.x+dir*120,S.y+60)) gap=true; }
+        ontoPlat=pm&&S._ridePlat!==pm&&dyP<-20&&Math.abs(dxP)<170;      // hop onto the platform you're riding
+      }
       if(wall||ledge||gap||ontoPlat){ S.vy=-10.8; S.og=false; if(gap||ontoPlat) S.vx=dir*Math.max(Math.abs(S.vx),3.2); }
     }
     S.vy=Math.min((S.vy||0)+GRAV,13);
     if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S.vx,S.vy); else { S.x+=S.vx; S.y+=S.vy; }
     if(S.og&&S.vy>0) S.vy=0;
     const moved=S.x-x0;
-    if(adx>60&&Math.abs(moved)<0.25) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
+    if(adx>60&&Math.abs(moved)<0.25&&!S._waiting) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
+    if(S._stuck===40){                                                 // walled in for 2/3 s: your trail if there is one, a short hover if not
+      if(!S._trailMode&&trail.length>=4){ S._trailMode=true; S._ti=null; }
+      else{ const ahead=S._trailMode&&S._ti!=null?trail[Math.min(trail.length-1,S._ti+60)]:{x:p.x+S._side*70,y:p.y}; startHover(ahead); }
+    }
     S.crouchAmt=(S.crouchAmt||0)+(((cov?0:(p.crouchAmt||0)))-(S.crouchAmt||0))*0.2;
     S.wheelAngle=(S.wheelAngle||0)+moved/WHEEL_R;
     // facing: with its motion when it's really moving, otherwise the way you face — and no flicker
     const wantFc=Math.abs(S.vx)>0.9?S.vx>0:(S._threat?S._threat.ex>S.x+SW/2:p.fc);
     if(wantFc!==S.fc){ if(++S._fcT>8){ S.fc=wantFc; S._fcT=0; } } else S._fcT=0;
-  }
-  function blinkTo(T){
-    for(let k=0;k<10;k++) PFXS.push({x:S.x+SW/2+(Math.random()-0.5)*30,y:S.y+FEET_OFF-40+(Math.random()-0.5)*40,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,life:14,maxLife:14,r:2,col:S.hero==='venture'?'#ff6a7a':'#c49aff'});
-    S.x=T.x; S.y=T.y; S._blink=12; ropeIdle(S);
   }
   function assist(){
     if(S.hook&&S.hook.st!=='idle'){ S._threat=null; return; }   // both hands on its rope
@@ -242,6 +373,7 @@
     const dx=t.ex-me.x, dy=t.ey-me.y, d=Math.hypot(dx,dy)||1;
     S.aimDX+=(dx/d-S.aimDX)*0.35; S.aimDY+=(dy/d-S.aimDY)*0.35;
     if(Math.abs(dx)>6) S.fc=dx>0;
+    if(S._fly||S._zip) return;                                   // it fights from the ground or mid-jump, never from a hover
     if(S._shotCd>0) return;
     // never across you: skip the shot if you're between it and the target
     const P=centre(p), seg=((P.x-me.x)*dx+(P.y-me.y)*dy)/(d*d);
@@ -292,7 +424,7 @@
     if(blockT&&(blockT.w.hp<=0||fr-blockT.t>240)) blockT=null;               // broken, or you've moved on
   }
   function helpBlock(threat){
-    if(threat||!blockT||S._shotCd>0) return;
+    if(threat||!blockT||S._shotCd>0||S._fly||S._zip) return;
     const w=blockT.w, me=centre(S), cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2;
     if(w.only==='laser') return;                                              // TRS-only blocks are yours
     const dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) return;
@@ -505,9 +637,21 @@
     p.hp=Math.max(1,Math.round((p.maxHp||1)*sibPct/100));
     if(typeof _syncLivesFromHp==='function') _syncLivesFromHp(p);
     if(typeof _heroChoice!=='undefined') _heroChoice=p.hero;
-    p.flashF=Math.max(p.flashF||0,12); S._blink=10; lastHero=p.hero;
-    try{ sfx('confirm'); }catch(e){}
+    p.flashF=Math.max(p.flashF||0,12); S._blink=0; lastHero=p.hero;
+    // the old lead walks with you from here: fresh trail, no leftover plans or hovers
+    trail.length=0; record();
+    S._ti=null; S._plan=null; S._fly=false; S._flying=false; S._zip=null; S._trailMode=false; S._noProg=0; S._best=null; S._stuck=0; S._waiting=false;
+    S._side=null; S._shotCd=30;
+    for(const b of [p,S]){ const c=centre(b), col=b.hero==='venture'?'#ff8a96':'#d8b4ff';
+      for(let k=0;k<14;k++){ const a=k/14*Math.PI*2; PFXS.push({x:c.x,y:c.y,vx:Math.cos(a)*4,vy:Math.sin(a)*4,life:14,maxLife:14,r:2.4,col}); } }
+    stats.swaps++;
+    try{ sfx('swap'); sfx('confirm'); }catch(e){}
     try{ uiShowToast('NOW PLAYING: '+(p.hero==='venture'?'VENTURE':'MIND')); }catch(e){}
+    try{
+      const ev={kind:'brother_swap', hero:p.hero, stage:B.stageId||null, t:Date.now()};
+      (window.__MV_EVENTS=window.__MV_EVENTS||[]).push(ev); if(window.__MV_EVENTS.length>50) window.__MV_EVENTS.shift();
+      window.dispatchEvent(new CustomEvent('mv:telemetry',{detail:ev}));
+    }catch(e){}
   }
   function swapTick(){
     if(_swapCd>0) _swapCd--;
