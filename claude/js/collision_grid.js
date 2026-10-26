@@ -716,8 +716,6 @@ function gridPlayerBody(pl){
     h:Math.max(8,feetY-headY),
     feetY:feetY,
     headY:headY,
-    wheelCx:cx,
-    wheelCy:feetY-wr,
     wheelR:wr,
     vx:pl.vx||0,
     vy:pl.vy||0,
@@ -765,6 +763,11 @@ function gridActorBody(a, feetOff){
   return {x:a.x, y:a.y, w:a.w, h:Math.max(8,feetOff), feetY:a.y+(a.h||feetOff), vx:a.vx||0, vy:a.vy||0, onGround:!!a.og, slopeAng:0, _hitX:false, _hitY:false};
 }
 
+/** A rock cell with a live ramp cell sitting on it has no top to stand on. */
+function _gridTopBuried(c,r){
+  return gridSlopeLive(c,r-1);
+}
+
 /** Highest surface in one column that sits within `maxUp` above the feet. */
 function gridColumnSurface(col, contactX, feetY, maxUp){
   if(!_gridReady()) return null;
@@ -777,7 +780,7 @@ function gridColumnSurface(col, contactX, feetY, maxUp){
       y=gridSlopeY(col,r,contactX);
       const s=gridSlopeAt(col,r);
       a=s?s.angle:0;
-    }else if(gridSolid(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
+    }else if(gridSolid(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
       y=r*t;
     }else continue;
     if(y==null||y>feetY+0.5||y<feetY-maxUp) continue;
@@ -799,7 +802,7 @@ function gridColumnStandNear(col, contactX, feetY, band){
       y=gridSlopeY(col,r,contactX);
       const s=gridSlopeAt(col,r);
       a=s?s.angle:0;
-    }else if(gridSolid(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
+    }else if(gridSolid(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
       y=r*t;
     }else continue;
     if(y==null||Math.abs(y-feetY)>band) continue;
@@ -1077,8 +1080,9 @@ function gridOverlaps(body){
   const t=MV_GRID.tile;
   const feet=body.feetY!=null?body.feetY:body.y+body.h;
   const wr=body.wheelR||((typeof WHEEL_R!=='undefined'?WHEEL_R:20));
-  const wcx=body.wheelCx!=null?body.wheelCx:body.x+body.w*0.5;
-  const wcy=body.wheelCy!=null?body.wheelCy:feet-wr;
+  // the wheel centre follows the body; a cached centre goes stale once gridMoveX/Y move it
+  const wcx=body.x+body.w*0.5;
+  const wcy=feet-wr;
   const [c0,c1]=gridSpan(body.x, body.w, t);
   const [r0,r1]=gridSpan(body.y, Math.max(1,feet-body.y-0.5), t);
   const wheelRow=Math.floor(wcy/t);
@@ -1159,8 +1163,10 @@ function gridSlopeRelease(body){
     const nc=Math.floor(px/t);
     const nr=Math.floor((feet-2)/t);
     if(gridSlopeLive(nc,nr)||gridSlopeLive(nc,nr-1)||gridSlopeLive(nc,nr+1)) continue;
-    const surf=gridColumnStandNear(nc, px, feet, t);
-    if(surf&&Math.abs(surf.ang||0)<0.08&&Math.abs(surf.y-feet)<t){
+    // only where the flat meets the ramp line: farther off, the wheel centre is still over the
+    // ramp and seating it on the flat sinks it into the hypotenuse
+    const surf=gridColumnStandNear(nc, px, feet, 4);
+    if(surf&&Math.abs(surf.ang||0)<0.08&&Math.abs(surf.y-feet)<=4){
       gridSetFeet(body, surf.y, 0);
       body._hitX=false;
       return true;
@@ -1174,8 +1180,8 @@ function gridWheelWedge(body){
   if(!_gridReady()) return null;
   const t=MV_GRID.tile;
   const wr=body.wheelR||20;
-  const cx=body.wheelCx!=null?body.wheelCx:body.x+body.w*0.5;
-  const cy=body.wheelCy!=null?body.wheelCy:((body.feetY!=null?body.feetY:body.y+body.h)-wr);
+  const cx=body.x+body.w*0.5;
+  const cy=(body.feetY!=null?body.feetY:body.y+body.h)-wr;
   let left=null, right=null;
   const c0=Math.floor((cx-wr-2)/t), c1=Math.floor((cx+wr+2)/t);
   const r0=Math.floor((cy-wr*0.4)/t), r1=Math.floor((cy+wr*0.6)/t);
@@ -1203,10 +1209,8 @@ function gridUnwedge(body, preferDir){
   const tryCx=target=>{
     const dx=target-cx;
     body.x+=dx;
-    if(body.wheelCx!=null) body.wheelCx+=dx;
     if(gridOverlaps(body)||gridWheelWedge(body)){
       body.x-=dx;
-      if(body.wheelCx!=null) body.wheelCx-=dx;
       return false;
     }
     return true;
