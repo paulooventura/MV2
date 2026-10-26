@@ -609,6 +609,7 @@
     for(let i=B_CHAINS.length-1;i>=0;i--){
       const ch=B_CHAINS[i];
       if(ch.list.some(b=>b.hp<=0||b._carried||b._fly||b.homeCol==null)){ B_CHAINS.splice(i,1); continue; }
+      if(B.chainHook&&B.chainHook(ch)){ B_CHAINS.splice(i,1); continue; }   // push blocks slide free (beta_pushblock.js)
       if(ch.list.some(busy)) continue;
       const far=ch.list[ch.list.length-1];
       if(ch.left<=0||!cellFree(far.homeCol+ch.dc,far.homeRow+ch.dr)){
