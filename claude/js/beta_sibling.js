@@ -475,8 +475,59 @@
   }
   function fizz(b,hit){ const c=S&&S.hero==='venture'?'#ff8a96':'#d8b4ff'; for(let k=0;k<(hit?8:4);k++) PFXS.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:10,maxLife:10,r:1.6,col:c}); }
 
+  // Four fast item-select taps, close to the brother, swaps who you play (Paulo, Oct 25).
+  const SWAP_MS=1000, SWAP_DIST=110, SWAP_CD=45;
+  let _swapT=[], _swapCd=0;
+  function _nearBro(){
+    if(!on||!S||!p||(typeof _playerCount!=='undefined'&&_playerCount!==1)) return false;
+    if(typeof _gameState!=='undefined'&&_gameState!=='game') return false;
+    if(typeof _paused!=='undefined'&&_paused) return false;
+    const a=centre(p), b=centre(S);
+    return Math.hypot(a.x-b.x,a.y-b.y)<=SWAP_DIST;
+  }
+  function _flushSwapTaps(){
+    const n=_swapT.length; _swapT=[];
+    if(typeof _cycleItem==='function') for(let i=0;i<n;i++) _cycleItem();
+  }
+  function swapBrothers(){
+    if(!S||!p) return;
+    const lead=p, sib=S;
+    const leadSlot=typeof ITEM!=='undefined'?ITEM:0;
+    const sibSlot=sib._itemSlot!=null?sib._itemSlot:leadSlot;
+    let next=sibSlot, left=leadSlot;
+    if(leadSlot===4){ next=4; left=sibSlot===4?0:sibSlot; }
+    sib._itemSlot=left;
+    if(typeof ITEM!=='undefined') ITEM=next;
+    const leadPct=lead.maxHp>0?lead.hp/lead.maxHp*100:100;
+    const sibPct=sib.sibHp!=null?sib.sibHp:100;
+    lead._aiCompanion=true; lead._betaSib=true;
+    sib._aiCompanion=false; sib._betaSib=false;
+    p=sib; S=lead;
+    S.sibHp=leadPct; p.sibHp=null;
+    p.hp=Math.max(1,Math.round((p.maxHp||1)*sibPct/100));
+    if(typeof _syncLivesFromHp==='function') _syncLivesFromHp(p);
+    if(typeof _heroChoice!=='undefined') _heroChoice=p.hero;
+    p.flashF=Math.max(p.flashF||0,12); S._blink=10; lastHero=p.hero;
+    try{ sfx('confirm'); }catch(e){}
+    try{ uiShowToast('NOW PLAYING: '+(p.hero==='venture'?'VENTURE':'MIND')); }catch(e){}
+  }
+  function swapTick(){
+    if(_swapCd>0) _swapCd--;
+    if(_swapT.length&&(!_nearBro()||performance.now()-_swapT[0]>=SWAP_MS)) _flushSwapTaps();
+  }
+  window.MV_BROTHER_SWAP={
+    tap(){
+      if(_swapCd>0||!_nearBro()) return false;
+      const now=performance.now();
+      if(_swapT.length&&now-_swapT[0]>=SWAP_MS){ _flushSwapTaps(); }
+      _swapT.push(now);
+      if(_swapT.length>=4){ _swapT=[]; swapBrothers(); _swapCd=SWAP_CD; }
+      return true;
+    }
+  };
   const _upd=window.updateKnowls;
   window.updateKnowls=function(){
+    try{ swapTick(); }catch(e){}
     const r=_upd.apply(this,arguments);
     try{
       if(!B.on||!labOk()){ S=null; npc=null; return r; }

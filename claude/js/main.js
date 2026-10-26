@@ -924,7 +924,7 @@ function update(){
   }
   _updateBattleEye(p);
 
-  if(_bindJ('use')) _cycleItem();
+  if(_bindJ('use')&&!(window.MV_BROTHER_SWAP&&MV_BROTHER_SWAP.tap())) _cycleItem();
   if(typeof _updateRunEntry==='function') _updateRunEntry(p);
   const _runQuiet=typeof _runItemQuiet==='function'&&_runItemQuiet(p);
   // the item button as the items see it: held (and not the start of a sprint), or a quick tap played back as a 3-frame press
