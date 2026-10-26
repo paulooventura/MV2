@@ -19,12 +19,50 @@
     boss:'assets/bgm/pixel-quasar-gold-boss.mp3',        // 1.3: the heptagon's arena
     calm:'assets/bgm/crystal-memory-gate.mp3'            // the slow, smooth track the exit gate plays once the level's source is down
   };
+  const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
+  const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
   const els={};
-  let current=null, wantPlay=null, ensureN=0;
+  let current=null, wantPlay=null, ensureN=0, held=null;
   const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75)); }catch(e){ return 0.75; } };
+  function pathOf(name){
+    const base=TRACKS[name]||TRACKS.stage;
+    try{
+      if(window.MV_INK_SOUND&&MV_INK_SOUND()){
+        if(name==='stage'||name==='stage2') return INK_1GO;
+        if(name==='item') return INK_STORI;
+      }
+    }catch(e){}
+    return base;
+  }
   function el(name){
-    if(!els[name]){ const a=new Audio(encodeURI(TRACKS[name])); a.loop=true; a.preload='auto'; els[name]=a; }
-    return els[name];
+    const path=pathOf(name);
+    const prev=els[name];
+    if(prev&&prev._path===path) return prev;
+    const t=prev?prev.currentTime:0, was=!!(prev&&!prev.paused);
+    if(prev) try{ prev.pause(); }catch(e){}
+    const a=new Audio(encodeURI(path)); a.loop=true; a.preload='auto'; a._path=path;
+    if(prev&&prev._baseVol!=null) a._baseVol=prev._baseVol;
+    els[name]=a;
+    if(routed[name]!==undefined) routed[name]=undefined;
+    if(was){ try{ a.currentTime=t; }catch(e){} const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    return a;
+  }
+  // Dialog (Laitu and anyone else who sets B.talking): stori, then the stage track resumes where it left off.
+  function talk(on){
+    const ink=!!(window.MV_INK_SOUND&&MV_INK_SOUND());
+    if(!ink){ held=null; return; }
+    if(on){
+      if(held||(window.MV_BETA&&MV_BETA.popup)) return;
+      const from=current&&current!=='item'?current:((window.MV_BETA&&MV_BETA.music)||'stage');
+      const a=els[from];
+      held={from, at:a?a.currentTime:0};
+      play('item');
+    }else if(held){
+      const h=held; held=null;
+      if(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.ending)) return;
+      play(h.from);
+      try{ if(els[h.from]) els[h.from].currentTime=h.at; }catch(e){}
+    }
   }
   function play(name,{restart=false,volume=1}={}){
     if(!TRACKS[name]) name='stage';
@@ -253,5 +291,5 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
 })();

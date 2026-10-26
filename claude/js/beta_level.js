@@ -1469,7 +1469,9 @@
         else if(Math.random()<0.004) L.pause=40+Math.random()*60|0;      // stops to look around now and then
       }
       if(L.talkT>0) L.talkT--;
-    }
+      B.talking=L.talkT>0;
+      if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.talk) MV_BETA_AUDIO.talk(B.talking);
+    }else B.talking=false;
   };
 
   // The beta draws its own (much bigger) Knowl tree.

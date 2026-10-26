@@ -80,12 +80,27 @@ function _pickFromPool(pool,except){
   while(pick===except&&pool.length>1&&++guard<16);
   return pick;
 }
+const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
+const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
+// Ink & Vinyl soundtrack (清き旋律). Other filters keep the OST. Selftest stays on the OST.
+function _inkSound(){
+  try{ if(window.MV_CONSOLE&&MV_CONSOLE.mode) return MV_CONSOLE.mode==='ink'; }catch(e){}
+  try{
+    if(/[?&](selftest|ci=)/.test(location.search||'')) return false;
+    const q=new URLSearchParams(location.search).get('console');
+    if(q) return q==='ink';
+    const v=localStorage.getItem('mv2.console');
+    if(v) return v==='ink';
+  }catch(e){}
+  return true;
+}
+window.MV_INK_SOUND=_inkSound;
 function _pickRandomNewMusic(except){ return _pickFromPool(NEW_MUSIC_TRACKS,except); }
-function _pickTitleMusic(except){ return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
+function _pickTitleMusic(except){ if(_inkSound()) return INK_1GO; return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
 // The storyline theme (Paulo, Oct 22): "The Knowl Tree" opens every story — the intro pages
 // and the hero pick — always this song, never a random pick.
 const STORY_THEME='assets/bgm/the-knowl-tree.mp3';
-function _pickStoryMusic(except){ return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
+function _pickStoryMusic(except){ if(_inkSound()) return INK_STORI; return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
 function _zoneMusicPath(idx){
   const i=Math.max(0,Math.min(ZONE_MUSIC_TRACKS.length-1,(idx!=null?idx:_zoneIdx)|0));
   return ZONE_MUSIC_TRACKS[i]||ZONE_MUSIC_TRACKS[0];
