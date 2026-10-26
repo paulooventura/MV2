@@ -42,7 +42,11 @@ const WHEEL_SLOPE_DRAG=0.0006;
 // Grade drag climbing, and how much of it a full sprint cancels.
 const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
-const DOUBLE_JUMP_K=0.9;     // the air jump's kick (× a ground jump)
+// Air jump (Paulo, Oct 26): a tap only stalls the fall — the wheel recoils.
+// How long jump stays down is how high the woofer kicks. A full hold outclimbs a ground jump.
+const AIR_JUMP_LIFT=0.70;    // upward speed added each held frame after the tap
+const AIR_JUMP_HOLD=36;      // full-hold window (a ground jump holds JMH frames)
+const AIR_JUMP_CAP=-12.6;    // rise cap while that kick is held
 // Rubber tire + fork (Paulo, Oct 22: tire rubber; then "a badass dirtbike tire/wheel kit, with suspension")
 const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
 const TIRE_MAX_SQ=7;         // px it can squash on a hard landing
@@ -2716,20 +2720,17 @@ function _ropeWrapPts(x1,y1,x2,y2){
 function _ropeRefreshPath(h){ const end=ropePlayerEndWorld(); _ropeUpdatePivots(h,end.x,end.y); const path=_ropePathPts(h,end.x,end.y); h._path=path; return path; }
 function _ropeApplyTension(h){
   const path=_ropeRefreshPath(h), plen=_ropePathLen(path), over=plen-h.rl;
-  h._tension=Math.max(0,over); h._slack=over<-4; h._tight=over>1;
+  h._tension=Math.max(0,over); h._slack=over<-10; h._tight=over>1;
   if(over<=0) return;
   const i=path.length-2, p0=path[i], p1=path[i+1];
   const seg=Math.hypot(p1.x-p0.x,p1.y-p0.y)||1;
-  const toAx=(p0.x-p1.x)/seg, toAy=(p0.y-p1.y)/seg;
-  const outX=(p1.x-p0.x)/seg, outY=(p1.y-p0.y)/seg;
-  // Paulo (Oct 22): no rubber-band recoil — a damper on the cord: most of the speed it already
-  // has snapping back toward the anchor is soaked up (the spring's pull this frame is kept)
-  const vr0=p.vx*outX+p.vy*outY;
-  if(vr0<0){const k=ROPE_RECOIL_ABSORB*Math.min(1,over/ROPE_GIVE);p.vx-=outX*vr0*k;p.vy-=outY*vr0*k;}
-  const spring=Math.min(over*0.09,1.8);                 // softer cord (was 0.12 / 2.4)
-  p.vx+=toAx*spring; p.vy+=toAy*spring;
-  const vd=p.vx*outX+p.vy*outY;
-  if(vd>0){const k=0.88*Math.min(1,over/ROPE_GIVE);p.vx-=outX*vd*k;p.vy-=outY*vd*k;}
+  const outX=(p1.x-p0.x)/seg, outY=(p1.y-p0.y)/seg;   // away from the pivot
+  // Paulo (Oct 26): a web, not a rod. A few pixels of give, then he stays on the
+  // arc. Speed along the swing is kept; only the part flying off the circle is caught.
+  const give=6, excess=over-give;
+  if(excess>0){ const corr=Math.min(excess,14); p.x-=outX*corr; p.y-=outY*corr; }
+  const vr=p.vx*outX+p.vy*outY;
+  if(vr>0){ p.vx-=outX*vr; p.vy-=outY*vr; }
 }
 
 // ── Verlet visual cord ────────────────────────────────────────

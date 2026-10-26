@@ -537,20 +537,17 @@
   //   floors (it lies on them, with friction), a little stretchy like rubber.
   //   Drawing only — the rope's pull on MIND is the game's own rope physics.
   const _origSlack=window._ropeSlackDrawPts;
-  const CORD_TAUT_SLACK=40;                                  // spare length that still draws as a tight cord
   function solidPt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
   function cordPts(path,rl){
     const h=p&&p.hook; if(!h||!path||path.length<2) return path||[];
     let plen=0; for(let i=1;i<path.length;i++) plen+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
-    // Tightened (reeled in, or already carrying MIND): the jack sits closer to the
-    // anchor than the pull point, so the drawn span looks shorter than rl. Draw that
-    // straight — a spider line, not a drooping loop. Only real paid-out slack hangs,
-    // and even then the belly shrinks as you reel in.
     const slackRaw=Math.max(0,(rl||plen)-plen);
-    if(h._tight||(h._tension||0)>0.25||slackRaw<CORD_TAUT_SLACK){ h._cord=null; return path; }
-    const spare=slackRaw-CORD_TAUT_SLACK;
-    const loose=Math.min(1, spare/Math.max(48, plen*0.55));   // 0 just past taut, 1 when there's a lot of line out
-    const L=plen+spare*loose;                                 // a tightened cord keeps less of its spare length
+    // Paulo (Oct 26): even a loaded web bows and whips. A straight rod only when
+    // he's reeled up against the anchor. Slack pays out into a real belly.
+    const loaded=(h._tension||0)>0.35&&slackRaw<16;
+    const spare=loaded?0:slackRaw;
+    const loose=loaded?0:Math.min(1, spare/Math.max(36, plen*0.4));
+    const L=plen+(loaded?Math.min(12,plen*0.05):spare*(0.5+0.5*loose));
     const n=Math.max(10,Math.min(64,Math.round(Math.max(plen,L)/8)));
     const A=path[0], E=path[path.length-1];
     let c=h._cord;
@@ -558,11 +555,11 @@
       const pts=[]; for(let i=0;i<n;i++){ const t=i/(n-1); const q=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*t):{x:A.x+(E.x-A.x)*t,y:A.y+(E.y-A.y)*t}; pts.push({x:q.x,y:q.y,px:q.x,py:q.y}); }
       c=h._cord={n,pts,ax:A.x,ay:A.y};
     }
-    const P=c.pts, seg=L/(n-1), grav=0.06+0.22*loose;
+    const P=c.pts, seg=L/(n-1), grav=loaded?0.28:(0.12+0.55*loose);
     if(c.fr!==fr){
       c.fr=fr;
       for(let i=1;i<n-1;i++){
-        const q=P[i], vx=(q.x-q.px)*0.985, vy=(q.y-q.py)*0.985;
+        const q=P[i], vx=(q.x-q.px)*0.992, vy=(q.y-q.py)*0.992;
         q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+grav;
       }
       P[0].x=A.x; P[0].y=A.y; P[n-1].x=E.x; P[n-1].y=E.y;
@@ -580,9 +577,9 @@
           q.px+=(q.x-q.px)*0.6;
         }
       }
-      // reel-in pulls the belly up toward the straight line instead of leaving last frame's droop
-      const lift=1-loose;
-      if(lift>0.04){
+      // a taut web may settle a hair toward the span; it is not yanked into a rod
+      const lift=loaded?0.05:0;
+      if(lift>0.01){
         for(let i=1;i<n-1;i++){
           const q=P[i], tp=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*i/(n-1)):{x:A.x+(E.x-A.x)*i/(n-1),y:A.y+(E.y-A.y)*i/(n-1)};
           q.x+=(tp.x-q.x)*lift; q.y+=(tp.y-q.y)*lift;

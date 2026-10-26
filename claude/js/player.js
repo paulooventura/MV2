@@ -611,9 +611,9 @@ function _armPathClear(pts,cx,cy,t){
 }
 function _tiltPt(x,y,cx,cy,t){ if(!t) return {x,y}; const c=Math.cos(t), s=Math.sin(t), dx=x-cx, dy=y-cy; return {x:cx+dx*c-dy*s, y:cy+dx*s+dy*c}; }
 // Rope swing feel (Paulo, Oct 22: "less recoil when we release the directional buttons")
-const ROPE_FREE_DRAG=0.99;          // per-frame drag on a swing nobody is pumping (was 0.996)
-const ROPE_RELEASE_BRAKE_FR=22;     // frames of extra braking right after letting go of left/right
-const ROPE_RELEASE_DRAG=0.93;       // drag during that brake
+const ROPE_FREE_DRAG=0.996;         // a free swing coasts (Paulo, Oct 26: like a web, not a brake)
+const ROPE_RELEASE_BRAKE_FR=6;      // a short settle after letting go of left/right
+const ROPE_RELEASE_DRAG=0.985;
 const RCA_COIL_STRETCH=3.6;                                  // how far the jack arm's coil can stretch (x its rest length)
 function computeConnectorArmPose(pl=p){
   pl._jackOnSurface=false;
@@ -1003,14 +1003,21 @@ function updateHook(){
     }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
-    if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%4===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
+    if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%3===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
     const _pump=isLf()||isRt();
-    // Paulo (Oct 22): letting go of left/right settles the swing instead of recoiling on the
-    // cord's stretch — a short brake after release, and a calmer free swing overall
+    // Left/right pumps along the arc, the way a web swing takes a kick — not a sideways shove
+    // against a stiff line.
     if(!_pump&&h._wasPump) h._relBrake=ROPE_RELEASE_BRAKE_FR;
     h._wasPump=_pump;
-    if(isLf()){p.vx-=1.2;p.fc=false;}
-    else if(isRt()){p.vx+=1.2;p.fc=true;}
+    if(_pump){
+      const end=ropePlayerEndWorld();
+      const piv=(h.pivots&&h.pivots.length)?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+      let dx=end.x-piv.x, dy=end.y-piv.y, d=Math.hypot(dx,dy)||1; dx/=d; dy/=d;
+      let tx=-dy, ty=dx;
+      if((isRt()?1:-1)*tx<0){ tx=-tx; ty=-ty; }
+      p.vx+=tx*0.5; p.vy+=ty*0.5;
+      p.fc=!!isRt();
+    }
     p.vy+=GRAV; p.vy=Math.min(p.vy,14);
     p.vx=Math.max(-14,Math.min(14,p.vx));
     // Paulo (Oct 20): a real pendulum runs down — air drag and the cord's own

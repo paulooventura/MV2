@@ -148,8 +148,9 @@
     // a TRS shot boiling water off: a hot sizzle and a few pops, then the steam breathing out
     water_boil(a){ hiss(a,{type:'highpass',f:2600,f1:5200,d:0.7,v:0.16,at:0.008,rate:0.9}); hiss(a,{type:'bandpass',f:1400,f1:700,q:0.8,d:1.3,v:0.07,at:0.15,rate:0.5,rev:0.3}); for(let k=0;k<6;k++) tone(a,{f:rnd(1800,3200),f1:rnd(500,900),d:0.03,v:0.05,dt:k*rnd(0.04,0.09),type:'square',hp:900}); },
     water_gush(a){ hiss(a,{type:'lowpass',f:2200,f1:500,d:2.4,v:0.22,at:0.05,rate:0.6,rev:0.35}); hiss(a,{f:900,q:0.7,d:2.0,v:0.12,at:0.1,rate:0.45,rev:0.3}); tone(a,{f:70,f1:45,d:1.2,v:0.14}); for(let k=0;k<10;k++) bell(a,{f:rnd(600,1400),dt:0.1+k*rnd(0.1,0.2),ratio:1.5,index:0.8,d:0.2,v:0.03,rev:0.4}); },
-    reel_in(a){ tone(a,{f:rnd(1700,1900),d:0.018,v:0.07,type:'triangle',hp:900}); hiss(a,{f:3200,q:5,d:0.02,v:0.06}); tone(a,{f:180,f1:150,d:0.05,v:0.05,type:'sawtooth',lp:900}); },
-    reel_out(a){ tone(a,{f:rnd(900,1050),d:0.02,v:0.045,type:'triangle',hp:500}); hiss(a,{f:1400,q:2,d:0.06,v:0.05}); },
+    // one chain link of a truss hoist. The reel fires this every few frames, so the run is the rattle.
+    reel_in(a){ const f=rnd(1500,2200); bell(a,{f,ratio:2.05,index:0.85,d:0.04,v:0.1,rev:0.06}); bell(a,{f:f*0.46,ratio:1.6,index:0.45,d:0.028,v:0.05,rev:0.04}); hiss(a,{type:'bandpass',f:rnd(2400,3600),q:5,d:0.016,v:0.07,at:0.001}); tone(a,{f:rnd(95,140),f1:55,d:0.035,v:0.06,type:'triangle',lp:420}); },
+    reel_out(a){ const f=rnd(680,1080); bell(a,{f,ratio:1.7,index:0.7,d:0.05,v:0.09,rev:0.08}); hiss(a,{type:'bandpass',f:rnd(800,1500),q:2.4,d:0.03,v:0.06,at:0.001}); tone(a,{f:rnd(62,96),f1:42,d:0.05,v:0.07,type:'triangle',lp:300}); },
     hook_latch_mag(a){ tone(a,{f:95,f1:60,d:0.12,v:0.24}); bell(a,{f:620,ratio:1.41,index:2.5,d:0.25,v:0.08,rev:0.25}); tone(a,{f:110,d:0.4,v:0.05,vib:30,vibd:8,at:0.03}); },
     hook_latch(a){ R.hook_latch_mag(a);  bell(a,{f:1150,ratio:3.7,index:3,d:0.22,v:0.09,rev:0.25}); hiss(a,{type:'highpass',f:3000,d:0.04,v:0.08}); tone(a,{f:160,f1:90,d:0.08,v:0.1}); },
     hook_miss(a){ hiss(a,{f:2400,f1:500,q:1.5,d:0.22,v:0.07}); },

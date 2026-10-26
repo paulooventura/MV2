@@ -1100,13 +1100,15 @@ function update(){
       try{ sfx(_ch>=0.92?'jump_spring':'jump_reg', _jp); }catch(e){}
       p.og=false;p._groundHold=0;p._groundSeg=null;p._peakVy=0;const takeVy=Math.abs(p.vy);p._jumpAmp=Math.min(1,Math.max(0.25,takeVy/7.2));p.jumpTiltF=Math.round(14+p._jumpAmp*16);const jhx=Math.abs(p.vx)>0.25?p.vx:(p.fc?1:-1)*0.55;const jhy=p.vy<-0.2?-1:(p.vy>0.5?0.35:-0.75);const jhl=Math.hypot(jhx,jhy)||1;p._jumpHatDX=jhx/jhl;p._jumpHatDY=jhy/jhl;
     }
-    // Double jump (Paulo, Oct 22): once per airtime, the woofer kicks the air below him
-    if(_playerOnGround(p)||p.hook.st==='on'||p.wallGrip>0) p._airJumps=0;
+    // Air jump (Paulo, Oct 26): once per airtime. A tap recoils the wheel and stops the fall.
+    // Keep holding and the woofer keeps kicking — the hold is the height.
+    if(_playerOnGround(p)||p.hook.st==='on'||p.wallGrip>0){ p._airJumps=0; p._airBoost=0; }
     else if(isJumpJ()&&!(p._airJumps>0)&&p._jumpFr!==fr&&!(typeof MV_FEEL_BOUNCING==='function'&&MV_FEEL_BOUNCING())
             &&!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(p.x+SW/2,p.y+FEET_OFF-30))){
-      p._airJumps=1;
-      p.vy=Math.min(p.vy,0)*0.25+JI*DOUBLE_JUMP_K; p.jf=Math.round(JMH*0.6);
-      p._tireSqV=(p._tireSqV||0)-2.5; p.suspComp=Math.max(p.suspComp||0,0.5);
+      p._airJumps=1; p._airBoost=1; p._airStall=1;
+      p.vy=p.vy>0?0:p.vy;
+      p.jf=AIR_JUMP_HOLD;
+      p._tireSqV=(p._tireSqV||0)-4.6; p.suspComp=Math.max(p.suspComp||0,0.62);
       const cx=p.x+SW/2, fy=p.y+FEET_OFF;
       for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; PFXS.push({x:cx+Math.cos(a)*10,y:fy+Math.sin(a)*3,vx:Math.cos(a)*3.2,vy:Math.sin(a)*0.9+0.6,life:16,maxLife:16,r:2,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'}); }
       if(typeof MV_SPATIAL_from==='function'){} try{ sfx('double_jump'); }catch(e){}
@@ -1117,10 +1119,16 @@ function update(){
     const _inJumpAir=!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0;
     if(_inJumpAir&&p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-0.55);else if(p.jumpTiltF>0)p.jumpTiltF=Math.max(0,p.jumpTiltF-2.5);
     const _holdJump=isJump()||(p._autoJump||0)>0;
-    if(_holdJump&&p.jf>0){p.vy=Math.max(p.vy-JHH,JMX);p.jf--; if(p._autoJump>0) p._autoJump--;}else if(!isJump()){p.jf=0; p._autoJump=0;}
+    const _airStall=!!p._airStall; p._airStall=0;   // the tap frame: fall stays stopped, the climb waits for the hold
+    if(_holdJump&&p.jf>0&&!_airStall){
+      const lift=p._airBoost?AIR_JUMP_LIFT:JHH, cap=p._airBoost?AIR_JUMP_CAP:JMX;
+      p.vy=Math.max(p.vy-lift,cap); p.jf--;
+      if(p._airBoost) p._dblJumpFx=Math.max(p._dblJumpFx||0,6);
+      if(p._autoJump>0) p._autoJump--;
+    }else if(!_airStall&&!isJump()){ p.jf=0; p._autoJump=0; p._airBoost=0; }
     if(p._magWorldStick) p.vy=0;
     else if(_grounded&&p.vy>=0) p.vy=0;
-    else p.vy=Math.min(p.vy+(_holdJump&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
+    else if(!_airStall) p.vy=Math.min(p.vy+(_holdJump&&p.jf>0&&p.vy<0?GRAV*0.38:GRAV),14);
     if(!_playerOnGround(p)&&p.hook.st!=='on'&&p.wallGrip<=0) p._peakVy=Math.max(p._peakVy||0,p.vy);
     if(p._magWorldStick){ p.vx=0; p.vy=0; if(typeof _applyMagWorldStick==='function') _applyMagWorldStick(p); }
     else _movePlayerWithColl(p,p.vx,p.vy);
