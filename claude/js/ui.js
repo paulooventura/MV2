@@ -142,13 +142,158 @@ function _stageDesignItems(){
 // ── Toast notification ────────────────────────────────────────
 function uiShowToast(msg){ _uiToast=msg; _uiToastFr=150; }
 function edShowToast(msg){ uiShowToast(msg); }  // overridden in editor.js when active
+
+// ── Layout + which device is in the player's hands ───────────
+// One profile for every menu and the HUD. The canvas stays 1024×768;
+// phone / tablet / desk is the window in front of the player.
+let _uiDev='key', _uiPadId='', _uiPadFamily='other';
+function uiNotePointer(e){
+  const t=e&&e.pointerType;
+  _uiDev=t==='touch'||t==='pen'?'touch':'mouse';
+}
+addEventListener('keydown',e=>{ if(e.metaKey||e.ctrlKey||e.altKey) return; _uiDev='key'; },true);
+addEventListener('pointerdown',uiNotePointer,true);
+function uiPadFamily(id){
+  const s=String(id||'').toLowerCase();
+  if(s.indexOf('045e')>=0||s.indexOf('xbox')>=0||s.indexOf('xinput')>=0) return 'xbox';
+  if(s.indexOf('054c')>=0||s.indexOf('dualsense')>=0||s.indexOf('dualshock')>=0||s.indexOf('wireless controller')>=0) return 'ps';
+  if(s.indexOf('057e')>=0||s.indexOf('pro controller')>=0||s.indexOf('joy-con')>=0||s.indexOf('joycon')>=0) return 'nintendo';
+  return 'other';
+}
+function uiWatchPad(){
+  try{
+    const list=navigator.getGamepads?navigator.getGamepads():[];
+    for(let i=0;i<list.length;i++){
+      const g=list[i]; if(!g||!g.connected) continue;
+      let hot=false;
+      if(g.buttons) for(let b=0;b<g.buttons.length;b++){ const bt=g.buttons[b]; if(bt&&(bt.pressed||bt.value>0.45)) hot=true; }
+      if(g.axes) for(let a=0;a<g.axes.length;a++) if(Math.abs(g.axes[a])>0.5) hot=true;
+      if(hot||!_uiPadId){ _uiPadId=g.id||''; _uiPadFamily=uiPadFamily(g.id); }
+      if(hot) _uiDev='pad';
+    }
+  }catch(e){}
+}
+function uiFaceName(btn){
+  const names={
+    xbox:['A','B','X','Y','LB','RB','LT','RT','VIEW','MENU'],
+    ps:['CROSS','CIRCLE','SQUARE','TRIANGLE','L1','R1','L2','R2','CREATE','OPTIONS'],
+    nintendo:['B','A','Y','X','L','R','ZL','ZR','-','+'],
+    other:['BOTTOM','RIGHT','LEFT','TOP','L','R','ZL','ZR','VIEW','MENU']
+  };
+  const row=names[_uiPadFamily]||names.other;
+  return row[btn]||'?';
+}
+function uiActLabel(action){
+  uiWatchPad();
+  const touch={jump:'A', use:'B', swap:'X', punch:'Y', pause:'START'};
+  const face={jump:0, use:1, swap:2, punch:3, pause:9};
+  const bind={jump:'jump', use:'use', swap:'swap', punch:'punch'};
+  if(_uiDev==='touch') return touch[action]||String(action||'').toUpperCase();
+  if(_uiDev==='pad') return uiFaceName(face[action]!=null?face[action]:0);
+  if(action==='pause') return 'ESC';
+  try{
+    if(typeof _bindList==='function'&&bind[action]){
+      const t=_bindList(bind[action]);
+      if(t) return t.split(',')[0].trim();
+    }
+  }catch(e){}
+  return String(action||'').toUpperCase();
+}
+// Coloured face button, PlayStation shape, or a keyboard keycap. Returns width.
+function uiGlyph(action,x,y,scl){
+  uiWatchPad();
+  const label=uiActLabel(action);
+  const s=Math.max(2,(scl|0)||2);
+  const fam=_uiDev==='pad'?_uiPadFamily:'key';
+  ctx.save();
+  if(fam==='ps'){
+    const r=8*s*0.55;
+    ctx.fillStyle='#111'; ctx.strokeStyle='#d0e4ff'; ctx.lineWidth=2;
+    ctx.beginPath();
+    const face={jump:0,use:1,swap:2,punch:3}[action];
+    if(face===1){ ctx.arc(x+r,y+r,r-1,0,Math.PI*2); ctx.stroke(); }
+    else if(face===2){ ctx.rect(x+2,y+2,r*2-4,r*2-4); ctx.stroke(); }
+    else if(face===3){ ctx.moveTo(x+r,y+2); ctx.lineTo(x+r*2-2,y+r*2-2); ctx.lineTo(x+2,y+r*2-2); ctx.closePath(); ctx.stroke(); }
+    else { ctx.moveTo(x+2,y+r); ctx.lineTo(x+r,y+2); ctx.lineTo(x+r*2-2,y+r); ctx.lineTo(x+r,y+r*2-2); ctx.closePath(); ctx.stroke(); }
+    ctx.restore(); return r*2+4;
+  }
+  const w=Math.max(28,textW(label,s)+14), h=textH(s)+6;
+  if(fam==='key'||_uiDev==='mouse'){
+    ctx.fillStyle='#020a04'; ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle='#d8ffc8'; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2);
+    drawTextC(label,x+w/2,y+3,'#f2ffe8',s);
+  }else{
+    const col=fam==='nintendo'?'#e23b3b':'#3d8f4a';
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x+h/2,y+h/2,h/2-1,0,Math.PI*2); ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle='#111'; ctx.stroke();
+    drawTextC(label,x+h/2,y+3,'#fff',s);
+    ctx.restore(); return Math.max(h,textW(label,s)+8);
+  }
+  ctx.restore(); return w;
+}
+function uiMenuHint(kind){
+  uiWatchPad();
+  const ok=_uiDev==='pad'||_uiDev==='touch'?uiActLabel('jump'):'ENTER';
+  const back=_uiDev==='pad'||_uiDev==='touch'?uiActLabel('use'):'ESC';
+  if(kind==='story') return _uiDev==='touch'?'TAP TO GO ON':('PRESS '+ok);
+  if(kind==='manual') return _uiDev==='touch'?'TAP A SIDE':(ok+' NEXT    '+back+' CLOSE');
+  if(kind==='touch'||(_uiDev==='touch'&&kind!=='pause'&&kind!=='options')) return 'TAP TO PICK';
+  if(kind==='options') return _uiDev==='touch'?'TAP A ROW':(ok+' OK    '+back+' BACK');
+  return ok+' PICK    '+back+' BACK';
+}
+function uiSafeInsets(){
+  const z={t:0,r:0,b:0,l:0};
+  try{
+    let probe=document.getElementById('mvSafeProbe');
+    if(!probe){
+      probe=document.createElement('div'); probe.id='mvSafeProbe';
+      probe.style.cssText='position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+      document.body.appendChild(probe);
+    }
+    const ps=getComputedStyle(probe);
+    z.t=parseFloat(ps.paddingTop)||0; z.r=parseFloat(ps.paddingRight)||0;
+    z.b=parseFloat(ps.paddingBottom)||0; z.l=parseFloat(ps.paddingLeft)||0;
+  }catch(e){}
+  return z;
+}
+function uiLayout(){
+  const iw=window.innerWidth||W, ih=window.innerHeight||H;
+  let phone=false;
+  try{ phone=document.documentElement.classList.contains('phone-play')||!!window._phonePlay; }catch(e){}
+  const shortSide=Math.min(iw,ih);
+  let profile='desk';
+  if(phone||shortSide<=540) profile='phone';
+  else if(shortSide<900) profile='tablet';
+  const safe=uiSafeInsets();
+  const c=document.getElementById('c');
+  const rect=c?c.getBoundingClientRect():{width:iw,height:ih};
+  const sx=W/Math.max(1,rect.width||iw), sy=H/Math.max(1,rect.height||ih);
+  const inset={t:safe.t*sy, r:safe.r*sx, b:safe.b*sy, l:safe.l*sx};
+  // Landscape pads sit on the bottom corners (index.html). Keep readouts out from under them.
+  const pad=profile==='phone'?{l:168*sx, r:176*sx, b:176*sy}:{l:0,r:0,b:0};
+  const panelW=Math.min(520, Math.floor(W*0.62));
+  const panelX=Math.round((W-panelW)/2);
+  const oneCol=profile==='phone'||profile==='tablet';
+  return {profile, phone:profile==='phone', tablet:profile==='tablet', desk:profile==='desk',
+    oneCol, twoCol:!oneCol, panelW, panelX, inset, pad};
+}
+window.uiLayout=uiLayout;
+window.uiMenuHint=uiMenuHint;
+window.uiActLabel=uiActLabel;
+window.uiGlyph=uiGlyph;
+window.uiWatchPad=uiWatchPad;
+
 function _drawUiToast(){
   if(_uiToastFr<=0) return;
   const a=Math.min(1,_uiToastFr/24);
+  const scl=3;
   ctx.save(); ctx.globalAlpha=a;
-  const tw=Math.max(260,textW(_uiToast,2)+48), th=textH(2)+22, ty=H*0.62+(1-a)*10;
-  uiPanel(W/2-tw/2,ty,tw,th,{r:th/2,accent:'#7dffcf'});
-  drawTextC(_uiToast,W/2,ty+11,C.MINT,2);
+  const L=uiLayout();
+  const tw=Math.min(L.panelW, Math.max(220,textW(_uiToast,scl)+48)), th=textH(scl)+26;
+  const gap=L.phone?L.pad.b:0;
+  const ty=Math.round(H-th-28-gap);
+  uiPanel((W-tw)/2,ty,tw,th,{r:14,accent:'#7dffcf'});
+  drawTextC(_uiToast,W/2,ty+8,'#f2ffe8',scl);
   ctx.restore();
   _uiToastFr--;
 }
@@ -241,7 +386,7 @@ function _pauseInput(){
 function drawPauseMenu(){
   ctx.fillStyle='rgba(4,2,10,0.6)'; ctx.fillRect(0,0,W,H);
   const items=_pauseItems();
-  const pw=420, rowH=48, ph=110+items.length*rowH, px=W/2-pw/2, py=Math.round(H/2-ph/2);
+  const pw=Math.min(460, uiLayout().panelW), rowH=52, ph=136+items.length*rowH, px=W/2-pw/2, py=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph/2));
   uiPanel(px,py,pw,ph,{r:20});
   uiLogo('PAUSED',W/2,py+16,46,{sweep:150});
   let y=py+86;
@@ -251,7 +396,7 @@ function drawPauseMenu(){
     drawTextC(it,W/2,y,sel?'#ffe39a':'#c8b8ff',3);
     y+=rowH;
   });
-  drawTextC('A SELECT    B / START RESUME',W/2,py+ph-22,'#8a7ab8',1);
+  drawTextC(uiMenuHint('pause'),W/2,py+ph-28,'#d8ffc8',3);
 }
 
 // ── Options ───────────────────────────────────────────────────
@@ -290,11 +435,11 @@ function _optionsInput(ev){
 
 // ── Story state ───────────────────────────────────────────────
 const STORY_PAGES=[
-  {title:"SONNATA: PEACE IN AWDJOO",col:'#9effbf',lines:["In Sonnata, in the town of Awdjoo,","a family spent a peaceful day at home.","For generations they protected a secret:","the sacred Knowl tree hidden in their basement."]},
-  {title:"THE INVASION",col:'#ff8e9e',lines:["The evil Tradzkul invaded with his minions,","violently searching every room of the house.","They were hunting the sacred Knowl tree.","Awdjoo had never faced terror like this."]},
-  {title:"SHUTDOWN",col:'#ffc38a',lines:["Mind & Venture's elders blocked the basement entrance.","Tradzkul's minions shut them down by force.","As Tradzkul pushed toward the basement,","he knocked the siblings unconscious."]},
-  {title:"KIDNAPPED",col:'#cba7ff',lines:["Tradzkul kidnapped their elders,","then vanished into the night.","When Mind and Venture awoke,","they ran outside into the street."]},
-  {title:"THE JOURNEY BEGINS",col:'#8ee6ff',lines:["Their neighbor Laitu warned:","\"They are long gone to Tradzkul's lair.\"","Knowl seeds marked the way — town, hills,","garden, cavern, factory, then the lair."]},
+  {title:"HOME SWEET HOME",col:'#9effbf',lines:["Mind and Venture are brothers.","They live in Awdjoo Town.","A magic tree grows under their house."]},
+  {title:"THE BAD GUY",col:'#ff8e9e',lines:["Tradzkul is a bad guy.","He wants the magic tree.","He breaks in with his minions!"]},
+  {title:"OH NO!",col:'#ffc38a',lines:["The family tries to stop him.","Tradzkul knocks the brothers down.","Everything goes dark."]},
+  {title:"TAKEN!",col:'#cba7ff',lines:["Tradzkul takes the family away.","The brothers wake up alone.","They run outside."]},
+  {title:"LET'S GO!",col:'#8ee6ff',lines:["Neighbor Laitu points the way.","Follow the glowing seeds.","Bring the family home!"]},
 ];
 const STORY_ART=STORY_PAGES.map((_,i)=>{ const im=new Image(); im.src='assets/story/story-'+(i+1)+'.png'; return im; });
 const STORY_ART_Q=[];
@@ -421,8 +566,11 @@ document.addEventListener('keydown',e=>{
   }
   if(_gameState==='select'){
     if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){_gameState='story';_storyPage=STORY_PAGES.length-1;}e.preventDefault();return;}
-    if(e.code==='ArrowLeft'||e.code==='KeyA'){if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4;else _heroChoice='mind';e.preventDefault();return;}
-    if(e.code==='ArrowRight'||e.code==='KeyD'){if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4;else _heroChoice='venture';e.preventDefault();return;}
+    const dx=(e.code==='ArrowLeft'||e.code==='KeyA')?-1:(e.code==='ArrowRight'||e.code==='KeyD')?1:0;
+    const dy=(e.code==='ArrowUp'||e.code==='KeyW')?-1:(e.code==='ArrowDown'||e.code==='KeyS')?1:0;
+    if((dx||dy)&&window.MV_SELECT_NAV&&MV_SELECT_NAV(dx,dy)){ e.preventDefault(); return; }
+    if(dx<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; e.preventDefault(); return; }
+    if(dx>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; e.preventDefault(); return; }
     if(e.code==='Enter'||e.code==='Space'){startGame();e.preventDefault();return;}
     return;
   }
@@ -522,80 +670,92 @@ function drawHUD(){
     else{ drawTextC('VS '+rivalLabel,W/2,82,C.GREY,2); drawTextC('WALK THROUGH BLUE ZONE FOR RANDOM RIVAL',W/2,H-14,C.SKY_L,2); }
     return;
   }
-  // 16-bit glass HUD: one floating bar, glossy meters, pill item slots
-  const hudH=56;
-  uiPanel(6,4,W-12,48,{r:14,alpha:0.78,flat:true,accent:'rgba(200,170,255,0.55)'});
+  // Meters sit in the corners. The middle of the picture stays clear.
+  const L=uiLayout();
+  const top=Math.max(8,L.inset.t+4), left=Math.max(8,L.inset.l+4);
+  const lw=250, lh=108;
+  uiPanel(left,top,lw,lh,{r:12,alpha:0.78,flat:true,accent:'rgba(200,170,255,0.55)'});
   ctx.imageSmoothingEnabled=true;
-  blit(_getKnowlSpr()[(fr>>4)&1],16,10);
-  drawText(kTotal>0?kColl+'/'+kTotal:'-',38,14,goalOpen?C.GREEN_L:C.WHITE,2);
-  if(_awdjooTutorial&&_zoneIdx===0) drawText('SC '+_stageScore,38,34,_stageDamageFree?C.MINT:C.SAND,1);
-  const hpX=104, low=p.hp<=PLAYER_HIT_DMG*2;
-  drawText('HP',hpX,14,'#ffb0b8',2);
-  uiBar(hpX+40,14,170,16,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
-  if(_battleTestMode||_runTestMode) drawText('HP '+p.hp,hpX,36,p.hp<=40?C.RED_L:C.WHITE,1);
-  else if(typeof _campaignUsesLives==='function'&&_campaignUsesLives()){
-    const left=Math.max(0,(typeof SHUT_LIMIT!=='undefined'?SHUT_LIMIT:5)-(_playerShutCount||0));
-    for(let i=0;i<5;i++){ ctx.fillStyle=i<left?(left<=1?'#ff6a7a':'#ffe39a'):'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(hpX+46+i*14,40,4.5,0,Math.PI*2); ctx.fill(); }
-    drawText('LIVES',hpX,35,'#c8b8ff',1);
+  blit(_getKnowlSpr()[(fr>>4)&1],left+8,top+8);
+  drawText(kTotal>0?kColl+'/'+kTotal:'-',left+32,top+10,goalOpen?C.GREEN_L:C.WHITE,2);
+  if(_awdjooTutorial&&_zoneIdx===0) drawText('SC '+_stageScore,left+32,top+32,_stageDamageFree?C.MINT:C.SAND,2);
+  const hpX=left+10, low=p.hp<=PLAYER_HIT_DMG*2;
+  drawText('HP',hpX,top+52,'#ffb0b8',2);
+  uiBar(hpX+40,top+54,lw-58,14,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
+  if(typeof _campaignUsesLives==='function'&&_campaignUsesLives()){
+    const leftN=Math.max(0,(typeof SHUT_LIMIT!=='undefined'?SHUT_LIMIT:5)-(_playerShutCount||0));
+    drawText('LIVES '+leftN,hpX,top+32,'#d8ffc8',2);
   }
+  const pwrCol=p.itemStamina>50?'#46e06a':(p.itemStamina>20?'#ffa040':'#ff4a5a');
+  drawText('PWR',hpX,top+76,pwrCol,2);
+  uiBar(hpX+52,top+78,lw-110,12,p.itemStamina/100,pwrCol,p.itemStamina>50?'#c8ffd0':pwrCol,8,{pulse:p.itemStamina<20});
+  drawText(p.itemStamina<1&&fr%16<8?'LOW':Math.round(p.itemStamina)+'%',left+lw-52,top+74,pwrCol,2);
   const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
-  const inames=['TRS','RCA','XLR','MAG'];
+  const inames=['TRS','RCA','XLR','MEG'];
+  const jw=4*62+16, jx=W-Math.max(8,L.inset.r+4)-jw;
+  uiPanel(jx,top,jw,44,{r:12,alpha:0.78,flat:true});
   for(let i=0;i<4;i++){
-    const bx=330+i*70, on=_itemUnlocked(i), cur=i===ITEM&&on;
-    uiPill(bx,9,62,24,{on:cur,col:icols[i]});
-    drawTextC(on?inames[i]:'-',bx+31,13,!on?C.GREY_D:(cur?'#ffffff':'#a898d0'),2);
-    if(on&&typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i]) uiSparkle(bx+56,12,5,icols[i],0.9);
-    if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ ctx.fillStyle=(fr&4)?'#fff':icols[i]; ctx.beginPath(); ctx.arc(bx+54,26,3,0,Math.PI*2); ctx.fill(); }
+    const bx=jx+8+i*62, on=_itemUnlocked(i), cur=i===ITEM&&on;
+    uiPill(bx,top+8,56,26,{on:cur,col:icols[i]});
+    drawTextC(on?inames[i]:'-',bx+28,top+12,!on?C.GREY_D:(cur?'#ffffff':'#d8ffc8'),2);
   }
-  if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('KNOWL TREE 2X',330,37,C.MINT,1); ctx.globalAlpha=1; }
-  else if(ITEM===2||ITEM===3){
-    const pwrCol=p.itemStamina>50?'#5ac8ff':(p.itemStamina>20?'#ffa040':'#ff4a5a');
-    drawText('PWR',330,37,pwrCol,1);
-    uiBar(362,38,180,9,p.itemStamina/100,pwrCol,p.itemStamina>50?'#c0f0ff':pwrCol,10,{pulse:p.itemStamina<20});
-    drawText(p.itemStamina<1&&fr%16<8?'LOW':Math.round(p.itemStamina)+'%',550,37,pwrCol,1);
+  if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+120,top+10,C.MINT,2); ctx.globalAlpha=1; }
+  if(TEST_MODE) drawText('TEST',jx,top+lh,'#9ef58a',2);
+  if(_runTestMode){uiPanel(jx,top+52,jw,46,{r:10,flat:true});drawText('RUN TEST',jx+8,top+58,C.MINT,2);const sc=Math.round((p.suspComp||0)*100);drawText('SUSP '+sc+'%',jx+8,top+80,'#d8ffc8',2);}
+  if(!L.phone){
+    const prog=Math.max(0,Math.min(1,1-(p.y-360)/WH));
+    const railX=W-Math.max(10,L.inset.r+6), railTop=top+lh+12, railH=H-railTop-80;
+    uiRound(railX,railTop,6,railH,3); ctx.fillStyle='rgba(10,6,24,0.55)'; ctx.fill();
+    const rh=railH*prog; if(rh>3){ const gg=ctx.createLinearGradient(0,railTop+railH-rh,0,railTop+railH); gg.addColorStop(0,'#b0ffcf'); gg.addColorStop(1,'#2a9a6a'); uiRound(railX,railTop+railH-rh,6,rh,3); ctx.fillStyle=gg; ctx.fill(); }
   }
-  if(TEST_MODE) drawText('TEST',W-88,14,C.GREEN_L,2);
-  if(!(window.MV_BETA&&MV_BETA.on)) drawText('M'+MOVE_BUILD,12,H-18,'rgba(125,255,207,0.6)',1);
-  if(_gameState==='game'&&Math.abs(p.vx)>0.3) drawTextR('SPD '+Math.round(Math.abs(p.vx)),W-22,14,'#ece4ff',2);
-  if(_runTestMode){uiPanel(W-284,58,276,46,{r:10,flat:true});drawText('RUN TEST',W-272,64,C.MINT,2);const sc=Math.round((p.suspComp||0)*100);drawText('SUSP'+sc+'%  TAB=RESET',W-272,86,C.GREY,1);}
-  if(GP&&GP.pad) drawTextR('PAD',W-22,34,C.GREEN,1);
-  // altitude rail on the right edge
-  const prog=Math.max(0,Math.min(1,1-(p.y-360)/WH));
-  uiRound(W-12,hudH+8,6,H-hudH-16,3); ctx.fillStyle='rgba(10,6,24,0.55)'; ctx.fill();
-  const rh=(H-hudH-16)*prog; if(rh>3){ const gg=ctx.createLinearGradient(0,H-8-rh,0,H-8); gg.addColorStop(0,'#b0ffcf'); gg.addColorStop(1,'#2a9a6a'); uiRound(W-12,H-8-rh,6,rh,3); ctx.fillStyle=gg; ctx.fill(); }
   const _ch=_playerChargeInfo(p), _chargeShow=_ch.chargeFrac;
   if((p.og&&_chargeShow>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||_ch.sprinting){
     const ready=p.duckBoostReady||p._wallChargeReady||_ch.ready;
-    uiBar(14,hudH+6,130,10,_chargeShow,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
+    uiBar(left,top+lh+8,lw,12,_chargeShow,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
   }
 }
 
 function drawOptions(){
   _drawSnesStarfield();
-  const padX=80, panelW=W-padX*2, rowH=34, scl=2;
+  uiWatchPad();
+  const L=uiLayout(), panelW=L.panelW, panelX=L.panelX, scl=3;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
-    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':MV_CONSOLE.mode==='ink'?'D  INK & VINYL':'C  POSH'):'-',hint:window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'?'WOODBLOCK PRINT - WASHI, SUMI, VINYL':window.MV_CONSOLE&&MV_CONSOLE.mode==='off'?'CLEAN HD - NO CONSOLE EFFECTS':'LOOK + SOUND OF THE MACHINE'},
+    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':MV_CONSOLE.mode==='ink'?'D  INK & VINYL':'C  POSH'):'-'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
     {label:'MANUAL & CREDITS',val:'OPEN >'}];
   if(window.MV_SIGNAL) rows.push({label:'LEAVE A NOTE',val:'WRITE >'});
   BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
-  const panelH=rows.length*rowH+96, panelY=Math.max(20,Math.round((H-panelH)/2));
-  uiPanel(padX,panelY,panelW,panelH,{r:16});
-  uiLogo('OPTIONS',W/2,panelY+14,40,{sweep:300});
+  const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
+  const rowH=stacked?78:52, VIS=6;
+  const start=rows.length<=VIS?0:Math.max(0,Math.min(_optRow-2, rows.length-VIS));
+  const show=Math.min(VIS, rows.length);
+  const panelH=86+show*rowH+56;
+  const panelY=Math.max(16+L.inset.t, Math.round((H-panelH)/2));
+  uiPanel(panelX,panelY,panelW,panelH,{r:16});
+  uiLogo('OPTIONS',W/2,panelY+12,36,{sweep:300});
+  if(start>0) drawTextC('^',W/2,panelY+52,'#d8ffc8',2);
   let y=panelY+70;
-  rows.forEach((r,i)=>{
-    const sel=i===_optRow;
-    if(sel){ uiPanel(padX+20,y-9,panelW-40,rowH-4,{sel:true,r:10,flat:true}); uiCursor(padX+36,y+7,9); }
-    drawText(r.label,padX+52,y,sel?C.WHITE:C.LILAC,scl);
-    if(r.bar!=null){ uiBar(padX+panelW-250,y+3,150,12,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,padX+panelW-30,y,sel?C.WHITE:'#c8b8ff',scl); }
-    else drawTextR(r.val,padX+panelW-30,y,sel?'#ffe39a':'#c8b8ff',scl);
+  for(let vi=0;vi<show;vi++){
+    const i=start+vi, r=rows[i], sel=i===_optRow;
+    if(sel){ uiPanel(panelX+16,y-8,panelW-32,rowH-8,{sel:true,r:10,flat:true}); uiCursor(panelX+28,y+8,9); }
+    const col=sel?'#ffffff':'#d8ffc8', valCol=sel?'#ffe39a':'#d8ffc8';
+    if(stacked){
+      drawText(r.label,panelX+48,y,col,scl);
+      if(r.bar!=null){ uiBar(panelX+48,y+32,panelW-160,14,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,panelX+panelW-28,y+30,valCol,scl); }
+      else drawText(r.val,panelX+48,y+32,valCol,scl);
+    }else{
+      drawText(r.label,panelX+48,y,col,scl);
+      if(r.bar!=null){ uiBar(panelX+panelW-230,y+4,120,14,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,panelX+panelW-28,y,valCol,scl); }
+      else drawTextR(r.val,panelX+panelW-28,y,valCol,scl);
+    }
     y+=rowH;
-  });
-  const footY=panelY+panelH-30;
-  if(_optRebinding){if(fr%32<24) drawTextC('PRESS A KEY FOR '+BIND_LABELS[_optRebinding].toUpperCase(),W/2,footY,'#ffe39a',2);}
-  else drawTextC('UP/DOWN  SELECT    LEFT/RIGHT  ADJUST    A / ENTER  OK    B / ESC  BACK',W/2,footY,'#9c8cc8',1);
+  }
+  if(start+show<rows.length) drawTextC('v',W/2,panelY+panelH-62,'#d8ffc8',2);
+  const footY=panelY+panelH-36;
+  if(_optRebinding){ if(fr%32<24) drawTextC('PRESS A KEY',W/2,footY,'#ffe39a',scl); }
+  else drawTextC(uiMenuHint('options'),W/2,footY,'#d8ffc8',scl);
 }
 
 let _vigCanvas=null;
@@ -673,18 +833,18 @@ function drawZoneCard(){
   const sub=zc&&zc.sub!=null?zc.sub:(_runTestMode?'ROLL OVER BUMPS - TEST SUSPENSION':(_battleTestMode?'VS SIGNOL - GRENADE RIVAL':'ZONE '+(_zoneIdx+1)+' OF '+ZONES.length));
   const inK=Math.min(1,t/22), outK=Math.min(1,_zoneCardT/22);
   const e=1-Math.pow(1-Math.min(inK,outK),3);
-  const cy=Math.round(H*0.32), bh=110*e;
+  const cy=Math.round(H*0.28), bh=120*e, Lz=uiLayout(), bw=Lz.panelW, bx=Lz.panelX;
   ctx.save();
   const g=ctx.createLinearGradient(0,cy-bh/2,0,cy+bh/2);
   g.addColorStop(0,'rgba(2,10,4,0)'); g.addColorStop(0.2,'rgba(6,22,10,0.88)'); g.addColorStop(0.8,'rgba(6,22,10,0.88)'); g.addColorStop(1,'rgba(2,10,4,0)');
-  ctx.fillStyle=g; ctx.fillRect(0,cy-bh/2,W,bh);
-  ctx.fillStyle='rgba(0,0,0,0.2)'; for(let yy=Math.round(cy-bh/2);yy<cy+bh/2;yy+=3) ctx.fillRect(0,yy,W,1);   // scanlines, like the key art's CRT glow
-  const lg=ctx.createLinearGradient(0,0,W,0); lg.addColorStop(0,'rgba(170,240,120,0)'); lg.addColorStop(0.5,'rgba(170,240,120,0.9)'); lg.addColorStop(1,'rgba(170,240,120,0)');
-  ctx.fillStyle=lg; ctx.fillRect(0,cy-bh*0.38,W,2); ctx.fillRect(0,cy+bh*0.38,W,2);
+  ctx.fillStyle=g; ctx.fillRect(bx,cy-bh/2,bw,bh);
+  ctx.fillStyle='rgba(0,0,0,0.2)'; for(let yy=Math.round(cy-bh/2);yy<cy+bh/2;yy+=3) ctx.fillRect(bx,yy,bw,1);
+  const lg=ctx.createLinearGradient(bx,0,bx+bw,0); lg.addColorStop(0,'rgba(170,240,120,0)'); lg.addColorStop(0.5,'rgba(170,240,120,0.9)'); lg.addColorStop(1,'rgba(170,240,120,0)');
+  ctx.fillStyle=lg; ctx.fillRect(bx,cy-bh*0.38,bw,2); ctx.fillRect(bx,cy+bh*0.38,bw,2);
   const slide=(1-Math.min(1,t/30))*W*0.6 - (1-outK)*W*0.6;
   ctx.globalAlpha=Math.min(inK,outK);
   uiLogo(title,W/2+slide,cy-36,48,{sweep:90});
-  drawTextC(sub,W/2-slide*0.6,cy+22,'#c8b8ff',2);
+  drawTextC(sub,W/2-slide*0.6,cy+28,'#d8ffc8',3);
   ctx.restore();
 }
 function _drawSnesWindow(x,y,w,h,opts){ uiPanel(x,y,w,h,{sel:!!(opts&&opts.sel),locked:!!(opts&&opts.locked),r:Math.min(12,h/3)}); }
@@ -714,7 +874,7 @@ function _drawTitleMenuOverArt(map){
     ctx.lineWidth=Math.max(3,sz*0.12); ctx.strokeStyle='#020a04'; ctx.strokeText(r.label,W/2,cy);
     if(sel&&!r.locked){ ctx.shadowColor='rgba(170,255,140,0.9)'; ctx.shadowBlur=14; }
     ctx.fillStyle=col; ctx.fillText(r.label,W/2,cy); ctx.restore();
-    if(r.locked&&r.note){ drawTextC(r.note,W/2,cy+sz*0.42,sel?'#c8a050':'#7a6a40',1); }
+    if(r.locked&&r.note){ drawTextC(r.note,W/2,cy+sz*0.42,sel?'#ffe39a':'#c8a050',2); }
     if(sel) uiCursor(W/2-((r.label.length*sz*0.5)/2)-26*s,cy,12);
   });
   ctx.restore();
@@ -744,7 +904,7 @@ function drawTitle(){
     ctx.restore();
     _drawTitleMenuOverArt(Object.assign({},map,{s:0.75}));
     _drawUiToast();
-    drawTextC('© 1993 SONNATA GAMES',W-96,H-14,'rgba(200,184,255,0.6)',1);
+    drawTextC('© 1993 SONNATA GAMES',W-150,H-28,'#d8ffc8',2);
     if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }   // in from the skipped logos
     return;
   }
@@ -775,7 +935,7 @@ function drawTitle(){
   const rb=ctx.createLinearGradient(0,ry,0,ry+rh); rb.addColorStop(0,'rgba(70,30,140,0.0)'); rb.addColorStop(0.5,'rgba(70,30,140,0.75)'); rb.addColorStop(1,'rgba(70,30,140,0.0)');
   ctx.fillStyle=rb; ctx.fillRect(W/2-rw/2,ry+2,rw,rh-4);
   drawTextC('A W D J O O',W/2,ry+11,'#ffe39a',2);
-  drawTextC('A SONNATA 16-BIT ADVENTURE',W/2,ry+rh+12,'#c8b8ff',1);
+  drawTextC('A SONNATA 16-BIT ADVENTURE',W/2,ry+rh+12,'#d8ffc8',2);
   const hw=uiLogoHalf();
   uiSparkle(W/2+hw-10,ly+14,10+4*Math.sin(fr*0.11),'#fff',0.5+0.5*Math.sin(fr*0.11));
   uiSparkle(W/2-hw+40,ly+70,7+3*Math.sin(fr*0.09+2),'#ffe39a',0.5+0.5*Math.sin(fr*0.09+2));
@@ -792,12 +952,12 @@ function drawTitle(){
     if(sel&&!locked) uiCursor(r.x+20,r.y+oy+r.h/2,10);
     const col=locked?(sel?C.GREY:C.GREY_D):(sel?'#ffffff':'#c8b8ff');
     drawTextC(r.label,W/2,r.ty+oy-7,col,2);
-    if(locked) drawTextC('BEAT STORY TO UNLOCK',W/2,r.ty+oy+12,C.GREY_D,1);
+    if(locked) drawTextC('BEAT STORY TO UNLOCK',W/2,r.ty+oy+14,'#d8ffc8',2);
   }
   ctx.globalAlpha=1;
   _drawUiToast();
   if(!_titleMusicPlaying){ ctx.globalAlpha=0.55+0.45*Math.sin(fr*0.09); drawTextC('PRESS START',W/2,H-58,'#ffe39a',2); ctx.globalAlpha=1; }
-  drawTextC('© 1993 SONNATA GAMES',W/2,H-24,'#9c8cc8',1);
+  drawTextC('© 1993 SONNATA GAMES',W/2,H-28,'#d8ffc8',2);
 }
 
 function drawLevelSelect(){
@@ -837,18 +997,19 @@ function _drawFullCoverArt(img){ if(!img||!img.complete||!img.naturalWidth) retu
 function _drawCoverArt(img,qStore,key){ if(!img||!img.complete||!img.naturalWidth) return; const store=qStore||[]; if(!store[key]){const s=Math.max(W/img.naturalWidth,H/img.naturalHeight);store[key]=smsProcessPainted(img,Math.max(1,Math.round(img.naturalWidth*s)),Math.max(1,Math.round(img.naturalHeight*s)));} const q=store[key]; ctx.imageSmoothingEnabled=false; ctx.drawImage(q,(W-q.width)>>1,(H-q.height)>>1); }
 function _drawLorePanel(page,frKey,opts={}){
   const {pageNum=0,pageTotal=0,showPrompt=true}=opts;
-  const fs=3, bs=2, lh=13*bs, titleH=14*fs, padX=28, panelX=24, panelW=W-48, textMaxW=panelW-padX*2;
-  const wrapped=wrapBitmapBlocks(page.lines,textMaxW,bs);
+  const fs=3, bs=3, lh=textH(bs)+10, titleH=textH(fs)+8;
+  const L=uiLayout(), panelW=L.panelW, panelX=L.panelX, padX=28, textMaxW=panelW-padX*2;
+  const wrapped=wrapBitmapBlocks(page.lines,textMaxW,bs).slice(0,6);
   const bodyH=wrapped.length*lh;
-  const panelH=Math.min(Math.floor(H*0.42),titleH+bodyH+64);
-  const panelY=H-panelH-20;
-  uiPanel(panelX,panelY,panelW,panelH,{r:18,alpha:0.88});
+  const panelH=Math.min(Math.floor(H*0.46), titleH+bodyH+78);
+  const panelY=H-panelH-Math.max(16,L.pad.b*0.15+12);
+  uiPanel(panelX,panelY,panelW,panelH,{r:18,alpha:0.9});
   const titleCol=page.col||C.SAND;
-  drawTextC(page.title,W/2,panelY+12,titleCol,fs);
-  let lineY=panelY+titleH+14;
-  wrapped.forEach((line,i)=>{ if(frKey<i*14) return; if(lineY>panelY+panelH-30) return; ctx.save(); ctx.globalAlpha=Math.min(1,(frKey-i*14)/14); drawTextC(line,W/2,lineY,'#ece4ff',bs); ctx.restore(); lineY+=lh; });
-  if(showPrompt){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS ANY KEY',W/2,panelY+panelH-26,'#ffe39a',1); ctx.restore(); }
-  if(pageTotal>1){ for(let i=0;i<pageTotal;i++){ ctx.fillStyle=i===pageNum-1?'#ffe39a':'rgba(200,184,255,0.35)'; ctx.beginPath(); ctx.arc(W/2+(i-(pageTotal-1)/2)*16,H-8,i===pageNum-1?4:3,0,Math.PI*2); ctx.fill(); } }
+  drawTextC(page.title,W/2,panelY+14,titleCol,fs);
+  let lineY=panelY+titleH+16;
+  wrapped.forEach((line,i)=>{ if(frKey<i*10) return; if(lineY>panelY+panelH-48) return; ctx.save(); ctx.globalAlpha=Math.min(1,(frKey-i*10)/10); drawTextC(line,W/2,lineY,'#f2ffe8',bs); ctx.restore(); lineY+=lh; });
+  if(showPrompt){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(uiMenuHint('story'),W/2,panelY+panelH-36,'#ffe39a',3); ctx.restore(); }
+  if(pageTotal>1){ for(let i=0;i<pageTotal;i++){ ctx.fillStyle=i===pageNum-1?'#ffe39a':'rgba(200,184,255,0.35)'; ctx.beginPath(); ctx.arc(panelX+panelW/2+(i-(pageTotal-1)/2)*18,panelY+panelH-12,i===pageNum-1?4:3,0,Math.PI*2); ctx.fill(); } }
 }
 function drawStory(){ const page=STORY_PAGES[_storyPage]; ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H); _drawCoverArt(STORY_ART[_storyPage],STORY_ART_Q,_storyPage); _drawLorePanel(page,_storyFr,{pageNum:_storyPage+1,pageTotal:STORY_PAGES.length}); }
 
@@ -868,7 +1029,7 @@ function _drawZoneCutArt(pageIdx){ const page=ZONE_CUT_ART[pageIdx],art=_zoneCut
 function drawSonataMap(){
   ctx.fillStyle='#04020a';ctx.fillRect(0,0,W,H);
   _drawFullCoverArt(MAP_ART)||_mapCoverRect();
-  uiPanel(W/2-180,10,360,58,{r:16,alpha:0.85});uiLogo('SONNATA',W/2,12,30,{sweep:360});drawTextC('KNOWL SEED TRAIL',W/2,48,C.TEAL_L,1);
+  uiPanel(uiLayout().panelX,10,uiLayout().panelW,70,{r:16,alpha:0.85});uiLogo('SONNATA',W/2,12,30,{sweep:360});drawTextC('GLOWING SEEDS',W/2,52,'#d8ffc8',2);
   uiPanel(W/2-260,H-44,520,36,{r:18,alpha:0.85});
   const cur=ZONES[_zoneIdx]?ZONES[_zoneIdx].name:'',nxt=ZONES[_zoneIdx+1]?ZONES[_zoneIdx+1].name:'Summit';
   drawTextC(cur+'  \u2192  '+nxt,W/2,H-36,C.GREEN_L,2);
@@ -878,7 +1039,7 @@ function drawCutscene(){
     ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);ctx.imageSmoothingEnabled=true;
     drawLaituFigure(W/2,H*0.58,4.1,{glowPhase:0.4});
     drawTextC('NEIGHBOR LAITU',W/2,78,'#a8d4ff',3);
-    const fs=2,lh=13*fs,panelH=Math.min(220,48+_laituCutLines.length*lh+36),panelY=H-panelH-20,panelX=24,panelW=W-48;
+    const fs=3,lh=textH(fs)+8,L=uiLayout(),panelW=L.panelW,panelX=L.panelX,panelH=Math.min(280,64+_laituCutLines.length*lh+48),panelY=H-panelH-20;
     uiPanel(panelX,panelY,panelW,panelH,{r:18,accent:'#8ec8ff',alpha:0.9});
     let lineY=panelY+20;
     _laituCutLines.forEach((line,i)=>{ if(_cutsceneFr<i*18) return; if(lineY>panelY+panelH-fs*8) return; drawTextC(line,W/2,lineY,'#ece4ff',fs); lineY+=lh; });
@@ -917,8 +1078,8 @@ function drawSelect(){
   }else{
     const mSel=_heroChoice==='mind',vSel=_heroChoice==='venture';
     const cxM=rowX+cardW/2,cxV=rowX+cardW+gap+cardW/2;
-    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['PURPLE','WIDE HAT','LEAD SIBLING']);
-    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['BLACK HAT','BACK BRIM','BOLD SIBLING']);
+    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['PURPLE','WIDE HAT','BIG BROTHER']);
+    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['BLACK HAT','BACK BRIM','LITTLE BROTHER']);
     const swY=cardsY+cardH-36;
     if(mSel){ctx.fillStyle=C.PURPLE_L;ctx.fillRect(cxM-28,swY,18,18);ctx.fillStyle=C.LILAC;ctx.fillRect(cxM-6,swY,18,18);}
     if(vSel){ctx.fillStyle=C.RED_L;ctx.fillRect(cxV-28,swY,18,18);ctx.fillStyle=C.ORANGE;ctx.fillRect(cxV-6,swY,18,18);}
@@ -946,7 +1107,7 @@ function updateVersionBar(){
     if(!(_battleTestMode&&_gameState==='game')){
       inf.style.fontSize='14px';
       const zone=ZONES[_zoneIdx]?ZONES[_zoneIdx].name:'';
-      if(ITEM===2||ITEM===3) inf.textContent=zone+' · '+(ITEM===2?'XLR':'MAG')+' '+p.itemStamina+'%';
+      if(ITEM===2||ITEM===3) inf.textContent=zone+' · '+(ITEM===2?'XLR':'MEG')+' '+p.itemStamina+'%';
       else inf.textContent=zone+' · '+(ITEM>=0?INAMES[ITEM]:'NO ITEM')+' · Knowl '+kColl+'/'+kTotal;
       inf.style.color='';
     }

@@ -25,10 +25,11 @@
   const S={page:0, from:0, t:1, back:'options'};
   // ── tiny typesetting kit ──
   function wrap(text,x,y,maxW,size,lh,col,opt){
-    ctx.save(); ctx.font=(opt&&opt.bold?'800 ':'')+size+'px '+BODY(); ctx.fillStyle=col||INK; ctx.textBaseline='top';
+    ctx.save(); ctx.font=(opt&&opt.bold?'800 ':'')+size+'px '+BODY(); ctx.fillStyle=col||INK; ctx.textBaseline='top'; ctx.lineJoin='round';
     const words=String(text).split(' '); let line='', yy=y;
-    for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW&&line){ ctx.fillText(line,x,yy); yy+=lh; line=w; } else line=t; }
-    if(line){ ctx.fillText(line,x,yy); yy+=lh; }
+    const ink=()=>{ ctx.lineWidth=Math.max(2,size*0.08); ctx.strokeStyle='#14070a'; ctx.strokeText(line,x,yy); ctx.fillText(line,x,yy); };
+    for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW&&line){ ink(); yy+=lh; line=w; } else line=t; }
+    if(line){ ink(); yy+=lh; }
     ctx.restore(); return yy;
   }
   function ribbon(text,x,y,w,col){
@@ -61,7 +62,7 @@
     if(title){ ctx.fillStyle=col||BLUE; ctx.fillRect(x,y,w,26); ctx.font='18px '+HEAD(); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(title,x+10,y+14); }
     ctx.restore();
   }
-  function label(t,x,y,size,col,align){ ctx.save(); ctx.font=size+'px '+HEAD(); ctx.fillStyle=col||INK; ctx.textAlign=align||'left'; ctx.textBaseline='top'; ctx.fillText(t,x,y); ctx.restore(); }
+  function label(t,x,y,size,col,align){ ctx.save(); ctx.font=size+'px '+HEAD(); ctx.fillStyle=col||INK; ctx.textAlign=align||'left'; ctx.textBaseline='top'; ctx.lineJoin='round'; ctx.lineWidth=Math.max(2,size*0.08); ctx.strokeStyle='#14070a'; ctx.strokeText(t,x,y); ctx.fillText(t,x,y); ctx.restore(); }
 
   // the jack crops in the item-box sheet (1536×1024): TRS, RCA, XLR, MAG
   const JACK_X=[56,432,808,1180];
@@ -84,17 +85,18 @@
       framed(img('s1','assets/story/story-1.png'),x+30,y+100,w-60,200,{ay:0.4});
       let yy=y+320;
       const P=typeof STORY_PAGES!=='undefined'?STORY_PAGES:[];
-      for(const pg of P){ label(pg.title,x+30,yy,17,RED); yy=wrap(pg.lines.join(' '),x+30,yy+22,w-60,15,19); yy+=8; if(yy>y+h-40) break; }
+      for(const pg of P){ label(pg.title,x+30,yy,22,RED); yy=wrap(pg.lines.join(' '),x+30,yy+26,w-60,22,26); yy+=6; if(yy>y+h-40) break; }
     },
     // 3 · the heroes
     (x,y,w,h)=>{
       ribbon('MEET THE HEROES',x+30,y+30,330,BLUE);
       const cw=(w-90)/2;
-      [['mind','MIND','#6a2cc8','The lead sibling. Wide black hat, purple circuits, steady hands and big ideas. Rolls on a dirt-bike wheel with a V8 in the hub.'],
-       ['venture','VENTURE','#c8281e','The bold sibling. Backward cap, red circuits, no brakes and all nerve. Rides along as your ally — or as Player 2.']].forEach(([k,n,c,t],i)=>{
-        const bx=x+30+i*(cw+30), by=y+100;
-        framed(img('h'+k,'assets/ui/hero-'+k+'.png'),bx,by,cw,300,{ay:0.1});
-        label(n,bx,by+314,30,c); wrap(t,bx,by+352,cw,15,20);
+      [['mind','MIND','#6a2cc8','The big brother. Wide black hat, purple circuits, steady hands and big ideas. Rolls on a dirt-bike wheel with a V8 in the hub.'],
+       ['venture','VENTURE','#c8281e','The little brother. Backward cap, red circuits, no brakes and all nerve. Rides along as your ally — or as Player 2.']].forEach(([k,n,c,t],i)=>{
+        const one=window.uiLayout&&uiLayout().oneCol;
+        const bx=one?x+30:x+30+i*(cw+30), by=one?y+96+i*250:y+100, bw=one?w-60:cw, bh=one?150:260;
+        framed(img('h'+k,'assets/ui/hero-'+k+'.png'),bx,by,bw,bh,{ay:0.1});
+        label(n,bx,by+bh+8,28,c); wrap(t,bx,by+bh+42,bw,22,26);
       });
       starburst(x+w-80,y+h-90,58,'2 PLAYER!');
     },
@@ -112,14 +114,14 @@
       const k=a=>(B[a]||[]).map(c=>c.replace('Key','').replace('Arrow','').replace('Left','L').replace('Right','R')).join(' / ')||'-';
       const rows=[['MOVE',k('left')+'  ·  '+k('right')],['JUMP (tap again in the air: DOUBLE JUMP)',k('jump')],['USE ITEM (hold to charge)',k('swap')],['SWITCH ITEM',k('use')],['PUNCH',k('punch')],['AIM',k('up')+' / '+k('down')+' + arrows'],['SPRINT: tap item, then hold it + a direction',k('sprint')]];
       let yy=y+340;
-      for(const [a,b] of rows){ label(a,x+40,yy,15,INK); label(b,x+w-40,yy,15,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+40,yy+22,w-80,1); yy+=34; }
+      for(const [a,b] of rows){ label(a,x+24,yy,20,INK); label(b,x+w-24,yy,20,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+24,w-48,1); yy+=36; }
       box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the console look and this booklet.',x+52,yy+36,w-104,14,18);
     },
     // 5 · the four jacks
     (x,y,w,h)=>{
       ribbon('THE FOUR JACKS',x+30,y+30,320,BLUE);
       const sheet=img('boxes','assets/items/mv2-item-boxes-standard-enhanced.png');
-      const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Latch on, swing, reel in with UP / DOWN. It plugs into your back.'],['XLR','A blast that throws blocks and enemies — and you, the other way.'],['MAG','Grab and carry. Let go to throw. Pulls water to its tip.']];
+      const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Latch on, swing, reel in with UP / DOWN. It plugs into your back.'],['XLR','A blast that throws blocks and enemies — and you, the other way.'],['MEG','The magnet. Locks to the floor when you aim down. Grab, carry, let go to throw.']];
       T.forEach(([n,t],i)=>{ const by=y+100+i*128; framed(sheet,x+30,by,120,112,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+170,by+4,26,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+170,by+40,w-200,15,19); });
       starburst(x+w-70,y+86,48,'POWER!');
     },
@@ -145,6 +147,7 @@
       ribbon('CREDITS',x+30,y+30,220,GOLD);
       const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE" — PAULO VENTURA'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','SONNATA GAMES'],['PROGRAMMING & SOUND DESIGN','PAULO VENTURA · CLAUDE (ANTHROPIC) · CURSOR'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
       let yy=y+110; for(const [r,n] of C){ label(r,x+w/2,yy,13,'#9c8cc8','center'); label(n,x+w/2,yy+18,20,'#fff2c8','center'); yy+=62; }
+      label('(c) 2026 Paulo Ventura · BETA build '+(window.MV_BUILD||'?'),x+w/2,y+h-48,14,'#9c8cc8','center');
     },
     // 9 · progress
     (x,y,w,h)=>{
@@ -183,7 +186,8 @@
     // the table
     ctx.fillStyle='#14100c'; ctx.fillRect(0,0,W,H);
     const g=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,700); g.addColorStop(0,'rgba(80,60,40,0.35)'); g.addColorStop(1,'rgba(0,0,0,0.8)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    const pw=600, ph=720, px=(W-pw)/2, py=(H-ph)/2-6;
+    const L=window.uiLayout?uiLayout():{panelW:520};
+    const pw=Math.min(520,L.panelW), ph=Math.min(680,H-48), px=(W-pw)/2, py=Math.max(16,(H-ph)/2-6);
     S.t=Math.min(1,S.t+0.09);
     const e=1-Math.pow(1-S.t,3), dir=S.page>=S.from?1:-1;
     const draw=(i,off,alpha)=>{ if(i<0||i>=PAGES.length) return; ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.translate(px+pw/2,py+ph/2); ctx.rotate(-0.006+off*0.00004); ctx.translate(-(px+pw/2),-(py+ph/2));
@@ -192,7 +196,7 @@
     if(S.t<1) draw(S.from,-dir*e*(W*0.8),1-e);
     draw(S.page,dir*(1-e)*(W*0.8),e);
     // controls hint
-    if(typeof drawTextC==='function') drawTextC('<  >  TURN THE PAGE      ESC  CLOSE      '+(S.page+1)+' / '+PAGES.length,W/2,H-24,'#c8b8a0',1);
+    if(typeof drawTextC==='function') drawTextC((window.uiMenuHint?uiMenuHint('manual'):'TURN THE PAGE')+'    '+(S.page+1)+' / '+PAGES.length,W/2,H-36,'#f2ffe8',3);
   }
   function turn(d){ const n=Math.max(0,Math.min(PAGES.length-1,S.page+d)); if(n===S.page) return; S.from=S.page; S.page=n; S.t=0; try{ sfx('menu'); }catch(e){} }
   function close(){ _gameState=S.back; try{ sfx('confirm'); }catch(e){} }

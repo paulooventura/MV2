@@ -75,8 +75,8 @@
     drawText('CHAPTER',80,H*0.28,'#9ef58a',2);
     if(typeof uiLogo==='function') uiLogo(NAMES[s.stageId]||s.stageId,W*0.36,H*0.32,38,{col:'#b8f5a0',sweep:200});
     drawText((hero==='venture'?'VENTURE':'MIND')+' LEADS',80,H*0.46,col,2);
-    drawText(summary(s),80,H*0.52,'#d8ffc8',1);
-    if(c.t>40&&(c.t>>4)%2===0) drawText('PRESS ANY BUTTON',80,H*0.62,'#ffe39a',2);
+    drawText(summary(s),80,H*0.54,'#d8ffc8',2);
+    if(c.t>40&&(c.t>>4)%2===0) drawText(window.uiMenuHint?uiMenuHint('story'):'PRESS A BUTTON',80,H*0.64,'#ffe39a',3);
     ctx.restore();
     if(out>0){ ctx.fillStyle='rgba(2,8,4,'+Math.min(1,out)+')'; ctx.fillRect(0,0,W,H); }
   }
@@ -168,7 +168,7 @@
     else used=false;
     if(used){ e.preventDefault(); e.stopImmediatePropagation(); }
   },true);
-  function geom(){ const w=640, rh=50, h=112+ROWS*rh, x=(W-w)/2, y=Math.round(H*0.5-h/2+24); return {x,y,w,h,rh}; }
+  function geom(){ const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,inset:{t:0}}; const w=L.panelW, rh=62, h=108+ROWS*rh, x=L.panelX, y=Math.max(12+(L.inset.t||0), Math.round((H-h)/2)); return {x,y,w,h,rh}; }
   const rowY=(g,i)=>g.y+84+i*g.rh;
   document.addEventListener('click',e=>{
     if(!pick||_gameState!=='timeline') return;
@@ -217,18 +217,18 @@
     for(let i=0;i<ROWS;i++){
       const y=rowY(g,i), sel=i===pick.idx;
       if(sel){ uiPanel(g.x+20,y-10,g.w-40,g.rh-6,{sel:true,r:12,flat:true}); if(typeof uiCursor==='function') uiCursor(g.x+40,y+10,10); }
-      if(i>=N){ drawTextC('BACK',W/2,y+2,sel?'#ffe39a':'#c8b8ff',2); continue; }
-      const s=S[i], X=g.x+64;
-      drawText('TIMELINE '+(i+1),X,y-2,sel?'#ffe39a':'#c8b8ff',2);
+      if(i>=N){ drawTextC('BACK',W/2,y+4,sel?'#ffe39a':'#d8ffc8',3); continue; }
+      const s=S[i], X=g.x+28;
+      drawText('FILE '+(i+1),X,y-8,sel?'#ffe39a':'#d8ffc8',3);
       if(s){
-        drawText((NAMES[s.stageId]||('STAGE '+s.stageId))+'  -  SAVED '+ago(s.t||Date.now()),X+170,y-2,sel?'#ffffff':'#e8dcff',1);
-        drawText(pick.erase===i?'PRESS Y AGAIN TO ERASE THIS TIMELINE':summary(s),X+170,y+14,pick.erase===i?'#ff6a7a':'#7dffcf',1);
+        drawText((NAMES[s.stageId]||('STAGE '+s.stageId))+'  '+ago(s.t||Date.now()),X+150,y-8,sel?'#ffffff':'#d8ffc8',2);
+        drawText(pick.erase===i?'PRESS Y AGAIN TO ERASE':summary(s),X,y+20,pick.erase===i?'#ff6a7a':'#7dffcf',2);
       }else{
-        drawText('EMPTY',X+170,y-2,sel?'#ffffff':'#8a7ab8',1);
-        drawText('START A NEW STORY HERE',X+170,y+14,sel?'#c8b8ff':'#5a4a88',1);
+        drawText('EMPTY',X+150,y-8,sel?'#ffffff':'#d8ffc8',2);
+        drawText('START A NEW STORY HERE',X,y+20,sel?'#d8ffc8':'#8fd78a',2);
       }
     }
-    drawTextC('A PLAY    Y ERASE    B BACK',W/2,g.y+g.h-20,'#8a7ab8',1);
+    drawTextC(window.uiMenuHint?uiMenuHint('select'):'A PLAY    B BACK',W/2,g.y+g.h-32,'#d8ffc8',3);
     ctx.restore();
   }
 })();

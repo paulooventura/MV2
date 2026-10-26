@@ -17,12 +17,12 @@
   const IMG={}, FEATHER={};
   for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
   const HERO={
-    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE LEAD SIBLING', tag:'WIDE HAT  ·  STEADY HANDS  ·  BIG IDEAS'},
-    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE BOLD SIBLING', tag:'BACKWARD CAP  ·  NO BRAKES  ·  ALL NERVE'},
+    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'WIDE HAT  ·  STEADY HANDS  ·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'BACKWARD CAP  ·  NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
-    {id:0, name:'SOLO', sub:'YOUR SIBLING STAYS HOME', icon:'one', col:'#9ef58a'},
-    {id:1, name:'WITH SIBLING', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
+    {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},
+    {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
     {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
     {id:3, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
   ];
@@ -56,14 +56,15 @@
     drawText(text,x+kw+10,y+7,col,2);
     return kw+10+textW(text,2)+28;
   }
-  function hints(list){
-    let total=0; for(const [l,t] of list){ ctx.save(); ctx.font='22px "MV Pixel", monospace'; total+=Math.max(34,ctx.measureText(l).width+18); ctx.restore(); total+=10+textW(t,2)+28; }
-    let x=W/2-(total-28)/2; const y=H-58;
-    for(const [l,t,c] of list) x+=keycap(x,y,l,t,c||'#9ef58a');
+  function hints(){
+    const L=window.uiLayout?uiLayout():{pad:{b:0},oneCol:false};
+    const y=L.oneCol?Math.max(120, H-Math.max(40,(L.pad.b||0)+18)):H-48;
+    const line=window.uiMenuHint?uiMenuHint('select'):'ENTER PICK    ESC BACK';
+    drawTextC(line,W/2,y,'#d8ffc8',3);
   }
   function title(main,sub){
     uiLogo(main,W/2,26,46,{col:'#b8f5a0',sweep:300});
-    drawTextC(sub,W/2,96,'#d8ffc8',2);
+    drawTextC(sub,W/2,108,'#d8ffc8',3);
   }
   function spark(x,y,col){ sparks.push({x,y,vx:(Math.random()-0.5)*0.8,vy:-0.6-Math.random()*1.2,life:60+Math.random()*40,max:100,col,r:1+Math.random()*2.5}); }
   function sparkTick(){
@@ -74,10 +75,12 @@
   }
 
   // ── step 2: the heroes ──
-  function heroCard(key,cx,sel,k){
+  function heroCard(key,cx,sel,k,box){
     const H0=HERO[key], im=IMG[key];
-    const sc=0.9+0.1*k, w=Math.round(340*sc), h=Math.round(520*sc), x=Math.round(cx-w/2), bob=sel?Math.sin(fr*0.07)*4:0, y=Math.round(130+(1-k)*26+bob);
-    const sk=22*sc;
+    const sc=0.9+0.1*k;
+    let w,h,x,y,sk;
+    if(box){ w=box.w; h=box.h; x=box.x; y=box.y+(sel?Math.sin(fr*0.07)*3:0); sk=12; cx=x+w/2; }
+    else { w=Math.round(340*sc); h=Math.round(480*sc); x=Math.round(cx-w/2); y=Math.round(130+(1-k)*26+(sel?Math.sin(fr*0.07)*4:0)); sk=22*sc; }
     // drop shadow + light rays behind the lead
     if(k>0.05) rays(cx,y+h*0.42,H0.glow,k);
     ctx.save(); ctx.fillStyle='rgba(0,0,0,0.55)'; cardPath(x+8,y+10,w,h,sk); ctx.fill(); ctx.restore();
@@ -118,11 +121,11 @@
     ctx.shadowBlur=0; ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.7)'; cardPath(x+5,y+5,w-10,h-10,sk*0.95); ctx.stroke();
     ctx.restore();
     // name + role + tag
-    const ny=y+h-112;
+    const ny=h<200?y+Math.max(8,h-86):y+h-112;
     ctx.save(); if(!sel) ctx.globalAlpha=0.55;
     uiLogo(H0.name,cx,ny,sel?50:40,{col:H0.col,sweep:200});
-    drawTextC(H0.role,cx,ny+64,sel?'#ffffff':'#9aa0a8',2);
-    drawTextC(H0.tag,cx-4,ny+86,sel?H0.col:'#7a8088',1);
+    drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200?2:3);
+    if(h>=200) drawTextC(H0.tag,cx,ny+70,sel?H0.col:'#8aa090',2);
     ctx.restore();
     // badge: LEAD / ALLY (or P1 in local co-op)
     const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
@@ -140,17 +143,24 @@
     if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
-    title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS  ·  PLAYER 2 RIDES THE OTHER':(sib?'THE OTHER SIBLING SHADOWS YOU AND HAS YOUR BACK':'YOU RIDE ALONE  ·  THE OTHER SIBLING WAITS AT HOME'));
+    title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS. PLAYER 2 RIDES.':(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
     // draw the dimmed card first, the lead on top
     const order=mSel?['venture','mind']:['mind','venture'];
     heroRects=[];
-    for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(one){
+      const L=uiLayout(), bottom=H-Math.max(56,(L.pad.b||0)+24);
+      const box={x:L.panelX, y:124, w:L.panelW, h:Math.max(160, Math.min(300, bottom-124-130))};
+      heroRects.push(Object.assign({k:_heroChoice}, heroCard(_heroChoice, W/2, true, 1, box)));
+    }else{
+      for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
+    }
     // the seam between them: a pulsing "&" like the logo
     const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
     sparkTick();
     if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
-    hints(_playerCount!==2&&window.MV_SIBLING?[['^  v','PICK A ROW','#d8ffc8'],['<  >',selRow===0?'SWITCH LEAD':'CHANGE','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]:[['<  >','SWITCH','#d8ffc8'],['ENTER','RIDE OUT',HERO[_heroChoice].col],['ESC','BACK','#8aa090']]);
+    hints();
   }
   // Paulo (Oct 22): on this screen, under the heroes, two switches —
   //   COMPANION: SOLO (the other sibling stays home as an NPC) / WITH SIBLING (it shadows you)
@@ -165,9 +175,9 @@
     const h=34;
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
     const ws=opts.map(o=>Math.max(108,ctx.measureText(o.label).width+56)); ctx.restore();
-    const lw=textW(label,1)+14, tw=lw+ws[0]+ws[1]+8;
+    const lw=textW(label,2)+14, tw=lw+ws[0]+ws[1]+8;
     if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.55+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x-8,y-6,tw+16,h+12,12); ctx.stroke(); ctx.restore(); }
-    drawText(label,x,y+13,focus?'#ffffff':'#8aa090',1);
+    drawText(label,x,y+8,focus?'#ffffff':'#d8ffc8',2);
     let xx=x+lw;
     opts.forEach((o,i)=>{
       const sel=o.k===cur, w=ws[i], col=o.col;
@@ -181,14 +191,20 @@
     return tw;
   }
   function sibToggle(){
-    const y=H-104; sibRects=[];
-    const g1=[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH SIBLING',col:'#ffb86a'}];
+    sibRects=[];
+    const g1=[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH BROTHER',col:'#ffb86a'}];
     const g2=[{k:false,label:'OFF',col:'#9ef58a'},{k:true,label:'ON',col:'#ff7a6a'}];
-    // measure both groups to centre them
+    const L=window.uiLayout?uiLayout():{oneCol:false,panelX:40,panelW:520,pad:{b:0}};
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
-    const wOf=g=>g.reduce((t,o)=>t+Math.max(108,ctx.measureText(o.label).width+56),0)+8; ctx.restore();
-    const w1=wOf(g1)+textW('COMPANION',1)+14, w2=wOf(g2)+textW('FRIENDLY FIRE',1)+14;
-    const gap=40, x0=W/2-(w1+gap+w2)/2;
+    const wOf=g=>g.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+8; ctx.restore();
+    if(L.oneCol){
+      const y=H-Math.max(150,(L.pad.b||0)+150);
+      pillGroup('COMPANION',g1,!!MV_SIBLING.on,L.panelX+12,y,selRow===1,1);
+      pillGroup('FRIENDLY FIRE',g2,!!MV_SIBLING.ff,L.panelX+12,y+54,selRow===2,2);
+      return;
+    }
+    const w1=wOf(g1)+textW('COMPANION',2)+14, w2=wOf(g2)+textW('FRIENDLY FIRE',2)+14;
+    const gap=28, x0=W/2-(w1+gap+w2)/2, y=H-108;
     pillGroup('COMPANION',g1,!!MV_SIBLING.on,x0,y,selRow===1,1);
     pillGroup('FRIENDLY FIRE',g2,!!MV_SIBLING.ff,x0+w1+gap,y,selRow===2,2);
   }
@@ -234,7 +250,30 @@
   },{capture:true,passive:true});
   // the pad (player.js): dy moves between rows, dx changes the focused row. Returns true if it took it.
   window.MV_SELECT_NAV=function(dx,dy){
-    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return false;
+    if(_gameState!=='select'||(!dx&&!dy)) return false;
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(_selectStep===0){
+      if(one){
+        const d=(dy||dx)>0?1:3;
+        _playModeIdx=(_playModeIdx+d)%4;
+      }else{
+        let col=_playModeIdx%2, row=(_playModeIdx/2)|0;
+        if(dx) col=(col+(dx>0?1:-1)+2)%2;
+        if(dy) row=(row+(dy>0?1:-1)+2)%2;
+        _playModeIdx=row*2+col;
+      }
+      try{ sfx('menu'); }catch(e2){}
+      return true;
+    }
+    if(_playerCount===2||!window.MV_SIBLING){
+      if(dx<0||(one&&dy<0)) _heroChoice='mind';
+      if(dx>0||(one&&dy>0)) _heroChoice='venture';
+      return true;
+    }
+    if(one&&selRow===0&&dy){
+      if(dy>0&&_heroChoice==='mind'){ _heroChoice='venture'; try{ sfx('menu'); }catch(e2){} return true; }
+      if(dy<0&&_heroChoice==='venture'){ _heroChoice='mind'; try{ sfx('menu'); }catch(e2){} return true; }
+    }
     if(dy){ selRow=Math.max(0,Math.min(2,selRow+dy)); try{ sfx('menu'); }catch(e2){} }
     if(dx) rowChange(dx);
     return true;
@@ -259,12 +298,29 @@
     ctx.restore();
   }
   function drawModes(){
-    title('HOW DO YOU RIDE?', 'PICK A MODE  ·  YOU CAN CHANGE IT EVERY NEW STORY');
-    const cw=218, ch=330, gap=22, x0=W/2-(cw*4+gap*3)/2;
+    title('HOW DO YOU RIDE?', 'PICK HOW YOU GO');
+    const L=window.uiLayout?uiLayout():{oneCol:false,panelW:520,panelX:(1024-520)/2,pad:{b:0}};
+    const one=L.oneCol;
+    const gap=16;
+    const bottom=H-Math.max(56,(L.pad&&L.pad.b)||0)-8;
+    const top=150;
+    const want=one?112:200;
+    const fit=Math.max(1, Math.min(one?4:2, Math.floor((bottom-top+gap)/(want+gap))));
+    const vis=one?fit:4;
+    const start=one?Math.max(0, Math.min(_playModeIdx, MODES.length-vis)):0;
+    const cols=one?1:2;
+    const cw=one?L.panelW:Math.min(360, Math.floor((W-80-gap)/2));
+    const ch=Math.min(one?140:220, Math.floor((bottom-top-(Math.max(1,one?vis:2)-1)*gap)/(one?vis:2)));
+    const gridW=cols*cw+(cols-1)*gap;
+    const x0=Math.round((W-gridW)/2), y0=top;
     modeRects=[];
+    if(one&&start>0) drawTextC('^', W/2, top-8, '#d8ffc8', 2);
     MODES.forEach((m,i)=>{
+      if(one&&(i<start||i>=start+vis)) return;
+      const col=one?0:i%2, row=one?(i-start):(i/2)|0;
       const sel=_playModeIdx===i, key='m'+i; anim[key]=ease(anim[key],sel?1:0,0.2);
-      const k=anim[key], sc=0.92+0.08*k, w=cw*sc, h=ch*sc, cx=x0+i*(cw+gap)+cw/2, x=cx-w/2, y=170+(1-k)*16+(sel?Math.sin(fr*0.08)*3:0), sk=16;
+      const k=anim[key], sc=0.96+0.04*k, w=cw*sc, h=ch*sc;
+      const cx=x0+col*(cw+gap)+cw/2, x=cx-w/2, y=y0+row*(ch+gap)+(1-k)*8+(sel?Math.sin(fr*0.08)*2:0), sk=one?8:14;
       modeRects.push({i,x:x-sk,y,w:w+sk,h});
       const rgb=_uiRGB(m.col).join(',');
       if(sel&&!m.locked) rays(cx,y+h*0.4,rgb,k*0.8);
@@ -274,15 +330,17 @@
       ctx.save(); cardPath(x,y,w,h,sk); ctx.clip(); ctx.fillStyle='rgba(0,0,0,0.16)'; for(let yy=y;yy<y+h;yy+=3) ctx.fillRect(x-sk,yy,w+2*sk,1); ctx.restore();
       if(sel){ ctx.shadowColor='rgba('+rgb+',0.9)'; ctx.shadowBlur=16; }
       ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk); ctx.stroke(); ctx.restore();
-      icon(m.icon,cx,y+h*0.36,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),sel?1.7:1.4);
+      const short=h<150;
+      icon(m.icon,cx,short?y+28:y+h*0.34,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),short?1: (sel?1.5:1.2));
       ctx.save(); if(!sel) ctx.globalAlpha=0.6;
-      uiLogo(m.name,cx,y+h-118,m.name.length>9?(sel?25:21):(sel?34:28),{col:m.locked?'#7a8a80':m.col,sweep:220});
-      drawTextC(m.sub,cx,y+h-56,sel?'#ffffff':'#8a9a90',1);
+      uiLogo(m.name,cx,short?y+h-52:(y+h-100),m.name.length>9?(sel?22:20):(sel?30:26),{col:m.locked?'#7a8a80':m.col,sweep:220});
+      drawTextC(m.sub,cx,short?y+h-22:y+h-36,sel?'#ffffff':'#d8ffc8',2);
       ctx.restore();
       if(sel&&!m.locked&&fr%4===0) spark(x+Math.random()*w,y+h-20-Math.random()*h*0.5,m.col);
     });
+    if(one&&start+vis<MODES.length) drawTextC('v', W/2, bottom-4, '#d8ffc8', 2);
     sparkTick();
-    hints([['<  >','CHOOSE','#d8ffc8'],['ENTER','NEXT','#9ef58a'],['ESC','BACK','#8aa090']]);
+    hints();
   }
 
   window.drawSelect=function(){

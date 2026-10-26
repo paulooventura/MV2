@@ -1786,56 +1786,69 @@
     if(B.textQ.length){ if(typeof _worldZoomBegin==='function') _worldZoomBegin(); try{ for(const [fn,args] of B.textQ) fn(...args); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); } } B.textQ.length=0;
     drawLaituTag();
     const n=counts();
-    uiPanel(8, H-58, 560, 50, {r:14, alpha:0.78, flat:true, accent:'rgba(200,170,255,0.55)'});
-    drawText(B.stageName, 22, H-52, '#c8b8ff', 1);
-    drawTextR(fmtTime(B.stats.frames), 190, H-52, '#ffffff', 1);
+    const L=typeof uiLayout==='function'?uiLayout():{phone:false,pad:{l:0,r:0,b:0}};
+    const pad=L.pad||{l:0,r:0,b:0};
+    const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
+    let lx, ly, lw, rx, ry, rw;
+    if(L.phone){
+      const x0=pad.l+8, x1=W-pad.r-8, gap=Math.max(180,x1-x0);
+      lw=Math.min(400,gap); lx=x0+Math.max(0,(gap-lw)/2); ly=H-70;
+      rx=lx; ry=ly; rw=lw;
+    }else{
+      lx=12; ly=H-78; lw=260;
+      rw=280; rx=W-12-rw; ry=ly;
+    }
+    uiPanel(lx,ly,lw,66,{r:12,alpha:0.82,flat:true});
+    drawText(B.stageName, lx+10, ly+6, '#d8ffc8', 2);
+    let status=fmtTime(B.stats.frames);
     if(ITEM===3&&p){
       const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
-      uiBar(206,H-50,150,9,pw/100,'#e0c040',pw>66?'#ff4860':'#ff9a3a',3);
-      drawText('MAG '+Math.round(pw)+'%  GRIP '+cap.toFixed(1)+'/9'+(held?'  HOLDING '+held:''), 364, H-52, C.SILVER, 1);
+      status='MEG '+Math.round(pw)+'%  '+cap.toFixed(1)+'/9'+(held?'  '+held:'');
     }else if(ITEM===2&&p&&B.chX>0){
       const c=Math.min(1,B.chX/45);
-      uiBar(206,H-50,150,9,c,'#4466ff',c>=1?'#e0f4ff':'#88aaff',0,{pulse:c>=1});
-      drawText(c>=1?'XLR FULL POWER':'XLR CHARGING', 364, H-52, C.SILVER, 1);
+      status=c>=1?'XLR FULL':('XLR '+Math.round(c*100)+'%');
     }
-    // crystals + seeds as little gems
-    let gx=22; const gy=H-26;
-    // Paulo (Oct 21): the same look and colour as the real pickups; a full set glows
-    const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
-    const x0c=gx;
-    for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+7,gy+3,i<n.crystals,cAll,i); gx+=20; }
-    if(cAll) hudSetGlow(x0c-4,gy-10,gx-x0c+4,26,'90,255,160');
-    drawText(n.crystals+'/'+B.need.crystals, gx+2, gy-6, '#5dffa0', 1); gx+=46;
-    const x0s=gx;
-    for(let i=0;i<B.need.seeds;i++){ hudSeed(gx+5,gy+3,i<n.seeds,sAll,i); gx+=14; }
-    if(sAll) hudSetGlow(x0s-4,gy-10,gx-x0s+2,26,'125,255,207');
-    drawText(n.seeds+'/'+B.need.seeds, gx+4, gy-6, '#7dffcf', 1);
-    if(B.tier>0&&B.echoNeed>0){
-      let ex=360; for(let i=0;i<B.echoNeed;i++){ const on=i<n.echo; ctx.save(); ctx.translate(ex+7,gy+2); ctx.rotate(Math.PI/4); ctx.fillStyle=on?'#ff9ae0':'rgba(255,255,255,0.14)'; if(on){ ctx.shadowColor='#ff9ae0'; ctx.shadowBlur=8; } ctx.fillRect(-5,-5,10,10); ctx.restore(); ex+=20; }
-      drawText('ECHO '+n.echo+'/'+B.echoNeed, ex+2, gy-6, '#ff9ae0', 1);
+    if(L.phone) status=n.crystals+'/'+B.need.crystals+'   '+n.seeds+'/'+B.need.seeds+'   '+status;
+    drawText(status, lx+10, ly+32, '#ffffff', 2);
+    if(!L.phone){
+      uiPanel(rx,ry,rw,66,{r:12,alpha:0.82,flat:true});
+      let gx=rx+12;
+      for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+7,ry+16,i<n.crystals,cAll,i); gx+=18; }
+      drawText(n.crystals+'/'+B.need.crystals, gx+6, ry+4, '#5dffa0', 2);
+      gx=rx+12;
+      for(let i=0;i<Math.min(B.need.seeds,8);i++){ hudSeed(gx+5,ry+46,i<n.seeds,sAll,i); gx+=14; }
+      const seedLbl=n.seeds+'/'+B.need.seeds;
+      drawText(seedLbl, gx+6, ry+32, '#7dffcf', 2);
+      if(B.tier>0&&B.echoNeed>0){
+        const ex=gx+6+textW(seedLbl,2)+14;
+        if(ex<rx+rw-8) drawText('ECHO '+n.echo+'/'+B.echoNeed, ex, ry+32, '#ff9ae0', 2);
+      }
+      if(B.open){ ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN', rx+rw-8, ry+6, C.GREEN_L||'#7dffcf', 2); ctx.restore(); }
+    }else if(B.open){
+      ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN', lx+lw-8, ly+6, C.GREEN_L||'#7dffcf', 2); ctx.restore();
     }
     if(B.revisitNote>0){
       const a=Math.min(1,B.revisitNote/30,(360-B.revisitNote)/20);
       ctx.save(); ctx.globalAlpha=Math.max(0,a);
-      uiPanel(W/2-300,H*0.2,600,92,{r:18,sel:true,accent:'#ff9ae0'});
-      drawTextC(B.stageName+' HAS CHANGED', W/2, H*0.2+16, '#ff9ae0', 2);
-      drawTextC('NEW PATHS OPENED - THE ARCH WANTS '+B.echoNeed+' ECHO CRYSTALS', W/2, H*0.2+46, C.SILVER, 1);
-      drawTextC('BRING WHAT YOU FOUND FURTHER ON', W/2, H*0.2+66, '#ffe39a', 1);
+      const pw=Math.min(520, Math.floor(W*0.62)), px=(W-pw)/2;
+      uiPanel(px,H*0.18,pw,108,{r:18,sel:true,accent:'#ff9ae0'});
+      drawTextC(B.stageName+' HAS CHANGED', W/2, H*0.18+10, '#ff9ae0', 3);
+      drawTextC('NEW PATHS OPENED', W/2, H*0.18+42, '#f2ffe8', 2);
+      drawTextC('THE ARCH WANTS '+B.echoNeed+' ECHO CRYSTALS', W/2, H*0.18+66, '#ffe39a', 2);
       ctx.restore();
     }
-    if(B.open){ ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN!', 554, gy-8, C.GREEN_L||'#7dffcf', 2); ctx.restore(); }
     if(B.bounceT>0&&!B.open){
-      const a=Math.min(1,B.bounceT/20), bw=Math.min(W-40,560), bx=(W-bw)/2, by=H*0.28;
+      const a=Math.min(1,B.bounceT/20), bw=Math.min(520, Math.floor(W*0.62)), bx=(W-bw)/2, by=H*0.22;
       ctx.globalAlpha=a;
-      uiPanel(bx,by,bw,96,{r:18,sel:true});
+      uiPanel(bx,by,bw,110,{r:18,sel:true});
       if(B.tier>0&&B.echoNeed>0){
-        drawTextC('NEW PATHS HAVE OPENED', W/2, by+16, '#ff9ae0', 2);
-        drawTextC('FIND THE ECHO CRYSTALS', W/2, by+40, C.YELLOW, 2);
-        drawTextC('ECHO CRYSTALS '+n.echo+'/'+B.echoNeed, W/2, by+70, C.SILVER, 1);
+        drawTextC('NEW PATHS HAVE OPENED', W/2, by+14, '#ff9ae0', 3);
+        drawTextC('FIND THE ECHO CRYSTALS', W/2, by+46, '#ffe39a', 2);
+        drawTextC('ECHO CRYSTALS '+n.echo+'/'+B.echoNeed, W/2, by+74, '#f2ffe8', 2);
       }else{
-      drawTextC('GATHER THE SEEDS & CRYSTALS', W/2, by+16, C.YELLOW, 2);
-      drawTextC('TO PROCEED', W/2, by+40, C.YELLOW, 2);
-      drawTextC('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds, W/2, by+70, C.SILVER, 1);
+      drawTextC('GATHER THE SEEDS & CRYSTALS', W/2, by+14, '#ffe39a', 3);
+      drawTextC('TO PROCEED', W/2, by+46, '#ffe39a', 2);
+      drawTextC('CRYSTALS '+n.crystals+'/'+B.need.crystals+'   SEEDS '+n.seeds+'/'+B.need.seeds, W/2, by+74, '#f2ffe8', 2);
       }
       ctx.globalAlpha=1;
     }
