@@ -251,10 +251,18 @@
       k.floorY=floorY!=null?floorY:(r+1)*T; k.c=c;
     }
 
-    for(const e of ents){
+    B._placeEnt=placeEnt;
+    for(const e of ents) placeEnt(e);
+    function placeEnt(e){
       const id=e.__identifier, g=cell(e);
       const x=g.c*T, y=g.r*T, cx=x+g.w*T/2, feet=(g.r+g.h)*T;
       switch(id){
+        case 'Seed': {                          // editor-placed seed (level seeds come in as Knowls)
+          const fy=typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp:4,maxDrop:T*2}):null;
+          const sy=fy!=null?fy-15:y+T/2;
+          KDROP.push({x:cx, y:sy, ox:cx, oy:sy, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2,
+            kind:'seed', floorY:fy!=null?fy:feet, c:g.c}); break;
+        }
         case 'MindSpawn':
           _spawnX=cx-SW/2; _spawnY=feet-FEET_OFF; break;
         case 'Gate':
@@ -358,6 +366,24 @@
     if(typeof uiShowToast==='function') uiShowToast(B.need.crystals+' CRYSTALS + '+B.need.seeds+' SEEDS OPEN THE ARCH');
     console.info('MV: Awdjoo L1 beta', level.cols+'x'+level.rows, 'knowls', kTotal, 'boxes', BWALLS.length, 'enemies', ENEMS.length);
   }
+
+  // Editor hook: place one entity on the loaded stage exactly as the level file would.
+  // Returns the live objects it made so the editor can take them away again.
+  B.placeEntity=function(id, c, r, fields){
+    if(!B._placeEnt||!B.level) return null;
+    const e={__identifier:id, __grid:[c,r], width:16, height:16,
+      fieldInstances:Object.keys(fields||{}).map(k=>({__identifier:k, __value:fields[k]}))};
+    const n={e:ENEMS.length, k:KDROP.length, w:BWALLS.length, d:ITEM_DROPS.length};
+    B._placeEnt(e);
+    const made={enemies:ENEMS.slice(n.e), knowls:KDROP.slice(n.k), bwalls:BWALLS.slice(n.w), drops:ITEM_DROPS.slice(n.d)};
+    for(const bw of made.bwalls) if(bw.cube&&bw.homeCol!=null){
+      bw.spawnC=bw.homeCol; bw.spawnR=bw.homeRow;
+      if(B.cubeCellsEver) B.cubeCellsEver.add(bw.homeCol+','+bw.homeRow);
+    }
+    if(made.bwalls.length&&typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
+    kTotal=KDROP.length;
+    return made;
+  };
 
   function counts(){
     let crystals=0, seeds=0, echo=0;

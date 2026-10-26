@@ -562,6 +562,78 @@ const PROBES = {
     return { pass: ok, note: JSON.stringify(s), samples: [s] };
   },
 
+  // T167 — editor ENEMY / CRATE / KNOWL / BWALL tools place real stage entities; SAVE brings them back
+  // on a stage reload (alive), CLEAR takes them away again
+  async editorEnts() {
+    const H = __PH, T = H.T; H.hold();
+    const GH = cv.height;
+    const click = (mx, my) => { const rect = cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0,
+      clientX: rect.left + mx * rect.width / W, clientY: rect.top + my * rect.height / GH })); cv.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); };
+    localStorage.removeItem('mv2.editor.ents.' + MV_BETA.stageId); localStorage.removeItem('mv2.editor.cells.' + MV_BETA.stageId);
+    H.step(20);
+    const c0 = Math.floor(H.cx() / T), r0 = Math.floor((H.feet() + 2) / T);
+    // the open, dry floor run (11 cells, 2 of air over it) nearest to spawn
+    let cs = null, rf = null, best = 1e9;
+    for (let r = 3; r < MV_GRID.rows - 1; r++) for (let c = 1; c < MV_GRID.cols - 12; c++) {
+      let ok = true;
+      for (let k = 0; k < 11 && ok; k++) ok = gridSolid(c + k, r) && !gridCell(c + k, r - 1) && !gridCell(c + k, r - 2) && !H.wet((c + k + 0.5) * T, (r - 1) * T);
+      const d = Math.abs(c - c0) + 3 * Math.abs(r - r0);
+      if (ok && d < best) { best = d; cs = c; rf = r; }
+    }
+    if (cs == null) return { pass: false, note: 'no open floor run on the stage' };
+    const plan = [['enemy', 0, cs, rf - 1], ['crate', 2, cs + 3, rf - 1], ['knowl', 0, cs + 6, rf - 1], ['knowl', 1, cs + 7, rf - 2], ['bwall', 0, cs + 10, rf - 1]];
+    const s = { at: [cs, rf] };
+    const placeAll = () => {
+      _edSetActive(true);
+      camX = camClampX((cs + 5) * T - (W - ED.panelW) / 2); camY = camClampY(rf * T - 300); _snapRenderCam(); drawEditorOverlay();
+      for (const [t, k, c, r] of plan) {
+        ED.tool = t; ED.liveKind[t] = k;
+        click(sx((c + 0.5) * T) * camZoom, sy((r + 0.5) * T) * camZoom);
+      }
+    };
+    const alive = () => ED.ents.map((en) => {
+      const m = en.made;
+      const e = m.enemies[0], k = m.knowls[0], d = m.drops[0], b = m.bwalls[0];
+      return en.t + ':' + en.k + ':' + (e ? +(ENEMS.includes(e) && e.alive !== false && (e.hp == null || e.hp > 0))
+        : k ? +(KDROP.includes(k) && !k.got) : d ? +(ITEM_DROPS.includes(d) && !d.got && MV_BETA.crateList().some((x) => x.o === d) && !(d._box && d._box.broken))
+        : b ? +(BWALLS.includes(b) && b.hp > 0 && gridCell(Math.floor((b.x + T / 2) / T), Math.floor((b.y + T / 2) / T)) === MV_GRID_DESTRUCT) : 0);
+    });
+    placeAll();
+    _edSetActive(false); H.step(30); _edSetActive(true);
+    s.placed = alive();
+    s.kinds = [ENEMS.at(-1)._ai, ITEM_DROPS.at(-1).item, KDROP.at(-1).kind, BWALLS.at(-1).cube];
+    const hit = (l) => ED.hits.find((h) => h.label === l);
+    drawEditorOverlay();
+    const sv = hit('SAVE'); click(sv.x + sv.w / 2, sv.y + 10);
+    s.saved = JSON.parse(localStorage.getItem('mv2.editor.ents.' + MV_BETA.stageId) || '[]').length;
+    _edSetActive(false);
+    // reload the stage: the saved things come back through the stage's own spawns
+    const id = MV_BETA.stageId;
+    await startBetaLab(id, 15, { fresh: true });
+    for (let i = 0; i < 200 && (MV_BETA.loading || !MV_GRID.ready); i++) await new Promise((r) => setTimeout(r, 50));
+    s.cleanAfterReload = ED.ents.length === 0 || !ED.ents.some((en) => ENEMS.includes(en.made.enemies[0]));
+    s.loaded = edLoadStageEdits();
+    H.hold(); H.step(60);
+    s.reloaded = alive();
+    // CLEAR removes them
+    _edSetActive(true); drawEditorOverlay();
+    const refs = ED.ents.map((en) => en.made);
+    const cl = hit('CLEAR'); click(cl.x + cl.w / 2, cl.y + 10);
+    s.afterClear = {
+      ents: ED.ents.length,
+      left: refs.filter((m) => m.enemies.some((o) => ENEMS.includes(o)) || m.knowls.some((o) => KDROP.includes(o))
+        || m.drops.some((o) => ITEM_DROPS.includes(o)) || m.bwalls.some((o) => BWALLS.includes(o))).length,
+      cubeCell: gridCell(plan[4][2], plan[4][3]),
+      stored: localStorage.getItem('mv2.editor.ents.' + id),
+    };
+    _edSetActive(false);
+    const allOn = (a) => a.length === plan.length && a.every((x) => x.endsWith(':1'));
+    const ok = allOn(s.placed) && s.kinds[0] === 'circle' && s.kinds[1] === 2 && s.kinds[2] === 'crystal' && s.kinds[3] === true
+      && s.saved === plan.length && s.loaded === plan.length && allOn(s.reloaded)
+      && s.afterClear.ents === 0 && s.afterClear.left === 0 && s.afterClear.cubeCell === 0 && s.afterClear.stored === null;
+    return { pass: ok, note: JSON.stringify(s), samples: [s] };
+  },
+
   // #136c (T134) — pass-through ramp: plain right rolls past it on the floor; right+up climbs it
   passRamp() {
     const H = __PH, T = H.T; H.hold(); H.parkEnemies();
@@ -589,5 +661,6 @@ const PROBES = {
 };
 PROBES.editor.lvls = ['1.1'];
 PROBES.passRamp.lvls = ['1.1'];
+PROBES.editorEnts.lvls = ['1.1', '1.2'];
 
 main().catch((e) => { console.error('probe runner failed:', e.message); process.exitCode = 2; });

@@ -201,15 +201,103 @@ function _edRectCells(x0,y0,x1,y1){
   return out;
 }
 function _edStageKey(){ return ED_CELLS_KEY+(MV_BETA.stageId||'?'); }
+function _edEntsKey(){ return ED_ENTS_KEY+(MV_BETA.stageId||'?'); }
 function edSaveCells(){
-  const n=Object.keys(ED.cellEdits).length;
-  try{ localStorage.setItem(_edStageKey(), JSON.stringify(ED.cellEdits)); }catch(e){}
-  edShowToast('SAVED '+n+' BLOCKS FOR '+(MV_BETA.stageId||'THIS STAGE'));
+  const n=Object.keys(ED.cellEdits).length, m=ED.ents.length;
+  try{
+    localStorage.setItem(_edStageKey(), JSON.stringify(ED.cellEdits));
+    localStorage.setItem(_edEntsKey(), JSON.stringify(ED.ents.map(en=>({t:en.t,k:en.k,c:en.c,r:en.r}))));
+  }catch(e){}
+  edShowToast('SAVED '+n+' BLOCKS + '+m+' THINGS FOR '+(MV_BETA.stageId||'THIS STAGE'));
 }
 function edClearCells(){
-  try{ localStorage.removeItem(_edStageKey()); }catch(e){}
+  try{ localStorage.removeItem(_edStageKey()); localStorage.removeItem(_edEntsKey()); }catch(e){}
   ED.cellEdits={};
+  for(const en of ED.ents) _edEntRemove(en);
+  ED.ents=[];
   edShowToast('EDITS CLEARED — TAB RESTARTS THE STAGE CLEAN');
+}
+
+// Live-stage things: enemies, item crates, seeds/crystals and cubes are spawned through the
+// stage's own entity code (MV_BETA.placeEntity), so they act like level-placed ones.
+const ED_ENTS_KEY='mv2.editor.ents.';
+const ED_LIVE={
+  enemy:{label:'ENEMY', kinds:['circle','square','tri','eye','mirror'], names:['A CIRCLE','C SQUARE','B TRI','EYE','D MIRROR']},
+  crate:{label:'CRATE', kinds:['TRS','RCA','XLR','MAG'], names:['TRS','RCA','XLR','MAG']},
+  knowl:{label:'KNOWL', kinds:['seed','crystal'], names:['SEED','CRYSTAL']},
+  bwall:{label:'BWALL', kinds:['omni','push','pull','laser'], names:['OMNI','PUSH','PULL','CAGE']},
+};
+ED.ents=[];
+ED.liveKind={enemy:0, crate:0, knowl:0, bwall:0};
+function _edLiveName(t){ const d=ED_LIVE[t]; return d?d.names[ED.liveKind[t]%d.kinds.length]:''; }
+function _edEntSpawn(t,k,c,r){
+  const B=MV_BETA;
+  if(!B||!B.placeEntity) return null;
+  const made=t==='enemy'?B.placeEntity('Enemy',c,r,{ai:k})
+    :t==='crate'?B.placeEntity('Item',c,r,{item:k})
+    :t==='knowl'?B.placeEntity(k==='crystal'?'Crystal':'Seed',c,r,{})
+    :t==='bwall'?B.placeEntity('Box',c,r,{kind:k}):null;
+  if(!made) return null;
+  return made.enemies.length+made.knowls.length+made.bwalls.length+made.drops.length?made:null;
+}
+function _edEntRemove(en){
+  const m=en.made||{}, del=(arr,o)=>{ const i=arr.indexOf(o); if(i>=0) arr.splice(i,1); return i>=0; };
+  for(const o of m.enemies||[]) del(ENEMS,o);
+  for(const o of m.knowls||[]) del(KDROP,o);
+  for(const o of m.drops||[]){ del(ITEM_DROPS,o); if(o._cell&&MV_BETA.crateCells) MV_BETA.crateCells.delete(o._cell); }
+  for(const o of m.bwalls||[]){
+    if(!del(BWALLS,o)) continue;
+    if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(o);
+    const T=MV_GRID.tile, c=Math.floor((o.x+T/2)/T), r=Math.floor((o.y+T/2)/T);
+    if(gridCell(c,r)===MV_GRID_DESTRUCT) gridSmashCell(c,r);
+  }
+  kTotal=KDROP.length;
+}
+// Ground the click: enemies and crates go on the first floor under the cell.
+function _edGroundRow(c,r){
+  const lv=MV_BETA.level;
+  for(let k=0;k<24&&r<lv.rows-1;k++,r++) if(gridCell(c,r+1)&&!gridCell(c,r)) return r;
+  return r;
+}
+function edPlaceLive(t,c,r){
+  const d=ED_LIVE[t]; if(!d) return null;
+  const k=d.kinds[ED.liveKind[t]%d.kinds.length];
+  if(gridCell(c,r)&&!(gridIsSlope&&gridIsSlope(c,r))){ edShowToast('THAT CELL IS SOLID'); return null; }
+  if(t==='enemy'||t==='crate') r=_edGroundRow(c,r);
+  const made=_edEntSpawn(t,k,c,r);
+  if(!made){ edShowToast('CAN\'T PLACE '+d.names[ED.liveKind[t]%d.kinds.length]+' HERE'); return null; }
+  const en={t,k,c,r,made};
+  ED.ents.push(en);
+  edPushUndo(); ED.undoStack[ED.undoStack.length-1].E_=en;
+  edShowToast(_edLiveName(t)+' @ '+c+','+r);
+  return en;
+}
+// The live objects an editor thing made, wherever they've wandered to.
+function _edEntHit(en,wx,wy){
+  const T=MV_GRID.tile, m=en.made||{};
+  if(Math.floor(wx/T)===en.c&&Math.floor(wy/T)===en.r) return true;
+  for(const o of [...(m.enemies||[]),...(m.drops||[]),...(m.bwalls||[])])
+    if(wx>=o.x-4&&wx<=o.x+(o.w||T)+4&&wy>=o.y-4&&wy<=o.y+(o.h||T)+4) return true;
+  for(const o of m.knowls||[]) if(Math.abs(wx-o.x)<24&&Math.abs(wy-o.y)<24) return true;
+  return false;
+}
+function edEraseLiveEnt(wx,wy){
+  for(let i=ED.ents.length-1;i>=0;i--){
+    if(!_edEntHit(ED.ents[i],wx,wy)) continue;
+    _edEntRemove(ED.ents[i]);
+    edShowToast('REMOVED '+ED_LIVE[ED.ents[i].t].names[ED_LIVE[ED.ents[i].t].kinds.indexOf(ED.ents[i].k)]);
+    ED.ents.splice(i,1);
+    return true;
+  }
+  return false;
+}
+function _edEntBox(en){
+  const m=en.made||{}, T=MV_GRID.tile;
+  const o=(m.enemies||[])[0]||(m.drops||[])[0]||(m.bwalls||[])[0];
+  if(o) return {x:o.x,y:o.y,w:o.w||T,h:o.h||T};
+  const k=(m.knowls||[])[0];
+  if(k) return {x:k.x-14,y:k.y-14,w:28,h:28};
+  return {x:en.c*T,y:en.r*T,w:T,h:T};
 }
 function edSave(){
   if(_stageDesignerMode) edSaveStage();
@@ -225,22 +313,31 @@ function edTest(){
 }
 // Saved edits come back when their stage loads again.
 let _edLevelSeen=null;
+function edLoadStageEdits(){
+  const B=window.MV_BETA;
+  _edLevelSeen=B.level;
+  ED.cellEdits={}; ED.ents=[];
+  if(typeof _gridReady!=='function'||!_gridReady()) return 0;
+  let saved=null, ents=null;
+  try{ saved=JSON.parse(localStorage.getItem(_edStageKey())||'null'); }catch(e){}
+  try{ ents=JSON.parse(localStorage.getItem(_edEntsKey())||'null'); }catch(e){}
+  let n=0, m=0;
+  for(const k in saved||{}){
+    const [c,r]=k.split(',').map(Number);
+    _edCellSet(c,r,saved[k]|0); ED.cellEdits[k]=saved[k]|0; n++;
+  }
+  for(const s of ents||[]){
+    const made=ED_LIVE[s.t]&&_edEntSpawn(s.t,s.k,s.c|0,s.r|0);
+    if(made){ ED.ents.push({t:s.t,k:s.k,c:s.c|0,r:s.r|0,made}); m++; }
+  }
+  if(n||m) uiShowToast('EDITOR: '+n+' SAVED BLOCKS + '+m+' THINGS LOADED');
+  return n+m;
+}
 setInterval(()=>{
   if(/[?&](selftest|ci)=/i.test(location.search||'')) return;
   const B=window.MV_BETA;
   if(!B||!B.level||B.loading||B.level===_edLevelSeen) return;
-  _edLevelSeen=B.level;
-  ED.cellEdits={};
-  if(typeof _gridReady!=='function'||!_gridReady()) return;
-  let saved=null;
-  try{ saved=JSON.parse(localStorage.getItem(_edStageKey())||'null'); }catch(e){}
-  if(!saved) return;
-  let n=0;
-  for(const k in saved){
-    const [c,r]=k.split(',').map(Number);
-    _edCellSet(c,r,saved[k]|0); ED.cellEdits[k]=saved[k]|0; n++;
-  }
-  if(n) uiShowToast('EDITOR: '+n+' SAVED BLOCKS LOADED');
+  edLoadStageEdits();
 },300);
 
 /* â”€â”€ SNAP HELPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -374,6 +471,7 @@ function edUndo(){
   // Restore live arrays from snapshot
   TR.length=0; snap.TR.forEach(t=>TR.push(t));
   if(snap.G_&&_edLive()) for(const g of snap.G_.slice().reverse()){ _edCellSet(g.c,g.r,g.id); ED.cellEdits[g.c+','+g.r]=g.id; }
+  if(snap.E_){ const i=ED.ents.indexOf(snap.E_); if(i>=0){ _edEntRemove(snap.E_); ED.ents.splice(i,1); } }
   // Note: enemies/crates/etc are runtime objects; partial restore
   edShowToast('Undone');
 }
@@ -396,10 +494,12 @@ cv.addEventListener('mousedown', e=>{
   _edMouseDown=true;
   const w=edToWorld(mx,my);
   const raw=edToWorldRaw(mx,my);
-  if(_edLive()&&(ED.tool==='ramp'||ED.tool==='erase')){
+  if(_edLive()&&(ED.tool==='ramp'||ED.tool==='erase'||ED_LIVE[ED.tool])){
     const T=MV_GRID.tile, c=Math.floor(raw.x/T), r=Math.floor(raw.y/T);
     if(ED.tool==='ramp'){ _edStampCells([[c,r]],ED_RAMPS[ED.rampIdx].id); return; }
-    if(_edCellGet(c,r)){ _edStampCells([[c,r]],0); return; }
+    if(ED.tool==='erase'&&edEraseLiveEnt(raw.x,raw.y)) return;
+    if(ED.tool==='erase'&&_edCellGet(c,r)){ _edStampCells([[c,r]],0); return; }
+    if(ED_LIVE[ED.tool]){ _edMouseDown=false; edPlaceLive(ED.tool,c,r); return; }
   }
   if(ED.tool==='platform'||ED.tool==='bwall'){
     ED.dragging=true; ED.dragStart={...w}; ED.dragEnd={...w};
@@ -484,6 +584,10 @@ document.addEventListener('keydown', e=>{
     ED.platType=types[(types.indexOf(ED.platType)+1)%types.length];
     edShowToast('Platform: '+ED.platType); e.preventDefault(); return;
   }
+  if(e.code==='Tab'&&ED_LIVE[ED.tool]&&_edLive()){
+    ED.liveKind[ED.tool]=(ED.liveKind[ED.tool]+1)%ED_LIVE[ED.tool].kinds.length;
+    edShowToast(ED_LIVE[ED.tool].label+': '+_edLiveName(ED.tool)); e.preventDefault(); return;
+  }
   // Cycle enemy type
   if(e.code==='Tab'&&ED.tool==='enemy'){
     const etypes=['ball','square','triangle','star'];
@@ -540,6 +644,11 @@ function drawEditorOverlay(){
       if(id===7){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); }
       ctx.stroke();
     }
+    ctx.strokeStyle='#e8a0ff';
+    for(const en of ED.ents){
+      const b=_edEntBox(en);
+      ctx.strokeRect(sx(b.x)-2,sy(b.y)-2,sw(b.w)+4,sw(b.h)+4);
+    }
     ctx.setLineDash([]);
     if(ED.hoverX>=PX){
       const hw=edToWorldRaw(ED.hoverX,ED.hoverY), hc=Math.floor(hw.x/T), hr=Math.floor(hw.y/T);
@@ -579,10 +688,10 @@ function drawEditorOverlay(){
   const tools=[
     ['P','PLATFORM',ED.platType],
     ['L','RAMP',ED_RAMPS[ED.rampIdx].label],
-    ['N','ENEMY',ED.enemyType],
-    ['C','CRATE','28X28'],
-    ['K','KNOWL','DROP'],
-    ['B','BWALL','HP:'+ED.bwallHp],
+    ['N','ENEMY',live?_edLiveName('enemy'):ED.enemyType],
+    ['C','CRATE',live?_edLiveName('crate'):'28X28'],
+    ['K','KNOWL',live?_edLiveName('knowl'):'DROP'],
+    ['B','BWALL',live?_edLiveName('bwall'):'HP:'+ED.bwallHp],
     ['R','ERASE',''],
   ];
   let ty=38;
@@ -596,6 +705,7 @@ function drawEditorOverlay(){
     if(sub) drawText(String(sub), 118, ty+2, C.SAND, 1);
     ED.hits.push({label:name,x:6,y:ty-2,w:PW-12,h:22,fn:()=>{
       if(ED.tool===id&&id==='ramp') ED.rampIdx=(ED.rampIdx+1)%ED_RAMPS.length;
+      else if(ED.tool===id&&live&&ED_LIVE[id]) ED.liveKind[id]=(ED.liveKind[id]+1)%ED_LIVE[id].kinds.length;
       else if(ED.tool===id&&id==='platform') ED.platType=ED.platType==='solid'?'oneway':'solid';
       ED.tool=id;
     }});
@@ -622,6 +732,7 @@ function drawEditorOverlay(){
   if(live){
     drawText('STAGE: '+(MV_BETA.stageId||'?'), 10, ty, C.CYAN, 1); ty+=14;
     drawText('EDITED BLOCKS: '+Object.keys(ED.cellEdits).length, 10, ty, C.SILVER, 1); ty+=14;
+    drawText('PLACED THINGS: '+ED.ents.length, 10, ty, C.SILVER, 1); ty+=14;
   }else{
     drawText('ROOM: '+ED.roomName, 10, ty, C.CYAN, 1); ty+=14;
     drawText('PLATS: '+(TR.length-4), 10, ty, C.SILVER, 1); ty+=14;
