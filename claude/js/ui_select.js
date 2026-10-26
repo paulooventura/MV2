@@ -17,8 +17,8 @@
   const IMG={}, FEATHER={};
   for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
   const HERO={
-    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'WIDE HAT  ·  STEADY HANDS  ·  BIG IDEAS'},
-    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'BACKWARD CAP  ·  NO BRAKES  ·  ALL NERVE'},
+    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},

@@ -71,9 +71,8 @@ function _driveMenusFromPads(){
     return;
   }
   if(_gameState==='options'){
-    const onFilter=_optRow===4;
     const swapHeld=_optSwapHeld||!!K['KeyE'];
-    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape']||(!!Kj['KeyE']&&!onFilter),swapHeld,punch:!!Kj['KeyF']});
+    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape'],swapHeld,punch:!!Kj['KeyF']});
     return;
   }
   if(_gameState==='tutorial'&&(ok||back)){ _gameState='title'; return; }
@@ -261,9 +260,9 @@ function uiMenuHint(kind){
   const ok=_uiDev==='pad'||_uiDev==='touch'?uiActLabel('jump'):'ENTER';
   const back=_uiDev==='pad'||_uiDev==='touch'?uiActLabel('use'):'ESC';
   if(kind==='story') return _uiDev==='touch'?'TAP TO GO ON':('PRESS '+ok);
-  if(kind==='manual') return _uiDev==='touch'?'TAP A SIDE':(ok+' NEXT    '+back+' CLOSE');
+  if(kind==='manual') return ok+' NEXT    '+uiActLabel('punch')+' CLOSE';
   if(kind==='touch'||(_uiDev==='touch'&&kind!=='pause'&&kind!=='options')) return 'TAP TO PICK';
-  if(kind==='options') return _uiDev==='touch'?'TAP A ROW':(ok+' OK    '+back+' BACK');
+  if(kind==='options') return ok+' OK    '+uiActLabel('punch')+' BACK';
   return ok+' PICK    '+back+' BACK';
 }
 function uiSafeInsets(){
@@ -431,13 +430,12 @@ function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS+_optExtra(); }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
-  if(ev.punch) return true;
   const held=!!ev.swapHeld;
   if(_goreWasHeld&&!held) _goreStep=0;
   _goreWasHeld=held;
   if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
   const n=_optRowCount();
-  if(ev.back){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
+  if(ev.back||ev.punch){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
   if(held&&_optRow===4){
     if(ev.up) _goreFeed('up');
     else if(ev.down) _goreFeed('down');
@@ -570,7 +568,7 @@ document.addEventListener('keydown',e=>{
     if(_optRebinding){ if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;} OPT.binds[_optRebinding]=[e.code]; _saveOpts();_optRebinding=null;e.preventDefault();return; }
     if(e.code==='KeyE') _optSwapHeld=true;
     const onFilter=_optRow===4;
-    _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:(e.code==='Escape'||e.code==='Backspace')||(e.code==='KeyE'&&!onFilter),swapHeld:_optSwapHeld||e.code==='KeyE',punch:e.code==='KeyF'});
+    _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace',swapHeld:_optSwapHeld||e.code==='KeyE',punch:e.code==='KeyF'});
     e.preventDefault();return;
   }
   if(_gameState==='title'){
@@ -1122,8 +1120,8 @@ function drawSelect(){
   }else{
     const mSel=_heroChoice==='mind',vSel=_heroChoice==='venture';
     const cxM=rowX+cardW/2,cxV=rowX+cardW+gap+cardW/2;
-    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['PURPLE','WIDE HAT','BIG BROTHER']);
-    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['BLACK HAT','BACK BRIM','LITTLE BROTHER']);
+    _drawCard(cxM,cardsY,cardW,cardH,mSel,C.PURPLE_L,false,'MIND',['BIG BROTHER']);
+    _drawCard(cxV,cardsY,cardW,cardH,vSel,C.RED_L,false,'VENTURE',['LITTLE BROTHER']);
     const swY=cardsY+cardH-36;
     if(mSel){ctx.fillStyle=C.PURPLE_L;ctx.fillRect(cxM-28,swY,18,18);ctx.fillStyle=C.LILAC;ctx.fillRect(cxM-6,swY,18,18);}
     if(vSel){ctx.fillStyle=C.RED_L;ctx.fillRect(cxV-28,swY,18,18);ctx.fillStyle=C.ORANGE;ctx.fillRect(cxV-6,swY,18,18);}

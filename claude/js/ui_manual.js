@@ -205,14 +205,15 @@
     if(_gameState!=='manual') return;
     if(performance.now()-(S.openAt||0)<180){ e.preventDefault(); e.stopImmediatePropagation(); return; }   // the key that opened it
     const c=e.code;
-    if(c==='ArrowRight'||c==='KeyD'||c==='Enter'||c==='Space') turn(1);
+    if(c==='KeyF'||c==='Escape'||c==='Backspace') close();   // Y (punch) closes the booklet. B does not.
+    else if(c==='ArrowRight'||c==='KeyD'||c==='Enter'||c==='Space') turn(1);
     else if(c==='ArrowLeft'||c==='KeyA') turn(-1);
-    else if(c==='Escape'||c==='Backspace'||c==='KeyE') close();
     e.preventDefault(); e.stopImmediatePropagation();
   },true);
   document.addEventListener('click',e=>{
     if(_gameState!=='manual') return;
-    const c=document.getElementById('c'); if(!c) return; const r=c.getBoundingClientRect(); const mx=(e.clientX-r.left)*(W/r.width);
+    if(e.target&&e.target.closest&&e.target.closest('#padRight,#padLeft,#phoneCrt')) return;
+    const c=document.getElementById('c'); if(!c||e.target!==c) return; const r=c.getBoundingClientRect(); const mx=(e.clientX-r.left)*(W/r.width);
     turn(mx<W/2?-1:1); e.stopImmediatePropagation();
   },true);
   // gamepad: reuse the menu edges (left/right/B) through Kj each frame
@@ -220,6 +221,9 @@
   window.update=function(){
     if(_gameState==='manual'){
       if(typeof readGamepad==='function') try{ readGamepad(); }catch(e){}
+      if(Kj['KeyF']||Kj['Escape']) close();
+      else if(Kj['Space']||Kj['Enter']||Kj['ArrowRight']||Kj['KeyD']) turn(1);
+      else if(Kj['ArrowLeft']||Kj['KeyA']) turn(-1);
       fr++; if(typeof clkj==='function') clkj(); return;
     }
     return _update.apply(this,arguments);

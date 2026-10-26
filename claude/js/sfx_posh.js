@@ -119,9 +119,9 @@
     },
     // punches (Paulo, Oct 20): the swing is a WHOOSH; landing it is a separate thump (beta_impact.js)
     punch(a){ hiss(a,{f:420,f1:1900,q:1.3,d:0.17,v:0.2,at:0.02}); hiss(a,{type:'lowpass',f:700,f1:300,d:0.14,v:0.08,at:0.015}); },
-    punch_heavy(a){ hiss(a,{f:260,f1:1500,q:1.1,d:0.3,v:0.26,at:0.035,rev:0.12}); hiss(a,{type:'lowpass',f:500,f1:160,d:0.28,v:0.14,at:0.03}); tone(a,{f:90,f1:150,d:0.25,v:0.06,type:'triangle',at:0.05}); },
+    punch_heavy(a){ hiss(a,{f:140,f1:480,q:1.1,d:0.3,v:0.26,at:0.035,rev:0.12}); hiss(a,{type:'lowpass',f:180,f1:55,d:0.28,v:0.16,at:0.03}); tone(a,{f:58,f1:32,d:0.28,v:0.1,type:'triangle',at:0.04}); },
     punch_hit(a){ tone(a,{f:150,f1:52,d:0.15,v:0.32}); hiss(a,{type:'lowpass',f:2600,f1:380,d:0.09,v:0.26,at:0.001}); tone(a,{f:2600,d:0.015,v:0.08,type:'triangle',hp:1500}); },
-    punch_hit_heavy(a){ tone(a,{f:120,f1:36,d:0.34,v:0.38}); tone(a,{f:62,f1:30,d:0.38,v:0.22}); hiss(a,{type:'lowpass',f:3200,f1:260,d:0.18,v:0.32,at:0.001,rev:0.3}); tone(a,{f:2200,d:0.02,v:0.1,type:'triangle',hp:1400}); },
+    punch_hit_heavy(a){ tone(a,{f:90,f1:28,d:0.34,v:0.4}); tone(a,{f:48,f1:22,d:0.38,v:0.24}); hiss(a,{type:'lowpass',f:1100,f1:140,d:0.18,v:0.28,at:0.001,rev:0.3}); tone(a,{f:420,f1:160,d:0.04,v:0.08,type:'triangle'}); },
     punch_wall(a){ tone(a,{f:105,f1:44,d:0.12,v:0.2}); for(let k=0;k<3;k++) hiss(a,{f:rnd(1500,3500),q:5,dt:0.01+k*0.02,d:0.03,v:0.07}); },
     bed_boing(a){ tone(a,{f:150,f1:330,d:0.28,v:0.14,type:'triangle',vib:11,vibd:40}); tone(a,{f:75,f1:120,d:0.22,v:0.12}); hiss(a,{type:'lowpass',f:500,d:0.08,v:0.06}); },
     hit(a,p){ tone(a,{f:190*p,f1:60,d:0.16,v:0.22}); hiss(a,{type:'lowpass',f:1800*p,d:0.1,v:0.16}); tone(a,{f:2200,d:0.02,v:0.05,type:'triangle',hp:1500}); },
