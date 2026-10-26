@@ -787,6 +787,13 @@ function hookAttachWorld(){
   return {x:p.x+SW/2+back*(BODY_W*0.5-2), y:top+ca*(duckTop-top)+7};
 }
 const ROPE_END_R=48, ROPE_END_R_RCA=56;                                         // body centre → where the rope pulls
+// the pull point leans from S toward the rope by r, but never into rock
+function _ropeLean(S,dx,dy,r){
+  if(typeof _armSolid==='function'&&!_armSolid(S.x,S.y)){
+    for(let t=2;t<=r;t+=2) if(_armSolid(S.x+dx*t,S.y+dy*t)) return {x:S.x+dx*(t-2), y:S.y+dy*(t-2)};
+  }
+  return {x:S.x+dx*r, y:S.y+dy*r};
+}
 function ropePlayerEndWorld(){
   if(_ropeInHand()){
     const h=p.hook;
@@ -797,10 +804,10 @@ function ropePlayerEndWorld(){
         // jack stands straight up beside his head with its magnet on the anchor
         const S=_tiltPt(pose.connShX,pose.connShY,pose.tiltCX,pose.tiltCY,pose.tilt||0);
         const dx=P.x-S.x, dy=P.y-S.y, d=Math.hypot(dx,dy)||1, r=Math.min(ROPE_END_R_RCA,d*0.5);
-        return {x:S.x+dx/d*r, y:S.y+dy/d*r};
+        return _ropeLean(S,dx/d,dy/d,r);
       }
       const dx=P.x-pose.tiltCX, dy=P.y-pose.tiltCY, d=Math.hypot(dx,dy)||1, r=Math.min(ROPE_END_R,d*0.5);
-      return {x:pose.tiltCX+dx/d*r, y:pose.tiltCY+dy/d*r};
+      return _ropeLean({x:pose.tiltCX,y:pose.tiltCY},dx/d,dy/d,r);
     }
     const pose=computeConnectorArmPose(p); return {x:pose.noseX,y:pose.noseY};
   }

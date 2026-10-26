@@ -2294,7 +2294,52 @@ function _hookSolidSteps(x1,y1,x2,y2){
   }
   return null;
 }
+function _armSolidPt(x,y){ return typeof _armSolid==='function'?_armSolid(x,y):(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)); }
+// the axis face a point sits on: open along the normal, rock against it (prefers pnx/pny)
+function _ropeFaceAt(x,y,pnx,pny){
+  let best=null;
+  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    if(_armSolidPt(x+dx*3,y+dy*3)||!_armSolidPt(x-dx*4,y-dy*4)) continue;
+    const pref=dx*(pnx||0)+dy*(pny||0);
+    if(!best||pref>best.pref) best={dx,dy,pref};
+  }
+  return best;
+}
+// first rock on x1→x2 by 1 px steps: the last air point and its face normal
+function _hookMarchHit(x1,y1,x2,y2){
+  const L=Math.hypot(x2-x1,y2-y1); if(L<0.5) return null;
+  const ux=(x2-x1)/L, uy=(y2-y1)/L, n=Math.ceil(L);
+  for(let i=1;i<=n;i++){
+    const x=x1+ux*i*L/n, y=y1+uy*i*L/n;
+    if(!_armSolidPt(x,y)) continue;
+    const ax=x-ux*L/n, ay=y-uy*L/n, f=_ropeFaceAt(ax,ay,-ux,-uy);
+    return {tx:ax,ty:ay,nx:f?f.dx:-ux,ny:f?f.dy:-uy};
+  }
+  return null;
+}
+// a point on MIND in open air to cast the rope from: its pull point, else the body's middle
+function _hookCastOrigin(){
+  if(typeof p==='undefined'||!p) return null;
+  const e=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():null;
+  if(e&&!_armSolidPt(e.x,e.y)) return e;
+  const c={x:p.x+SW*0.5, y:p.y+FEET_OFF-STAND_H*0.5};
+  return _armSolidPt(c.x,c.y)?null:c;
+}
 function _hookRayHit(x1,y1,x2,y2){
+  // the player's hook thrown with the jack's tip already in the wall: cast from MIND instead
+  if(typeof p!=='undefined'&&p&&p.hook&&p.hook.st==='ext'&&x2===p.hook.ex&&y2===p.hook.ey&&_armSolidPt(x1,y1)){
+    const e=_hookCastOrigin();
+    if(e){ x1=e.x; y1=e.y; }
+  }
+  const hit=_hookRayHitRaw(x1,y1,x2,y2);
+  if(hit&&!hit.plat&&!hit.enemy&&typeof _gridReady==='function'&&_gridReady()
+    &&_armSolidPt(hit.tx+(hit.nx||0)*2,hit.ty+(hit.ny||0)*2)){
+    const m=_hookMarchHit(x1,y1,x2,y2);
+    if(m&&!_armSolidPt(m.tx+m.nx*2,m.ty+m.ny*2)){ hit.tx=m.tx; hit.ty=m.ty; hit.nx=m.nx; hit.ny=m.ny; }
+  }
+  return hit;
+}
+function _hookRayHitRaw(x1,y1,x2,y2){
   let best=null, bestD=1e9;
   const consider=(hit)=>{
     if(!hit) return;
@@ -2544,26 +2589,65 @@ function _ropeOutsideCorner(base, to, hit, rect){
   if(!box) return {x:hit.tx,y:hit.ty};
   const left=box.x-pad, right=box.x+box.w+pad, top=box.y-pad, bot=box.y+box.h+pad;
   const corners=[{x:left,y:top},{x:right,y:top},{x:left,y:bot},{x:right,y:bot}];
+  // the corner the rope already bends on (the base itself) is no new bend; a corner MIND can
+  // see from beats one that needs yet another wrap
   let best=null, bestS=1e18;
   for(const q of corners){
-    if(!_ropeSegClear(base.x,base.y,q.x,q.y)) continue;
-    const s=Math.hypot(q.x-base.x,q.y-base.y)+Math.hypot(to.x-q.x,to.y-q.y);
+    if(Math.hypot(q.x-base.x,q.y-base.y)<2.5) continue;
+    if(_armSolidPt(q.x,q.y)||!_ropeSegClear(base.x,base.y,q.x,q.y)) continue;
+    const s=Math.hypot(q.x-base.x,q.y-base.y)+Math.hypot(to.x-q.x,to.y-q.y)+(_ropeSegClear(q.x,q.y,to.x,to.y)?0:1e6);
     if(s<bestS){ bestS=s; best=q; }
   }
   if(best) return best;
-  if(Math.abs(hit.nx||0)>=Math.abs(hit.ny||0)&&hit.nx){
-    return {x:hit.nx<0?left:right, y:to.y<(box.y+box.h*0.5)?top:bot};
+  // no open corner (slopes, ragged rock): bend where the line touches, never inside the rock
+  const q={x:hit.tx+(hit.nx||0)*pad, y:hit.ty+(hit.ny||0)*pad};
+  return _armSolidPt(q.x,q.y)?null:q;
+}
+// The hook can come back seated on a cell boundary or inside rock (a steep shot through a
+// wall's side reports a ceiling normal). Once per latch: move it to the nearest open air and
+// take the real face normal from the grid, so the wrap tests start from the air side.
+function _ropeSeatAnchor(h){
+  if(!h||h.tgt||h.plat||h._mplat||!isFinite(h.ax)||!isFinite(h.ay)) return;
+  if(h._seatX===h.ax&&h._seatY===h.ay) return;
+  if(typeof _gridReady!=='function'||!_gridReady()) return;
+  const S=_armSolidPt, face=(x,y)=>_ropeFaceAt(x,y,h.nx,h.ny);
+  let x=h.ax, y=h.ay;
+  if(S(x,y)){
+    let found=null;
+    // thrown with the jack's tip already in the wall: the rope catches where the line from
+    // MIND first meets rock
+    const e=typeof p!=='undefined'&&p&&p.hook===h?_hookCastOrigin():null;
+    if(e){
+      const m=_hookMarchHit(e.x,e.y,x,y);
+      if(m&&!S(m.tx+m.nx*2,m.ty+m.ny*2)) found={x:m.tx+m.nx*2,y:m.ty+m.ny*2};
+    }
+    for(let r=1;r<=14&&!found;r++) for(let k=0;k<16;k++){
+      const a=k*Math.PI/8, ux=Math.cos(a), uy=Math.sin(a), qx=x+ux*(r+1.5), qy=y+uy*(r+1.5);
+      if(!S(x+ux*r,y+uy*r)&&!S(qx,qy)&&face(qx,qy)){ found={x:qx,y:qy}; break; }
+    }
+    for(let r=1;r<=14&&!found;r++) for(let k=0;k<16;k++){
+      const a=k*Math.PI/8, qx=x+Math.cos(a)*(r+1.5), qy=y+Math.sin(a)*(r+1.5);
+      if(!S(qx,qy)){ found={x:qx,y:qy}; break; }
+    }
+    if(found){ if(isFinite(h.ex)){ h.ex+=found.x-x; h.ey+=found.y-y; } x=found.x; y=found.y; }
   }
-  return {x:to.x<(box.x+box.w*0.5)?left:right, y:(hit.ny||0)<0?top:bot};
+  const n=face(x,y);
+  if(n){ h.nx=n.dx; h.ny=n.dy; }
+  if(h._cube&&isFinite(h._cdx)){ h._cdx+=x-h.ax; h._cdy+=y-h.ay; }
+  h.ax=x; h.ay=y; h._seatX=x; h._seatY=y;
+}
+// the rock cell the hook is seated on (behind the anchor, against its normal)
+function _ropeLatchCell(h){
+  const t=MV_GRID.tile;
+  return {c:Math.floor((h.ax-(h.nx||0)*4)/t), r:Math.floor((h.ay-(h.ny||0)*4)/t)};
 }
 function _ropeHitsLatch(hit, h){
   if(!hit||!h||!isFinite(h.ax)||!isFinite(h.ay)) return false;
-  if(Math.hypot(hit.tx-h.ax,hit.ty-h.ay)<16) return true;
-  if(typeof _gridReady!=='function'||!_gridReady()) return false;
-  const t=MV_GRID.tile;
-  const c=Math.floor((hit.tx-(hit.nx||0)*0.6)/t);
-  const r=Math.floor((hit.ty-(hit.ny||0)*0.6)/t);
-  return c===Math.floor(h.ax/t)&&r===Math.floor(h.ay/t);
+  if(typeof _gridReady!=='function'||!_gridReady()) return Math.hypot(hit.tx-h.ax,hit.ty-h.ay)<16;
+  const t=MV_GRID.tile, L=_ropeLatchCell(h);
+  const c=hit.c!=null?hit.c:Math.floor((hit.tx-(hit.nx||0)*0.6)/t);
+  const r=hit.r!=null?hit.r:Math.floor((hit.ty-(hit.ny||0)*0.6)/t);
+  return c===L.c&&r===L.r;
 }
 function _ropeIntoLatch(h,x1,y1,x2,y2){
   if(!h||!isFinite(h.ax)||!(h.nx||h.ny)) return false;
@@ -2574,7 +2658,7 @@ function _ropeIntoLatch(h,x1,y1,x2,y2){
 // cell), so the rope bends once at the slab's real edge.
 function _ropeGridFace(g){
   const t=MV_GRID.tile;
-  const c=Math.floor((g.tx-(g.nx||0)*0.6)/t), r=Math.floor((g.ty-(g.ny||0)*0.6)/t);
+  const c=g.c!=null?g.c:Math.floor((g.tx-(g.nx||0)*0.6)/t), r=g.r!=null?g.r:Math.floor((g.ty-(g.ny||0)*0.6)/t);
   let c0=c,c1=c,r0=r,r1=r;
   if(Math.abs(g.ny||0)>=Math.abs(g.nx||0)){
     const side=(g.ny||0)<0?-1:1;                                  // the open side of the face
@@ -2587,16 +2671,57 @@ function _ropeGridFace(g){
   }
   return {x:c0*t,y:r0*t,w:(c1-c0+1)*t,h:(r1-r0+1)*t,tp:'solid'};
 }
+// The rope's own walk through the cells on x1→x2: solid cells stop it where it enters them,
+// slopes only where the line really dips under their surface (they are rock to the rope even
+// where MIND may walk through them), one-way planks never. Hits carry their cell (c,r).
+function _ropeGridRay(x1,y1,x2,y2){
+  const t=MV_GRID.tile, L=Math.hypot(x2-x1,y2-y1);
+  if(L<0.5) return null;
+  const ux=(x2-x1)/L, uy=(y2-y1)/L;
+  let c=Math.floor(x1/t), r=Math.floor(y1/t);
+  const sc=ux>0?1:ux<0?-1:0, sr=uy>0?1:uy<0?-1:0;
+  let tX=ux>0?((c+1)*t-x1)/ux:ux<0?(c*t-x1)/ux:1e12;
+  let tY=uy>0?((r+1)*t-y1)/uy:uy<0?(r*t-y1)/uy:1e12;
+  const dX=sc?Math.abs(t/ux):1e12, dY=sr?Math.abs(t/uy):1e12;
+  let tIn=0, nx=Math.abs(ux)>=Math.abs(uy)?-sc:0, ny=Math.abs(ux)>=Math.abs(uy)?0:-sr;
+  for(let i=0;i<MV_GRID.cols+MV_GRID.rows+4;i++){
+    const type=gridCell(c,r), tOut=Math.min(tX,tY,L);
+    if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT){
+      return {tx:x1+ux*tIn, ty:y1+uy*tIn, nx, ny, c, r};
+    }
+    if(type===MV_GRID_SLOPE_L||type===MV_GRID_SLOPE_R){
+      for(let s=tIn;s<=tOut;s+=1){
+        const x=x1+ux*s, y=y1+uy*s;
+        if(!_armSolidPt(x,y)) continue;
+        const sl=typeof gridSlopeAt==='function'?gridSlopeAt(c,r):null;
+        const ang=sl&&sl.angle!=null?sl.angle:(type===MV_GRID_SLOPE_L?Math.PI/4:-Math.PI/4);
+        const b=Math.max(tIn,s-1);
+        return {tx:x1+ux*b, ty:y1+uy*b, nx:Math.sin(ang), ny:-Math.cos(ang), c, r};
+      }
+    }
+    if(tOut>=L) return null;
+    if(tX<tY){ tIn=tX; c+=sc; tX+=dX; nx=-sc; ny=0; }
+    else{ tIn=tY; r+=sr; tY+=dY; nx=0; ny=-sr; }
+  }
+  return null;
+}
 function _ropeFirstHit(x1,y1,x2,y2,h){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
-    const g=gridRayHit(x1,y1,x2,y2);
+    let g=_ropeGridRay(x1,y1,x2,y2);
     // Paulo (Oct 21, "YES / NO" sketch): the rope may ignore the face it's latched to only
-    // while it pulls AWAY from it — heading into that face it must wrap round its edge
-    if(g&&(!_ropeHitsLatch(g,h)||_ropeIntoLatch(h,x1,y1,x2,y2))){
-      return {hit:g, rect:_ropeGridFace(g)};
+    // while it pulls AWAY from it — heading into that face it must wrap round its edge.
+    // Ignoring the latch cell must not hide rock further down the line.
+    if(g&&_ropeHitsLatch(g,h)&&!_ropeIntoLatch(h,x1,y1,x2,y2)){
+      const t=MV_GRID.tile, L=_ropeLatchCell(h), ux=(x2-x1)/segLen, uy=(y2-y1)/segLen;
+      const tx=ux>0?((L.c+1)*t-x1)/ux:ux<0?(L.c*t-x1)/ux:1e9;
+      const ty=uy>0?((L.r+1)*t-y1)/uy:uy<0?(L.r*t-y1)/uy:1e9;
+      const tOut=Math.min(tx,ty)+0.5;
+      g=tOut<segLen?_ropeGridRay(x1+ux*tOut,y1+uy*tOut,x2,y2):null;
+      if(g&&_ropeHitsLatch(g,h)) g=null;
     }
+    if(g) return {hit:g, rect:_ropeGridFace(g)};
     for(const bw of BWALLS){
       if(!bw||bw.hp<=0) continue;
       if(typeof _bwallMovedFromHome==='function'&&!_bwallMovedFromHome(bw)) continue;
@@ -2631,11 +2756,20 @@ function _ropeSegClear(x1,y1,x2,y2,h){
   const ux=(x2-x1)/d, uy=(y2-y1)/d;
   return !_ropeFirstHit(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2,h);
 }
+// which way the rope turns at P (coming from A, going to E): +1 / -1, 0 when nearly straight
+function _ropeTurn(A,P,E){
+  const ax=P.x-A.x, ay=P.y-A.y, ex=E.x-P.x, ey=E.y-P.y;
+  const k=(ax*ey-ay*ex)/((Math.hypot(ax,ay)*Math.hypot(ex,ey))||1);
+  return k>0.02?1:k<-0.02?-1:0;
+}
 function _ropeUpdatePivots(h,tx,ty){
   if(!h.pivots) h.pivots=[];
+  _ropeSeatAnchor(h);
+  // a bend comes off when MIND sees past it, or when the swing turns back past it
   for(let g=0;g<ROPE_MAX_PIVOTS&&h.pivots.length;g++){
-    const n=h.pivots.length, base=n>=2?h.pivots[n-2]:{x:h.ax,y:h.ay};
-    if(_ropeSegClear(base.x,base.y,tx,ty,h)) h.pivots.pop(); else break;
+    const n=h.pivots.length, P=h.pivots[n-1], base=n>=2?h.pivots[n-2]:{x:h.ax,y:h.ay};
+    const unwound=P.s&&_ropeTurn(base,P,{x:tx,y:ty})===-P.s;
+    if(unwound||_ropeSegClear(base.x,base.y,tx,ty,h)) h.pivots.pop(); else break;
   }
   for(let g=0;g<ROPE_MAX_PIVOTS;g++){
     const base=h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
@@ -2648,7 +2782,7 @@ function _ropeUpdatePivots(h,tx,ty){
     const c=_ropeOutsideCorner(base,{x:tx,y:ty},fh.hit,fh.rect);
     if(!c||Math.hypot(c.x-base.x,c.y-base.y)<2.5) break;
     if(h.pivots.some(pv=>Math.hypot(pv.x-c.x,pv.y-c.y)<2)) break;
-    h.pivots.push(c);
+    h.pivots.push({x:c.x,y:c.y,s:_ropeTurn(base,c,{x:tx,y:ty})});
     if(typeof p!=='undefined'&&p&&p.hook===h){
       const nx=fh.hit.nx||0, ny=fh.hit.ny||0;
       const vn=(p.vx||0)*nx+(p.vy||0)*ny;
@@ -2669,6 +2803,7 @@ function _ropeSanitizePath(pts,h){
       if(!fh) break;
       const c=_ropeOutsideCorner(a,b,fh.hit,fh.rect);
       if(!c||Math.hypot(c.x-a.x,c.y-a.y)<2) break;
+      if(out.some(q=>Math.hypot(q.x-c.x,q.y-c.y)<2)) break;
       out.push(c);
       a=c;
     }
@@ -2717,7 +2852,31 @@ function _ropeWrapPts(x1,y1,x2,y2){
   _ropeUpdatePivots(h,x2,y2);
   return _ropePathPts(h,x2,y2);
 }
-function _ropeRefreshPath(h){ const end=ropePlayerEndWorld(); _ropeUpdatePivots(h,end.x,end.y); const path=_ropePathPts(h,end.x,end.y); h._path=path; return path; }
+function _ropeRefreshPath(h){
+  let end=ropePlayerEndWorld();
+  // the pull point leans toward the last bend; a missing bend can lean it into the rock, so
+  // wrap toward MIND's body first, then lean again
+  if(_armSolidPt(end.x,end.y)){
+    const o=_hookCastOrigin();
+    if(o){ _ropeUpdatePivots(h,o.x,o.y); end=ropePlayerEndWorld(); }
+  }
+  for(let i=0;i<3;i++){                                   // a new last bend changes the lean: settle it
+    const l0=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:null;
+    _ropeUpdatePivots(h,end.x,end.y);
+    const l1=h.pivots.length?h.pivots[h.pivots.length-1]:null;
+    if(l0===l1) break;
+    end=ropePlayerEndWorld();
+  }
+  const path=_ropePathPts(h,end.x,end.y); h._path=path;
+  if(path.length>=2&&path.length-2<=ROPE_MAX_PIVOTS){                    // bends the sanitizer added are real bends
+    const old=h.pivots||[];
+    h.pivots=path.slice(1,-1).map((q,i)=>{
+      const o=old.find(pv=>Math.hypot(pv.x-q.x,pv.y-q.y)<0.5);
+      return {x:q.x,y:q.y,s:o&&o.s?o.s:_ropeTurn(path[i],q,path[i+2])};
+    });
+  }
+  return path;
+}
 function _ropeApplyTension(h){
   const path=_ropeRefreshPath(h), plen=_ropePathLen(path), over=plen-h.rl;
   h._tension=Math.max(0,over); h._slack=over<-10; h._tight=over>1;
@@ -2731,6 +2890,7 @@ function _ropeApplyTension(h){
   if(excess>0){ const corr=Math.min(excess,14); p.x-=outX*corr; p.y-=outY*corr; }
   const vr=p.vx*outX+p.vy*outY;
   if(vr>0){ p.vx-=outX*vr; p.vy-=outY*vr; }
+  if(excess>0) _ropeRefreshPath(h);                      // he moved: the bends follow this frame
 }
 
 // ── Verlet visual cord ────────────────────────────────────────
