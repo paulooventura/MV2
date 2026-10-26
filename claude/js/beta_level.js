@@ -273,8 +273,9 @@
 
     B._placeEnt=placeEnt;
     for(const e of ents){                     // tag what each level entity made, so the editor can erase it
-      const n=[ENEMS.length, KDROP.length, BWALLS.length, ITEM_DROPS.length], rp=_mapRopePickup, k=entKey(e);
+      const n=[ENEMS.length, KDROP.length, BWALLS.length, ITEM_DROPS.length], rp=_mapRopePickup, lt=B.laitu, k=entKey(e);
       placeEnt(e);
+      if(B.laitu&&B.laitu!==lt) B.laitu._lk=k;
       for(const o of ENEMS.slice(n[0])) o._lk=k;
       for(const o of KDROP.slice(n[1])) o._lk=k;
       for(const o of BWALLS.slice(n[2])) o._lk=k;
@@ -371,6 +372,12 @@
     }
     B.itemsTotal=ents.filter(e=>e.__identifier==='Item'||e.__identifier==='Rca'||e.__identifier==='Isolator').length;
     if(B.onEntities) B.onEntities(ents, F, cell);
+    {                                         // beta_water makes one platform / water rect per entity, in order
+      const of=n=>ents.filter(e=>e.__identifier===n), fl=B.fluid;
+      of('MovingPlatform').forEach((e,i)=>{ if(B.platforms&&B.platforms[i]) B.platforms[i]._lk=entKey(e); });
+      of('Water').forEach((e,i)=>{ const k=entKey(e); if(B.waters&&B.waters[i]) B.waters[i]._lk=k; if(fl&&fl.rects[i]) fl.rects[i]._lk=k; });
+      const iso=of('Isolator')[0]; if(iso&&B.isoPickup) B.isoPickup._lk=entKey(iso);
+    }
     kTotal=KDROP.length; kColl=0; goalOpen=false;
     if(typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
     B.cubeCellsEver=new Set(BWALLS.filter(b=>b.cube&&b.homeCol!=null).map(b=>b.homeCol+','+b.homeRow));   // for the ghost-cell sweep

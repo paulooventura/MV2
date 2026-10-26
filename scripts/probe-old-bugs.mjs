@@ -652,20 +652,41 @@ const PROBES = {
       const b = BWALLS.find((o) => o._lk && o.cube && o.hp > 0 && !o.only);
       const near = (x, y) => ENEMS.some((o) => x > o.x - 48 && x < o.x + o.w + 48 && y > o.y - 48 && y < o.y + o.h + 48);
       const k = KDROP.find((o) => o._lk && !o.got && !near(o.x, o.y));
+      // T172: a spot that the erase tool reads as this thing (not an enemy / block in front of it)
+      const spot = (o, x0, y0, x1, y1) => { if (!o || !o._lk) return null;
+        for (const pad of [[[0, 0], [-4, -4], [4, 4], [-4, 4], [4, -4]], [[0, 0]]]) { const ok = [];
+          for (let y = y0; y <= y1; y += 3) for (let x = x0; x <= x1; x += 3)
+            if (pad.every(([dx, dy]) => _edLevelHit(x + dx, y + dy) === o._lk)) ok.push({ key: o._lk, x, y });
+          if (ok.length) return ok[ok.length >> 1]; }
+        return null; };
+      const B = MV_BETA, r = _mapRopePickup, iso = B.isoPickup, L = B.laitu, pl = (B.platforms || []).find((o) => o._lk), w = (B.waters || []).find((o) => o._lk);
       return [e && { key: e._lk, x: e.x + e.w / 2, y: e.y + e.h / 2 }, d && { key: d._lk, x: d.x, y: d.y },
-        b && { key: b._lk, x: b.x + T / 2, y: b.y + T / 2 }, k && { key: k._lk, x: k.x, y: k.y }].filter(Boolean);
+        b && { key: b._lk, x: b.x + T / 2, y: b.y + T / 2 }, k && { key: k._lk, x: k.x, y: k.y },
+        r && spot(r, r.x, r.y, r.x + r.w, r.y + r.h), iso && spot(iso, iso.x - 20, iso.y - 40, iso.x + 20, iso.y),
+        L && spot(L, L.x - 16, L.feet - 70, L.x + 16, L.feet), pl && spot(pl, pl.x, pl.y, pl.x + pl.w, pl.y + pl.h),
+        w && spot(w, w.px0, w.r0 * T, w.px1 - 1, (w.r1 + 1) * T - 1)].filter(Boolean);
     };
+    const B = MV_BETA, has = (o, key) => !!o && o._lk === key;
     const present = (key) => ENEMS.some((o) => o._lk === key) || ITEM_DROPS.some((o) => o._lk === key)
-      || BWALLS.some((o) => o._lk === key) || KDROP.some((o) => o._lk === key);
+      || BWALLS.some((o) => o._lk === key) || KDROP.some((o) => o._lk === key)
+      || has(_mapRopePickup, key) || has(B.isoPickup, key) || has(B.laitu, key)
+      || (B.platforms || []).some((o) => o._lk === key) || (B.waters || []).some((o) => o._lk === key);
+    const bal = () => { const f = B.fluidTotal && B.fluidTotal(); return f ? +(f.water + f.lost + f.vapor + f.drops + f.mag + f.core - f.start).toFixed(3) : null; };
     const targets = pick();
-    const s = { targets: targets.map((t) => t.key) };
+    const s = { targets: targets.map((t) => t.key), bal: [bal()] };
     _edSetActive(true); ED.tool = 'erase';
-    for (const t of targets) {
-      camX = camClampX(t.x - (W - ED.panelW) / 2); camY = camClampY(t.y - 300); _snapRenderCam(); drawEditorOverlay();
-      click(sx(t.x) * camZoom, sy(t.y) * camZoom);
-    }
+    const aim = (t) => { camX = camClampX(t.x - (W - ED.panelW) / 2); camY = camClampY(t.y - 300); _snapRenderCam(); drawEditorOverlay();
+      click(sx(t.x) * camZoom, sy(t.y) * camZoom); };
+    // Ctrl+Z on the first water / platform / Isolator / Laitu / RCA erase puts it back (water exactly)
+    const u = targets.find((t) => t.key.startsWith('Water@')) || targets.find((t) => /^(MovingPlatform|Isolator|Laitu|Rca)@/.test(t.key));
+    if (u) { aim(u); s.undoErased = !present(u.key); s.bal.push(bal());
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ', key: 'z', ctrlKey: true, bubbles: true }));
+      s.undoBack = present(u.key) && !ED.gone.has(u.key); s.bal.push(bal()); }
+    for (const t of targets) aim(t);
     s.erased = targets.map((t) => !present(t.key));
+    s.bal.push(bal());
     drawEditorOverlay();
+    s.warn = _edGoneWarnings();
     const hit = (l) => ED.hits.find((h) => h.label === l);
     let b = hit('SAVE'); click(b.x + b.w / 2, b.y + 10);
     s.stored = JSON.parse(localStorage.getItem('mv2.editor.gone.' + id) || '[]');
@@ -680,8 +701,11 @@ const PROBES = {
     s.afterClear = targets.map((t) => present(t.key));
     const kinds = new Set(s.targets.map((k) => k.split('@')[0]));
     const all = (a) => a.length === targets.length && a.every(Boolean);
-    const ok = kinds.has('Enemy') && (id !== '1.1' || kinds.has('Item')) && all(s.erased) && s.stored.length === targets.length
-      && all(s.afterSave) && s.clearedStore === null && all(s.afterClear);
+    const need = id === '1.1' ? ['Item', 'Rca', 'Laitu'] : ['Water', 'MovingPlatform', 'Isolator'];
+    const steady = s.bal.every((v) => v === null || Math.abs(v - s.bal[0]) < 0.05);
+    const ok = kinds.has('Enemy') && need.every((n) => kinds.has(n)) && all(s.erased) && s.stored.length === targets.length
+      && all(s.afterSave) && s.clearedStore === null && all(s.afterClear)
+      && (!u || (s.undoErased && s.undoBack)) && steady && s.warn.length > 0;
     return { pass: ok, note: JSON.stringify(s), samples: [s] };
   },
 

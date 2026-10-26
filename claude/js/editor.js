@@ -299,8 +299,42 @@ function edEraseLiveEnt(wx,wy){
 // and remember its key, so SAVE keeps it off the stage on the next load.
 function _edLevelObjs(key){
   const has=o=>o&&o._lk===key;
+  const B=MV_BETA, fl=B.fluid;
   return {enemies:ENEMS.filter(has), knowls:KDROP.filter(has), drops:ITEM_DROPS.filter(has),
-    bwalls:BWALLS.filter(has), rope:has(_mapRopePickup)?_mapRopePickup:null};
+    bwalls:BWALLS.filter(has), rope:has(_mapRopePickup)?_mapRopePickup:null,
+    iso:has(B.isoPickup)?B.isoPickup:null, laitu:has(B.laitu)?B.laitu:null,
+    plats:(B.platforms||[]).filter(has),
+    waters:(B.waters||[]).filter(has).map(w=>({w, r:fl?fl.rects.find(has):null}))};
+}
+// Level things a stage may not be beatable without (still erasable; the panel warns).
+const ED_CRITICAL={Rca:'NO RCA: STAGE MAY LOCK', Laitu:'NO LAITU: STORY MAY LOCK', Isolator:'NO ISOLATOR: WATER MAY LOCK'};
+function _edGoneWarnings(){
+  const out=new Set();
+  for(const k of ED.gone){ const w=ED_CRITICAL[k.split('@')[0]]; if(w) out.add(w); }
+  return [...out];
+}
+// Water: pull the rect's cells out of the fluid and out of its start total, so
+// MV_BETA.fluidTotal() still balances; putting it back returns exactly that water.
+function _edWaterPut(o,on){
+  const B=MV_BETA, F=B.fluid, add=(arr,x)=>{ if(x&&!arr.includes(x)) arr.push(x); }, del=(arr,x)=>{ const i=arr.indexOf(x); if(i>=0) arr.splice(i,1); };
+  const w=o.w, ready=F&&F.ready&&F.M, x0=w.c0*2, x1=w.c1*2+1, y0=w.r0*2, y1=w.r1*2+1;
+  if(!on){
+    del(B.waters,w); if(F) del(F.rects,o.r);
+    o.cut=null;
+    if(ready){ const cut=[]; let s=0;
+      for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){ const i=y*F.NX+x, m=F.M[i]; if(m>0){ cut.push(i,m); s+=m; F.M[i]=0; } }
+      F.total0-=s; o.cut=cut; }
+    return;
+  }
+  add(B.waters,w); if(F) add(F.rects,o.r);
+  if(!ready) return;
+  let s=0;
+  if(o.cut){ for(let k=0;k<o.cut.length;k+=2){ F.M[o.cut[k]]+=o.cut[k+1]; s+=o.cut[k+1]; } }
+  else for(let x=x0;x<=x1;x++){ let d=0;                  // erased before the fluid started: fill it like a fresh load
+    for(let y=y0+1;y<=y1;y++){ const i=y*F.NX+x; if(F.BLK[i]){ d=0; continue; } const a=1+0.012*d-F.M[i]; if(a>0){ F.M[i]+=a; s+=a; } d++; } }
+  F.total0+=s; o.cut=null;
+  const b=F.bb; if(b.x1<b.x0){ b.x0=x0; b.x1=x1; b.y0=y0; b.y1=y1; }
+  else { b.x0=Math.min(b.x0,x0); b.x1=Math.max(b.x1,x1); b.y0=Math.min(b.y0,y0); b.y1=Math.max(b.y1,y1); }
 }
 function _edLevelHit(wx,wy){
   const T=MV_GRID.tile, box=o=>wx>=o.x-4&&wx<=o.x+(o.w||T)+4&&wy>=o.y-4&&wy<=o.y+(o.h||T)+4;
@@ -310,6 +344,11 @@ function _edLevelHit(wx,wy){
   for(const o of BWALLS) if(o._lk&&o.hp>0&&box(o)) return o._lk;
   for(const o of KDROP) if(o._lk&&Math.abs(wx-o.x)<24&&Math.abs(wy-o.y)<24) return o._lk;
   if(_mapRopePickup&&_mapRopePickup._lk&&box(_mapRopePickup)) return _mapRopePickup._lk;
+  const B=MV_BETA, iso=B.isoPickup, L=B.laitu;
+  if(iso&&iso._lk&&Math.abs(wx-iso.x)<28&&wy>iso.y-44&&wy<iso.y+4) return iso._lk;
+  if(L&&L._lk&&Math.abs(wx-L.x)<24&&wy>L.feet-84&&wy<L.feet+4) return L._lk;
+  for(const o of B.platforms||[]) if(o._lk&&wx>=o.x-4&&wx<=o.x+o.w+4&&wy>=o.y-8&&wy<=o.y+(o.h||14)+8) return o._lk;
+  if(!gridCell(Math.floor(wx/T),Math.floor(wy/T))) for(const w of B.waters||[]) if(w._lk&&wx>=w.px0&&wx<w.px1&&wy>=w.r0*T&&wy<(w.r1+1)*T) return w._lk;
   return null;
 }
 function _edLevelPut(objs,on){
@@ -321,6 +360,10 @@ function _edLevelPut(objs,on){
     for(const o of objs.bwalls) add(BWALLS,o);
     if(objs.rope){ _mapRopePickup=objs.rope; if(B.crateCells) B.crateCells.add(Math.floor(objs.rope.x/MV_GRID.tile)+','+Math.floor(objs.rope.y/MV_GRID.tile)); }
     if(objs.bwalls.length&&typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
+    if(objs.iso) B.isoPickup=objs.iso;
+    if(objs.laitu) B.laitu=objs.laitu;
+    for(const o of objs.plats) add(B.platforms,o);
+    for(const o of objs.waters) _edWaterPut(o,true);
     kTotal=KDROP.length;
   } else {
     _edEntRemove({made:objs});
@@ -328,6 +371,14 @@ function _edLevelPut(objs,on){
       if(_mapRopePickup===objs.rope) _mapRopePickup=null;
       if(B.crateCells) B.crateCells.delete(Math.floor(objs.rope.x/MV_GRID.tile)+','+Math.floor(objs.rope.y/MV_GRID.tile));
     }
+    if(objs.iso&&B.isoPickup===objs.iso) B.isoPickup=null;
+    if(objs.laitu&&B.laitu===objs.laitu) B.laitu=null;
+    for(const o of objs.plats){
+      const i=B.platforms.indexOf(o); if(i>=0) B.platforms.splice(i,1);
+      if(B.ridePlat===o) B.ridePlat=null;
+      for(const b of [p,...ENEMS]) if(b&&b._ridePlat===o) b._ridePlat=null;
+    }
+    for(const o of objs.waters) _edWaterPut(o,false);
   }
 }
 function edEraseLevelEnt(wx,wy){
@@ -337,7 +388,8 @@ function edEraseLevelEnt(wx,wy){
   _edLevelPut(objs,false);
   ED.gone.add(key);
   edPushUndo(); ED.undoStack[ED.undoStack.length-1].L_={key,objs};
-  edShowToast('REMOVED LEVEL '+key.split('@')[0].toUpperCase()+' - SAVE TO KEEP IT GONE');
+  const t=key.split('@')[0];
+  edShowToast('REMOVED LEVEL '+t.toUpperCase()+(ED_CRITICAL[t]?' - STAGE MAY SOFT-LOCK':' - SAVE TO KEEP IT GONE'));
   return true;
 }
 function _edEntBox(en){
@@ -784,6 +836,8 @@ function drawEditorOverlay(){
     drawText('STAGE: '+(MV_BETA.stageId||'?'), 10, ty, C.CYAN, 1); ty+=14;
     drawText('EDITED BLOCKS: '+Object.keys(ED.cellEdits).length, 10, ty, C.SILVER, 1); ty+=14;
     drawText('PLACED THINGS: '+ED.ents.length, 10, ty, C.SILVER, 1); ty+=14;
+    if(ED.gone.size){ drawText('REMOVED LEVEL THINGS: '+ED.gone.size, 10, ty, C.SILVER, 1); ty+=14; }
+    for(const w of _edGoneWarnings()){ drawText('! '+w, 10, ty, C.RED_L, 1); ty+=14; }
   }else{
     drawText('ROOM: '+ED.roomName, 10, ty, C.CYAN, 1); ty+=14;
     drawText('PLATS: '+(TR.length-4), 10, ty, C.SILVER, 1); ty+=14;
