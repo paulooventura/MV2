@@ -27,6 +27,9 @@ function ldtkIntGridToMv(value) {
   if (v === 3) return typeof MV_GRID_DESTRUCT !== 'undefined' ? MV_GRID_DESTRUCT : 3;
   if (v === 4) return typeof MV_GRID_SLOPE_L !== 'undefined' ? MV_GRID_SLOPE_L : 4;
   if (v === 5) return typeof MV_GRID_SLOPE_R !== 'undefined' ? MV_GRID_SLOPE_R : 5;
+  // 6 / 7 = pass-through ramps (\ and /): plain left/right rolls past, up+dir climbs, down+dir rides down.
+  if (v === 6) return typeof MV_GRID_SLOPE_L !== 'undefined' ? MV_GRID_SLOPE_L : 4;
+  if (v === 7) return typeof MV_GRID_SLOPE_R !== 'undefined' ? MV_GRID_SLOPE_R : 5;
   console.warn('LDtk: unmapped IntGrid value', v, '— leaving air');
   return typeof MV_GRID_AIR !== 'undefined' ? MV_GRID_AIR : 0;
 }
@@ -91,11 +94,13 @@ function parseLdtkLevel(levelJson, opts) {
   const rows = coll ? (coll.__cHei | 0) : Math.max(8, Math.ceil((levelJson.pxHei || 0) / authorTile));
   const csv = ldtkIntGridValues(coll);
   const cells = [];
+  const pass = {};
   for (let r = 0; r < rows; r++) {
     cells[r] = [];
     for (let c = 0; c < cols; c++) {
       const raw = csv[r * cols + c] | 0;
       cells[r][c] = ldtkIntGridToMv(raw);
+      if (raw === 6 || raw === 7) pass[r * cols + c] = true;
     }
   }
 
@@ -109,6 +114,7 @@ function parseLdtkLevel(levelJson, opts) {
     ww: cols * WORLD_TILE,
     wh: rows * WORLD_TILE,
     cells: cells,
+    pass: pass,
     spawn: null,
     knowls: [],
     tree: null,
@@ -207,7 +213,7 @@ function applyLdtkGrid(level) {
   for (let r = 0; r < level.rows; r++) {
     for (let c = 0; c < level.cols; c++) {
       const t = level.cells[r][c];
-      if (t) gridSet(c, r, t);
+      if (t) gridSet(c, r, t, level.pass && level.pass[r * level.cols + c] ? { pass: true } : undefined);
     }
   }
 }

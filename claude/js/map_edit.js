@@ -47,7 +47,20 @@ const MAPED_COLL=[
   {id:3, label:'BREAK'},
   {id:4, label:'SL \\'},
   {id:5, label:'SL /'},
+  {id:6, label:'PASS \\'},
+  {id:7, label:'PASS /'},
 ];
+// 6 / 7 = pass-through ramps: stored as SLOPE_L / SLOPE_R with the grid's pass flag.
+function _mapEdGridSet(c,r,id){
+  if(typeof gridSet!=='function') return;
+  if(id===6||id===7) gridSet(c,r,id===6?4:5,{pass:true});
+  else gridSet(c,r,id);
+}
+function _mapEdGridGet(c,r){
+  const t=typeof gridCell==='function'?gridCell(c,r):0;
+  if((t===4||t===5)&&typeof gridSlopePass==='function'&&gridSlopePass(c,r)) return t+2;
+  return t;
+}
 const MAPED_ENEMIES=[
   {id:'ball', label:'BALL', kind:'mind'},
   {id:'square', label:'SQR', kind:'mind'},
@@ -153,9 +166,7 @@ function _mapEdApplySaved(){
     if(!arr||t.i<0||t.i>=arr.length) continue;
     arr[t.i]=t.gid|0;
   }
-  if(typeof gridSet==='function'){
-    for(const g of patch.grid||[]) gridSet(g.c|0,g.r|0,g.type|0);
-  }
+  for(const g of patch.grid||[]) _mapEdGridSet(g.c|0,g.r|0,g.type|0);
   for(const e of patch.enemies||[]){
     if(e.op==='add'&&typeof _dispatchMindSpawnAt==='function'){
       const tw=d.tw, sc=d.sc, col=e.col|0, row=e.row|0;
@@ -232,7 +243,7 @@ function _mapEdPaintAt(c,r,erase){
   if(MAPED.lastKey===key&&MAPED.painting) return;
   MAPED.lastKey=key;
   const prevGid=_mapEdLayerGid(c,r);
-  const prevColl=typeof gridCell==='function'?gridCell(c,r):0;
+  const prevColl=_mapEdGridGet(c,r);
   _mapEdPushUndo({c,r,layer:MAPED.layer,gid:prevGid,coll:prevColl,i});
 
   if(MAPED.tool==='erase'||erase){
@@ -253,9 +264,11 @@ function _mapEdPaintAt(c,r,erase){
     if(MAPED.role!=='scenario'&&typeof gridSet==='function'){
       let coll=MAPED.coll;
       const kind=_mapEdSlopeKindForGid(MAPED.gid);
-      if(kind==='L') coll=4;
-      else if(kind==='R') coll=5;
-      gridSet(c,r,coll); _mapEdRecordGrid(c,r,coll);
+      if(coll!==6&&coll!==7){
+        if(kind==='L') coll=4;
+        else if(kind==='R') coll=5;
+      }
+      _mapEdGridSet(c,r,coll); _mapEdRecordGrid(c,r,coll);
     }
   }
 }
@@ -410,7 +423,7 @@ function _mapEdRemoveEnemyAt(wx,wy){
 function _mapEdEyedrop(c,r){
   const gid=_mapEdLayerGid(c,r);
   if(gid) MAPED.gid=gid;
-  if(typeof gridCell==='function') MAPED.coll=gridCell(c,r);
+  MAPED.coll=_mapEdGridGet(c,r);
   _mapEdToast('Pick gid '+MAPED.gid+'  coll '+MAPED.coll);
 }
 
@@ -420,8 +433,16 @@ function _mapEdUndo(){
   const d=_tmjDraw; if(!d) return;
   const arr=_mapEdEnsureLayer(u.layer);
   if(arr){ arr[u.i]=u.gid; _mapEdRecordTile(u.layer,u.i,u.gid); }
-  if(typeof gridSet==='function'){ gridSet(u.c,u.r,u.coll); _mapEdRecordGrid(u.c,u.r,u.coll); }
+  _mapEdGridSet(u.c,u.r,u.coll); _mapEdRecordGrid(u.c,u.r,u.coll);
   _mapEdToast('Undo');
+}
+
+function _mapEdTest(){
+  _mapEdWritePatch(()=>{});
+  _mapEdActive=false;
+  if(typeof _respawnPlayer==='function') _respawnPlayer();
+  if(typeof _snapCameraToPlayer==='function'&&typeof p!=='undefined') _snapCameraToPlayer(p);
+  _mapEdToast('TESTING — saved · F2 back to the editor');
 }
 
 function _mapEdClearPatch(){
@@ -632,6 +653,8 @@ function drawMapEditOverlay(){
   btn('EXPORT',false,()=>_mapEdExport(),10,104);
   btn('CLEAR',false,()=>_mapEdClearPatch(),122,104);
   y+=32;
+  btn('TEST  (SAVE + PLAY)',true,()=>_mapEdTest(),10,MAPED_PANEL-20);
+  y+=32;
   drawText('CELL '+cell.c+','+cell.r,10,y,C.SILVER,1);
 
   if(MAPED.tool!=='enemy'){
@@ -718,6 +741,7 @@ function _mapEdBind(){
     if(e.code==='Escape'||e.code==='Backquote'){ _mapEdToggle(false); e.preventDefault(); e.stopPropagation(); return; }
     if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){ _mapEdUndo(); e.preventDefault(); return; }
     if((e.ctrlKey||e.metaKey)&&e.code==='KeyS'){ _mapEdWritePatch(()=>{}); _mapEdToast('Saved'); e.preventDefault(); return; }
+    if(e.code==='KeyT'){ _mapEdTest(); e.preventDefault(); return; }
     if(e.code==='KeyP'){ MAPED.tool='paint'; _mapEdToast('Paint'); }
     if(e.code==='KeyR'){ MAPED.tool='erase'; _mapEdToast('Erase'); }
     if(e.code==='KeyN'){ MAPED.tool='enemy'; _mapEdToast('Spawn '+_mapEdEnemyLabel(MAPED.enemy)); }

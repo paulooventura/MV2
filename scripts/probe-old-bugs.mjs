@@ -527,6 +527,67 @@ const PROBES = {
     s.gap = g == null ? null : Math.round(g - H.feet());
     return { pass: s.og && !s.sunk && s.body === 0 && s.crouch < 0.2 && s.gap != null && Math.abs(s.gap) <= 4, note: JSON.stringify(s), samples: [s] };
   },
+
+  // #103 #112 #125a (T134) — editor: panel beside the map (column 0 editable with it open), SAVE + TEST buttons work
+  editor() {
+    const H = __PH, T = H.T; H.hold();
+    const rect = cv.getBoundingClientRect(), GH = cv.height;   // `H` here is the helper object, not the canvas height
+    const click = (mx, my) => cv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0,
+      clientX: rect.left + mx * rect.width / W, clientY: rect.top + my * rect.height / GH }));
+    _edSetActive(true);
+    camX = camClampX(-1e9); _snapRenderCam();
+    drawEditorOverlay();
+    const s = { ox: _mapEdScreenOx(), panel: ED.panelW, col0x: sx(0), zoom: camZoom };
+    s.labels = ED.hits.map((h) => h.label);
+    const hit = (l) => ED.hits.find((h) => h.label === l);
+    click(hit('RAMP').x + 4, hit('RAMP').y + 4); click(hit('RAMP').x + 4, hit('RAMP').y + 4);
+    s.tool = ED.tool + ':' + ED_RAMPS[ED.rampIdx].label;
+    // first open row in column 1 (column 0 is the border wall) — click it right of the panel edge
+    let r = 2; while (r < MV_GRID.rows - 2 && gridCell(1, r)) r++;
+    camY = camClampY(r * T - 200); _snapRenderCam(); drawEditorOverlay();
+    const my = (sy((r + 0.5) * T)) * camZoom, mx = (sx(1.5 * T)) * camZoom;
+    s.clickAt = [Math.round(mx), Math.round(my)];
+    click(mx, my);
+    s.cell = _edCellGet(1, r); s.cellsArr = MV_BETA.level.cells[r][1]; s.pass = gridSlopePass(1, r);
+    drawEditorOverlay();
+    const ts = hit('TEST'); click(ts.x + ts.w / 2, ts.y + 10);
+    s.afterTest = { editor: _editorActive, ox: _mapEdScreenOx() };
+    s.saved = localStorage.getItem('mv2.editor.cells.' + MV_BETA.stageId);
+    edClearCells();
+    const onScreen = mx > s.panel && mx < W && my > 0 && my < GH;
+    s.onScreen = onScreen;
+    const ok = onScreen && s.ox === s.panel && s.col0x >= s.panel && s.labels.includes('SAVE') && s.labels.includes('TEST')
+      && s.tool === 'ramp:PASS /' && s.cell === 7 && s.cellsArr === 5 && s.pass
+      && !s.afterTest.editor && s.afterTest.ox === 0 && !!s.saved && JSON.parse(s.saved)['1,' + r] === 7;
+    return { pass: ok, note: JSON.stringify(s), samples: [s] };
+  },
+
+  // #136c (T134) — pass-through ramp: plain right rolls past it on the floor; right+up climbs it
+  passRamp() {
+    const H = __PH, T = H.T; H.hold(); H.parkEnemies();
+    H.step(20);
+    const c0 = Math.floor(H.cx() / T) + 3, rf = Math.floor((H.feet() + 2) / T);
+    for (let c = c0 - 1; c <= c0 + 6; c++) {                       // need flat floor + open air ahead
+      if (!gridSolid(c, rf)) return { pass: false, note: 'no flat floor ahead of spawn at col ' + c };
+      for (let k = 1; k <= 4; k++) if (gridCell(c, rf - k)) return { pass: false, note: 'blocked ahead at ' + c + ',' + (rf - k) };
+    }
+    const cells = [[c0, rf - 1], [c0 + 1, rf - 2], [c0 + 2, rf - 3]];
+    const run = (up, pass) => {
+      _edStampCells(cells, pass ? 7 : 5);
+      H.put((c0 - 4) * T, rf * T); H.step(10);
+      H.clearKeys(); K.KeyD = true; K.ShiftLeft = true; if (up) K.KeyW = true;   // run: a walk stalls on any uphill by design
+      const floor = H.feet(); let rise = 0, endX = 0;
+      H.step(150, () => { rise = Math.max(rise, floor - H.feet()); endX = H.cx(); if (H.cx() > (c0 + 3.2) * T) return false; });
+      H.clearKeys();
+      _edStampCells(cells, 0);
+      return { up, pass, rise: Math.round(rise), past: endX > (c0 + 3) * T };
+    };
+    const plain = run(false, true), climb = run(true, true), solid = run(false, false);
+    const ok = plain.past && plain.rise < 8 && climb.rise >= T && solid.rise >= T;
+    return { pass: ok, note: JSON.stringify({ plain, climb, solid }), samples: [plain, climb, solid] };
+  },
 };
+PROBES.editor.lvls = ['1.1'];
+PROBES.passRamp.lvls = ['1.1'];
 
 main().catch((e) => { console.error('probe runner failed:', e.message); process.exitCode = 2; });

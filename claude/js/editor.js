@@ -77,7 +77,7 @@ function startStageDesignerNew(){
     enemies:[],crates:[],knowls:[],bwalls:[],
   });
   _respawnPlayer();
-  _editorActive=true;
+  _edSetActive(true);
   edShowToast('NEW STAGE â€” drag platforms Â· Shift+S save Â· ` exit');
 }
 function startStageDesignerEdit(stage){
@@ -85,7 +85,7 @@ function startStageDesignerEdit(stage){
   _initStageDesignerShell(stage.name);
   _applyStageData(stage);
   _respawnPlayer();
-  _editorActive=true;
+  _edSetActive(true);
   edShowToast('EDITING "'+stage.name+'" â€” Shift+S save Â· ` exit');
 }
 function _playCustomStage(stage){
@@ -134,17 +134,124 @@ const ED = {
   snap: 20,
   snapEnabled: true,
   // panel UI
-  panelW: 220,
+  panelW: 252,
   // zoom/scroll handled via camera
   // undo stack
   undoStack: [],
+  // live stage: ramp brush + block edits kept for SAVE (key "c,r" -> cell id)
+  rampIdx: 2,
+  cellEdits: {},
+  hits: [],
 };
+
+// The world is drawn right of the panel (sx() adds this offset), so the panel never hides the map.
+(function(){
+  const baseOx=_mapEdScreenOx;
+  _mapEdScreenOx=function(){
+    if(_editorActive&&!(typeof _mapEdActive!=='undefined'&&_mapEdActive)) return ED.panelW;
+    return baseOx();
+  };
+})();
+function _edSetActive(on){
+  _editorActive=!!on;
+  if(!on) return;
+  camZoom=1; camZoomTgt=1;
+  camX=camClampX(camX); camY=camClampY(camY);
+  _snapRenderCam();
+}
+
+/* â”€â”€ LIVE STAGE (LDtk on the typed grid) â”€â”€ */
+// Story stages collide on the typed grid and draw from MV_BETA.level.cells, so edits go to both.
+// Cell ids: 0 air, 1 solid, 2 one-way, 4/5 ramps, 6/7 pass-through ramps (left/right alone rolls past).
+const ED_RAMPS=[{id:4,label:'RAMP \\'},{id:5,label:'RAMP /'},{id:6,label:'PASS \\'},{id:7,label:'PASS /'}];
+const ED_CELLS_KEY='mv2.editor.cells.';
+function _edLive(){
+  return !_stageDesignerMode&&!!(window.MV_BETA&&MV_BETA.level&&MV_BETA.level.cells)
+    &&typeof _gridReady==='function'&&_gridReady();
+}
+function _edCellGet(c,r){
+  const t=gridCell(c,r);
+  return (t===4||t===5)&&gridSlopePass(c,r)?t+2:t;
+}
+function _edCellSet(c,r,id){
+  const lv=MV_BETA.level;
+  if(c<0||r<0||c>=lv.cols||r>=lv.rows) return;
+  const t=id===6?4:id===7?5:id, pass=id===6||id===7;
+  gridSet(c,r,t,pass?{pass:true}:undefined);
+  lv.cells[r][c]=t;
+  if(!lv.pass) lv.pass={};
+  if(pass) lv.pass[r*lv.cols+c]=true; else delete lv.pass[r*lv.cols+c];
+  MV_BETA.surfRow=null;
+}
+function _edStampCells(cells,id){
+  edPushUndo();
+  const u=ED.undoStack[ED.undoStack.length-1];
+  u.G_=[];
+  for(const [c,r] of cells){
+    u.G_.push({c,r,id:_edCellGet(c,r)});
+    _edCellSet(c,r,id);
+    ED.cellEdits[c+','+r]=id;
+  }
+}
+function _edRectCells(x0,y0,x1,y1){
+  const T=MV_GRID.tile, out=[];
+  const c0=Math.floor(Math.min(x0,x1)/T), c1=Math.floor(Math.max(x0,x1)/T);
+  const r0=Math.floor(Math.min(y0,y1)/T), r1=Math.floor(Math.max(y0,y1)/T);
+  for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) out.push([c,r]);
+  return out;
+}
+function _edStageKey(){ return ED_CELLS_KEY+(MV_BETA.stageId||'?'); }
+function edSaveCells(){
+  const n=Object.keys(ED.cellEdits).length;
+  try{ localStorage.setItem(_edStageKey(), JSON.stringify(ED.cellEdits)); }catch(e){}
+  edShowToast('SAVED '+n+' BLOCKS FOR '+(MV_BETA.stageId||'THIS STAGE'));
+}
+function edClearCells(){
+  try{ localStorage.removeItem(_edStageKey()); }catch(e){}
+  ED.cellEdits={};
+  edShowToast('EDITS CLEARED — TAB RESTARTS THE STAGE CLEAN');
+}
+function edSave(){
+  if(_stageDesignerMode) edSaveStage();
+  else if(_edLive()) edSaveCells();
+  else edSaveRoom();
+}
+function edTest(){
+  edSave();
+  _edSetActive(false);
+  _respawnPlayer();
+  _snapCameraToPlayer(p);
+  uiShowToast('TESTING — ` BACK TO THE EDITOR');
+}
+// Saved edits come back when their stage loads again.
+let _edLevelSeen=null;
+setInterval(()=>{
+  if(/[?&](selftest|ci)=/i.test(location.search||'')) return;
+  const B=window.MV_BETA;
+  if(!B||!B.level||B.loading||B.level===_edLevelSeen) return;
+  _edLevelSeen=B.level;
+  ED.cellEdits={};
+  if(typeof _gridReady!=='function'||!_gridReady()) return;
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(_edStageKey())||'null'); }catch(e){}
+  if(!saved) return;
+  let n=0;
+  for(const k in saved){
+    const [c,r]=k.split(',').map(Number);
+    _edCellSet(c,r,saved[k]|0); ED.cellEdits[k]=saved[k]|0; n++;
+  }
+  if(n) uiShowToast('EDITOR: '+n+' SAVED BLOCKS LOADED');
+},300);
 
 /* â”€â”€ SNAP HELPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function edSnap(v){ return ED.snapEnabled ? Math.round(v/ED.snap)*ED.snap : Math.round(v); }
 
 /* â”€â”€ WORLD COORDS FROM SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function edToWorld(sx_, sy_){ return { x: edSnap(sx_*SMS_SCALE + _rcamX), y: edSnap(sy_*SMS_SCALE + _rcamY) }; }
+function edToWorldRaw(sx_, sy_){
+  const z=camZoom>0?camZoom:1, S=MV2_VISUAL?1:SMS_SCALE;
+  return { x:(sx_/z-_mapEdScreenOx())*S+_rcamX, y:(sy_/z)*S+_rcamY };
+}
+function edToWorld(sx_, sy_){ const w=edToWorldRaw(sx_,sy_); return { x: edSnap(w.x), y: edSnap(w.y) }; }
 
 /* â”€â”€ PUSH UNDO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function edPushUndo(){
@@ -266,6 +373,7 @@ function edUndo(){
   const snap = ED.undoStack.pop();
   // Restore live arrays from snapshot
   TR.length=0; snap.TR.forEach(t=>TR.push(t));
+  if(snap.G_&&_edLive()) for(const g of snap.G_.slice().reverse()){ _edCellSet(g.c,g.r,g.id); ED.cellEdits[g.c+','+g.r]=g.id; }
   // Note: enemies/crates/etc are runtime objects; partial restore
   edShowToast('Undone');
 }
@@ -278,12 +386,24 @@ cv.addEventListener('mousedown', e=>{
   const rect=cv.getBoundingClientRect();
   const scaleX=W/rect.width, scaleY=H/rect.height;
   const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
-  // ignore if in panel
-  if(mx < ED.panelW) return;
+  if(mx < ED.panelW){
+    for(let i=ED.hits.length-1;i>=0;i--){
+      const h=ED.hits[i];
+      if(mx>=h.x&&mx<=h.x+h.w&&my>=h.y&&my<=h.y+h.h){ h.fn(); break; }
+    }
+    return;
+  }
   _edMouseDown=true;
   const w=edToWorld(mx,my);
+  const raw=edToWorldRaw(mx,my);
+  if(_edLive()&&(ED.tool==='ramp'||ED.tool==='erase')){
+    const T=MV_GRID.tile, c=Math.floor(raw.x/T), r=Math.floor(raw.y/T);
+    if(ED.tool==='ramp'){ _edStampCells([[c,r]],ED_RAMPS[ED.rampIdx].id); return; }
+    if(_edCellGet(c,r)){ _edStampCells([[c,r]],0); return; }
+  }
   if(ED.tool==='platform'||ED.tool==='bwall'){
     ED.dragging=true; ED.dragStart={...w}; ED.dragEnd={...w};
+    ED.dragStartRaw=raw; ED.dragEndRaw=raw;
   } else if(ED.tool==='enemy'){ edAddEnemy(w.x,w.y);
   } else if(ED.tool==='crate'){ edAddCrate(w.x,w.y);
   } else if(ED.tool==='knowl'){ edAddKnowl(w.x,w.y);
@@ -299,6 +419,7 @@ cv.addEventListener('mousemove', e=>{
   if(ED.dragging){
     const w=edToWorld(mx,my);
     ED.dragEnd={...w};
+    ED.dragEndRaw=edToWorldRaw(mx,my);
   }
 });
 cv.addEventListener('mouseup', e=>{
@@ -309,7 +430,11 @@ cv.addEventListener('mouseup', e=>{
     const y=Math.min(ED.dragStart.y,ED.dragEnd.y);
     const w=Math.abs(ED.dragEnd.x-ED.dragStart.x);
     const h=Math.abs(ED.dragEnd.y-ED.dragStart.y);
-    if(ED.tool==='platform') edAddPlat(x,y,w||ED.snap,h||ED.snap,ED.platType);
+    if(ED.tool==='platform'&&_edLive()){
+      const a=ED.dragStartRaw, b=ED.dragEndRaw;
+      _edStampCells(_edRectCells(a.x,a.y,b.x,b.y),ED.platType==='oneway'?2:1);
+    }
+    else if(ED.tool==='platform') edAddPlat(x,y,w||ED.snap,h||ED.snap,ED.platType);
     else if(ED.tool==='bwall') edAddBwall(x,y,w||ED.snap,h||ED.snap);
     ED.dragging=false; ED.dragStart=null; ED.dragEnd=null;
   }
@@ -326,7 +451,7 @@ document.addEventListener('keydown', e=>{
       }else if(typeof _mapEdCan==='function'&&_mapEdCan()){
         if(typeof _mapEdToggle==='function') _mapEdToggle(true);
       }else{
-        _editorActive=!_editorActive;
+        _edSetActive(!_editorActive);
         edShowToast(_editorActive?'EDITOR ON — ` to exit':'EDITOR OFF');
       }
     }
@@ -335,11 +460,8 @@ document.addEventListener('keydown', e=>{
   if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(!_editorActive) return;
   // Save
-  if(e.shiftKey&&e.code==='KeyS'){
-    if(_stageDesignerMode) edSaveStage();
-    else edSaveRoom();
-    e.preventDefault(); return;
-  }
+  if(e.shiftKey&&e.code==='KeyS'){ edSave(); e.preventDefault(); return; }
+  if(e.code==='Enter'){ edTest(); e.preventDefault(); return; }
   // Export to console
   if(e.shiftKey&&e.code==='KeyE'){
     const code=edExportRoom(ED.roomName);
@@ -350,8 +472,12 @@ document.addEventListener('keydown', e=>{
   // Undo
   if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){ edUndo(); e.preventDefault(); return; }
   // Tool shortcuts
-  const shortcuts={'KeyP':'platform','KeyN':'enemy','KeyC':'crate','KeyK':'knowl','KeyB':'bwall','KeyR':'erase'};
+  const shortcuts={'KeyP':'platform','KeyN':'enemy','KeyC':'crate','KeyK':'knowl','KeyB':'bwall','KeyR':'erase','KeyL':'ramp'};
   if(shortcuts[e.code]){ ED.tool=shortcuts[e.code]; edShowToast('Tool: '+ED.tool); e.preventDefault(); return; }
+  if(e.code==='Tab'&&ED.tool==='ramp'){
+    ED.rampIdx=(ED.rampIdx+1)%ED_RAMPS.length;
+    edShowToast('Ramp: '+ED_RAMPS[ED.rampIdx].label); e.preventDefault(); return;
+  }
   // Cycle platform type
   if(e.code==='Tab'&&ED.tool==='platform'){
     const types=['solid','oneway','ceil'];
@@ -365,10 +491,10 @@ document.addEventListener('keydown', e=>{
     edShowToast('Rival: '+ED.enemyType); e.preventDefault(); return;
   }
   // Camera scroll in editor
-  if(e.code==='ArrowRight'){ camX=Math.min(WW-camViewW(), camX+40); e.preventDefault(); return; }
-  if(e.code==='ArrowLeft'){  camX=Math.max(0, camX-40);    e.preventDefault(); return; }
-  if(e.code==='ArrowDown'){  camY=Math.min(WH-camViewH(), camY+40); e.preventDefault(); return; }
-  if(e.code==='ArrowUp'){    camY=Math.max(0, camY-40);    e.preventDefault(); return; }
+  if(e.code==='ArrowRight'){ camX=camClampX(camX+40); e.preventDefault(); return; }
+  if(e.code==='ArrowLeft'){  camX=camClampX(camX-40); e.preventDefault(); return; }
+  if(e.code==='ArrowDown'){  camY=camClampY(camY+40); e.preventDefault(); return; }
+  if(e.code==='ArrowUp'){    camY=camClampY(camY-40); e.preventDefault(); return; }
   // Toggle snap
   if(e.code==='KeyG'){ ED.snapEnabled=!ED.snapEnabled; edShowToast('Snap: '+(ED.snapEnabled?'ON':'OFF')); e.preventDefault(); return; }
   // Set spawn to player position (stage designer)
@@ -389,14 +515,38 @@ document.addEventListener('keydown', e=>{
 function drawEditorOverlay(){
   if(!_editorActive) return;
 
-  // Semi-transparent grid
+  ED.hits.length=0;
+  const live=_edLive(), PX=ED.panelW, S=MV2_VISUAL?1:SMS_SCALE;
+  // Semi-transparent grid (tile grid on a live stage)
   ctx.save();
   ctx.strokeStyle='rgba(255,255,255,0.07)';
   ctx.lineWidth=0.5;
-  const gs=ED.snap/SMS_SCALE;
-  const offX=(_rcamX/SMS_SCALE)%gs, offY=(_rcamY/SMS_SCALE)%gs;
-  for(let x=-offX;x<W;x+=gs){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
-  for(let y=-offY;y<H;y+=gs){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+  const gs=(live?MV_GRID.tile:ED.snap)/S;
+  const offX=(_rcamX/S)%gs, offY=(_rcamY/S)%gs;
+  for(let x=PX-offX;x<W;x+=gs){ if(x<PX) continue; ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=-offY;y<H;y+=gs){ ctx.beginPath();ctx.moveTo(PX,y);ctx.lineTo(W,y);ctx.stroke(); }
+
+  if(live){
+    // pass-through ramps look like ramps in the world; mark them here
+    const T=MV_GRID.tile, lv=MV_BETA.level;
+    const c0=Math.max(0,Math.floor(_rcamX/T)), c1=Math.min(lv.cols-1,Math.ceil((_rcamX+(W-PX)*S)/T));
+    const r0=Math.max(0,Math.floor(_rcamY/T)), r1=Math.min(lv.rows-1,Math.ceil((_rcamY+H*S)/T));
+    ctx.setLineDash([4,3]); ctx.strokeStyle='#6ef4ff'; ctx.lineWidth=2;
+    for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
+      const id=_edCellGet(c,r); if(id!==6&&id!==7) continue;
+      const x=sx(c*T), y=sy(r*T), z=sw(T);
+      ctx.strokeRect(x+1,y+1,z-2,z-2);
+      ctx.beginPath();
+      if(id===7){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    if(ED.hoverX>=PX){
+      const hw=edToWorldRaw(ED.hoverX,ED.hoverY), hc=Math.floor(hw.x/T), hr=Math.floor(hw.y/T);
+      ctx.strokeStyle='#ffe46a'; ctx.lineWidth=2;
+      ctx.strokeRect(sx(hc*T)+0.5,sy(hr*T)+0.5,sw(T)-1,sw(T)-1);
+    }
+  }
 
   // Drag preview
   if(ED.dragging&&ED.dragStart&&ED.dragEnd){
@@ -428,6 +578,7 @@ function drawEditorOverlay(){
 
   const tools=[
     ['P','PLATFORM',ED.platType],
+    ['L','RAMP',ED_RAMPS[ED.rampIdx].label],
     ['N','ENEMY',ED.enemyType],
     ['C','CRATE','28X28'],
     ['K','KNOWL','DROP'],
@@ -436,36 +587,60 @@ function drawEditorOverlay(){
   ];
   let ty=38;
   for(const [key,name,sub] of tools){
-    const active=ED.tool===name.toLowerCase()||ED.tool===name;
-    ctx.fillStyle=active?'rgba(80,200,255,0.25)':'transparent';
+    if(name==='RAMP'&&!live) continue;
+    const id=name.toLowerCase();
+    const active=ED.tool===id;
+    ctx.fillStyle=active?'rgba(80,200,255,0.25)':'rgba(255,255,255,0.04)';
     ctx.fillRect(6,ty-2,PW-12,22);
     drawText('['+key+'] '+name, 10, ty+2, active?C.CYAN:C.SILVER, 1);
     if(sub) drawText(String(sub), 118, ty+2, C.SAND, 1);
+    ED.hits.push({label:name,x:6,y:ty-2,w:PW-12,h:22,fn:()=>{
+      if(ED.tool===id&&id==='ramp') ED.rampIdx=(ED.rampIdx+1)%ED_RAMPS.length;
+      else if(ED.tool===id&&id==='platform') ED.platType=ED.platType==='solid'?'oneway':'solid';
+      ED.tool=id;
+    }});
     ty+=24;
   }
 
   ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,ty,PW-20,1); ty+=10;
 
   const help=[
-    'TAB  CYCLE TYPE',
+    'CLICK AGAIN / TAB: TYPE',
+    (live?'PASS: ROLL PAST, UP CLIMBS':''),
     'G  SNAP ('+( ED.snapEnabled?'ON':'OFF')+')',
     'ARROWS  SCROLL',
     'CTRL+Z  UNDO',
-    'SHIFT+S  SAVE STAGE',
-    'SHIFT+E  EXPORT JS',
-    'M  RENAME STAGE',
+    'SHIFT+S SAVE  ENTER TEST',
+    (live?'':'SHIFT+E  EXPORT JS'),
+    (live?'':'M  RENAME STAGE'),
     (_stageDesignerMode?'T  SET SPAWN':''),
     '`  EXIT EDITOR',
   ];
   for(const h of help){ if(!h) continue; drawText(h, 10, ty, C.SILVER, 1); ty+=14; }
 
   ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(10,ty,PW-20,1); ty+=10;
-  drawText('ROOM: '+ED.roomName, 10, ty, C.CYAN, 1); ty+=14;
-  drawText('PLATS: '+(TR.length-4), 10, ty, C.SILVER, 1); ty+=14;
-  drawText('ENEMIES: '+ENEMS.length, 10, ty, C.SILVER, 1); ty+=14;
-  drawText('CRATES: '+CRATES.length, 10, ty, C.SILVER, 1); ty+=14;
-  drawText('KNOWLS: '+KDROP.length, 10, ty, C.SILVER, 1); ty+=14;
-  drawText('BWALLS: '+BWALLS.length, 10, ty, C.SILVER, 1);
+  if(live){
+    drawText('STAGE: '+(MV_BETA.stageId||'?'), 10, ty, C.CYAN, 1); ty+=14;
+    drawText('EDITED BLOCKS: '+Object.keys(ED.cellEdits).length, 10, ty, C.SILVER, 1); ty+=14;
+  }else{
+    drawText('ROOM: '+ED.roomName, 10, ty, C.CYAN, 1); ty+=14;
+    drawText('PLATS: '+(TR.length-4), 10, ty, C.SILVER, 1); ty+=14;
+    drawText('ENEMIES: '+ENEMS.length, 10, ty, C.SILVER, 1); ty+=14;
+    drawText('CRATES: '+CRATES.length, 10, ty, C.SILVER, 1); ty+=14;
+    drawText('KNOWLS: '+KDROP.length, 10, ty, C.SILVER, 1); ty+=14;
+  }
+
+  const btn=(label,x,y,w,on,fn)=>{
+    ctx.fillStyle=on?'#245a78':'#1a1624'; ctx.fillRect(x,y,w,28);
+    ctx.strokeStyle=on?'#9ef':'#3a3450'; ctx.lineWidth=1; ctx.strokeRect(x+0.5,y+0.5,w-1,27);
+    drawTextC(label, x+w/2, y+8, on?C.WHITE:C.SILVER, 1);
+    ED.hits.push({label,x,y,w,h:28,fn});
+  };
+  const bw=(PW-26)/2, by=H-110;
+  btn('SAVE',10,by,bw,true,()=>edSave());
+  btn('TEST',16+bw,by,bw,true,()=>edTest());
+  btn(live?'CLEAR':'UNDO',10,by+34,bw,false,()=>live?edClearCells():edUndo());
+  btn('EXIT',16+bw,by+34,bw,false,()=>{ _edSetActive(false); uiShowToast('EDITOR OFF'); });
 
   drawText('WORLD: '+hw.x+','+hw.y, 10, H-28, C.SAND, 1);
   drawText('CAM: '+Math.round(camX)+','+Math.round(camY), 10, H-14, C.SAND, 1);
