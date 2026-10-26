@@ -2309,7 +2309,7 @@ function drawKnowlTreeAura(){
 
 function drawItemDrops(){
   if(typeof ITEM_DROPS==='undefined'||!ITEM_DROPS.length) return;
-  const names=typeof INAMES!=='undefined'?INAMES:['TRS','RCA','XLR','MAG'];
+  const names=typeof INAMES!=='undefined'?INAMES:['TRS','RCA','XLR','MEG'];
   const cols=typeof ICOLS!=='undefined'?ICOLS:['#d4aa40','#e87820','#c8cdd4','#e02028'];
   for(const d of ITEM_DROPS){
     if(d.got) continue;
@@ -2656,7 +2656,12 @@ function drawFX(){
     ctx.globalAlpha=1;
   }
   // â”€â”€ Hook cable â€” braided cord from RCA pin tip â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  if(p.hook.st!=='idle'){
+  drawHookCable();
+}
+// the RCA cord of whoever `p` is (the companion draws its own through drawCharacterFor-style swaps)
+function drawHookCable(){
+  if(!p.hook||p.hook.st==='idle') return;
+  {
     const _isVenture=p.hero==='venture';
     const _ropeDash=_isVenture?'#aa3348':'#8833cc';
     const _ropeGlow=_isVenture?'#ee8899':'#cc66ff';

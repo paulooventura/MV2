@@ -71,6 +71,69 @@
     }
     return best;
   }
+  // ── its own RCA rope (Paulo, Oct 25): the same rope as yours — the game's own updateHook runs
+  //    on its body with AI hands on the stick — but its own anchor and its own call. You being on
+  //    a rope is never a reason for it to rope; it throws one when it needs to cross or climb.
+  const ROPE_CD=45, ROPE_MAX_T=300;
+  function ropeIdle(b){
+    const h=b&&b.hook; if(!h) return;
+    if(h.st!=='idle'){ h.st='idle'; h.ox=NaN; h.oy=NaN; h.tgt=null; h.plat=null; h._tight=false; h._slack=false; h._path=null; h._tension=0; h.pivots=null; h.vr=null; h._cord=null; }
+    b._ropeT=0;
+  }
+  function asSib(inp,fn){
+    const k={it:ITEM,L:isLf,R:isRt,U:isUp,D:isDn,J:isJumpJ};
+    ITEM=1; isLf=()=>!!inp.l; isRt=()=>!!inp.r; isUp=()=>!!inp.u; isDn=()=>!!inp.d; isJumpJ=()=>false;
+    try{ return withPlayerContext(S,fn); }
+    finally{ ITEM=k.it; isLf=k.L; isRt=k.R; isUp=k.U; isDn=k.D; isJumpJ=k.J; }
+  }
+  const ropeGoal=()=>({x:p.x+SW/2+S._side*70, y:p.y+FEET_OFF-STAND_H*0.45});
+  // a surface above it, on the way to where it's going (ceilings and walls; never the floor)
+  function findAnchor(G){
+    if(typeof _hookRayHit!=='function') return null;
+    const c=centre(S), dir=Math.sign(G.x-c.x)||(S.fc?1:-1), reach=Math.min(typeof CMAX!=='undefined'?CMAX:400,400)*0.9;
+    const mid=c.x+(G.x-c.x)*0.55;
+    let best=null, bs=-1e9;
+    for(const t of [0.15,0.3,0.45,0.6,0.75,0.9,1.05]){
+      const ux=Math.sin(t)*dir, uy=-Math.cos(t);
+      const hit=_hookRayHit(c.x,c.y-10,c.x+ux*reach,c.y-10+uy*reach);
+      if(!hit||hit.enemy) continue;
+      const len=Math.hypot(hit.tx-c.x,hit.ty-c.y);
+      if(len<90||hit.ty>c.y-70) continue;
+      const s=-Math.abs(hit.tx-mid)-Math.abs(len-230)*0.4+(hit.ty<G.y?40:0);
+      if(s>bs){ bs=s; best={x:hit.tx,y:hit.ty}; }
+    }
+    return best;
+  }
+  function throwRope(A){
+    const c=centre(S), dx=A.x-c.x, dy=A.y-c.y, d=Math.hypot(dx,dy)||1;
+    S.aimDX=S.tAimDX=dx/d; S.aimDY=S.tAimDY=dy/d; S.fc=dx>0;
+    asSib({},()=>fireItem(false));
+    S._ropeT=0;
+  }
+  function ropeTick(){
+    const h=S.hook, was=h.st; S._ropeT=(S._ropeT||0)+1;
+    const G=ropeGoal(), c=centre(S), dir=Math.sign(G.x-c.x)||1, inp={};
+    if(h.st==='on'){
+      const P0=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+      const behind=(c.x-P0.x)*dir<8, sp=Math.hypot(S.vx,S.vy);
+      if(Math.abs(G.x-c.x)>40&&behind&&sp<8.5&&(S.vx*dir>0||Math.abs(S.vx)<0.6)) inp[dir>0?'r':'l']=true;   // pump on the downswing toward the goal, like you would
+      if(G.y<c.y-40&&h.rl>ROPE_RL_MIN+30) inp.u=true;                                        // climb toward it
+      else if(G.y>c.y+90&&h.rl<CMAX-20) inp.d=true;
+    }
+    const x0=S.x;
+    asSib(inp,()=>updateHook());
+    if(h.st==='idle'){ if(was==='ext') S._ropeMiss=(S._ropeMiss||0)+1; S._ropeCd=ROPE_CD; S._launchT=40; return; }
+    if(h.st!=='on') return;
+    S._ropeMiss=0;
+    S.wheelAngle=(S.wheelAngle||0)+(S.x-x0)/WHEEL_R;
+    const P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
+    const c2=centre(S), past=(c2.x-P.x)*dir>12, rising=S.vy<-0.5, toward=S.vx*dir>2.2;
+    const there=Math.hypot(G.x-c2.x,G.y-c2.y)<110;
+    if((S._ropeT>24&&past&&rising&&toward)||there||S._ropeT>ROPE_MAX_T){
+      if(typeof _detachPlayerRope==='function') _detachPlayerRope(h); else ropeIdle(S);
+      S._ropeCd=ROPE_CD; S._launchT=50; S._ropeT=0;
+    }
+  }
   function follow(){
     // record where YOU have been (only when you move, so standing still parks the sibling)
     const last=trail[trail.length-1];
@@ -81,23 +144,31 @@
       trail.length=0; trail.push({x:p.x,y:p.y,fc:p.fc,og:!!p.og,ca:0}); lastLevel=B.level;
       blinkTo({x:p.x-(p.fc?1:-1)*MIN_GAP,y:p.y}); S.vx=S.vy=S._hvx=S._hvy=0; S._stuck=0; S._fly=false; return;
     }
+    if(S._ropeCd>0) S._ropeCd--;
+    if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
     // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". It rides the ground with real
     // physics — eases up to a spot behind you, eases to a stop, hops ledges and walls — and only takes
-    // to the air on its XLR when it has to (you're on the rope, high above it, far off, or it's stuck),
+    // to the air when it has to (you're high above it, far off, or it's stuck) — on its own rope if
+    // there's an anchor on its way (Oct 25), on its XLR if there isn't —
     // gliding smoothly and landing again as soon as it can. The side it keeps changes only after you've
     // faced the other way for a while, so turning around doesn't send it darting across.
     const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
     const want=p.fc?-1:1;
     if(S._side==null) S._side=want;
     if(want!==S._side){ if(++S._sideT>50){ S._side=want; S._sideT=0; } } else S._sideT=0;
-    const rope=p.hook&&p.hook.st==='on';
     const dxP=p.x-S.x, dyP=p.y-S.y;                                   // dyP < 0: you're above it
-    const needFly=rope||dyP<-150||Math.abs(dxP)>340||(S._stuck||0)>40;
-    if(!S._fly&&needFly&&!cov){ S._fly=true; S._flyT=0; S._hvx=S.vx||0; S._hvy=Math.min(0,S.vy||0); S._stuck=0; }
+    const needFly=dyP<-150||Math.abs(dxP)>340||(S._stuck||0)>40;
+    const hookIdle=!S.hook||S.hook.st==='idle';
+    if(!S._fly&&needFly&&!cov&&hookIdle){
+      // its own rope first, when there's something to latch on its way; the XLR when there isn't
+      const A=!(S._ropeCd>0)&&(S._ropeMiss||0)<2&&Math.abs(dxP)<700?findAnchor(ropeGoal()):null;
+      if(A){ throwRope(A); S._stuck=0; }
+      else{ S._fly=true; S._flyT=0; S._hvx=S.vx||0; S._hvy=Math.min(0,S.vy||0); S._stuck=0; S._ropeMiss=0; }
+    }
     const x0=S.x, y0=S.y;
     if(S._fly){
       S._flyT++;
-      const groundOk=p.og&&!rope&&Math.abs(dyP)<110&&Math.abs(dxP)<220;
+      const groundOk=p.og&&Math.abs(dyP)<110&&Math.abs(dxP)<220;
       if(groundOk&&S._flyT>40){ S._fly=false; S.vx=S._hvx*0.6; S.vy=Math.max(0,S._hvy); }
     }
     if(S._fly){
@@ -127,13 +198,15 @@
     if(pm&&!cov){ const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
     const dx=tx-S.x, adx=Math.abs(dx), dead=16, dir=Math.sign(dx);
     const maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
-    if(adx>dead){
+    if(S._launchT>0&&S.og) S._launchT=0;
+    if(S._launchT>0){ S._launchT--; S.vx*=0.995; }                  // just let go of its rope: the swing carries it until it lands
+    else if(adx>dead){
       S.vx=(S.vx||0)+dir*Math.min(0.42,0.1+adx/260);
       const vStop=Math.sqrt(2*0.32*(adx-dead))+0.4;                   // brake in time: eases to a stop on its mark
       if(Math.sign(S.vx)===dir&&Math.abs(S.vx)>vStop) S.vx=dir*vStop;
       if(Math.sign(S.vx)!==dir) S.vx*=0.8;
     }else S.vx=(S.vx||0)*(S.og?0.75:0.97);
-    S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
+    if(!(S._launchT>0)) S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
     const feet=S.y+FEET_OFF;
     if(S.og){
       const ax=S.x+SW/2+dir*(SW/2+10);
@@ -159,9 +232,10 @@
   }
   function blinkTo(T){
     for(let k=0;k<10;k++) PFXS.push({x:S.x+SW/2+(Math.random()-0.5)*30,y:S.y+FEET_OFF-40+(Math.random()-0.5)*40,vx:(Math.random()-0.5)*2,vy:-Math.random()*2,life:14,maxLife:14,r:2,col:S.hero==='venture'?'#ff6a7a':'#c49aff'});
-    S.x=T.x; S.y=T.y; S._blink=12;
+    S.x=T.x; S.y=T.y; S._blink=12; ropeIdle(S);
   }
   function assist(){
+    if(S.hook&&S.hook.st!=='idle'){ S._threat=null; return; }   // both hands on its rope
     const t=pickThreat(), me=centre(S); S._threat=t;
     S._shotCd=(S._shotCd||0)-1;
     if(!t){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; helpBlock(null); return; }
@@ -286,6 +360,7 @@
   // it like it hurts you: the live yellow cage blocks, live water, lightning, a block chain going off
   function envHurt(b,dmg,kx,ky,kind){
     if(!b||b._downT>0||dmg<=0) return;
+    ropeIdle(b);
     b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=16; b._hurtFr=fr;
     b.vx=kx; b.vy=ky; b.og=false; b.free=Math.max(b.free||0,40); b._prevLandFeet=b.y+FEET_OFF;
     try{ sfx('player_hit',1.35); }catch(e){}
@@ -313,6 +388,7 @@
     if(b.sibHp<100&&fr-(b._hurtFr||-999)>180) b.sibHp=Math.min(100,b.sibHp+0.12);
   }
   function knock(b,vx,vy,kind,dmg){
+    ropeIdle(b);
     b.vx=vx; b.vy=vy; b.og=false; b.free=Math.max(b.free||0,46); b._prevLandFeet=b.y+FEET_OFF;
     if(ff&&dmg>0&&!(b._downT>0)){
       b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=14;
@@ -439,19 +515,13 @@
       ctx.restore();
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
-      const swing=who===S&&p.hook&&p.hook.st==='on';
+      const swing=who===S&&S.hook&&S.hook.st!=='idle';
       const jack=ITEM===4?-1:(ITEM>=0?ITEM:-1);   // the kiritsuke is the lead's alone; the brother keeps fists
-      const show=who._madT>0?-1:(who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
+      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._shootT>0?0:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
-      if(swing){                                                              // it swings with you: its own line to the same anchor
-        const h=p.hook, P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
-        let n; try{ const ps=computeConnectorArmPose(S); n={x:ps.noseX,y:ps.noseY}; }catch(e){ n=centre(S); }
-        if(n&&isFinite(n.x)){ ctx.save(); ctx.lineCap='round'; ctx.globalAlpha=0.85;
-          ctx.strokeStyle='#120a1c'; ctx.lineWidth=Math.max(2,sw(5)); ctx.beginPath(); ctx.moveTo(sx(n.x),sy(n.y)); ctx.lineTo(sx(P.x),sy(P.y)); ctx.stroke();
-          ctx.strokeStyle=S.hero==='venture'?'#c03048':'#7a3cc8'; ctx.lineWidth=Math.max(1,sw(3)); ctx.beginPath(); ctx.moveTo(sx(n.x),sy(n.y)); ctx.lineTo(sx(P.x),sy(P.y)); ctx.stroke(); ctx.restore(); }
-      }
       try{
         who._armPose=computeConnectorArmPose(who);
+        if(swing&&typeof drawHookCable==='function') withPlayerContext(S,()=>{ ctx.save(); try{ drawHookCable(); } finally{ ctx.restore(); } });   // its own cord: your rope, its colour
         ctx.save(); ctx.globalAlpha=who===S&&S._blink>0?0.4+0.05*(12-S._blink):(who===S?0.92:1);
         try{ drawCharacterFor(who); } finally{ ctx.restore(); }
       } finally{ B.ropeClip=keep.rc; B.magPark=keep.mp; ITEM=keep.it; }   // your item, rope and magnet are always handed back

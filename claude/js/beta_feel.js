@@ -20,7 +20,8 @@
     LAND_MIN:4.4,  LAND_REST:0.42, LAND_MAX:6.0,        // wheel bounce
     TUCK_SLIDE:14,                                       // px of corner forgiveness on a head bump
     XLR_FULL:45,   SUPER_H:395,                          // frames to full power; loaded-jump height (px)
-    HOVER_R:200,   HOVER_R_ENH:280, LAUNCH_REACH:3*T
+    HOVER_R:200,   HOVER_R_ENH:280, LAUNCH_REACH:3*T,
+    XLR_SWAY:0.42, XLR_SWAY_K:0.08                       // down + XLR + left/right: sway speed (share of run) and how fast it eases in
   };
   B.FEEL=FEEL;
   const st={wallCd:0, bounceT:0, tuckT:0, lastLaunch:null, heat:0, coast:false, coastV:0, rope:0};
@@ -145,6 +146,20 @@
     const sp=Math.hypot(p.vx,p.vy);
     if(sp>max){ p.vx*=max/sp; p.vy*=max/sp; }
   }
+  // the straight-down XLR jet: the same lift as the branches below, vertical only
+  function liftJet(a,held,enh,run,grounded){
+    if(grounded&&B.downCubeHeld) return;
+    const g=(typeof GRAV!=='undefined'?GRAV:0.52);
+    if(held<=16){
+      const pw=0.45+0.55*Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+      const vT=-14.5*enh*pw;
+      p.vy=Math.min(p.vy,p.vy+(vT-p.vy)*(held<=2?1:0.85));
+      p.og=false; p._groundHold=0; p.jf=0;
+    }else if(!grounded&&held<=48){
+      p.vy-=g*(1.08-0.4*Math.max(0,(held-16)/32)); if(p.vy<-11) p.vy=-11;
+    }else if(!grounded) p.vy-=g*0.72;
+    p._xlrOwns=true; p._xlrJetFr=fr;
+  }
   function xlrJet(){
     if(!(p.xlrOn&&ITEM===2)||B._xlrTapped) return;
     if(p.hook&&p.hook.st==='on') return;
@@ -156,6 +171,21 @@
     // tire fights it — it grips (most of the shove is soaked up), spins, heats up and smokes
     const inDir=(typeof isRt==='function'&&isRt())?1:(typeof isLf==='function'&&isLf())?-1:0;
     const grounded=typeof _playerOnGround==='function'&&_playerOnGround(p);
+    // Paulo (Oct 25): down + XLR lifts him straight up; adding left/right sways him that way,
+    // smoothly. The jet tilts back so it blows down-and-behind, carrying him forward.
+    const lift=typeof isDn==='function'&&isDn()&&a.y>0.3;
+    if(lift){
+      a.x=0; a.y=1;
+      const vx0=p.vx;
+      p._xlrSwayA=(p._xlrSwayA||0)+((-inDir*0.38)-(p._xlrSwayA||0))*0.15;
+      liftJet(a,held,enh,run,grounded);
+      p.vx=vx0+((inDir*run*FEEL.XLR_SWAY)-vx0)*(inDir?FEEL.XLR_SWAY_K:FEEL.XLR_SWAY_K*0.6);
+      const l=Math.hypot(p._xlrSwayA,1); p.aimDX=p._xlrSwayA/l; p.aimDY=1/l;
+      if(inDir) p.fc=inDir>0;
+      if(fr%3===0) PFXS.push({x:p.x+SW/2+p.aimDX*18,y:p.y+FEET_OFF-36+p.aimDY*18,vx:p.aimDX*3.2,vy:p.aimDY*3.2,life:8,maxLife:8,r:2.4,col:'#aaddff'});
+      return;
+    }
+    p._xlrSwayA=0;
     const resist=grounded&&Math.abs(a.x)>0.45&&a.y>-0.6&&inDir!==0&&inDir===Math.sign(a.x);
     if(resist){
       const thrust=(1.35+Math.min(1,held/6)*0.7)*enh;
@@ -484,6 +514,7 @@
   const _origTension=window._ropeApplyTension;
   window._ropeApplyTension=function(h){
     const r=_origTension.apply(this, arguments);
+    if(on()&&h===p.hook&&p._aiCompanion){ h._tension=(h._tension||0)/ROPE_STRENGTH; return r; }   // the companion's rope holds the same, but the REEL bar and creak are yours
     if(on()&&h===p.hook){
       const limit=Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)*ROPE_STRENGTH;
       st.rope=(h._tension||0)/limit; window.MV_ROPE_STRAIN=st.rope;
