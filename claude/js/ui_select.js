@@ -56,15 +56,28 @@
     drawText(text,x+kw+10,y+7,col,2);
     return kw+10+textW(text,2)+28;
   }
-  function hints(){
+  function hintY(){
     const L=window.uiLayout?uiLayout():{pad:{b:0},oneCol:false};
-    const y=L.oneCol?Math.max(120, H-Math.max(40,(L.pad.b||0)+18)):H-48;
-    const line=window.uiMenuHint?uiMenuHint('select'):'ENTER PICK    ESC BACK';
-    drawTextC(line,W/2,y,'#d8ffc8',3);
+    if(!L.oneCol) return H-48;
+    return H-Math.max(28,(L.pad&&L.pad.b)||0)-4;
+  }
+  function hints(){
+    const L=window.uiLayout?uiLayout():{oneCol:false};
+    const line=window.uiMenuHint?uiMenuHint('select'):'TAP TO PICK';
+    drawTextC(line,W/2,hintY(),'#d8ffc8',L.oneCol?2:3);
   }
   function title(main,sub){
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(one){
+      const L=uiLayout();
+      const y=Math.max(6,(L.inset&&L.inset.t)||0);
+      drawTextC(main,W/2,y,'#f2ffe8',3);
+      if(sub) drawTextC(sub,W/2,y+30,'#d8ffc8',2);
+      return y+58;
+    }
     uiLogo(main,W/2,26,46,{col:'#b8f5a0',sweep:300});
     drawTextC(sub,W/2,108,'#d8ffc8',3);
+    return 150;
   }
   function spark(x,y,col){ sparks.push({x,y,vx:(Math.random()-0.5)*0.8,vy:-0.6-Math.random()*1.2,life:60+Math.random()*40,max:100,col,r:1+Math.random()*2.5}); }
   function sparkTick(){
@@ -138,24 +151,75 @@
     if(sel&&fr%3===0) spark(x+Math.random()*w, y+h-20-Math.random()*h*0.6, H0.col);
     return {x,y,w,h};
   }
+  function phoneHeroRow(key,sel,box){
+    const H0=HERO[key], im=IMG[key];
+    uiPanel(box.x,box.y,box.w,box.h,{r:14,sel:sel,flat:true,accent:sel?H0.col:'rgba(140,170,150,0.35)'});
+    const ph=Math.max(24,box.h-16), pw=Math.min(box.w*0.28, ph*0.85);
+    if(im.complete&&im.naturalWidth){
+      ctx.save();
+      ctx.beginPath(); ctx.rect(box.x+8,box.y+8,pw,ph); ctx.clip();
+      if(!sel) ctx.filter='grayscale(0.7) brightness(0.55)';
+      const iw=pw, ih=iw*im.naturalHeight/im.naturalWidth;
+      ctx.drawImage(im, box.x+8, box.y+8-(ih-ph)*0.35, iw, ih);
+      ctx.restore();
+    }
+    const tx=box.x+pw+22;
+    drawText(H0.name, tx, box.y+Math.max(8,box.h*0.22), sel?H0.col:'#d8ffc8', 3);
+    drawText(H0.role, tx, box.y+Math.max(40,box.h*0.58), sel?'#ffffff':'#b7c8b4', 2);
+    if(sel) drawTextR('LEAD', box.x+box.w-12, box.y+10, H0.col, 2);
+    return box;
+  }
+  function phonePills(label,opts,cur,x,y,w,row,focus){
+    const h=40, labW=textW(label,2)+12;
+    if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.45+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x,y-4,w,h+8,12); ctx.stroke(); ctx.restore(); }
+    drawText(label,x+6,y+10,'#d8ffc8',2);
+    const avail=Math.max(80,w-labW-10), pw=Math.floor((avail-8)/opts.length);
+    let xx=x+labW;
+    opts.forEach(o=>{
+      const on=o.k===cur;
+      ctx.fillStyle=on?'rgba(20,40,28,0.95)':'rgba(8,16,12,0.8)';
+      uiRound(xx,y,pw,h,h/2); ctx.fill();
+      ctx.strokeStyle=on?o.col:'rgba(120,150,130,0.45)'; ctx.lineWidth=on?3:1.5;
+      uiRound(xx+1,y+1,pw-2,h-2,h/2); ctx.stroke();
+      drawTextC(o.label,xx+pw/2,y+12,on?'#ffffff':'#9aab9c',2);
+      sibRects.push({x:xx,y,w:pw,h,row,k:o.k});
+      xx+=pw+8;
+    });
+  }
+  function drawPhoneHeroes(){
+    const L=uiLayout(), sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
+    const top=title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS':(sib?'BROTHER RIDES WITH YOU':'BROTHER STAYS HOME'));
+    const showSwitches=_playerCount!==2&&window.MV_SIBLING;
+    const switchH=showSwitches?92:0;
+    const yHint=hintY();
+    const ySw=yHint-28-switchH;
+    const gap=12;
+    const span=Math.max(120, ySw-top-8);
+    const rh=Math.floor((span-gap)/2);
+    heroRects=[];
+    ['mind','venture'].forEach((k,i)=>{
+      const box={x:L.panelX, y:top+i*(rh+gap), w:L.panelW, h:rh};
+      heroRects.push(Object.assign({k}, phoneHeroRow(k, k===_heroChoice, box)));
+    });
+    if(showSwitches){
+      sibRects=[];
+      const y=heroRects[1].y+heroRects[1].h+16;
+      phonePills('BROTHER',[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH',col:'#ffb86a'}],!!MV_SIBLING.on,L.panelX,y,L.panelW,1,selRow===1);
+      phonePills('HURT',[{k:false,label:'OFF',col:'#9ef58a'},{k:true,label:'ON',col:'#ff7a6a'}],!!MV_SIBLING.ff,L.panelX,y+48,L.panelW,2,selRow===2);
+    }
+    hints();
+  }
   function drawHeroes(){
     const mSel=_heroChoice==='mind';
     if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS. PLAYER 2 RIDES.':(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
-    // draw the dimmed card first, the lead on top
     const order=mSel?['venture','mind']:['mind','venture'];
     heroRects=[];
-    const one=window.uiLayout&&uiLayout().oneCol;
-    if(one){
-      const L=uiLayout(), bottom=H-Math.max(56,(L.pad.b||0)+24);
-      const box={x:L.panelX, y:124, w:L.panelW, h:Math.max(160, Math.min(300, bottom-124-130))};
-      heroRects.push(Object.assign({k:_heroChoice}, heroCard(_heroChoice, W/2, true, 1, box)));
-    }else{
-      for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
-    }
-    // the seam between them: a pulsing "&" like the logo
+    for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
     const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
     ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
     sparkTick();
@@ -298,12 +362,11 @@
     ctx.restore();
   }
   function drawModes(){
-    title('HOW DO YOU RIDE?', 'PICK HOW YOU GO');
-    const L=window.uiLayout?uiLayout():{oneCol:false,panelW:520,panelX:(1024-520)/2,pad:{b:0}};
+    const L=window.uiLayout?uiLayout():{oneCol:false,panelW:520,panelX:(1024-520)/2,pad:{b:0},inset:{t:0}};
     const one=L.oneCol;
+    const top=title('HOW DO YOU RIDE?', 'PICK HOW YOU GO')+(one?8:0);
     const gap=16;
-    const bottom=H-Math.max(56,(L.pad&&L.pad.b)||0)-8;
-    const top=150;
+    const bottom=one?hintY()-36:H-64;
     const want=one?112:200;
     const fit=Math.max(1, Math.min(one?4:2, Math.floor((bottom-top+gap)/(want+gap))));
     const vis=one?fit:4;

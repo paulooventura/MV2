@@ -291,5 +291,11 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  function recure(){
+    if(!current) return;
+    const next=pathOf(current), prev=els[current];
+    if(prev&&prev._path===next) return;
+    play(current,{restart:true});
+  }
 })();

@@ -82,15 +82,18 @@ function _pickFromPool(pool,except){
 }
 const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
 const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
-// Ink & Vinyl soundtrack (清き旋律). Other filters keep the OST. Selftest stays on the OST.
+// Ink & Vinyl soundtrack (清き旋律). GORE is the same picture with the hue turned, so it keeps this score. Other filters keep the OST.
 function _inkSound(){
-  try{ if(window.MV_CONSOLE&&MV_CONSOLE.mode) return MV_CONSOLE.mode==='ink'; }catch(e){}
+  try{
+    const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
+    if(m) return m==='ink'||m==='gore';
+  }catch(e){}
   try{
     if(/[?&](selftest|ci=)/.test(location.search||'')) return false;
     const q=new URLSearchParams(location.search).get('console');
-    if(q) return q==='ink';
+    if(q) return q==='ink'||q==='gore';
     const v=localStorage.getItem('mv2.console');
-    if(v) return v==='ink';
+    if(v) return v==='ink'||v==='gore';
   }catch(e){}
   return true;
 }
@@ -496,6 +499,25 @@ function _switchMusicMode(){
   _stopBGM(_activeBgmType);
   _playBGM(_activeBgmType,vol);
 }
+// GORE uses the Ink & Vinyl score. Cue it as soon as the filter changes, and leave it if that score is already playing.
+function _cueFilterMusic(){
+  try{
+    if(window.MV_BETA&&MV_BETA.on&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.recure){
+      MV_BETA_AUDIO.recure();
+      return;
+    }
+  }catch(e){}
+  if(!_audioUnlocked||!_activeBgmType) return;
+  const type=_activeBgmType;
+  const want=type==='title'?_pickTitleMusic(_titleMusicPath):type==='story'?_pickStoryMusic(_storyMusicPath):null;
+  const have=type==='story'?_storyMusicPath:_titleMusicPath;
+  if(want&&want!==have) _switchMusicMode();
+}
+function _hookFilterMusic(){
+  if(window.MV_CONSOLE&&MV_CONSOLE.on){ MV_CONSOLE.on(_cueFilterMusic); return; }
+  setTimeout(_hookFilterMusic,200);
+}
+_hookFilterMusic();
 
 function _holdBgmHidden(){
   if(_bgmHeldHidden) return;
