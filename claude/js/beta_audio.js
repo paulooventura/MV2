@@ -35,23 +35,23 @@
         return later?GORE_TRACK_2:GORE_TRACK;
       }
       if(window.MV_INK_SOUND&&MV_INK_SOUND()){
-        if(name==='stage'||name==='stage2') return INK_1GO;
-        if(name==='item') return INK_STORI;
+        if(name==='item'||name==='results'||name==='calm') return INK_STORI;
+        return INK_1GO;
       }
     }catch(e){}
     return base;
   }
   function el(name){
     const path=pathOf(name);
-    const prev=els[name];
-    if(prev&&prev._path===path) return prev;
-    const t=prev?prev.currentTime:0, was=!!(prev&&!prev.paused);
-    if(prev) try{ prev.pause(); }catch(e){}
-    const a=new Audio(encodeURI(path)); a.loop=true; a.preload='auto'; a._path=path;
-    if(prev&&prev._baseVol!=null) a._baseVol=prev._baseVol;
-    els[name]=a;
-    if(routed[name]!==undefined) routed[name]=undefined;
-    if(was){ try{ a.currentTime=t; }catch(e){} const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    let a=els[name];
+    if(a&&a._path===path) return a;
+    // Same element the Web Audio graph already captured. A new Audio()
+    // would leave the old file running in that graph.
+    if(!a){ a=new Audio(); a.preload='auto'; els[name]=a; }
+    else if(a._baseVol==null) a._baseVol=1;
+    try{ a.pause(); }catch(e){}
+    a.loop=true; a.preload='auto'; a._path=path; a.src=encodeURI(path);
+    try{ a.load(); }catch(e){}
     return a;
   }
   // Dialog (Laitu and anyone else who sets B.talking): stori, then the stage track resumes where it left off.
@@ -74,6 +74,8 @@
   function play(name,{restart=false,volume=1}={}){
     if(!TRACKS[name]) name='stage';
     const a=el(name);
+    try{ document.querySelectorAll('audio').forEach(n=>{ if(n!==a) n.pause(); }); }catch(e){}
+    if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
     if(restart) try{ a.currentTime=0; }catch(e){}
     a._baseVol=volume; a.playbackRate=1;
     a.volume=vol()*volume;

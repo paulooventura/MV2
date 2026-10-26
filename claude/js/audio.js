@@ -114,6 +114,7 @@ function _zoneMusicPath(idx){
 }
 function _pickGameMusic(except){
   if(_goreSound()) return GORE_TRACK;
+  if(_inkSound()) return INK_1GO;
   const path=_zoneMusicPath(typeof _zoneIdx!=='undefined'?_zoneIdx:0);
   if(path&&path!==except) return path;
   return path||_pickFromPool(ZONE_MUSIC_TRACKS,except);
@@ -437,7 +438,7 @@ function _playBGM(type,vol=0.7){
   };
   let el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
   if(!el) el=_mp3Pool[type];
-  const score=_goreSound()?GORE_TRACK:_inkSound()?(type==='story'?INK_STORI:(type==='title'?INK_1GO:null)):null;
+  const score=_goreSound()?GORE_TRACK:_inkSound()?(type==='story'?INK_STORI:INK_1GO):null;
   if(score&&_bgmPathFor(type)!==score) el=_loadBgmElement(type,score);
   if(!el){
     const path=_pickBgmPath(type,_bgmPathFor(type));
@@ -508,16 +509,20 @@ function _switchMusicMode(){
 }
 // Switching FILTER swaps the score. A stage already playing is beta's job; the title and story are this file's.
 function _cueFilterMusic(){
+  // A stage already running is beta's player. Retune it on the spot, and
+  // stop the title/story/OST elements so they cannot keep the main theme going.
   try{
-    if(window.MV_BETA&&MV_BETA.on&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current()){
-      MV_BETA_AUDIO.recure();
+    const B=window.MV_BETA, A=window.MV_BETA_AUDIO;
+    if(B&&B.on&&A&&typeof A.play==='function'&&(typeof _gameState==='undefined'||_gameState==='game'||_gameState==='options')){
+      const name=(A.current&&A.current())||(B.popup?'item':(B.music||'stage'));
+      A.play(name,{restart:true});
       return;
     }
   }catch(e){}
   if(!_audioUnlocked||!_activeBgmType) return;
   const type=_activeBgmType;
-  const want=type==='title'?_pickTitleMusic(_titleMusicPath):type==='story'?_pickStoryMusic(_storyMusicPath):null;
-  const have=type==='story'?_storyMusicPath:_titleMusicPath;
+  const want=type==='story'?_pickStoryMusic(_storyMusicPath):type==='game'?_pickGameMusic(_gameMusicPath):_pickTitleMusic(_titleMusicPath);
+  const have=_bgmPathFor(type);
   if(want&&want!==have) _switchMusicMode();
 }
 function _hookFilterMusic(){
