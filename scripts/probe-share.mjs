@@ -130,6 +130,46 @@ const res = await page.evaluate(() => {
       out.foeTakes = { pass: took, took, ai: e._ai, sibCarry: MV_KNIFE.state().sibCarry };
     }
   }
+  // ── T174: the sibling uses the jack it carries on an enemy (no bolts, no power from MIND's bar) ──
+  {
+    for (const q of ENEMS) q._hidden = true;
+    const e = ENEMS.find((q) => q.alive && ['circle', 'tri', 'square'].includes(q._ai));
+    if (!e) out.sibUses = { pass: false, why: 'no story enemy' };
+    else {
+      e._hidden = false;
+      const s = sib(), res = {};
+      const hold = (x, y) => { e.x = x; e.y = y; e.vx = 0; e.vy = 0; };
+      for (const it of [0, 2, 3, 1]) {
+        s._carry = it; s._carryEnh = false; s._jackCd = 0; s._jackUsed = 0; s._jackPulled = 0; s.shots = [];
+        e.alive = true; e.hp = e.maxHp || 100; e._thrownF = 0; e._permOff = false;
+        // the sibling pinned beside MIND on his floor, the enemy in front of it (open side)
+        const feet = p.y + FEET_OFF, open = (dr) => { for (let k = 40; k <= 260; k += 20) if (gridWorldSolid(p.x + SW / 2 + dr * k, feet - 30)) return false; return true; };
+        const dir = open(1) ? 1 : -1;
+        const sibX = p.x + dir * 60, sibY = p.y;
+        s.x = sibX; s.y = sibY; s.vx = 0; s.vy = 0; s.fc = dir > 0; s._fly = false; s._zip = false;
+        p.fc = dir > 0; p.itemStamina = 100;
+        hold(sibX + SW / 2 + dir * (it === 3 ? 120 : 140) - e.w / 2, feet - e.h - 2);   // the MAG's reach is 4.5 blocks, like MIND's
+        const hp0 = e.hp, sx0 = sibX + SW / 2, d0 = Math.abs(e.x + e.w / 2 - sx0);
+        let shots = 0, dMin = d0, dMax = d0, hpMin = hp0, stamMin = 100;
+        step(90, (i) => {
+          s.x = sibX; s.y = sibY; s.vx = 0; s.vy = 0; s.og = true;
+          p.itemStamina = Math.max(p.itemStamina, 0); stamMin = Math.min(stamMin, p.itemStamina);
+          shots = Math.max(shots, (s.shots || []).length);
+          const d = Math.abs(e.x + e.w / 2 - (s.x + SW / 2)); dMin = Math.min(dMin, d); dMax = Math.max(dMax, d);
+          hpMin = Math.min(hpMin, e.hp);
+          if (!e.alive) return false;
+        });
+        res[['TRS', 'RCA', 'XLR', 'MAG'][it]] = { shots, used: s._jackUsed || 0, pulled: s._jackPulled || 0, hpLost: Math.round(hp0 - hpMin), d0: Math.round(d0), dMin: Math.round(dMin), dMax: Math.round(dMax), stamMin: Math.round(stamMin) };
+      }
+      s._carry = null;
+      const T = res.TRS, X = res.XLR, M = res.MAG, R = res.RCA;
+      out.sibUses = {
+        pass: T.shots > 0 && T.hpLost > 0 && X.used > 0 && X.dMax > X.d0 + 20 && M.pulled > 0 && M.dMin < M.d0 - 20 && R.used > 0 && R.hpLost > 0
+          && [T, X, M, R].every((r) => r.stamMin >= 99),
+        ...res,
+      };
+    }
+  }
   window.applyPlayerHit = realHit;
   return out;
 });

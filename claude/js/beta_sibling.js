@@ -400,6 +400,7 @@
       sibPunch(t.ex,t.ey,(fx,fy)=>{ sibEnemyHitFr=fr; if(typeof _damageEnemy==='function') _damageEnemy(t.e,typeof ENM_DMG!=='undefined'?ENM_DMG.punch:15,fx,fy,1); try{ sfx('punch_hit',1.15); }catch(e){} });
       return;
     }
+    if(S._carry!=null&&window.MV_SIB_JACK&&MV_SIB_JACK.use(S,t)) return;   // a jack it took from you: it uses that, not its bolts (beta_knife)
     if(S._shotCd>0) return;
     // never across you: skip the shot if you're between it and the target
     const P=centre(p), seg=((P.x-me.x)*dx+(P.y-me.y)*dy)/(d*d);

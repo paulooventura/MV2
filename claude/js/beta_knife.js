@@ -7,6 +7,8 @@
 //              holds that jack as its weapon. It hands it back when you swap to it (the
 //              jack lands in your set) or when you press A+B with no jack to drop (it
 //              drops it at its feet). 2P local isn't live in the story stages yet.
+//              It USES that jack instead of its bolts (T174): TRS shots (ricochet), XLR blast,
+//              MAG pull, RCA hook + yank; its own cooldowns, never your power bar.
 //   BOSS INTRO entering the arena the first time: the scene holds, bars come in,
 //              the Heptagon speaks (A: next line, B: skip).
 //   BOLTS      the Heptagon's bolts hit hard (28 + a big shove). The knife's swing
@@ -168,6 +170,98 @@
     for(const d of shared) if(!d.got&&ITEM_DROPS.indexOf(d)<0) giveBack(d);   // the stage cleared its drops
     shared=shared.filter(d=>d._grace>0||!d.got);
   }
+
+  // ── the sibling USES the jack it carries (T174) ───────────────
+  // MIND's own item code runs on its body (withPlayerContext), so damage, ricochet and sounds
+  // match. It never spends your power bar (that bar is yours alone): its own cooldowns instead.
+  const SJ={TRS:26, TRS_URGENT:16, XLR:96, XLR_R:190, MAG:120, MAG_ON:45, MAG_R:140, RCA:150, RCA_R:300, POW:0.7};
+  function asBody(s,it,fn){
+    const k={it:ITEM,D:isDn,L:isLf,R:isRt,U:isUp};
+    ITEM=it; isDn=isLf=isRt=isUp=()=>false;
+    try{ return withPlayerContext(s,fn); }
+    finally{ ITEM=k.it; isDn=k.D; isLf=k.L; isRt=k.R; isUp=k.U; }
+  }
+  const chest=b=>({x:b.x+SW/2, y:b.y+FEET_OFF-STAND_H*0.45});
+  function sibUse(s,t){
+    const it=s._carry; if(it==null||it<0||it>3) return false;
+    if(s._jackCd>0||!t) return true;
+    const c=chest(s), dx=t.ex-c.x, dy=t.ey-c.y, d=Math.hypot(dx,dy)||1;
+    const P=chest(p), seg=((P.x-c.x)*dx+(P.y-c.y)*dy)/(d*d);
+    if(seg>0&&seg<1&&Math.hypot(c.x+dx*seg-P.x,c.y+dy*seg-P.y)<26){ s._jackCd=8; return true; }   // never across you
+    s.aimDX=s.tAimDX=dx/d; s.aimDY=s.tAimDY=dy/d; if(Math.abs(dx)>6) s.fc=dx>0;
+    const vol=s.hero==='venture'?1.15:1.3;
+    if(it===0){                                                       // TRS: your shot, your ricochet
+      if(!s.shots) s.shots=[]; if(!s.pulses) s.pulses=[]; if(!s.magPts) s.magPts=[];
+      const enh=_itemEnhanced[0]; _itemEnhanced[0]=!!s._carryEnh;
+      try{ asBody(s,0,()=>fireItem(false)); } finally{ _itemEnhanced[0]=enh; }
+      s._jackCd=(t.dP<140||(p.hp||0)<(p.maxHp||100)*0.5)?SJ.TRS_URGENT:SJ.TRS;
+    }else if(it===2){                                                 // XLR: your blast cone
+      if(d>SJ.XLR_R||!B.blastEnemies) return true;
+      const rp=B.relPow; B.relPow=SJ.POW; let n=0;
+      try{ n=asBody(s,2,()=>B.blastEnemies(60)); } finally{ B.relPow=rp; }
+      for(let k=0;k<10;k++){ const a=Math.atan2(dy,dx)+(Math.random()-0.5)*0.7, v=3+Math.random()*4; PFXS.push({x:c.x+dx/d*30,y:c.y+dy/d*30,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:14,maxLife:14,r:2.4,col:k%2?'#c8e8ff':'#ffffff'}); }
+      if(!n) S('xlr_push',vol);
+      s._jackCd=SJ.XLR; s._jackUsed=(s._jackUsed||0)+1;
+    }else if(it===3){                                                 // MAG: a short pull, like yours
+      if(d>SJ.MAG_R) return true;
+      s._jackPull=SJ.MAG_ON; s._jackCd=SJ.MAG; S('mag',vol);
+    }else if(it===1){                                                 // RCA: hooks it (your hook damage) and yanks it in
+      const e=t.e; if(d>SJ.RCA_R||!e||!_enemyCombatActive(e)) return true;
+      _damageEnemy(e,ENM_DMG.hook,t.ex,t.ey); _markEnemyItemForce(e,10);
+      if(!e._boss&&!e._noGrab){
+        const wgt=Math.max(0.5,Math.sqrt(((B.weightOf&&B.weightOf('enemy',e))||6)/6)), sp=7/wgt;
+        e.vx=-dx/d*sp; e.vy=-dy/d*sp-2.5/wgt; e.og=false;
+        if(e._ai){ e.mn=-1e6; e.mx=1e6; e._thrownF=24; e._reCenter=true; }
+      }
+      s._jackLine={e,t:14}; s._jackCd=SJ.RCA; s._jackUsed=(s._jackUsed||0)+1;
+      S('hook',vol); S('hook_latch',vol);
+    }
+    s._shootT=40; s.fireRecoil=5; s.fireRecoilA=Math.atan2(dy,dx);
+    return true;
+  }
+  function magPull(s){
+    s._jackPull--; s._magShow=true; s._shootT=0;
+    const c=chest(s), a=Math.atan2(s.aimDY||0,s.aimDX||(s.fc?1:-1)), tip={x:c.x+Math.cos(a)*44, y:c.y+Math.sin(a)*44};
+    for(const e of ENEMS){
+      if(!e||!e._ai||!e.alive||e._betaHeld||e._noGrab||e._hidden) continue;
+      const f=_tipField(tip,a,e.x+e.w/2,e.y+e.h/2,SJ.MAG_R); if(!f) continue;
+      const k=Math.min(1,f.prox*f.cone*1.1*(0.2+0.8*SJ.POW)*3), sp=(4+10*k)*(0.3+0.7*SJ.POW);
+      const tvx=-f.ux*sp, tvy=-f.uy*sp-0.6*k, g=0.6*Math.max(0.35,k);
+      if(e._ai&&!e._boss){ e._thrownF=Math.max(e._thrownF||0,8); e._tossT=2; e.mn=-1e6; e.mx=1e6; }   // its pull runs after their walk: carry it like a throw
+      withPlayerContext(s,()=>_applyItemForceToEnemy(e,(tvx-(e.vx||0))*g,(tvy-(e.vy||0))*g));   // the item reach counts from its body
+      s._jackPulled=(s._jackPulled||0)+1;
+    }
+    for(const bw of (B.flying||[])){                                  // a loose cube in the air comes along too
+      const f=_tipField(tip,a,bw.x+(bw.w||32)/2,bw.y+(bw.h||32)/2,SJ.MAG_R); if(!f) continue;
+      const s2=f.prox*f.cone*1.1*(0.2+0.8*SJ.POW); bw.vx=(bw.vx||0)-f.ux*s2; bw.vy=(bw.vy||0)-f.uy*s2;
+    }
+    if(s._jackPull%4===0) PFXS.push({x:tip.x+Math.cos(a)*60,y:tip.y+Math.sin(a)*60,vx:-Math.cos(a)*3,vy:-Math.sin(a)*3,life:12,maxLife:12,r:1.6,col:s._jackPull%8?'#ff5050':'#5080ff'});
+  }
+  function sibJackTick(){
+    const s=sibling(); if(!s) return;
+    if(s._jackCd>0) s._jackCd--;
+    if(s._carry!==3) s._jackPull=0;
+    if(s._jackPull>0) magPull(s);
+    if(s._jackLine&&(--s._jackLine.t<=0||!s._jackLine.e.alive)) s._jackLine=null;
+    if(s.shots&&s.shots.length){                                      // its shots fly on your shot code (flames tick once, from yours)
+      const uf=window.updateTrsFlames; window.updateTrsFlames=function(){};
+      try{ withPlayerContext(s,()=>window.updatePlayerShots()); } finally{ window.updateTrsFlames=uf; }
+    }
+  }
+  function drawSibJack(){
+    const s=sibling(); if(!s) return;
+    if(s.shots) for(const q of s.shots){
+      const col=q.owner==='venture'?'#ff4466':'#bb55ff';
+      ctx.save(); ctx.lineCap='round'; ctx.strokeStyle=col; ctx.lineWidth=sw(6); ctx.globalAlpha=0.5;
+      ctx.beginPath(); ctx.moveTo(sx(q.x-q.vx*1.6),sy(q.y-q.vy*1.6)); ctx.lineTo(sx(q.x),sy(q.y)); ctx.stroke();
+      ctx.globalAlpha=1; ctx.strokeStyle='#fff0ff'; ctx.lineWidth=sw(2.5); ctx.stroke(); ctx.restore();
+    }
+    const L=s._jackLine; if(L&&L.e){
+      const c=chest(s), ex=L.e.x+(L.e.w||0)/2, ey=L.e.y+(L.e.h||0)*0.42;
+      ctx.save(); ctx.strokeStyle='#ffcc66'; ctx.lineWidth=Math.max(1.5,sw(2.5)); ctx.beginPath(); ctx.moveTo(sx(c.x),sy(c.y)); ctx.lineTo(sx(ex),sy(ey)); ctx.stroke(); ctx.restore();
+    }
+  }
+  window.MV_SIB_JACK={ use:sibUse, SJ };
 
   // ── the boss intro ───────────────────────────────────────────
   // PAULO: final lines
@@ -404,7 +498,7 @@
     try{
       if(!on()) return r;
       if(hitCd>0) hitCd--;
-      sharedTick(); knifeFeel(); freeTick(); marksTick();
+      sharedTick(); sibJackTick(); knifeFeel(); freeTick(); marksTick();
       const bs=boss();
       if(B.stageId==='1.3'&&bs){
         if(B.bossOn&&!wasBossOn&&!introSeen&&bs.alive&&!B.freeze){ introSeen=true; intro={t:0,line:0,ch:0,hold:0,out:0}; }
@@ -426,7 +520,7 @@
   const _hud=window.drawLdtkLabHud;
   window.drawLdtkLabHud=function(){
     const r=_hud.apply(this,arguments);
-    try{ if(B.on){ drawMarks(); drawFinish();
+    try{ if(B.on){ drawMarks(); drawFinish(); drawSibJack();
       for(const d of shared){ if(d._grace>0){ const u=1-d._grace/36, x=d._fromX+(d.x+d.w/2-d._fromX)*u, y=d._fromY+(d.y+d.h/2-d._fromY)*u-Math.sin(u*Math.PI)*30;
         ctx.fillStyle=ICOLS[d.item]||'#fff'; ctx.fillRect(sx(x)-sw(10),sy(y)-sw(10),sw(20),sw(20)); } } } }catch(er){}
     return r;
