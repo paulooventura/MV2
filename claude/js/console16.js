@@ -21,8 +21,8 @@
 //  224 scanlines, its blur and the Model 1 "jailbars". Sound: sound16.js.
 //
 //  C · POSH (mode 'off'): none of the console treatment — full resolution,
-//  full colour, smooth, clean sound — the game as it looks today. It's the
-//  default; A and B are the nostalgia switches. Picking POSH turns the CRT
+//  full colour, smooth, clean sound. A fresh game starts in Ink & Vinyl
+//  instead; A and B are the nostalgia switches. Picking POSH turns the CRT
 //  off, picking A or B from POSH turns it on (the TV can still be flipped).
 //
 //  Mode: Options menu (CONSOLE), the A/B/C buttons under the screen,
@@ -37,7 +37,8 @@
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
   // 'ink' (D · INK & VINYL, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
   const plain=m=>m==='off'||m==='ink';
-  let mode=(()=>{ if(qs&&(MODES[qs]||plain(qs))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||plain(v)) return v; }catch(e){} return 'off'; })();
+  // Fresh start is Ink & Vinyl. A saved mode or ?console= still wins. Selftest stays clean.
+  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||plain(qs))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||plain(v)) return v; }catch(e){} return 'ink'; })();
   const listeners=[];
   const api={
     get mode(){ return mode; },
