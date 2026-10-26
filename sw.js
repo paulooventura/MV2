@@ -1,41 +1,27 @@
-/* Mind & Venture — cache static assets only; game JS always from network. */
-const CACHE = 'mv-web-v169';
-const SHELL = [
-  './manifest.webmanifest',
-  './assets/Awdjoo/Awdjoo.json',
-  './assets/home baked sprites/material/MV2 tilesheet.png',
-  './assets/home baked sprites/material/omniblock.png',
-  './assets/home baked sprites/material/spawn spots.png',
-];
+/* Mind & Venture — never keep an old page.
+   HTML and JS always come from the network. When this file changes, open
+   tabs reload onto the new build. The page registers this against its own
+   URL, not the <base> tag (that used to request /claude/sw.js, which 404s). */
+const BUILD = '297';
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then((c) => c.addAll(SHELL))
-      .then(() => self.skipWaiting())
-  );
-});
+self.addEventListener('install', (e) => { self.skipWaiting(); });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+    await self.clients.claim();
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) c.postMessage({ type: 'mv-build', build: BUILD });
+  })());
 });
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
-
-  // Never cache HTML or JS — mixed versions caused glitchy gameplay on deploy.
-  if (url.pathname.endsWith('.html') || url.pathname.includes('/js/')) {
-    e.respondWith(fetch(e.request, { cache: 'no-store' }));
-    return;
-  }
-
-  e.respondWith(
-    fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request))
-  );
+  if (url.pathname.endsWith('/sw.js')) return;
+  const nav = e.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
+  const code = url.pathname.endsWith('.js') || url.pathname.endsWith('/build.txt');
+  if (nav || code) e.respondWith(fetch(e.request, { cache: 'no-store' }));
 });

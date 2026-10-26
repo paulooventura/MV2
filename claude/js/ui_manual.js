@@ -115,7 +115,7 @@
       const rows=[['MOVE',k('left')+'  ·  '+k('right')],['JUMP (tap again in the air: DOUBLE JUMP)',k('jump')],['USE ITEM (hold to charge)',k('swap')],['SWITCH ITEM',k('use')],['PUNCH',k('punch')],['AIM',k('up')+' / '+k('down')+' + arrows'],['SPRINT: tap item, then hold it + a direction',k('sprint')]];
       let yy=y+340;
       for(const [a,b] of rows){ label(a,x+24,yy,20,INK); label(b,x+w-24,yy,20,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+24,w-48,1); yy+=36; }
-      box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the console look and this booklet.',x+52,yy+36,w-104,14,18);
+      box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the filter and this booklet.',x+52,yy+36,w-104,14,18);
     },
     // 5 · the four jacks
     (x,y,w,h)=>{

@@ -25,8 +25,8 @@
 //  instead; A and B are the nostalgia switches. Picking POSH turns the CRT
 //  off, picking A or B from POSH turns it on (the TV can still be flipped).
 //
-//  Mode: Options menu (CONSOLE), the A/B/C buttons under the screen,
-//  localStorage mv2.console = snes | md | off, or ?console=… in the URL.
+//  Mode: Options menu (FILTER). Storage key stays mv2.console.
+//  GORE is hidden until the options code unlocks it (mv2.gore).
 // ============================================================
 (function(){
   'use strict';
@@ -36,21 +36,27 @@
   };
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
   // 'ink' (D · INK & VINYL, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
-  const plain=m=>m==='off'||m==='ink';
+  const plain=m=>m==='off'||m==='ink'||m==='gore';
+  const goreOn=()=>{ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } };
   // Fresh start is Ink & Vinyl. A saved mode or ?console= still wins. Selftest stays clean.
-  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||plain(qs))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(MODES[v]||plain(v)) return v; }catch(e){} return 'ink'; })();
+  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||(plain(qs)&&qs!=='gore')||(qs==='gore'&&goreOn()))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(v==='gore'&&!goreOn()) return 'ink'; if(MODES[v]||plain(v)) return v; }catch(e){} return 'ink'; })();
   const listeners=[];
   const api={
     get mode(){ return mode; },
-    get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':'POSH'; },
-    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; const was=mode; mode=m;
-      try{ if(window.MV_TV){ if(plain(m)) MV_TV.on=false; else if(plain(was)) MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); },
-    cycle(dir){ const L=['off','snes','md','ink']; const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
+    get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
+    set(m){ if(m==='gore'&&!goreOn()) return; if(!(MODES[m]||plain(m))||m===mode) return; const was=mode; mode=m;
+      try{ if(window.MV_TV){ if(plain(m)) MV_TV.on=false; else if(plain(was)) MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
+    cycle(dir){ const L=['off','snes','md','ink']; if(goreOn()) L.push('gore'); const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES
   };
   window.MV_CONSOLE=api;
+  function syncHue(){
+    const c=document.getElementById('c');
+    if(c) c.style.filter=mode==='gore'?'hue-rotate(-120deg)':'';
+  }
+  syncHue();
 
   // ── palette tables ──────────────────────────────────────────────
   const LUT_SNES=new Uint8ClampedArray(256);

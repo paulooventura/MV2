@@ -71,7 +71,9 @@ function _driveMenusFromPads(){
     return;
   }
   if(_gameState==='options'){
-    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back});
+    const onFilter=_optRow===4;
+    const swapHeld=_optSwapHeld||!!K['KeyE'];
+    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape']||(!!Kj['KeyE']&&!onFilter),swapHeld,punch:!!Kj['KeyF']});
     return;
   }
   if(_gameState==='tutorial'&&(ok||back)){ _gameState='title'; return; }
@@ -108,7 +110,30 @@ let _titleMenuIdx=0;
 let _uiToast='', _uiToastFr=0;
 let _zoneCardT=0;
 let _levelSelIdx=0, _pendingZone=0;
-let _optRow=0, _optRebinding=null;
+let _optRow=0, _optRebinding=null, _optSwapHeld=false, _goreStep=0, _goreWasHeld=false;
+const GORE_SEQ=['down','left','down','right','down','up'];
+function _goreUnlocked(){ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } }
+function _goreUnlock(){
+  try{ localStorage.setItem('mv2.gore','1'); }catch(e){}
+  _goreStep=0;
+  window._goreFlash=18;
+  uiShowToast('GORE FILTER UNLOCKED');
+  try{ sfx('confirm'); }catch(e){}
+  try{ if(window.MV_CONSOLE&&MV_CONSOLE.set) MV_CONSOLE.set('gore'); }catch(e){}
+}
+function _goreFeed(dir){
+  if(_goreUnlocked()) return;
+  if(dir===GORE_SEQ[_goreStep]){ _goreStep++; if(_goreStep>=GORE_SEQ.length) _goreUnlock(); }
+  else _goreStep=dir===GORE_SEQ[0]?1:0;
+}
+function _filterName(){
+  const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
+  if(m==='md') return 'B  MEGA DRIVE';
+  if(m==='snes') return 'A  SNES';
+  if(m==='ink') return 'D  INK & VINYL';
+  if(m==='gore') return 'GORE';
+  return 'C  POSH';
+}
 let _playerCount=1;
 let _heroChoice='mind';
 let _selectStep=0;
@@ -406,9 +431,20 @@ function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS+_optExtra(); }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
+  if(ev.punch) return true;
+  const held=!!ev.swapHeld;
+  if(_goreWasHeld&&!held) _goreStep=0;
+  _goreWasHeld=held;
   if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
   const n=_optRowCount();
   if(ev.back){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
+  if(held&&_optRow===4){
+    if(ev.up) _goreFeed('up');
+    else if(ev.down) _goreFeed('down');
+    else if(ev.left) _goreFeed('left');
+    else if(ev.right) _goreFeed('right');
+    return true;
+  }
   if(ev.up){_optRow=(_optRow+n-1)%n;return true;}
   if(ev.down){_optRow=(_optRow+1)%n;return true;}
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
@@ -446,7 +482,7 @@ const STORY_ART_Q=[];
 const TITLE_FRAME_N=12;
 let TITLE_FRAMES=null;
 let _titleAnimReady=false, _titleStaticReady=false;
-const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/ui/title-key.jpg?v=253'; return im; })();   // Paulo (Oct 22): the key art of the siblings is the title screen
+const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/ui/title-home.jpg?v=297'; return im; })();   // home screen: the speaker on a wheel, one print of every sheet
 if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth) _titleStaticReady=true;
 function _titleArtMap(){
   const im=TITLE_STATIC;
@@ -527,11 +563,14 @@ function _onInteract(e){
 }
 document.addEventListener('click',_onInteract,false);
 document.addEventListener('touchstart',e=>{ if(e.touches&&e.touches[0]) _onInteract(e.touches[0]); },{passive:true});
+document.addEventListener('keyup',e=>{ if(e.code==='KeyE') _optSwapHeld=false; },true);
 document.addEventListener('keydown',e=>{
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()) return;
   if(_gameState==='options'){
     if(_optRebinding){ if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;} OPT.binds[_optRebinding]=[e.code]; _saveOpts();_optRebinding=null;e.preventDefault();return; }
-    _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace'});
+    if(e.code==='KeyE') _optSwapHeld=true;
+    const onFilter=_optRow===4;
+    _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:(e.code==='Escape'||e.code==='Backspace')||(e.code==='KeyE'&&!onFilter),swapHeld:_optSwapHeld||e.code==='KeyE',punch:e.code==='KeyF'});
     e.preventDefault();return;
   }
   if(_gameState==='title'){
@@ -721,7 +760,7 @@ function drawOptions(){
   const L=uiLayout(), panelW=L.panelW, panelX=L.panelX, scl=3;
   const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
-    {label:'CONSOLE',val:window.MV_CONSOLE?(MV_CONSOLE.mode==='md'?'B  MEGA DRIVE':MV_CONSOLE.mode==='snes'?'A  SNES':MV_CONSOLE.mode==='ink'?'D  INK & VINYL':'C  POSH'):'-'},
+    {label:'FILTER',val:window.MV_CONSOLE?_filterName():'-'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
     {label:'MANUAL & CREDITS',val:'OPEN >'}];
@@ -756,6 +795,11 @@ function drawOptions(){
   const footY=panelY+panelH-36;
   if(_optRebinding){ if(fr%32<24) drawTextC('PRESS A KEY',W/2,footY,'#ffe39a',scl); }
   else drawTextC(uiMenuHint('options'),W/2,footY,'#d8ffc8',scl);
+  drawTextR('BUILD '+(window.MV_BUILD||'?'),panelX+panelW-18,panelY+10,'#8fd78a',2);
+  if(window._goreFlash>0){
+    ctx.save(); ctx.globalAlpha=Math.min(0.5,window._goreFlash/18); ctx.fillStyle='#c01030'; ctx.fillRect(0,0,W,H); ctx.restore();
+    window._goreFlash--;
+  }
 }
 
 let _vigCanvas=null;

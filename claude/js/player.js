@@ -155,7 +155,7 @@ function readGamepad(){
   if(bJump&&!GP.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
   if(rose(2)) Kj['KeyQ']=true;
-  if(rose(1)) Kj['KeyE']=true;
+  if(rose(1)&&_gameState!=='options') Kj['KeyE']=true;
   K['KeyQ']=(K['KeyQ_kb']||pressed(2));
   K['Sprint_gp']=pressed(2);
   K['KeyE']=(K['KeyE_kb']||pressed(1));
@@ -171,7 +171,8 @@ function readGamepad(){
     }
   }else if((_gameState==='story'||_gameState==='select')&&(rose(0)||rose(9))) startGame();
   if(_gameState==='options'){
-    _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)});   // A ok, B back
+    const onFilter=typeof _optRow!=='undefined'&&_optRow===4;
+    _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(1)&&!onFilter,swapHeld:pressed(1),punch:rose(3)});
   }
   if(_gameState==='select'){
     // d-pad, or the stick pushed past half (one step per push) — Paulo, Oct 22
@@ -187,7 +188,7 @@ function readGamepad(){
   // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
   // d-pad or stick moves the cursor, A picks, B resumes
   if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
-  if(rose(1)&&_gameState!=='game') Kj['Escape']=true;      // B backs out of menus
+  if(rose(1)&&_gameState!=='game'&&_gameState!=='options') Kj['Escape']=true;      // B backs out of menus. Options handles it itself, so the filter row can hold it.
   if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){   // pause menu / continue screen: d-pad + stick move the cursor
     const sy=ay<-0.5?-1:ay>0.5?1:0;
     if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;

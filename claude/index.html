@@ -23,7 +23,21 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='296';</script>
+<script>window.MV_BUILD='297';</script>
+<script>
+(function(){
+  if(location.protocol==='file:') return;
+  var here=String(window.MV_BUILD||'');
+  fetch(new URL('build.txt', location.href), {cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.text(); }).then(function(t){
+    var live=(t||'').trim();
+    if(live&&live!==here) location.replace(location.pathname+'?b='+live);
+  }).catch(function(){});
+  if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(ev){
+    var b=ev.data&&ev.data.build;
+    if(b&&String(b)!==here) location.replace(location.pathname+'?b='+b);
+  });
+})();
+</script>
 <script src="js/phone.js?v=135"></script>
 <script>
 if(location.protocol==='file:'){
@@ -285,10 +299,10 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/enemies.js?v=222"></script>
 <script src="js/collision_grid.js?v=277"></script>
   <script src="js/physics.js?v=291"></script>
-  <script src="js/player.js?v=293"></script>
+  <script src="js/player.js?v=297"></script>
 <script src="js/beta_touch.js?v=181"></script>
   <script src="js/weapons.js?v=272"></script>
-<script src="js/ui.js?v=296"></script>
+<script src="js/ui.js?v=297"></script>
 <script src="js/ui_select.js?v=296"></script>
   <script src="js/render.js?v=292"></script>
 <script src="js/editor.js?v=125"></script>
@@ -323,30 +337,25 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/beta_foes.js?v=285"></script>
 <script src="js/beta_city.js?v=285"></script>
 <script src="js/beta_music.js?v=289"></script>
-<script src="js/console16.js?v=288"></script>
+<script src="js/console16.js?v=297"></script>
 <script src="js/beta_splash.js?v=254"></script>
-<script src="js/ui_manual.js?v=296"></script>
+<script src="js/ui_manual.js?v=297"></script>
 <script src="js/beta_story.js?v=296"></script>
 <script src="js/beta_telemetry.js?v=276"></script>
 <script src="js/ink_vinyl.js?v=287"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    var SW_BUILD=String(window.MV_BUILD||'108');
     if(/[?&](selftest|ci)=/i.test(location.search)) return;
-    var stored=localStorage.getItem('mv_sw_build');
-    if(stored!==SW_BUILD){
-      localStorage.setItem('mv_sw_build',SW_BUILD);
-      navigator.serviceWorker.getRegistrations().then(function(regs){
-        return Promise.all(regs.map(function(r){return r.unregister();}));
-      }).finally(function(){
-        caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));});
-      }).finally(function(){
-        navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});
-      });
-      return;
-    }
-    navigator.serviceWorker.register('./sw.js?v='+SW_BUILD).catch(function(){});
+    var swUrl=new URL('sw.js', location.href);
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      return Promise.all(regs.map(function(r){
+        var u=(r.active&&r.active.scriptURL)||'';
+        if(u.indexOf('/claude/sw.js')>=0) return r.unregister();
+      }));
+    }).finally(function(){
+      navigator.serviceWorker.register(swUrl).catch(function(){});
+    });
   });
 }
 </script>
