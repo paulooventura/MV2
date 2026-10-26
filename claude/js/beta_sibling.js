@@ -905,8 +905,9 @@
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       const swing=who===S&&S.hook&&S.hook.st!=='idle';
-      const jack=ITEM===4?-1:(ITEM>=0?ITEM:-1);   // the kiritsuke is the lead's alone; the brother keeps fists
-      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._magShow?3:S._shootT>0?0:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
+      const carry=who===S&&S._carry!=null?S._carry:null;   // a jack it took from an A+B drop (beta_knife)
+      const jack=carry!=null?carry:(ITEM===4?-1:(ITEM>=0?ITEM:-1));   // the kiritsuke is the lead's alone; the brother keeps fists
+      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._magShow?3:S._shootT>0?(carry!=null?carry:0):S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
       try{
         who._armPose=computeConnectorArmPose(who);

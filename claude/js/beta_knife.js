@@ -3,6 +3,10 @@
 //
 //   A+B DROP   with a jack selected, press A and B together (within 6 frames):
 //              the jack drops at MIND's feet; touch it to take it back. Never the knife.
+//              The sibling (WITH SIBLING) takes it too by touching it: one carry slot, it
+//              holds that jack as its weapon. It hands it back when you swap to it (the
+//              jack lands in your set) or when you press A+B with no jack to drop (it
+//              drops it at its feet). 2P local isn't live in the story stages yet.
 //   BOSS INTRO entering the arena the first time: the scene holds, bars come in,
 //              the Heptagon speaks (A: next line, B: skip).
 //   BOLTS      the Heptagon's bolts hit hard (28 + a big shove). The knife's swing
@@ -77,6 +81,7 @@
   let bossLive=false, finish=null, finishPending=false;
   function resetStage(){
     for(const d of shared) giveBack(d);
+    carryBack();
     shared=[]; free=[]; marks=[]; intro=null; wasBossOn=false; bossLive=false; finish=null; finishPending=false; hitstop=0;
   }
   const _onEnt=B.onEntities;
@@ -91,21 +96,40 @@
     d.got=true;
     if(!_itemUnlocked(d.item)){ _unlockedMask|=ITEM_UNLOCK_BITS[d.item]; if(ITEM<0) ITEM=d.item; }
   }
+  // the sibling's one carry slot (it shares your item set, so a taken jack lives here)
+  let carrier=null;
+  const sibling=()=>{ const s=window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state(); return s&&s!==p?s:null; };
+  function carryBack(){
+    if(carrier&&carrier._carry!=null){ const it=carrier._carry; carrier._carry=null;
+      if(!_itemUnlocked(it)){ _unlockedMask|=ITEM_UNLOCK_BITS[it]; if(ITEM<0) ITEM=it; if(_itemEnhanced) _itemEnhanced[it]=!!carrier._carryEnh; } }
+    carrier=null;
+  }
+  function spawnShared(it,enh,body,dir){
+    const n0=ITEM_DROPS.length, cx=body.x+SW/2+dir*30, cy=body.y+FEET_OFF-8;
+    _spawnItemDrop(it,cx,cy,{enhanced:!!enh});
+    const d=ITEM_DROPS[n0]; if(!d) return null;
+    d.got=true; d._shared=true; d._grace=36; d._fromX=body.x+SW/2; d._fromY=body.y+FEET_OFF-50;
+    shared.push(d);
+    S('swap'); burst(cx,cy-16,8,[ICOLS[it]||'#fff','#ffffff'],2);
+    return d;
+  }
+  function sibDrop(){
+    const s=sibling(); if(!s||s!==carrier||s._carry==null||typeof _spawnItemDrop!=='function') return false;
+    const it=s._carry, d=spawnShared(it,s._carryEnh,s,s.fc?1:-1); if(!d) return false;
+    d._sibCd=90; s._carry=null; carrier=null;
+    return true;
+  }
   function dropItem(){
     const it=ITEM;
+    if((it<0||it===4||!_itemUnlocked(it))&&sibDrop()) return;
     if(it===4){ S('omniblock_chip',1.8); if(typeof uiShowToast==='function') uiShowToast('THE KIRITSUKE STAYS WITH YOU'); return; }
     if(it<0||it>3||!_itemUnlocked(it)||typeof _spawnItemDrop!=='function') return;
     if(it===3&&B.magPark) return;
-    const n0=ITEM_DROPS.length, cx=p.x+SW/2+dirOf()*30, cy=p.y+FEET_OFF-8;
-    _spawnItemDrop(it,cx,cy,{enhanced:!!(_itemEnhanced&&_itemEnhanced[it])});
-    const d=ITEM_DROPS[n0]; if(!d) return;
-    d.got=true; d._shared=true; d._grace=36; d._fromX=p.x+SW/2; d._fromY=p.y+FEET_OFF-50;
-    shared.push(d);
+    const d=spawnShared(it,_itemEnhanced&&_itemEnhanced[it],p,dirOf()); if(!d) return;
     _unlockedMask&=~ITEM_UNLOCK_BITS[it];
     if(it===1&&p.hook) p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};
     if(it===2) p.xlrOn=false; if(it===3) p.magOn=false;
     ITEM=-1; if(_unlockedMask) _cycleItem();
-    S('swap'); burst(cx,cy-16,8,[ICOLS[it]||'#fff','#ffffff'],2);
   }
   function dropInput(){
     const J=binds('jump'), U=binds('use');
@@ -119,16 +143,26 @@
     if(uNow){ lastU=tk; itemBeforeU=ITEM; }
   }
   function sharedTick(){
+    if(carrier){
+      if(carrier===p) carryBack();                                  // you swapped to it: the jack is yours now
+      else if(carrier!==sibling()) carryBack();                     // sibling gone (solo, stage, respawn)
+    }
     if(!shared.length) return;
     const h=playerCoreHB(p);
+    const sib=sibling(), sh=sib&&!carrier&&!(sib._downT>0)&&!(sib._madT>0)?playerCoreHB(sib):null;
     for(const d of shared){
       if(d._grace>0){ if(--d._grace===0) d.got=false; continue; }
+      if(d._sibCd>0) d._sibCd--;
       if(d.got) continue;
       if(_shutdownTimer>0||_itemUnlocked(d.item)) continue;
       if(ov(h.x-4,h.y-4,h.w+8,h.h+8+6,d.x,d.y,d.w,d.h)){
         d.got=true; _unlockedMask|=ITEM_UNLOCK_BITS[d.item]; ITEM=d.item;
         if(_itemEnhanced) _itemEnhanced[d.item]=!!d.enhanced;
         S('knowl_pickup'); burst(d.x+d.w/2,d.y+d.h/2,10,[ICOLS[d.item]||'#fff','#ffffff'],3);
+      } else if(sh&&!carrier&&!(d._sibCd>0)&&ov(sh.x-4,sh.y-4,sh.w+8,sh.h+8+6,d.x,d.y,d.w,d.h)){
+        d.got=true; sib._carry=d.item; sib._carryEnh=!!d.enhanced; carrier=sib;
+        S('knowl_pickup'); burst(d.x+d.w/2,d.y+d.h/2,10,[ICOLS[d.item]||'#fff','#ffffff'],3);
+        if(typeof uiShowToast==='function') uiShowToast((sib.hero==='venture'?'VENTURE':'MIND')+' TOOK THE '+(['TRS','RCA','XLR','MAG'][d.item]||'JACK'));
       }
     }
     for(const d of shared) if(!d.got&&ITEM_DROPS.indexOf(d)<0) giveBack(d);   // the stage cleared its drops
@@ -403,5 +437,5 @@
     try{ if(B.on&&intro) drawIntro(); }catch(er){}
     return r;
   };
-  window.MV_KNIFE={ state:()=>({intro:!!intro, introSeen, finish:finish&&finish.st, free:free.length, shared:shared.length}), drop:()=>on()&&dropItem() };
+  window.MV_KNIFE={ state:()=>({intro:!!intro, introSeen, finish:finish&&finish.st, free:free.length, shared:shared.length, sibCarry:carrier?carrier._carry:null}), drop:()=>on()&&dropItem() };
 })();
