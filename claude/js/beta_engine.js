@@ -65,16 +65,16 @@
     const e1=a.createOscillator(), e2=a.createOscillator(); e1.type='sawtooth'; e2.type='sawtooth';
     const ebp=a.createBiquadFilter(); ebp.type='bandpass'; ebp.Q.value=7; const eg=a.createGain(); eg.gain.value=0;
     e1.connect(ebp); e2.connect(ebp); ebp.connect(eg); eg.connect(out);
-    // the purr (Paulo, Oct 22: "a comfy purr from a giant feline"): a deep sub at half the firing
-    // rate, breathing in and out, strongest at idle and fading as the revs climb
+    // Idle stays a low purr. Turbo throws that away and uses the same oscillators
+    // as a tiger: a saw in the chest, a slow roar-throb, and a rasp instead of a 24 Hz rattle.
     const pu1=a.createOscillator(), pu2=a.createOscillator(); pu1.type='sine'; pu2.type='triangle';
     const puLP=a.createBiquadFilter(); puLP.type='lowpass'; puLP.frequency.value=180; puLP.Q.value=0.7;
     const puG=a.createGain(); puG.gain.value=0; const puAM=a.createGain(); puAM.gain.value=0.7;
-    const br=a.createOscillator(), brG=a.createGain(); br.frequency.value=0.55; brG.gain.value=0.3; br.connect(brG); brG.connect(puAM.gain);   // the breathing
-    const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);   // the rattle of a purr (~24 Hz)
+    const br=a.createOscillator(), brG=a.createGain(); br.frequency.value=0.55; brG.gain.value=0.3; br.connect(brG); brG.connect(puAM.gain);
+    const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);
     pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
     for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
-    return {a,core,out,roomG,dryG,pres,sheen,pan,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puG,ru};
+    return {a,core,out,roomG,dryG,pres,sheen,tight,pan,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puLP,puG,ru,ruG,br};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -198,20 +198,44 @@
     for(let i=S.bangs.length-1;i>=0;i--){ if(--S.bangs[i]<=0){ S.bangs.splice(i,1); if(sprinting) bang(0.2+0.4*express); } }
     // ── voice it ──
     N.core.port.postMessage({rpm:S.rpm, thr:sprinting?S.thr*express:0.05, load:grounded?S.thr:0.3});
-    const tw=1400+S.boost*5600;
     const sportMix=sprinting?(0.22+0.78*express):0;
-    set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05); set(N.tg.gain,0.045*S.boost*S.boost*sportMix,0.08);
-    set(N.tnbp.frequency,1800+S.boost*3000,0.08); set(N.tng.gain,0.035*S.boost*sportMix,0.08);
+    const fire=S.rpm/60*4;
+    if(sprinting!==!!S._tiger){
+      S._tiger=!!sprinting;
+      try{ N.pu1.type=sprinting?'sawtooth':'sine'; N.pu2.type=sprinting?'sawtooth':'triangle'; }catch(e){}
+    }
+    if(sprinting){
+      // Turbo: a tiger, not a cat. Chest saw, a slow roar pulse, rasp in the 300s.
+      // The whistle sits an octave down so it rushes instead of meowing.
+      const tw=520+S.boost*1400;
+      set(N.pu1.frequency,46+18*express,0.08); set(N.pu2.frequency,70+26*express,0.08);
+      set(N.ru.frequency,4.2+2.4*express,0.12); set(N.ruG.gain,0.62,0.1); set(N.br.frequency,1.15,0.2);
+      set(N.puLP.frequency,260+280*express,0.1);
+      set(N.puG.gain,(0.18+0.28*express)*(0.72+0.28*(1-r)),0.1);
+      set(N.tbp.Q,2.2,0.1);
+      set(N.t1.frequency,tw,0.06); set(N.t2.frequency,tw*0.5,0.06); set(N.tbp.frequency,tw,0.06);
+      set(N.tg.gain,0.018*S.boost*sportMix,0.08);
+      set(N.tnbp.frequency,220+S.boost*480,0.08); set(N.tng.gain,(0.07+0.09*express)*Math.max(0.35,S.boost),0.08);
+      if(N.pres){ set(N.pres.frequency,380+420*express,0.1); set(N.pres.gain,2+5*express,0.1); }
+      if(N.tight) set(N.tight.gain,2+5*express,0.12);
+    }else{
+      const tw=1400+S.boost*5600;
+      set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05);
+      set(N.ru.frequency,18+Math.min(40,fire*0.15),0.2); set(N.ruG.gain,0.35,0.2); set(N.br.frequency,0.55,0.3);
+      set(N.puLP.frequency,180,0.2);
+      set(N.puG.gain,0.2*Math.pow(1-r,2),0.12);
+      set(N.tbp.Q,9,0.2);
+      set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*1.012,0.05); set(N.tbp.frequency,tw,0.05);
+      set(N.tg.gain,0,0.08); set(N.tnbp.frequency,1800,0.1); set(N.tng.gain,0,0.08);
+      if(N.pres){ set(N.pres.frequency,2600,0.2); set(N.pres.gain,0,0.15); }
+      if(N.tight) set(N.tight.gain,-3,0.2);
+    }
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
     set(N.dryG.gain,sportMix*0.74,sprinting?0.1:0.25);
     set(N.roomG.gain,sprinting?(0.32+0.2*(1-express)):0.7,0.18);
-    if(N.pres) set(N.pres.gain,2.4*express,0.12);
-    if(N.sheen) set(N.sheen.gain,sprinting?(-2+3.2*express):-10,0.14);
-    if(N_muffle) set(N_muffle.frequency,sprinting?(160+7000*express):95,sprinting?0.12:0.08);
-    const fire=S.rpm/60*4;
-    set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05); set(N.ru.frequency,18+Math.min(40,fire*0.15),0.2);
-    set(N.puG.gain,sprinting?(0.08+0.22*express)*Math.pow(1-r,2):(0.2*Math.pow(1-r,2)),0.12);
+    if(N.sheen) set(N.sheen.gain,sprinting?(-6+2*express):-10,0.14);
+    if(N_muffle) set(N_muffle.frequency,sprinting?(220+4200*express):95,sprinting?0.12:0.08);
     const duck=(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.ending))?0.63:1;
     const lvl=S.on?(sprinting?(0.05+0.11*express):(0.09)):0;
     set(N.out.gain,lvl*sv()*ev()*duck,S.on?0.08:0.45);
