@@ -209,11 +209,12 @@
   function musicFree(){ if(!musicSet) return; const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null; if(fx){ set(fx.lp.frequency,20000,0.3); set(fx.g.gain,1,0.3); set(fx.pan.pan,0,0.3); } musicSet=false; }
   function things(B,S,E){
     const SP=MV_SPATIAL;
-    // ── the stage music plays from the gramophone in MIND's house ──
+    // ── 1.1 only: the stage music plays from the gramophone in MIND's house ──
+    // 1.2 (highest triangle) and 1.3 (the boss) are placed by beta_music.js.
     const fx=window.MV_SOUND16&&MV_SOUND16.musicFx?MV_SOUND16.musicFx(A):null;
     if(fx){
       const home=roomsOf(B,'home')[0], cur=window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current();
-      const onStage=home&&(cur==='stage'||cur==='stage2')&&!B.popup&&!B.results;
+      const onStage=B.stageId==='1.1'&&home&&(cur==='stage'||cur==='stage2')&&!B.popup&&!B.results;
       let lp=20000, g=1, pan=0;
       if(onStage){
         const vx=24*32+30, vy=home.y+home.h-50, L=SP.listener();

@@ -1,8 +1,10 @@
 // ============================================================
 //  beta_music.js — where the music comes from (Paulo, Oct 22)
 //
-//  "Level 1.2's music source is the D enemy. Once it's shut down, the level
-//   music stops, and the slow smooth track starts; its source is the exit gate.
+//  "Level 1.2's music source is the highest triangle, chosen when the stage
+//   loads. The music follows it. Once it's shut down, the level music stops,
+//   and the slow smooth track starts; its source is the exit gate. D is not
+//   the speaker. Level 1.1 stays on the living-room gramophone (beta_ambience).
 //   Level 1.3's music source is the Heptagon. Once we enter its arena perimeter,
 //   the boss theme starts. When we eliminate the boss, that very frame freezes
 //   the whole scene and zooms in to our character for a second while a glorious
@@ -18,7 +20,7 @@
   const B=window.MV_BETA; if(!B) return;
   const T=32, A=()=>window.MV_BETA_AUDIO;
   const on=()=>B.on&&typeof _gameState!=='undefined'&&_gameState==='game';
-  let lastTrack=null, placed=null, stageMusic=null, stageId=null;
+  let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null;
 
   // ── the sources ──
   const ctr=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
@@ -26,12 +28,28 @@
   function arenaHas(px,py){                                        // 1.3: the open air over the bowl, right of the towers
     return px>=52*T&&px<=91*T&&py<=65*T;
   }
+  // 1.2: the alive triangle whose top is highest when the triangles first exist.
+  // y grows downward, so the highest top is the smallest e.y. Locked to that
+  // one enemy afterwards — it can roam, and a later triangle must not take over.
+  function triOnStage(){
+    const list=(typeof ENEMS!=='undefined'?ENEMS:[]);
+    if(triSpeaker&&list.indexOf(triSpeaker)>=0) return triSpeaker;
+    let best=null;
+    for(let i=0;i<list.length;i++){
+      const e=list[i];
+      if(!e||e._ai!=='tri'||!e.alive) continue;
+      if(!best||e.y<best.y||(e.y===best.y&&e.x<best.x)) best=e;
+    }
+    if(best) triSpeaker=best;
+    return best?triSpeaker:null;
+  }
   function pick(){
     const sid=B.stageId;
     if(sid==='1.2'){
-      const d=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e.mirror&&e.alive);
-      if(d) return {track:stageMusic, at:ctr(d)};
-      return {track:'calm', at:gatePos()};
+      const tri=triOnStage();
+      if(!tri) return null;                                          // not spawned yet — leave the track alone
+      if(tri.alive) return {track:stageMusic, at:ctr(tri)};          // follows that triangle
+      return {track:'calm', at:gatePos()};                           // shut down: calm from the exit gate
     }
     if(sid==='1.3'){
       const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
@@ -54,7 +72,7 @@
   }
   function direct(){
     if(!on()||!p||!A()) return;
-    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; if(placed&&A().unplace) A().unplace(placed); placed=null; }
+    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; if(placed&&A().unplace) A().unplace(placed); placed=null; }
     if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze) return;       // item window, dialog, results, and the boss moment play their own
     const want=pick(); if(!want||!want.track) return;
     B.music=want.track;
