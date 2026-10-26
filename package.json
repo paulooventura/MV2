@@ -8,6 +8,7 @@
     "selftest:watch": "node scripts/watch-selftest.mjs",
     "selftest:summary": "node scripts/print-report.mjs",
     "selftest:flow": "node scripts/main-flow.mjs",
+    "selftest:probes": "node scripts/probe-old-bugs.mjs",
     "play": "node scripts/play-local.mjs",
     "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-play.ps1"
   },
