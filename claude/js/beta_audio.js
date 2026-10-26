@@ -21,12 +21,14 @@
   };
   const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
   const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
+  const GORE_TRACK='assets/bgm/chaos-theory.mp3';
   const els={};
   let current=null, wantPlay=null, ensureN=0, held=null;
   const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75)); }catch(e){ return 0.75; } };
   function pathOf(name){
     const base=TRACKS[name]||TRACKS.stage;
     try{
+      if(window.MV_GORE_SOUND&&MV_GORE_SOUND()) return GORE_TRACK;
       if(window.MV_INK_SOUND&&MV_INK_SOUND()){
         if(name==='stage'||name==='stage2') return INK_1GO;
         if(name==='item') return INK_STORI;
@@ -50,7 +52,7 @@
   // Dialog (Laitu and anyone else who sets B.talking): stori, then the stage track resumes where it left off.
   function talk(on){
     const ink=!!(window.MV_INK_SOUND&&MV_INK_SOUND());
-    if(!ink){ held=null; return; }
+    if(!ink){ held=null; return; }   // GORE stays on Chaos Theory; other filters keep the stage track
     if(on){
       if(held||(window.MV_BETA&&MV_BETA.popup)) return;
       const from=current&&current!=='item'?current:((window.MV_BETA&&MV_BETA.music)||'stage');

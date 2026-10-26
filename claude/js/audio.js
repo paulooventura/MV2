@@ -82,33 +82,38 @@ function _pickFromPool(pool,except){
 }
 const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
 const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
-// Ink & Vinyl soundtrack (清き旋律). GORE is the same picture with the hue turned, so it keeps this score. Other filters keep the OST.
-function _inkSound(){
+const GORE_TRACK='assets/bgm/chaos-theory.mp3';
+function _filterMode(){
   try{
     const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
-    if(m) return m==='ink'||m==='gore';
+    if(m) return m;
   }catch(e){}
   try{
-    if(/[?&](selftest|ci=)/.test(location.search||'')) return false;
+    if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off';
     const q=new URLSearchParams(location.search).get('console');
-    if(q) return q==='ink'||q==='gore';
+    if(q) return q;
     const v=localStorage.getItem('mv2.console');
-    if(v) return v==='ink'||v==='gore';
+    if(v) return v;
   }catch(e){}
-  return true;
+  return 'ink';
 }
+// Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. Other filters keep the OST.
+function _inkSound(){ return _filterMode()==='ink'; }
+function _goreSound(){ return _filterMode()==='gore'; }
 window.MV_INK_SOUND=_inkSound;
+window.MV_GORE_SOUND=_goreSound;
 function _pickRandomNewMusic(except){ return _pickFromPool(NEW_MUSIC_TRACKS,except); }
-function _pickTitleMusic(except){ if(_inkSound()) return INK_1GO; return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
+function _pickTitleMusic(except){ if(_goreSound()) return GORE_TRACK; if(_inkSound()) return INK_1GO; return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
 // The storyline theme (Paulo, Oct 22): "The Knowl Tree" opens every story — the intro pages
 // and the hero pick — always this song, never a random pick.
 const STORY_THEME='assets/bgm/the-knowl-tree.mp3';
-function _pickStoryMusic(except){ if(_inkSound()) return INK_STORI; return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
+function _pickStoryMusic(except){ if(_goreSound()) return GORE_TRACK; if(_inkSound()) return INK_STORI; return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
 function _zoneMusicPath(idx){
   const i=Math.max(0,Math.min(ZONE_MUSIC_TRACKS.length-1,(idx!=null?idx:_zoneIdx)|0));
   return ZONE_MUSIC_TRACKS[i]||ZONE_MUSIC_TRACKS[0];
 }
 function _pickGameMusic(except){
+  if(_goreSound()) return GORE_TRACK;
   const path=_zoneMusicPath(typeof _zoneIdx!=='undefined'?_zoneIdx:0);
   if(path&&path!==except) return path;
   return path||_pickFromPool(ZONE_MUSIC_TRACKS,except);
@@ -432,6 +437,8 @@ function _playBGM(type,vol=0.7){
   };
   let el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
   if(!el) el=_mp3Pool[type];
+  const score=_goreSound()?GORE_TRACK:_inkSound()?(type==='story'?INK_STORI:(type==='title'?INK_1GO:null)):null;
+  if(score&&_bgmPathFor(type)!==score) el=_loadBgmElement(type,score);
   if(!el){
     const path=_pickBgmPath(type,_bgmPathFor(type));
     if(path) el=_loadBgmElement(type,path);
@@ -499,10 +506,10 @@ function _switchMusicMode(){
   _stopBGM(_activeBgmType);
   _playBGM(_activeBgmType,vol);
 }
-// GORE uses the Ink & Vinyl score. Cue it as soon as the filter changes, and leave it if that score is already playing.
+// Switching FILTER swaps the score. A stage already playing is beta's job; the title and story are this file's.
 function _cueFilterMusic(){
   try{
-    if(window.MV_BETA&&MV_BETA.on&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.recure){
+    if(window.MV_BETA&&MV_BETA.on&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current()){
       MV_BETA_AUDIO.recure();
       return;
     }
