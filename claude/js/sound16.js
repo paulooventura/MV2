@@ -96,7 +96,9 @@
     const mus={snes:snesPost(0.08), md:mdPost(), off:{inp:thruM,outs:[thruM]}};
     // the chips themselves sit in front (an AudioWorklet each; until the module
     // loads, a plain pass-through)
-    const inS=G(1), inM=G(1), postS=G(1), postM=G(1);
+    // SNES BRR and the Genesis DAC turn quiet effects into silence. Lift them
+    // before the chip. The compressor after the chip keeps the loud ones in line.
+    const inS=G((mode()==='snes'||mode()==='md')?2.6:1), inM=G(1), postS=G(1), postM=G(1);
     C(inS,postS); C(inM,postM);
     const sel={};
     for(const [post,set,key] of [[postS,sfx,'s'],[postM,mus,'m']]){
@@ -130,6 +132,7 @@
         const g=b.sel[key+k].gain; g.cancelScheduledValues(t); g.setTargetAtTime(k===m?1:0,t,0.03);
       }
       for(const node of b.chips) node.port.postMessage({mode:m==='snes'?'snes':m==='md'?'md':'off', rate:node._rate});
+      if(b.sfx&&b.sfx.gain) b.sfx.gain.setTargetAtTime((m==='snes'||m==='md')?2.6:1,t,0.03);
     }
   }
   const known=new Set();

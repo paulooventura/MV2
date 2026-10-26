@@ -146,7 +146,7 @@
   // build 222: positional output (beta_spatial.js) for this one sound, else the speakers
   let _dOut=null;
   function D(a){ return _dOut||a.destination; }
-  const spatial=fn=>function(){ const a=ac(); _dOut=(a&&window.MV_SPATIAL)?MV_SPATIAL.take(a):null; if(_dOut===false){ _dOut=null; return; } try{ return fn.apply(this,arguments); } finally{ _dOut=null; } };
+  const spatial=fn=>function(){ const a=ac(); _dOut=(a&&window.MV_SPATIAL)?MV_SPATIAL.take(a):null; if(_dOut===false) _dOut=null; try{ return fn.apply(this,arguments); } finally{ _dOut=null; } };
   const sv=()=>{ try{ return Math.max(0,Math.min(1,OPT.sfxVol!=null?OPT.sfxVol:1)); }catch(e){ return 1; } };
   let noiseBuf=null;
   function noise(a){

@@ -476,18 +476,16 @@
   function fizz(b,hit){ const c=S&&S.hero==='venture'?'#ff8a96':'#d8b4ff'; for(let k=0;k<(hit?8:4);k++) PFXS.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:10,maxLife:10,r:1.6,col:c}); }
 
   // Four fast item-select taps, close to the brother, swaps who you play (Paulo, Oct 25).
+  // Each tap still cycles the jack on that frame. Waiting out the window was the
+  // item-button lag: the brother stands next to you, so every press was swallowed.
   const SWAP_MS=1000, SWAP_DIST=110, SWAP_CD=45;
-  let _swapT=[], _swapCd=0;
+  let _swapT=[], _swapCd=0, _swapItem0=0;
   function _nearBro(){
     if(!on||!S||!p||(typeof _playerCount!=='undefined'&&_playerCount!==1)) return false;
     if(typeof _gameState!=='undefined'&&_gameState!=='game') return false;
     if(typeof _paused!=='undefined'&&_paused) return false;
     const a=centre(p), b=centre(S);
     return Math.hypot(a.x-b.x,a.y-b.y)<=SWAP_DIST;
-  }
-  function _flushSwapTaps(){
-    const n=_swapT.length; _swapT=[];
-    if(typeof _cycleItem==='function') for(let i=0;i<n;i++) _cycleItem();
   }
   function swapBrothers(){
     if(!S||!p) return;
@@ -513,16 +511,26 @@
   }
   function swapTick(){
     if(_swapCd>0) _swapCd--;
-    if(_swapT.length&&(!_nearBro()||performance.now()-_swapT[0]>=SWAP_MS)) _flushSwapTaps();
+    if(_swapT.length&&(!_nearBro()||performance.now()-_swapT[0]>=SWAP_MS)) _swapT=[];
   }
   window.MV_BROTHER_SWAP={
     tap(){
       if(_swapCd>0||!_nearBro()) return false;
       const now=performance.now();
-      if(_swapT.length&&now-_swapT[0]>=SWAP_MS){ _flushSwapTaps(); }
+      if(!_swapT.length||now-_swapT[0]>=SWAP_MS){
+        _swapT=[now];
+        _swapItem0=(typeof ITEM!=='undefined')?ITEM:0;
+        return false;
+      }
       _swapT.push(now);
-      if(_swapT.length>=4){ _swapT=[]; swapBrothers(); _swapCd=SWAP_CD; }
-      return true;
+      if(_swapT.length>=4){
+        _swapT=[];
+        if(typeof ITEM!=='undefined') ITEM=_swapItem0;
+        swapBrothers();
+        _swapCd=SWAP_CD;
+        return true;
+      }
+      return false;
     }
   };
   const _upd=window.updateKnowls;

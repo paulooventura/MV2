@@ -116,7 +116,7 @@
     const origSfx=window.sfx;
     const wrapped=function(t){
       const r=origSfx.apply(this,arguments);
-      if(gore()&&typeof _gameState!=='undefined'&&_gameState==='game') metal(t);
+      if(gore()&&typeof _gameState!=='undefined'&&_gameState==='game'&&/hit|punch|land|stomp|hurt|shut|enemy|jump/.test(t||'')) metal(t);
       return r;
     };
     wrapped._goreMetal=true; window.sfx=wrapped;

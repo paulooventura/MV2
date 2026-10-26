@@ -179,7 +179,11 @@
   // how a sound at (x,y) reaches MIND
   function params(x,y){
     const L=listener(), dx=x-L.x, dy=y-L.y, dist=Math.hypot(dx,dy), d=dist/T;
-    if(d>26) return null;
+    // Far sounds stay quiet. Dropping them made whole effects vanish.
+    if(d>26){
+      const face=faceSign();
+      return {g:Math.max(0.05,0.2*Math.pow(26/Math.max(d,26),1.35)), lp:480, pan:screenPan(x)*0.45, wet:0.5, d, ot:0, along:(dx*face)/T, dy};
+    }
     const face=faceSign();
     const along=(dx*face)/T;                                 // + tiles in front of him, − behind (tone only)
     let pan=screenPan(x);
@@ -215,7 +219,8 @@
   }
   // a fresh chain for one positioned sound; returns its input node
   function chainAt(a,x,y,opt){
-    const P=params(x,y); if(!P||P.g<0.012) return null;
+    const P=params(x,y); if(!P) return null;
+    if(P.g<0.05) P.g=0.05;
     const g0=graph(a), dest=(opt&&opt.dest)||g0.main;
     const inp=a.createGain(); inp.gain.value=P.g*((opt&&opt.gain)||1);
     const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=P.lp; lp.Q.value=0.5;
@@ -249,7 +254,7 @@
       if(!a||!B||!B.on||!window.MV_SFX_POSH){ window._sfxPos=null; return inner.apply(this,arguments); }
       const s=pending(), g0=graph(a);
       let route;
-      if(s){ const n=chainAt(a,s.x,s.y); if(!n) return; route={out:n, send:n}; }
+      if(s){ const n=chainAt(a,s.x,s.y); if(!n){ window.MV_SFX_ROUTE=null; return inner.apply(this,arguments); } route={out:n, send:n}; }
       else route={out:g0.self, send:g0.posh?g0.posh.send:g0.self};
       window.MV_SFX_ROUTE=route;
       try{ return inner.apply(this,arguments); } finally{ window.MV_SFX_ROUTE=null; }
