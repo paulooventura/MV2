@@ -208,10 +208,22 @@ function isJump(){ return _bindDown('jump'); }
 function isJumpJ(){ return _bindJ('jump'); }
 function isPunch(){ return _bindDown('punch'); }
 
+// Paulo (#32/#38): MIND has the higher top speed, Venture gets going sooner. Venture's
+// regular punch is shorter and harder; his loaded punch loads faster, reaches further, hits softer.
+// MIND is the baseline (top/accel/spool 1).
+const HERO_STATS={
+  mind:   {top:1.00, accel:1.00, spool:1.00, punch:{dmg:13, reach:31, loadF:24, loadDmg:40, loadReach:54}},
+  venture:{top:0.90, accel:1.30, spool:1.45, punch:{dmg:18, reach:24, loadF:14, loadDmg:30, loadReach:66}},
+};
+function _heroStats(pl){ return HERO_STATS[pl&&pl.hero==='venture'?'venture':'mind']; }
+function _heroPunch(pl){ return _heroStats(pl).punch; }
+function _punchLoaded(pl){ return (pl.pCharge||0)>_heroPunch(pl).loadF; }
+
 let _punchHoldF=0, _punchHoldFr=-1;
 // The item button is also Run. A fast tap arms it; holding it again with a
 // direction is the sprint. Shift still runs on its own. A plain hold is the item.
 const _SPRINT_TAP=12, _SPRINT_ARM=16;   // Paulo (Oct 22): sprint = a quick double-tap-and-hold while moving (16 f window, was 40)
+const _FWD_TAP=14, _FWD_GAP=16, _FWD_PAIR=6;   // forward tap length, gap before the second forward, button/forward pairing window
 function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
@@ -234,6 +246,26 @@ function _updateRunEntry(pl){
   }
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
+  // Paulo (#161): forward, let go, then the item button + forward together = run, with the
+  // item quiet from the first frame (no shot, no power spent)
+  const dirWas=pl._dirWas||0;
+  if(!dir&&dirWas){
+    pl._fwdTapDir=(pl._dirHold||0)<=_FWD_TAP?dirWas:0;
+    pl._fwdTapT=pl._fwdTapDir?_FWD_GAP:0;
+  }else if(!dir&&(pl._fwdTapT||0)>0) pl._fwdTapT--;
+  pl._dirHold=dir&&dir===dirWas?(pl._dirHold||0)+1:(dir?1:0);
+  if(dir&&!dirWas&&dir===pl._fwdTapDir&&(pl._fwdTapT||0)>0){ pl._fwd2T=_FWD_PAIR; pl._fwdTapT=0; }
+  else if((pl._fwd2T||0)>0) pl._fwd2T--;
+  pl._dirWas=dir;
+  if(btn&&!was) pl._btnRiseT=_FWD_PAIR; else if((pl._btnRiseT||0)>0) pl._btnRiseT--;
+  if(btn&&!was&&!dir&&(pl._fwdTapT||0)>0) pl._fwdWait=_FWD_PAIR;   // the button came a hair before the second forward
+  else if((pl._fwdWait||0)>0) pl._fwdWait--;
+  if(!btn) pl._fwdWait=0;
+  if(!pl._sprintMode&&btn&&dir&&(pl._fwd2T||0)>0&&(pl._btnRiseT||0)>0){
+    pl._sprintMode=true; pl._sprintArm=0; pl._fwd2T=0; pl._fwdWait=0;
+    pl.movePower=Math.max(pl.movePower||0,0.55);
+    pl.runRamp=Math.max(pl.runRamp||0,0.22);
+  }
   if(pl._sprintMode){
     if(!btn) pl._sprintMode=false;
     else pl._sprintArm=0;
@@ -254,7 +286,7 @@ function _runItemQuiet(pl){
   // 12 frames of EVERY press (in case it was a sprint), and a second press within 40 frames while
   // moving became a sprint — so firing while walking kept getting swallowed. Now a press always uses
   // the item at once; only the sprint itself (a quick second press while moving) is quiet.
-  if(pl._sprintMode) return true;
+  if(pl._sprintMode||(pl._fwdWait||0)>0) return true;
   return false;
 }
 function _moveInputX(){
@@ -528,7 +560,8 @@ function _updatePlayerMoveX(pl){
     pl.movePower=(pl.movePower||0)*(coast?0.78:0.70);
     pl.vx*=coast?0.90:0.86;
   }
-  pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER);
+  const HS=_heroStats(pl);
+  pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER*HS.spool);
   const spin=Math.min(1,pl.movePower||0);
   // Paulo (Oct 20): idle → full speed eases in and out (an S-curve over ~1 s)
   // instead of jumping straight to a third of top speed.
@@ -537,9 +570,9 @@ function _updatePlayerMoveX(pl){
   let cap;
   if(sprint){
     const r0=Math.min(1,pl.runRamp||0), run=r0*r0*(3-2*r0);
-    cap=MOVE_WALK_TOP*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK_TOP)*run;
+    cap=(MOVE_WALK_TOP*MOVE_PEAK*spinEase+(MOVE_RUN-MOVE_WALK_TOP)*run)*HS.top;
   }else{
-    cap=(grounded?MOVE_WALK_TOP:MOVE_WALK)*MOVE_PEAK*spinEase;   // slower walk on the ground; air steering unchanged
+    cap=(grounded?MOVE_WALK_TOP:MOVE_WALK)*MOVE_PEAK*spinEase*HS.top;   // slower walk on the ground; air steering unchanged
     if(!grounded&&dir) cap=Math.max(cap,Math.abs(pl.vx));
   }
   if(onSlope&&pl._slopeAngle){
@@ -552,7 +585,7 @@ function _updatePlayerMoveX(pl){
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
   pl._moveCap=cap;
-  let accel=sprint?MOVE_RUN_ACCEL:MOVE_ACCEL;
+  let accel=(sprint?MOVE_RUN_ACCEL:MOVE_ACCEL)*HS.accel;
   accel*=0.45+0.55*Math.min(1,spin*1.6);              // the wheel takes a moment to bite
   if(cap>0.05){
     const ratio=Math.min(1,Math.abs(pl.vx)/cap);

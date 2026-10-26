@@ -966,7 +966,7 @@ function update(){
   if(isPunch()&&!p.pCharging&&p.pCd===0&&!_fMoving){p.pCharging=true;p.pCharge=0;}
   if(_fMoving&&p.pCharging){p.pCharging=false;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
-  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;p.pt=p.pCharge>20?8:5;p.pCd=0;p._hitDone=false;const charged=p.pCharge>20;sfx(charged?'punch_heavy':'punch');}
+  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;const charged=_punchLoaded(p);p.pt=charged?8:5;p.pCd=0;p._hitDone=false;sfx(charged?'punch_heavy':'punch');}
   if(p.pt>0)p.pt--;else p._hitDone=false;
   if(p.pCd>0)p.pCd--;
   if(p._pRecoil>0)p._pRecoil--;

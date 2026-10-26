@@ -947,7 +947,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   const armCol2=isVenture?C.RED_D:C.INDIGO;
   const punching   = p.pt > 0;
   const charging   = p.pCharging;
-  const chargeFrac = Math.min((p.pCharge||0)/28, 1);
+  const HP = typeof _heroPunch==='function' ? _heroPunch(p) : {dmg:15,reach:28,loadF:20,loadDmg:35,loadReach:58};
+  const chargeFrac = Math.min((p.pCharge||0)/HP.loadF, 1);
   const recoilFrac = p._pRecoil>0?(p._pRecoil/10):0;
   const snapFrac   = punching ? (1 - p.pt/10) : (recoilFrac>0 ? -recoilFrac*0.5 : 0);
   const fwdDir     = facing ? 1 : -1;
@@ -955,8 +956,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   // â”€â”€ Two fixed segments for the L (world units) â”€â”€â”€â”€â”€â”€â”€
   const seg1Len = 14;
   const guardFwd = 12;
-  const isChargedHook = (p.pCharge||0)>20 || (punching && p.pCd>4);
-  const punchFwd = isChargedHook ? 58 : 28;
+  const isChargedHook = (p.pCharge||0)>HP.loadF || (punching && p.pCd>4);
+  const punchFwd = isChargedHook ? HP.loadReach : HP.reach;
   const armShine=isVenture?'rgba(200,80,80,0.15)':'rgba(120,80,200,0.15)';
   // Paulo (Oct 22): switching items while hooked, this hand pulls the RCA off the other arm
   // and plugs it into the top back of the box, elbow arched up over the head (beta_feel.js)
@@ -1017,7 +1018,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     const gy = p.fistSY;
     if(!p._hitDone){
       const _wx=p.fistWX,_wy=p.fistWY,_wr=12;
-      const _charged=(p.pCharge||0)>20;
+      const _charged=(p.pCharge||0)>HP.loadF;
       let _hit=false, _hitKind='';
 
       // Down, on the ground: the fist lands on the omniblock under the wheel, or on the floor.
@@ -1138,12 +1139,12 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
         if(_fistHitsHB(_wx-fistW*0.5,_wy-fistH*0.5,fistW,fistH,eh)){
           if(!_punchReach(shWX,shWY,_wx,_wy,eh)) continue;           // a wall between them
           p._hitDone=true;_hit=true;_hitKind='enemy';
-          const _charged=(p.pCharge||0)>20||(p.pCd>4);
+          const _charged=(p.pCharge||0)>HP.loadF||(p.pCd>4);
           if(_enemyRebootInterruptable(e)){
             _tryInterruptMindReboot(e);
           }else if(_enemyCombatActive(e)){
             const _kbScale=_charged?1.35:1;
-            _damageEnemy(e,_charged?ENM_DMG.punchCharged:ENM_DMG.punch,p.fistWX||p.x+SW/2,p.fistWY||p.y+FEET_OFF,_kbScale);
+            _damageEnemy(e,_charged?HP.loadDmg:HP.dmg,p.fistWX||p.x+SW/2,p.fistWY||p.y+FEET_OFF,_kbScale);
           }
           _applyPunchImpact(p,e,punchAngle,{charged:_charged});
           p._pRecoil=_charged?14:10;
