@@ -817,12 +817,9 @@ function _detachPlayerRope(h){
 const TRS_SWEEP_FR=26;                                     // frames after a TRS shot during which the aim sweeps instead of snapping
 function fireItem(charged=false){
   if(ITEM<0||(!_itemUnlocked(ITEM)&&!p._aiCompanion)) return;
-  let ax=(p._hasAimInput&&p.tAimDX!=null)?p.tAimDX:p.aimDX;
-  let ay=(p._hasAimInput&&p.tAimDY!=null)?p.tAimDY:p.aimDY;
-  // Paulo (Oct 21): spamming the TRS while the aim swings (say from up to
-  // forward), each shot leaves along the arm as it sweeps — so the shots fan
-  // out across the angles in between instead of jumping straight to the new aim
-  if(ITEM===0&&fr-(p._trsLastFr==null?-99:p._trsLastFr)<TRS_SWEEP_FR){ const l=Math.hypot(p.aimDX,p.aimDY); if(l>0.2){ ax=p.aimDX/l; ay=p.aimDY/l; } }
+  // The shot leaves along the arm, which is mid-arc if the stick just rolled.
+  let ax=p.aimDX||(p.fc?1:-1), ay=p.aimDY||0;
+  const _al=Math.hypot(ax,ay)||1; ax/=_al; ay/=_al;
   if(ITEM===0) p._trsLastFr=fr;
   p.aimDX=ax; p.aimDY=ay;
   const a=Math.atan2(ay,ax);
@@ -903,7 +900,6 @@ function _releaseHookAim(ax,ay){
     else { dx/=d; dy/=d; }
     p.tAimDX=dx; p.tAimDY=dy;
   }
-  p.aimDX=p.tAimDX; p.aimDY=p.tAimDY;
   if(p.tAimDX>0.05) p.fc=true; else if(p.tAimDX<-0.05) p.fc=false;
   p._hasAimInput=true; p._wallAimFree=32;
 }
@@ -1043,9 +1039,16 @@ function updateHook(){
     else resX();
     if(h._grace>0) h._grace--;
     else if(h._tension>Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)){
-      p.vx=keepVx; p.vy=keepVy;
-      _releaseHookAim(h.ax,h.ay); _hookOff(); sfx('ropeBreak'); return;
-    }
+      // a snag or a hard swing can spike the stretch for a frame. The latch
+      // holds through that — it only lets go after the cord has been past its
+      // limit for a while, the way a web holds until it truly gives.
+      h._strainF=(h._strainF||0)+1;
+      if(h._strainF>=48){
+        p.vx=keepVx; p.vy=keepVy;
+        h._strainF=0;
+        _releaseHookAim(h.ax,h.ay); _hookOff(); sfx('ropeBreak'); return;
+      }
+    }else h._strainF=0;
     if(h._tight&&!wasTight&&Math.hypot(p.vx,p.vy)>2) sfx('ropeSnap');
     if(h._slack&&!wasSlack) sfx('ropeSlack');
     _vropeStep(h);

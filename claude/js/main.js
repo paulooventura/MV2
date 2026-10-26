@@ -892,22 +892,36 @@ function update(){
   const _punchingNow=isPunch()||p.pCharging||p.pt>0;
   if(adx||ady){const l=Math.hypot(adx,ady);p.tAimDX=adx/l;p.tAimDY=ady/l;p._hasAimInput=true;}
   else if(dn&&_punchingNow){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
-  else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=0;p.tAimDY=0;}}
+  else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=p.fc?1:-1;p.tAimDY=0;}}
   if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
   // spamming the TRS: the arm sweeps to the new aim instead of snapping (the shots fan out on the way)
   const _trsSweep=ITEM===0&&typeof TRS_SWEEP_FR!=='undefined'&&fr-(p._trsLastFr==null?-99:p._trsLastFr)<TRS_SWEEP_FR;
   if(_trsSweep&&!p._hasAimInput){p.tAimDX=p.fc?1:-1;p.tAimDY=0;}
-  if(!_trsSweep&&!p._hasAimInput&&!p.wallGrip&&!(_punchingNow&&Math.abs(p.tAimDY)>0.55)){p.aimDX=p.fc?1:-1;p.aimDY=0;}
-  const _aimLerp=_trsSweep?0.06:p._wallAimFree>0?0.88:(p.og?0.2:(p._hasAimInput?0.28:0.08));
-  if(p._wallAimFree>0) p._wallAimFree--;
-  p.aimDX+=(p.tAimDX-p.aimDX)*_aimLerp; p.aimDY+=(p.tAimDY-p.aimDY)*_aimLerp;
-  // A punch goes where the stick is this frame. Straight down only when Down
-  // is held alone — Down + sideways stays a diagonal.
+  // A punch and a downward XLR pick a target. The arm still travels the arc —
+  // straight down only when Down is held alone, Down + sideways stays a diagonal.
   if(_punchingNow&&(adx||ady)){
     const _pl=Math.hypot(adx,ady);
-    p.tAimDX=p.aimDX=adx/_pl; p.tAimDY=p.aimDY=ady/_pl; p._hasAimInput=true;
-  }else if(dn&&!adx&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
-  if(dn&&!adx&&!p._sprintMode&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p.aimDX=0; p.aimDY=1; p._hasAimInput=true; }
+    p.tAimDX=adx/_pl; p.tAimDY=ady/_pl; p._hasAimInput=true;
+  }else if(dn&&!adx&&_punchingNow){ p.tAimDX=0; p.tAimDY=1; p._hasAimInput=true; }
+  if(dn&&!adx&&!p._sprintMode&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p.tAimDX=0; p.tAimDY=1; p._hasAimInput=true; }
+  // Short-way arc. A thumb roll from up to left passes through the diagonal
+  // instead of jumping from one cardinal to the next. Shots and blasts leave
+  // along wherever the arm is on that arc.
+  {
+    let cx=p.aimDX||0, cy=p.aimDY||0, cl=Math.hypot(cx,cy);
+    if(cl<0.08){ cx=p.fc?1:-1; cy=0; cl=1; }
+    cx/=cl; cy/=cl;
+    let tx=p.tAimDX||0, ty=p.tAimDY||0, tl=Math.hypot(tx,ty);
+    if(tl<0.08){ tx=cx; ty=cy; tl=1; }
+    tx/=tl; ty/=tl;
+    let a0=Math.atan2(cy,cx), a1=Math.atan2(ty,tx), d=a1-a0;
+    while(d>Math.PI) d-=Math.PI*2;
+    while(d<-Math.PI) d+=Math.PI*2;
+    const rate=_trsSweep?0.12:(p._wallAimFree>0?0.4:0.26);
+    const a=Math.abs(d)<0.02?a1:a0+d*rate;
+    p.aimDX=Math.cos(a); p.aimDY=Math.sin(a);
+    if(p._wallAimFree>0) p._wallAimFree--;
+  }
   _updateBattleEye(p);
 
   if(_bindJ('use')) _cycleItem();

@@ -477,16 +477,17 @@
     (B.wtext||((f,...a)=>f(...a)))(drawText,label,cx+w/2+4,y-1,'#e8dcc0',1);
   }
 
-  // ── RCA rope: holds about twice the strain before it snaps; a tension meter
-  //   shows how close it is, it creaks as it strains and twangs when it bites or snaps.
-  const ROPE_STRENGTH=1.9;
+  // ── RCA rope: a spider-web hold. A swing, a reel-in, or a one-frame snag
+  //   does not pop the latch. The meter still climbs as it strains; it creaks,
+  //   and it only lets go after a long, extreme stretch (or when you release it).
+  const ROPE_STRENGTH=8;
   const _origTension=window._ropeApplyTension;
   window._ropeApplyTension=function(h){
     const r=_origTension.apply(this, arguments);
     if(on()&&h===p.hook){
       const limit=Math.max(ROPE_SNAP_MIN,h.rl*ROPE_SNAP_STRETCH)*ROPE_STRENGTH;
       st.rope=(h._tension||0)/limit; window.MV_ROPE_STRAIN=st.rope;
-      h._tension=(h._tension||0)/ROPE_STRENGTH;              // the game's snap test now needs ~2x the strain
+      h._tension=(h._tension||0)/ROPE_STRENGTH;              // snap test needs ~8x the strain
       if(st.rope>0.45&&window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(Math.min(1,st.rope));
     }
     return r;
@@ -505,42 +506,55 @@
   //   floors (it lies on them, with friction), a little stretchy like rubber.
   //   Drawing only — the rope's pull on MIND is the game's own rope physics.
   const _origSlack=window._ropeSlackDrawPts;
-  const CORD_TAUT_SLACK=16;
+  const CORD_TAUT_SLACK=40;                                  // spare length that still draws as a tight cord
   function solidPt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
   function cordPts(path,rl){
     const h=p&&p.hook; if(!h||!path||path.length<2) return path||[];
     let plen=0; for(let i=1;i<path.length;i++) plen+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
-    // Paulo (Oct 22): the cord reads taut while it carries MIND — the first CORD_TAUT_SLACK px of
-    // slack (the little give of a swing) are drawn straight; only real slack droops
-    const slack=Math.max(0,(rl||plen)-plen-CORD_TAUT_SLACK), L=plen+slack;
-    if(slack<3){ h._cord=null; return path; }                  // taut: straight along its path (round corners)
-    const n=Math.max(10,Math.min(64,Math.round(L/8)));
+    // Tightened (reeled in, or already carrying MIND): the jack sits closer to the
+    // anchor than the pull point, so the drawn span looks shorter than rl. Draw that
+    // straight — a spider line, not a drooping loop. Only real paid-out slack hangs,
+    // and even then the belly shrinks as you reel in.
+    const slackRaw=Math.max(0,(rl||plen)-plen);
+    if(h._tight||(h._tension||0)>0.25||slackRaw<CORD_TAUT_SLACK){ h._cord=null; return path; }
+    const spare=slackRaw-CORD_TAUT_SLACK;
+    const loose=Math.min(1, spare/Math.max(48, plen*0.55));   // 0 just past taut, 1 when there's a lot of line out
+    const L=plen+spare*loose;                                 // a tightened cord keeps less of its spare length
+    const n=Math.max(10,Math.min(64,Math.round(Math.max(plen,L)/8)));
     const A=path[0], E=path[path.length-1];
     let c=h._cord;
-    if(!c||c.n!==n||c.ax!==A.x||c.ay!==A.y){                  // new rope (or re-latched): lay it along the path
+    if(!c||c.n!==n||c.ax!==A.x||c.ay!==A.y){
       const pts=[]; for(let i=0;i<n;i++){ const t=i/(n-1); const q=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*t):{x:A.x+(E.x-A.x)*t,y:A.y+(E.y-A.y)*t}; pts.push({x:q.x,y:q.y,px:q.x,py:q.y}); }
       c=h._cord={n,pts,ax:A.x,ay:A.y};
     }
-    const P=c.pts, seg=L/(n-1);
+    const P=c.pts, seg=L/(n-1), grav=0.06+0.22*loose;
     if(c.fr!==fr){
       c.fr=fr;
-      for(let i=1;i<n-1;i++){                                   // move: inertia + gravity
+      for(let i=1;i<n-1;i++){
         const q=P[i], vx=(q.x-q.px)*0.985, vy=(q.y-q.py)*0.985;
-        q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+0.45;
+        q.px=q.x; q.py=q.y; q.x+=vx; q.y+=vy+grav;
       }
       P[0].x=A.x; P[0].y=A.y; P[n-1].x=E.x; P[n-1].y=E.y;
       for(let it=0;it<14;it++){
-        for(let i=0;i<n-1;i++){                                 // keep the links their length (a bit of give: rubber)
-          const a=P[i], b=P[i+1], dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001, diff=(d-seg)/d*0.5*0.9;
+        for(let i=0;i<n-1;i++){
+          const a=P[i], b=P[i+1], dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001, diff=(d-seg)/d*0.5*0.92;
           const fa=i===0?0:1, fb=i+1===n-1?0:1, sum=fa+fb||1;
           a.x+=dx*diff*2*fa/sum; a.y+=dy*diff*2*fa/sum; b.x-=dx*diff*2*fb/sum; b.y-=dy*diff*2*fb/sum;
         }
-        for(let i=1;i<n-1;i++){                                 // never inside rock: back out the way it came, or up onto the surface
+        for(let i=1;i<n-1;i++){
           const q=P[i]; if(!solidPt(q.x,q.y)) continue;
           if(!solidPt(q.px,q.y)) { q.x=q.px; }
           else if(!solidPt(q.x,q.py)) { q.y=q.py; }
           else { let k=0; while(solidPt(q.x,q.y)&&k<12){ q.y-=3; k++; } }
-          q.px+=(q.x-q.px)*0.6;                                 // friction against the floor / wall
+          q.px+=(q.x-q.px)*0.6;
+        }
+      }
+      // reel-in pulls the belly up toward the straight line instead of leaving last frame's droop
+      const lift=1-loose;
+      if(lift>0.04){
+        for(let i=1;i<n-1;i++){
+          const q=P[i], tp=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*i/(n-1)):{x:A.x+(E.x-A.x)*i/(n-1),y:A.y+(E.y-A.y)*i/(n-1)};
+          q.x+=(tp.x-q.x)*lift; q.y+=(tp.y-q.y)*lift;
         }
       }
     }

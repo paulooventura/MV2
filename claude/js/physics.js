@@ -2682,8 +2682,8 @@ function _ropeSlackDrawPts(path, rl){
   if(!path||path.length<2) return path||[];
   const plen=_ropePathLen(path);
   const slack=(rl||plen)-plen;
-  if(slack<8) return path;
-  const sag=Math.min(52,slack*0.4);
+  if(slack<36) return path;                              // tightened: still a straight cord
+  const sag=Math.min(18,Math.max(0,slack-36)*0.14);
   const n=Math.max(8,Math.min(16,6+((slack/8)|0)));
   const out=[];
   for(let i=0;i<n;i++){
