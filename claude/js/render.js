@@ -348,16 +348,19 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   const liveFrac=maxHp>0?Math.max(0,Math.min(1,hp/maxHp)):0;
   const tw=9, tx0=facing?x+bw-tw-2:x+2, ty0=top+3, th=y+bh-top-7;
   const liq=th*0.9*liveFrac, ly=ty0+th-liq;
-  const low=liveFrac<=0.35, lc=low&&fr%16<8?'#ff5a5a':(liveFrac>0.6?'#3dff7a':liveFrac>0.35?'#c8ff3a':'#ff9a2a');
+  const gore=!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
+  const low=liveFrac<=0.35, lc=gore?'#9a0014':(low&&fr%16<8?'#ff5a5a':(liveFrac>0.6?'#3dff7a':liveFrac>0.35?'#c8ff3a':'#ff9a2a'));
   ctx.fillStyle='#000'; ctx.fillRect(tx0-1,ty0-1,tw+2,th+2);
-  ctx.fillStyle='#0a1a10'; ctx.fillRect(tx0,ty0,tw,th);
+  ctx.fillStyle=gore?'#1a0608':'#0a1a10'; ctx.fillRect(tx0,ty0,tw,th);
   if(liq>0){
-    const halo=ctx.createRadialGradient(tx0+tw/2,ly+liq/2,1,tx0+tw/2,ly+liq/2,14+liq*0.4); halo.addColorStop(0,'rgba(80,255,130,0.28)'); halo.addColorStop(1,'rgba(80,255,130,0)');
-    if(!low){ ctx.fillStyle=halo; ctx.fillRect(tx0-14,ly-10,tw+28,liq+20); }
-    const lg=ctx.createLinearGradient(0,ly,0,ly+liq); lg.addColorStop(0,'#d8ff9a'); lg.addColorStop(0.2,lc); lg.addColorStop(1,low?'#7a1010':'#0e9a3a');
+    const halo=ctx.createRadialGradient(tx0+tw/2,ly+liq/2,1,tx0+tw/2,ly+liq/2,14+liq*0.4);
+    halo.addColorStop(0,gore?'rgba(180,0,16,0.42)':'rgba(80,255,130,0.28)'); halo.addColorStop(1,gore?'rgba(180,0,16,0)':'rgba(80,255,130,0)');
+    if(!low||gore){ ctx.fillStyle=halo; ctx.fillRect(tx0-14,ly-10,tw+28,liq+20); }
+    const lg=ctx.createLinearGradient(0,ly,0,ly+liq);
+    lg.addColorStop(0,gore?'#ff3a44': '#d8ff9a'); lg.addColorStop(0.2,lc); lg.addColorStop(1,gore?'#3a0008':(low?'#7a1010':'#0e9a3a'));
     ctx.fillStyle=lg; ctx.fillRect(tx0,ly,tw,liq);
-    ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.fillRect(tx0,ly,tw,1);                        // the meniscus
-    for(let i=0;i<3;i++){ const bt=((fr*0.6+i*13)%Math.max(4,liq)); ctx.fillStyle='rgba(230,255,230,0.7)'; ctx.fillRect(tx0+2+((i*3)%5),ly+liq-bt,1.2,1.2); }
+    ctx.fillStyle=gore?'rgba(255,210,210,0.8)':'rgba(255,255,255,0.75)'; ctx.fillRect(tx0,ly,tw,1);
+    for(let i=0;i<3;i++){ const bt=((fr*0.6+i*13)%Math.max(4,liq)); ctx.fillStyle=gore?'rgba(255,180,180,0.75)':'rgba(230,255,230,0.7)'; ctx.fillRect(tx0+2+((i*3)%5),ly+liq-bt,1.2,1.2); }
   }
   ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(tx0+1,ty0+1,1.2,th-2);              // the glass
   const lifeSegs=status?Math.max(1,Math.ceil(maxHp/PLAYER_HIT_DMG)):MAXLIVES;

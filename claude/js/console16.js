@@ -54,7 +54,7 @@
   window.MV_CONSOLE=api;
   function syncHue(){
     const c=document.getElementById('c');
-    if(c) c.style.filter=mode==='gore'?'hue-rotate(-120deg)':'';
+    if(c) c.style.filter='';
   }
   syncHue();
 
