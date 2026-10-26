@@ -1003,7 +1003,7 @@ function updateHook(){
     }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
-    if(h._reel){ h._reelT=(h._reelT||0)+1; if(h._reelT%3===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
+    if(h._reel){ h._reelT=(h._reelT||0)+1; const every=h._reel<0?4:6; if(h._reelT%every===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
     const _pump=isLf()||isRt();
     // Left/right pumps along the arc, the way a web swing takes a kick — not a sideways shove
     // against a stiff line.
