@@ -101,7 +101,7 @@
     ITEM_DROPS.push(d); lost.add(idx);
     try{ sfxAt(e,'item_clink'); sfxAt(e,'enemy_alert'); }catch(_e){}
     for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:cx,y:cy,vx:Math.cos(a)*3,vy:Math.sin(a)*3-1,life:16,maxLife:16,r:2,col:'#ffd070'}); }
-    const names=['TRS','RCA','XLR','MAG'];
+    const names=['TRS','RCA','XLR','MEG'];
     if(typeof uiShowToast==='function') uiShowToast('D KNOCKED YOUR '+names[idx]+' LOOSE - GRAB IT BACK!');
   }
 

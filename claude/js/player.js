@@ -268,8 +268,8 @@ function _moveInputX(){
 function _runDir(){ return _moveInputX(); }
 
 // ── Item state ────────────────────────────────────────────────
-let ITEM=-1;  // -1=none · 0=TRS · 1=RCA · 2=XLR · 3=MAG
-const INAMES=['TRS','RCA','XLR','MAG','KNIFE'];
+let ITEM=-1;  // -1=none · 0=TRS · 1=RCA · 2=XLR · 3=MEG
+const INAMES=['TRS','RCA','XLR','MEG','KNIFE'];
 const ICOLS=['#d4aa40','#e87820','#c8cdd4','#e02028','#d88a4a'];
 const ITEM_UNLOCK_BITS=[1,2,4,8,16];   // 16 = the gaucho knife (1.3)
 let _unlockedMask=15;
@@ -295,7 +295,7 @@ function _grantPlayerItem(idx, silent){
   if(idx<0||idx>3||_itemUnlocked(idx)) return false;
   _unlockedMask|=ITEM_UNLOCK_BITS[idx];
   ITEM=idx;
-  const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MAG Pull'];
+  const titles=['TRS Laser','RCA Grappling Hook','XLR Push','MEG'];
   const lines=[
     ['Hold X / Q to charge a beam. Release to shoot.'],
     ['X / Q - launch the hook, press again to let go / W/S - reel','Down + jump lets go of the rope'],
@@ -741,8 +741,11 @@ function computeConnectorArmPose(pl=p){
   // used straight down (DOWN held, still ducking): the elbow comes up and the
   // forearm plants the jack straight down, its tip on the floor beside the wheel
   if(!hookOn&&typeof _itemDownAim==='function'&&_itemDownAim(pl)){
-    const feet=pl.y+FEET_OFF, side=fc?1:-1, _sc=typeof _itemArtScale==='function'?_itemArtScale(ITEM):1, JACK=ITEM===1?RCA_NOSE_LEN:(ITEM===2?42:ITEM===0?50:40)*_sc;   // = the jack's reach (connectorTipWorld)
-    const jx=bodyCX+side*(WHEEL_R+10), jy=feet-1-JACK;           // where the jack starts (the forearm's end)
+    const feet=pl.y+FEET_OFF, side=fc?1:-1, _sc=typeof _itemArtScale==='function'?_itemArtScale(ITEM):1;
+    // MEG's pole faces are 30 art px past the arm tip (prong 24 + the silver pad).
+    // Plant those faces 2 px into the floor so the horseshoe reads as stuck, not hovering.
+    const JACK=ITEM===1?RCA_NOSE_LEN:(ITEM===3?30:(ITEM===2?42:ITEM===0?50:40))*_sc;
+    const jx=bodyCX+side*(WHEEL_R+10), jy=feet+(ITEM===3?2: -1)-JACK;
     const ex=(connShX+jx)/2+side*4, ey=Math.min(connShY,jy)-12;  // elbow: up and between
     const a0=Math.atan2(ey-connShY,ex-connShX), a1=Math.PI/2;
     return {connShX,connShY,elbowX:ex,elbowY:ey,tipX:jx,tipY:jy,armA0:a0,armA1:a1,armL0:Math.hypot(ex-connShX,ey-connShY),armL1:Math.hypot(jx-ex,jy-ey),

@@ -899,7 +899,7 @@
 
   const LAITU_SCALE=1.75;                       // a bit taller than MIND
   const LAITU_TALK=['THEY TOOK THE ELDERS. FOLLOW THE SEEDS!','THE ARCH WANTS 3 CRYSTALS AND 6 SEEDS.',
-    'YOUR HOME HIDES THE KNOWL TREE, MIND.','A MAGNET CAN CARRY WHAT A PUNCH CANNOT.',
+    'YOUR HOME HIDES THE KNOWL TREE, MIND.','A MEG CAN CARRY WHAT A PUNCH CANNOT.',
     'THE XLR THROWS YOU BACK FROM WHERE YOU AIM.','KNOWLS WAKE ANYTHING UP. CAREFUL!'];
 
   // ── Magnet carry (Paulo): hold the MAG to lock things to the poles and carry
@@ -971,6 +971,18 @@
     const g=ctx.createRadialGradient(0,0,0,0,0,sw(30)); g.addColorStop(0,'rgba(255,240,255,'+(0.5*k)+')'); g.addColorStop(1,'rgba(160,120,255,0)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,sw(30),Math.PI,0); ctx.fill();
     ctx.restore();
+    // the two pole faces, bitten into the surface, so the horseshoe reads as stuck to it
+    try{
+      const t=magTip(), sc=typeof _itemArtScale==='function'?_itemArtScale(3):0.88;
+      const px=-t.uy, py=t.ux, half=7*sc, ix=t.ux*3, iy=t.uy*3;
+      for(const s of [-1,1]){
+        const x0=t.x+px*half*s, y0=t.y+py*half*s;
+        ctx.save(); ctx.strokeStyle='#f4f1ea'; ctx.fillStyle='#c8ccd4'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(sx(x0-ix),sy(y0-iy)); ctx.lineTo(sx(x0+ix),sy(y0+iy)); ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(sx(x0),sy(y0),Math.max(2,sw(2.4)),0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+    }catch(e){}
   };
   // Paulo (Oct 22): the XLR's air shoves enemies in front of the jack while it's held, not only
   // on the release — strong up close, fading with distance, lighter ones fly further
@@ -1024,7 +1036,7 @@
   //   base and plugs it into the top back of the box (the RCA's animation): he hangs
   //   from the magnet, power refills, the other items work. DOWN + JUMP lets go.
   const SUCK={R:150, K:1.05, MAXV:9};
-  const PARK_FR=26, PARK_GRAB=0.3;
+  const PARK_FR=52, PARK_GRAB=0.22;
   function suction(){
     if(!(p.itemStamina>0)) return;
     const t=magTip(), a0=Math.atan2(t.uy,t.ux); let best=null;
@@ -1050,8 +1062,13 @@
   // the poles meet the surface flush: aim straight into it, and slide him so the tip touches
   function seatLock(L){
     p.aimDX=L.ux; p.aimDY=L.uy;
-    const t=magTip(), tx=L.cx-L.ux*3, ty=L.cy-L.uy*3;
-    let dx=tx-t.x, dy=ty-t.y; const dl=Math.hypot(dx,dy); if(dl>24){ dx*=24/dl; dy*=24/dl; }
+    // Aimed down, the arm pose already plants the pole faces in the floor.
+    // Sliding the body here only lifts them off the tile again.
+    if(L.uy>0.8&&Math.abs(L.ux)<0.4){
+      const t=magTip(); L.cx=t.x; L.cy=t.y; L.x=p.x; L.y=p.y; return;
+    }
+    const t=magTip(), tx=L.cx+L.ux, ty=L.cy+L.uy;
+    let dx=tx-t.x, dy=ty-t.y; const dl=Math.hypot(dx,dy); if(dl>36){ dx*=36/dl; dy*=36/dl; }
     L.x=p.x+dx; L.y=p.y+dy;
   }
   B.magPark=null;
@@ -1062,6 +1079,7 @@
     B.magPark={st:'plug', t:0, px:L.x, py:L.y, ux:L.ux, uy:L.uy, cx:L.cx, cy:L.cy,
       bx:isFinite(pose.tipX)?pose.tipX:t.x-L.ux*26, by:isFinite(pose.tipY)?pose.tipY:t.y-L.uy*26, ang:Math.atan2(L.uy,L.ux)};
     B.magLock=null; p._swapHoldBlock=true;
+    try{ MV_BETA_AUDIO.magHum(false); }catch(e){}   // the lock hum stops the moment another item is chosen
   }
   function parkRelease(){
     const P=B.magPark; if(!P) return; B.magPark=null;
@@ -1076,7 +1094,7 @@
     if(P.st!=='plug') return {x:S.x,y:S.y,k:1};
     const k=Math.min(1,P.t/PARK_FR);
     if(k<PARK_GRAB) return {x:P.bx,y:P.by,k:0,grab:true,gk:k/PARK_GRAB};
-    const u=(k-PARK_GRAB)/(1-PARK_GRAB), e=u*u*(3-2*u), C={x:p.x+SW/2+(p.fc?-1:1)*4,y:S.y-62};
+    const u=(k-PARK_GRAB)/(1-PARK_GRAB), e=u*u*(3-2*u), C={x:p.x+SW/2+(p.fc?-1:1)*4,y:S.y-108};
     return {x:(1-e)*(1-e)*P.bx+2*(1-e)*e*C.x+e*e*S.x, y:(1-e)*(1-e)*P.by+2*(1-e)*e*C.y+e*e*S.y, k:e};
   };
   function parkTick(){
@@ -1089,7 +1107,7 @@
     if(P.st==='plug'){
       p.itemStamina=Math.max(0,(p.itemStamina||0)-MAG.DRAIN*0.6);
       if(p.itemStamina<=0){ parkRelease(); return true; }      // out of power before the plug seated: he drops
-      if(P.t>=PARK_FR){ P.st='parked'; p._plugArchT=12; try{ sfx('grap_attach'); MV_BETA_AUDIO.magClank(); }catch(e){} }
+      if(P.t>=PARK_FR){ P.st='parked'; p._plugArchT=36; try{ sfx('grap_attach'); MV_BETA_AUDIO.magClank(); }catch(e){} }
     }
     if(fr%5===0) PFXS.push({x:P.cx-P.ux*2+(Math.random()-0.5)*26*Math.abs(P.uy),y:P.cy-P.uy*2+(Math.random()-0.5)*26*Math.abs(P.ux),vx:(Math.random()-0.5),vy:-0.3-Math.random(),life:10,maxLife:10,r:1.5,col:Math.random()<0.5?'#ff5050':'#5080ff'});
     return true;
@@ -1150,7 +1168,7 @@
     // rock (a wall, a ceiling, the floor — on the ground or in the air) it locks
     // there until the button is let go. Cubes still get grabbed instead.
     if(M.noRelock&&!B.magLock) return;                       // let go with DOWN + JUMP: free until the button is released
-    const hit=!B.magLock&&!M.held.length?(rockAtTip()||((typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())?{x:p.x+SW/2,y:p.y+FEET_OFF,ux:0,uy:1}:null)):null;
+    const hit=!B.magLock&&!M.held.length?(rockAtTip()||((typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&solidUnderWheel())?(()=>{ const t=magTip(); return {x:t.x,y:t.y,ux:0,uy:1}; })():null)):null;
     if(B.magLock||hit){
       if(!B.magLock){
         B.magLock={x:p.x,y:p.y,t:0,cx:hit.x,cy:hit.y,ux:hit.ux,uy:hit.uy}; seatLock(B.magLock); while(M.held.length) dropHeld(M.held.pop()); B.shake=Math.max(B.shake||0,3);
@@ -1654,66 +1672,60 @@
     else { ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8); }
     ctx.restore();
   }
-  const JACK_ORDER0=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MAG','KNIFE'];
+  const JACK_ORDER0=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MEG','KNIFE'];
   function drawTopBar(){
-    const y0=4, h=60;
-    uiPanel(6,y0,W-12,h,{r:14,alpha:0.78,flat:true,accent:'rgba(200,170,255,0.55)'});
+    const L=typeof uiLayout==='function'?uiLayout():{inset:{t:0,l:0,r:0},phone:false};
+    const top=Math.max(6,(L.inset.t||0)+4), left=Math.max(8,(L.inset.l||0)+4), right=W-Math.max(8,(L.inset.r||0)+4);
+    const reel=_itemUnlocked(1);
+    const lw=268, lh=reel?128:104;
+    uiPanel(left,top,lw,lh,{r:12,alpha:0.82,flat:true,accent:'rgba(200,170,255,0.55)'});
     ctx.imageSmoothingEnabled=true;
-    // MIND + lives
     const lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
-    hudHead(34,y0+31,1.35,false);
-    drawText('x'+Math.max(0,B.lives|0), 54, y0+14, lost?'#ff6a7a':'#ffffff', 3);
-    drawText('CONT '+(B.continues|0), 56, y0+42, '#c8b8ff', 1);
-    // HP, and the power bar right under it
-    const hx=118, low=p.hp<=PLAYER_HIT_DMG*2;
-    drawText('HP',hx,y0+10,'#ffb0b8',2);
-    uiBar(hx+36,y0+10,220,15,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
-    // Paulo (Oct 21): the power bar is green
+    hudHead(left+26,top+28,1.15,false);
+    drawText('x'+Math.max(0,B.lives|0), left+46, top+8, lost?'#ff6a7a':'#ffffff', 2);
+    drawText('CONT '+(B.continues|0), left+100, top+8, '#d8ffc8', 2);
+    const hx=left+10, low=p.hp<=PLAYER_HIT_DMG*2;
+    drawText('HP',hx,top+40,'#ffb0b8',2);
+    uiBar(hx+40,top+42,lw-58,14,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
     const pw=Math.max(0,Math.min(100,p.itemStamina||0)), pc=pw>50?'#46e06a':(pw>20?'#ffa040':'#ff4a5a');
-    drawText('PWR',hx,y0+33,pc,1);
-    uiBar(hx+36,y0+32,220,9,pw/100,pc,pw>50?'#c8ffd0':pc,10,{pulse:pw<20});
-    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',hx+262,y0+31,pc,1);
-    // ...and a thin REEL bar under it: how much cord the RCA has paid out
-    // (full = the longest cord, empty = reeled all the way in). Purple for MIND, red for Venture.
-    if(_itemUnlocked(1)){
-      const h=p.hook, ven=p.hero==='venture', rc=ven?'#ff4a5a':'#b070ff', rcHi=ven?'#ffb0b8':'#e0c8ff';
+    drawText('PWR',hx,top+64,pc,2);
+    uiBar(hx+52,top+66,lw-108,12,pw/100,pc,pw>50?'#c8ffd0':pc,8,{pulse:pw<20});
+    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',left+lw-50,top+62,pc,2);
+    if(reel){
+      const hook=p.hook, ven=p.hero==='venture', rc=ven?'#ff4a5a':'#b070ff', rcHi=ven?'#ffb0b8':'#e0c8ff';
       const cmax=typeof CMAX==='number'?CMAX:400, rmin=typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28;
       let f=0, live=false;
-      if(h&&h.st==='on'){ f=Math.max(0,Math.min(1,((h.rl||0)-rmin)/(cmax-rmin))); live=true; }
-      else if(h&&h.st==='ext'){ const a=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x,y:p.y}; f=Math.max(0,Math.min(1,Math.hypot(h.ex-a.x,h.ey-a.y)/cmax)); live=true; }
-      // the old ROPE meter on MIND lives here now: the bar warms to amber, then red and pulsing, as the cord nears its snap
-      const strain=live&&h.st==='on'?Math.min(1,window.MV_ROPE_STRAIN||0):0;
+      if(hook&&hook.st==='on'){ f=Math.max(0,Math.min(1,((hook.rl||0)-rmin)/(cmax-rmin))); live=true; }
+      else if(hook&&hook.st==='ext'){ const a=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x,y:p.y}; f=Math.max(0,Math.min(1,Math.hypot(hook.ex-a.x,hook.ey-a.y)/cmax)); live=true; }
+      const strain=live&&hook.st==='on'?Math.min(1,window.MV_ROPE_STRAIN||0):0;
       const bc=strain>0.75?'#ff4040':strain>0.45?'#ffc040':rc, bh=strain>0.45?'#fff0c0':rcHi;
       ctx.globalAlpha=live?1:0.45;
-      drawText('REEL',hx,y0+45,bc,1);
-      uiBar(hx+36,y0+45,220,5,f,bc,bh,3,{pulse:strain>0.75});
+      drawText('REEL',hx,top+90,bc,2);
+      uiBar(hx+58,top+92,lw-76,10,f,bc,bh,3,{pulse:strain>0.75});
       ctx.globalAlpha=1;
     }
-    // the jacks, drawn as their tips
+    if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+100,top+28,C.MINT,2); ctx.globalAlpha=1; }
     const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
-    const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);   // the knife's slot shows once it's found
+    const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);
+    const pill=54, jw=JACK_ORDER.length*pill+12, jx=right-jw;
+    uiPanel(jx,top,jw,72,{r:12,alpha:0.82,flat:true});
     JACK_ORDER.forEach((i,k)=>{
-      const bx=hx+300+k*78, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
-      uiPill(bx,y0+8,70,44,{on:cur,col:icols[i]});
-      ctx.save(); ctx.beginPath(); ctx.rect(bx+3,y0+10,64,40); ctx.clip();
-      ctx.translate(bx+35,y0+30);
+      const bx=jx+6+k*pill, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
+      uiPill(bx,top+6,pill-6,40,{on:cur,col:icols[i]});
+      ctx.save(); ctx.beginPath(); ctx.rect(bx+2,top+8,pill-10,36); ctx.clip();
+      ctx.translate(bx+(pill-6)/2,top+26);
       if(!on) ctx.globalAlpha=0.18;
-      ctx.scale(0.82,0.82);
+      ctx.scale(0.7,0.7);
       if(typeof drawConnectorTip==='function') drawConnectorTip(i===3?-14:-16,0,0,0,i,enh);
       ctx.restore();
-      if(!on){ ctx.fillStyle='rgba(10,6,24,0.35)'; uiRound(bx+2,y0+10,66,40,10); ctx.fill(); }
-      if(on&&enh) uiSparkle(bx+62,y0+13,5,icols[i],0.9);
-      if((i===2&&p.xlrOn)||(i===3&&p.magOn)){ ctx.fillStyle=(fr&4)?'#fff':icols[i]; ctx.beginPath(); ctx.arc(bx+62,y0+44,3,0,Math.PI*2); ctx.fill(); }
-      if(cur) drawTextC(JACK_NAMES[i], bx+35, y0+h+2, '#ffffff', 1);
+      if(!on){ ctx.fillStyle='rgba(10,6,24,0.35)'; uiRound(bx+2,top+8,pill-10,36,8); ctx.fill(); }
+      if(on&&enh) uiSparkle(bx+pill-14,top+10,4,icols[i],0.9);
+      if(cur) drawTextC(JACK_NAMES[i], bx+(pill-6)/2, top+48, '#ffffff', 2);
     });
-    if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawTextR('KNOWL TREE 2X',W-22,y0+40,C.MINT,1); ctx.globalAlpha=1; }
-    if(Math.abs(p.vx)>0.3) drawTextR('SPD '+Math.round(Math.abs(p.vx)),W-22,y0+12,'#ece4ff',1);
-    if(GP&&GP.pad) drawTextR('PAD',W-22,y0+26,C.GREEN,1);
-    // the charge meter (sprint / duck / wall jump) under the bar
     const ch=_playerChargeInfo(p), cs=ch.chargeFrac;
     if((p.og&&cs>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||ch.sprinting){
       const ready=p.duckBoostReady||p._wallChargeReady||ch.ready;
-      uiBar(14,y0+h+8,130,10,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
+      uiBar(left,top+lh+6,lw,12,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
     }
   }
   function drawLaituTag(){
@@ -1860,7 +1872,7 @@
     {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
     {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. UP / DOWN REEL IN AND OUT,','A JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
     {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
-    {name:'MAG MAGNET', lines:['HOLD X (Q) TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. THE GRIP','WEAKENS AS POWER DRAINS. SWING AND LET GO','TO THROW. B (E) SWITCHES ITEMS.']}
+    {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. AIM DOWN AND','IT LOCKS TO THE FLOOR. THE GRIP WEAKENS AS','POWER DRAINS. LET GO TO THROW.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
   // Paulo: the item card only comes up the first time you get that item

@@ -213,7 +213,7 @@
     ctx.restore();
   }
   // the loose item: the jack itself (or the Isolator ring), glowing so it reads as a pickup
-  const NAMES=['TRS','RCA','XLR','MAG','ISOLATOR'];
+  const NAMES=['TRS','RCA','XLR','MEG','ISOLATOR'];
   function drawItem(c){
     const it=box(c).item; if(!it) return;
     const D=window.MV_BETA_DECOR;

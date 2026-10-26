@@ -602,7 +602,7 @@
     }
   }
   // A wooden crate with a paper label showing the jack inside (all male plugs).
-  const ITEM_NAMES=['TRS','RCA','XLR','MAG','ISOLATOR','KNIFE'];
+  const ITEM_NAMES=['TRS','RCA','XLR','MEG','ISOLATOR','KNIFE'];
   // the Isolator: an orange rubber ring with a sealed core (the sketch's orange circle with a dot)
   function isolatorIcon(x,y,s){
     ctx.save(); ctx.translate(x,y); ctx.scale(s,s);

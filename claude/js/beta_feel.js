@@ -287,13 +287,13 @@
   const visEnd=()=>{ if(_ropeInHand()){ const pose=computeConnectorArmPose(p); return pose.worldNose||{x:pose.noseX,y:pose.noseY}; } return hookAttachWorld(); };
   // Paulo (Oct 21): switching items while hooked, MIND takes the rope and clips it onto his
   // body (or unclips it back into his hand) — a short animation of the plug travelling
-  const CLIP_FR=16;                                          // a quick reach back and a plug-in
+  const CLIP_FR=36;                                          // a reach back you can see, then the plug-in
   B.ropeClip=null;
   // Paulo (Oct 22): the RCA stays on the arm while hooked. Only when he SWITCHES to another
   // item does the other (glove) hand reach over, pull the jack off the arm, carry it up over
   // his head — elbow to the sky — and plug it into the top back of the box. Then he swings
   // from there with the new item in hand.
-  const PLUG_FR=26, GRAB=0.3, PIN=44.5*0.7, BOOT=18*0.7;
+  const PLUG_FR=52, GRAB=0.22, PIN=44.5*0.7, BOOT=18*0.7;
   const SEAT=()=>p.fc?0.55:Math.PI-0.55;                     // the angle the plug seats at (as render.js draws it)
   B.ropeClipPoint=function(){
     const c=B.ropeClip; if(!c) return null;
@@ -301,7 +301,7 @@
       const k=Math.min(1,c.t/PLUG_FR), A={x:p.x+c.rel.dx, y:p.y+c.rel.dy};
       if(k<GRAB) return {x:A.x, y:A.y, k:0, ang:c.ang0, toBody:true, grab:true, gk:k/GRAB};
       const u=(k-GRAB)/(1-GRAB), e=u*u*(3-2*u), Bp=hookAttachWorld();
-      const C={x:p.x+SW/2+(p.fc?-1:1)*4, y:Bp.y-62};         // over the top of his head
+      const C={x:p.x+SW/2+(p.fc?-1:1)*4, y:Bp.y-108};        // a high arc over the head, slow enough to read
       const x=(1-e)*(1-e)*A.x+2*(1-e)*e*C.x+e*e*Bp.x, y=(1-e)*(1-e)*A.y+2*(1-e)*e*C.y+e*e*Bp.y;
       return {x, y, k:e, ang:c.ang0, toBody:true};
     }
@@ -336,7 +336,7 @@
     let e1={x:mx+nx*hh,y:my+ny*hh}, e2={x:mx-nx*hh,y:my-ny*hh};
     if((e1.y<e2.y)!==up){ const t=e1; e1=e2; e2=t; }           // elbow up (over the head) or down (the reach)
     const lift=up?w:0;
-    return {hx, hy, ex:e1.x, ey:e1.y-6*lift, up};
+    return {hx, hy, ex:e1.x, ey:e1.y-22*lift, up};
   };
   function clipTick(){
     const c=B.ropeClip; if(!c) return;
@@ -346,10 +346,10 @@
       const piv=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
       h.rl=Math.max(ROPE_RL_MIN,h.rl+Math.hypot(b.x-piv.x,b.y-piv.y)-Math.hypot(a.x-piv.x,a.y-piv.y));
       h._grace=Math.max(h._grace||0,10); h.vr=null; h._cord=null;
-      p._plugArchT=10;                                           // hold the arched arm a beat
+      p._plugArchT=36;                                           // hold the hand on the back so the seat reads
     }
     if(c.rel){ c.grab=c.t<PLUG_FR*GRAB; if(c.t===Math.round(PLUG_FR*GRAB)) try{ sfx('grap_attach'); }catch(e){} }   // the click of the jack coming off
-    if(++c.t>=(c.rel?PLUG_FR:CLIP_FR)){ B.ropeClip=null; if(c.rel) p._plugArchT=12; try{ sfx('grap_attach'); }catch(e){}
+    if(++c.t>=(c.rel?PLUG_FR:CLIP_FR)){ B.ropeClip=null; if(c.rel) p._plugArchT=36; try{ sfx('grap_attach'); }catch(e){}
       const q=hookAttachWorld(); for(let k=0;k<6;k++) PFXS.push({x:q.x,y:q.y,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:10,maxLife:10,r:1.5,col:'#e0e0ff'}); }
   }
   B.clipTick=clipTick;
