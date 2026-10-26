@@ -1,33 +1,39 @@
----
-description: Auto-commit and push MV2 (Mind & Venture) to GitHub after substantive changes
+﻿---
+description: Auto-commit and push MV2 (Mind & Venture) to the dev branch after substantive changes
 alwaysApply: true
 ---
 
-# Auto commit & deploy — Mind & Venture (MV2)
+# Auto commit & push dev — Mind & Venture (MV2)
 
-After completing substantive work in this repo, **commit and push without asking**.
+After completing substantive work in this repo, **commit and push `dev` without asking**.
+Never push `main` by hand: Homebase Daily Ship (05:00) merges dev into main, runs the
+selftest, and takes it live (GitHub Pages + itch) only if dev has new commits.
 
 ## When to commit
 
-- Game code (`index.html`, `js/**`, `sw.js`), assets, maps, and player-facing fixes
+- Game code (`index.html`, `claude/**`, `js/**`, `sw.js`), assets, maps, and player-facing fixes
 - Do **not** commit IDE junk (`.vs/`, `DocumentLayout*.json`, `.suo`, backup files)
 - Do **not** commit secrets or large binary blobs unrelated to the task
 - Do **not** commit unless there are real changes (no empty commits)
 
 ## Workflow
 
-1. `git status` and `git diff` — stage only files related to the task
-2. Write a concise commit message (1–2 sentences, focus on why)
-3. `git add` → `git commit` → `git push origin main`
-4. Briefly tell the user: commit hash, push succeeded, and that **GitHub Pages** (`https://paulooventura.github.io/MV2/`) deploys from `main` automatically
+1. `git branch --show-current` must say `dev` (`git switch dev` if not)
+2. `git status` and `git diff` — stage only files related to the task, by explicit path
+3. Write a concise commit message (1–2 sentences, focus on why)
+4. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
+5. Tell Paulo: commit hash, and "it's in the Test lab now" (quest screen → The Office → Test lab).
+   It goes live at `https://mindandventure.pauloventura.org/` after the next Daily Ship.
+
+Urgent live fix only when Paulo says "ship now" / "push live now":
+`powershell -File C:\Users\PVProductions\HOMEBASE\scripts\daily-ship.ps1 -Only MV2`
 
 ## Remote
 
 - Repo: `https://github.com/paulooventura/MV2.git`
-- Branch: `main`
-- Root: `C:\Users\PVProductions\.cursor\Home\MIND-AND-VENTURE`
+- Work branch: `dev` · live branch: `main` (Daily Ship only)
 
 ## Do not
 
-- Force-push, amend pushed commits, or skip hooks unless the user explicitly asks
+- Push `main`, force-push, amend pushed commits, or skip hooks unless the user explicitly asks
 - Stage entire `.vs/` folders or unrelated C# Unity experiments unless the user asked for those

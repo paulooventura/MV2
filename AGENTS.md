@@ -109,15 +109,18 @@ The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.j
 
 ---
 
-## Auto commit & deploy
+## Auto commit & push dev
 
-After completing substantive work in this repo, **commit and push to `main` without asking**.
+After completing substantive work in this repo, **commit and push to `dev` without asking**. Never push `main` by hand.
 
-1. `git status` / `git diff` — stage only task-related files
-2. Concise commit message (why, not just what)
-3. `git add` → `git commit` → `git push origin main`
-4. Tell the user: commit hash, push OK, and that **GitHub Pages** (`https://mindandventure.pauloventura.org/`) deploys from `main` automatically
+1. `git branch --show-current` must say `dev`
+2. `git status` / `git diff` — stage only task-related files, by explicit path (other agents share this checkout)
+3. Concise commit message (why, not just what)
+4. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
+5. Tell Paulo: commit hash, and "it's in the Test lab now" (quest screen → The Office → Test lab)
 
-**Do not commit:** `.vs/`, `.cursor/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
+**Going live:** Homebase Daily Ship (05:00, `HOMEBASE\scripts\daily-ship.ps1`) merges dev into `main`, runs the selftest, and pushes `main` (GitHub Pages, `https://mindandventure.pauloventura.org/`) and itch, only if dev has new commits. Urgent fix when Paulo says "ship now": `daily-ship.ps1 -Only MV2`.
 
-**Remote:** `https://github.com/paulooventura/MV2.git` · branch `main`
+**Do not commit:** `.vs/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
+
+**Remote:** `https://github.com/paulooventura/MV2.git` · work branch `dev` · live branch `main` (Daily Ship only)
