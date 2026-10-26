@@ -26,6 +26,13 @@
 //  joins in on the block you're working on — and it is always proactive about
 //  threats: any enemy near you gets attacked at full strength, and it moves to
 //  your side facing the danger (when there's floor there) to cover you.
+//  Oct 26 (T124): its own brain. Close by it picks its OWN spot near you (in the scene, one it can
+//  walk to, covering your side that faces danger, out of your line of fire, looking around when
+//  you idle) instead of copying your trail. It reads what you're doing: punching a block (it
+//  walks up to the same wall and punches it with you — the basement omniblock wall), fighting an
+//  enemy (it goes for that one first) or pulling with the MAG (it stands clear and holds its MAG
+//  on the same load); a "!" pops over its head the moment it clocks it. Enemies right by it get
+//  punched; enemies near it, not just near you, get shot.
 //  SOLO: the other sibling stays home — it potters around the house like Laitu
 //  does in hers (walks the floor it's on, stops, looks at you when you're near).
 // ============================================================
@@ -35,15 +42,16 @@
   const KEY='mv2.sibling';
   const read=()=>{ try{ const v=localStorage.getItem(KEY); return v==null?true:v==='1'; }catch(e){ return true; } };
   let on=read();
-  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0};
+  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0};
   let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return ff; }, set ff(v){ ff=!!v; try{ localStorage.setItem(KEY+'.ff',ff?'1':'0'); }catch(e){} },   // friendly fire
-    state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail };
+    state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail, probe:()=>({floorStep, walkable, inView, standOk, deadly}) };
   B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
   const KEEP=900, MIN_GAP=62, LOST=560;
-  const NEAR_IN=110, NEAR_OUT=150, HOVER_MAX=90, LOST_T=360, FAR=1400, UP_MAX=15.5;
+  const NEAR_IN=110, NEAR_OUT=230, HOVER_MAX=90, LOST_T=360, FAR=1400, UP_MAX=15.5;
+  const BANG_T=60, PUNCH_CD=24, PUNCH_R=84, PUNCH_R_WALL=100, ACT_HOLD={block:240, fight:180, pull:24};
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
 
   function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results; }
@@ -53,6 +61,7 @@
     S.hero=p.hero==='venture'?'mind':'venture';
     S.x=p.x-(p.fc?1:-1)*MIN_GAP; S.y=p.y; S.fc=p.fc; S.og=true; S.hp=S.maxHp;
     S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=0;
+    S._pref=80+Math.random()*50; S._act=null; S._spot=null; S._bang=0; S._punchCd=0;
     lastLevel=B.level; lastHero=p.hero;
     record(); reenter();
   }
@@ -62,16 +71,19 @@
     for(let i=1;i<n;i++){ const t=i/n; if(typeof gridWorldSolid==='function'&&gridWorldSolid(x0+(x1-x0)*t,y0+(y1-y0)*t)) return false; }
     return true;
   }
-  // the enemy that matters to YOU: alive, visible, nearest you (and closing in counts double)
+  // the enemy that matters to YOU: alive, visible, nearest you (and closing in counts double);
+  // the one you're fighting comes first; one right by it (not near you) still gets dealt with
   function pickThreat(){
     const P=centre(p), me=centre(S); let best=null, bs=1e9;
+    const yours=S._act&&S._act.kind==='fight'?S._act.tgt:null;
     for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){
       if(!e||!e.alive||e._hidden||e._betaHeld||e._spawnFx>0) continue;
-      const ex=e.x+(e.w||0)/2, ey=e.y+(e.h||0)/2, dP=Math.hypot(ex-P.x,ey-P.y);
-      if(dP>360) continue;
+      const ex=e.x+(e.w||0)/2, ey=e.y+(e.h||0)/2, dP=Math.hypot(ex-P.x,ey-P.y), dS=Math.hypot(ex-me.x,ey-me.y);
+      if(dP>360&&dS>220&&e!==yours) continue;
       const closing=((P.x-ex)*(e.vx||0)+(P.y-ey)*(e.vy||0))>0;
-      const score=dP*(closing?0.6:1);
-      if(score<bs&&clearLine(me.x,me.y-6,ex,ey)){ bs=score; best={e,ex,ey,dP}; }
+      let score=dP>360?dS+260:dP*(closing?0.6:1);
+      if(e===yours) score*=0.4;
+      if(score<bs&&clearLine(me.x,me.y-6,ex,ey)){ bs=score; best={e,ex,ey,dP,dS}; }
     }
     return best;
   }
@@ -178,6 +190,7 @@
   //    player out of the blue"). The newest spot on your trail the camera can't see, on solid
   //    ground; else floor just past the screen edge behind you; else a quick zip in from the edge.
   function reenter(){
+    S._spot=null; if(S._act) S._act.spot=null;
     ropeIdle(S); S.vx=S.vy=S._hvx=S._hvy=0; S._fly=false; S._flying=false; S._plan=null; S._stuck=0; S._noProg=0; S._best=null; S._launchT=0; S._zip=null; S._trailMode=false;
     const back=p.fc?-1:1, v=view();
     for(const behindOnly of [true,false]) for(let i=trail.length-1;i>=0;i--){
@@ -266,9 +279,9 @@
     if(S._ropeCd>0) S._ropeCd--;
     if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
     if(S._fly){ hoverTick(); return; }
-    const cov=coverSpot(S._threat);
+    const spot=pickSpot(), work=!!spot.work;
     // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". Close by it eases up to a
-    // spot behind you and stops; further off it rides your trail (Oct 25), jumping where you jumped.
+    // spot of its own choosing (Oct 26) and stops; further off it rides your trail (Oct 25), jumping where you jumped.
     // The side it keeps changes only after you've faced the other way for a while.
     const solid=solidAt;
     const want=p.fc?-1:1;
@@ -281,8 +294,9 @@
     if(dist>200&&!S._waiting&&!youMoving){ if(S._best==null||dist<S._best-40){ S._best=dist; S._noProg=0; } else S._noProg=(S._noProg||0)+1; }
     else if(dist<=200){ S._best=null; S._noProg=0; S._scanFail=0; }
     if((S._noProg||0)>LOST_T||(S._stuck||0)>LOST_T||(dist>FAR&&offScreen(S.x,S.y,0))){ reenter(); return; }
-    if(S._trailMode){ if((dist<NEAR_IN&&Math.abs(dyP)<60)||pm||trail.length<4) S._trailMode=false; }
-    else if(trail.length>=4&&!pm&&!cov&&(dist>NEAR_OUT||dyP<-100)){ S._trailMode=true; S._ti=null; }
+    const toSpot=Math.hypot(spot.x-S.x,spot.y-S.y);
+    if(S._trailMode){ if((dist<NEAR_IN&&Math.abs(dyP)<60)||(toSpot<60&&dist<NEAR_OUT)||pm||trail.length<4) S._trailMode=false; }
+    else if(trail.length>=4&&!pm&&(dist>(work?320:NEAR_OUT)||(dyP<-100&&Math.abs(spot.y-S.y)>60))){ S._trailMode=true; S._ti=null; }
     S._waiting=false;
     const x0=S.x;
     let tx, maxV, plan=S._plan;
@@ -319,13 +333,13 @@
       }
       maxV=Math.min(MOVE_RUN,Math.max(4.5,Math.abs(p.vx||0)+1.8));    // a touch faster than you, to catch up
     }else{
-      tx=cov?cov.x:p.x+S._side*70;
-      if(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60)) tx=p.x+S._side*34;   // a wall there: tuck in closer
-      if(pm&&!cov){ const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
-      maxV=Math.max(3,Math.abs(p.vx||0)+1.2);
+      tx=spot.x;
+      if(spot.fb&&(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60))) tx=p.x+S._side*34;   // a wall there: tuck in closer
+      if(pm){ tx=p.x+S._side*70; const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
+      maxV=Math.max(work||S._threat?4.2:3,Math.abs(p.vx||0)+1.2);
     }
     S._flying=false;
-    const dx=tx-S.x, adx=Math.abs(dx), dead=16, dir=Math.sign(dx);
+    const dx=tx-S.x, adx=Math.abs(dx), dead=work&&!S._trailMode?5:16, dir=Math.sign(dx);
     if(S._launchT>0&&S.og) S._launchT=0;
     if(plan&&!S.og){ S.vx+=(plan.vx-S.vx)*0.5; }                     // in its jump: steer along the arc it planned
     else if(S._launchT>0){ S._launchT--; S.vx*=0.995; }             // just let go of its rope: the swing carries it until it lands
@@ -342,10 +356,11 @@
       const wall=adx>dead&&(solid(ax,feet-24)||solid(ax,feet-52));
       let ledge=false, gap=false, ontoPlat=false;
       if(!S._trailMode){                                               // on the trail, your own jumps are the plan
-        ledge=dyP<-48&&Math.abs(dxP)<150&&p.og;                         // you're up a step: hop up after you
+        const dyT=spot.fb||pm?dyP:spot.y-S.y;                          // up to its spot (or to you)
+        ledge=dyT<-40&&Math.abs(tx-S.x)<150&&(p.og||work);              // its spot is up a step: hop up
         // a gap ahead (no floor under the next stretch) with somewhere to land at about this height: leap it
         if(adx>40&&Math.abs(S.vx)>1.2){ const fx=S.x+SW/2+dir*(SW/2+18); let floorAhead=false; for(let yy=feet+4;yy<feet+90;yy+=12) if(solid(fx,yy)){ floorAhead=true; break; }
-          if(!floorAhead&&dyP<40&&!deadly(S.x+dir*120,S.y+60)) gap=true; }
+          if(!floorAhead&&dyT<40&&!deadly(S.x+dir*120,S.y+60)) gap=true; }
         ontoPlat=pm&&S._ridePlat!==pm&&dyP<-20&&Math.abs(dxP)<170;      // hop onto the platform you're riding
       }
       if(wall||ledge||gap||ontoPlat){ S.vy=-10.8; S.og=false; if(gap||ontoPlat) S.vx=dir*Math.max(Math.abs(S.vx),3.2); }
@@ -356,24 +371,35 @@
     const moved=S.x-x0;
     if(adx>60&&Math.abs(moved)<0.25&&!S._waiting) S._stuck=(S._stuck||0)+1; else S._stuck=Math.max(0,(S._stuck||0)-2);
     if(S._stuck===40){                                                 // walled in for 2/3 s: your trail if there is one, a short hover if not
+      if(!S._trailMode){ S._spot=null; if(S._act){ S._act.badSpot=fr; S._act.spot=null; } }   // that spot can't be reached from here: pick another
       if(!S._trailMode&&trail.length>=4){ S._trailMode=true; S._ti=null; }
       else{ const ahead=S._trailMode&&S._ti!=null?trail[Math.min(trail.length-1,S._ti+60)]:{x:p.x+S._side*70,y:p.y}; startHover(ahead); }
     }
-    S.crouchAmt=(S.crouchAmt||0)+(((cov?0:(p.crouchAmt||0)))-(S.crouchAmt||0))*0.2;
+    S.crouchAmt=(S.crouchAmt||0)+((S._trailMode?(p.crouchAmt||0):0)-(S.crouchAmt||0))*0.2;   // ducks through your tunnels; never mimics a duck otherwise
     S.wheelAngle=(S.wheelAngle||0)+moved/WHEEL_R;
-    // facing: with its motion when it's really moving, otherwise the way you face — and no flicker
-    const wantFc=Math.abs(S.vx)>0.9?S.vx>0:(S._threat?S._threat.ex>S.x+SW/2:p.fc);
+    // facing: with its motion when it's really moving, otherwise toward what it's busy with, else you
+    const look=lookAt();
+    const wantFc=Math.abs(S.vx)>0.9?S.vx>0:(look?look.x>S.x+SW/2:p.fc);
     if(wantFc!==S.fc){ if(++S._fcT>8){ S.fc=wantFc; S._fcT=0; } } else S._fcT=0;
   }
   function assist(){
     if(S.hook&&S.hook.st!=='idle'){ S._threat=null; return; }   // both hands on its rope
-    const t=pickThreat(), me=centre(S); S._threat=t;
+    const t=pickThreat(), me=centre(S); S._threat=t; S._magShow=false;
     S._shotCd=(S._shotCd||0)-1;
-    if(!t){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; helpBlock(null); return; }
+    if(!t){
+      if(joinAct()) return;
+      if(!(S.pt>0)){ S.aimDX+=((S.fc?1:-1)-S.aimDX)*0.2; S.aimDY*=0.8; }
+      S.pupilX=(S.pupilX||0)*0.8; S.pupilY=(S.pupilY||0)*0.8; return;
+    }
     const dx=t.ex-me.x, dy=t.ey-me.y, d=Math.hypot(dx,dy)||1;
-    S.aimDX+=(dx/d-S.aimDX)*0.35; S.aimDY+=(dy/d-S.aimDY)*0.35;
+    if(!(S.pt>0)){ S.aimDX+=(dx/d-S.aimDX)*0.35; S.aimDY+=(dy/d-S.aimDY)*0.35; }
     if(Math.abs(dx)>6) S.fc=dx>0;
     if(S._fly||S._zip) return;                                   // it fights from the ground or mid-jump, never from a hover
+    // right by it: a punch, like you would
+    if(S.og&&!(S._punchCd>0)&&Math.abs(dx)<PUNCH_R&&Math.abs(dy)<64&&(typeof _punchReach!=='function'||_punchReach(me.x,me.y,t.ex,t.ey,{x:t.e.x,y:t.e.y,w:t.e.w||0,h:t.e.h||0}))){
+      sibPunch(t.ex,t.ey,(fx,fy)=>{ sibEnemyHitFr=fr; if(typeof _damageEnemy==='function') _damageEnemy(t.e,typeof ENM_DMG!=='undefined'?ENM_DMG.punch:15,fx,fy,1); try{ sfx('punch_hit',1.15); }catch(e){} });
+      return;
+    }
     if(S._shotCd>0) return;
     // never across you: skip the shot if you're between it and the target
     const P=centre(p), seg=((P.x-me.x)*dx+(P.y-me.y)*dy)/(d*d);
@@ -405,7 +431,7 @@
         if(!en||!en.alive||en._hidden) continue;
         if(b.x>=en.x&&b.x<=en.x+(en.w||0)&&b.y>=en.y&&b.y<=en.y+(en.h||0)){
           const dmg=b.urgent?12:9;                                       // always for real: it protects you
-          if(typeof _damageEnemy==='function') _damageEnemy(en,dmg,b.x-b.vx*3,b.y-b.vy*3,0.45);
+          sibEnemyHitFr=fr; if(typeof _damageEnemy==='function') _damageEnemy(en,dmg,b.x-b.vx*3,b.y-b.vy*3,0.45);
           fizz(b,true); bolts.splice(i,1); break;
         }
       }
@@ -423,25 +449,184 @@
     }
     if(blockT&&(blockT.w.hp<=0||fr-blockT.t>240)) blockT=null;               // broken, or you've moved on
   }
-  function helpBlock(threat){
-    if(threat||!blockT||S._shotCd>0||S._fly||S._zip) return;
-    const w=blockT.w, me=centre(S), cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2;
-    if(w.only==='laser') return;                                              // TRS-only blocks are yours
-    const dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) return;
-    { const n=Math.ceil(Math.max(0,d-26)/12); for(let k=1;k<n;k++){ const x=me.x+dx/d*k*12, y=me.y-6+dy/d*k*12; if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)&&!(x>=w.x&&x<=w.x+(w.w||32)&&y>=w.y&&y<=w.y+(w.h||32))) return; } }   // a wall in between: not its shot
-    S.aimDX=dx/d; S.aimDY=dy/d; if(Math.abs(dx)>6) S.fc=dx>0;
-    const tp=tipOf(S); if(!clearLine(me.x,me.y-6,tp.x,tp.y)) return;
-    S._shootT=40;
-    S._shotCd=22; bolts.push({x:tp.x,y:tp.y,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
-    S.fireRecoil=5; try{ sfx('laser',S.hero==='venture'?1.3:1.45); }catch(e){}
+  // a bolt at a block of the wall you're working on, the one it can see (when it can't get to a punching spot)
+  function boltBlock(w0){
+    if(S._shotCd>0||S._fly||S._zip) return;
+    const me=centre(S);
+    for(const w of wallOf(w0)){
+      const cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2, dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1; if(d>320) continue;
+      let ok=true; const n=Math.ceil(Math.max(0,d-26)/12);
+      for(let k=1;k<n&&ok;k++){ const x=me.x+dx/d*k*12, y=me.y-6+dy/d*k*12; if(solidAt(x,y)&&!(x>=w.x&&x<=w.x+(w.w||32)&&y>=w.y&&y<=w.y+(w.h||32))) ok=false; }   // a wall in between: not its shot
+      if(!ok) continue;
+      const P=centre(p), seg=((P.x-me.x)*dx+(P.y-me.y)*dy)/(d*d);
+      if(seg>0&&seg<1&&Math.hypot(me.x+dx*seg-P.x,me.y+dy*seg-P.y)<26) continue;     // never across you
+      S.aimDX=dx/d; S.aimDY=dy/d; if(Math.abs(dx)>6) S.fc=dx>0;
+      const tp=tipOf(S); if(!clearLine(me.x,me.y-6,tp.x,tp.y)) return;
+      S._shootT=40;
+      S._shotCd=22; bolts.push({x:tp.x,y:tp.y,vx:dx/d*11,vy:dy/d*11,bw:w,life:45});
+      S.fireRecoil=5; try{ sfx('laser',S.hero==='venture'?1.3:1.45); }catch(e){}
+      return;
+    }
   }
-  // ── cover: step to your side that faces the danger, when there's floor there ──
-  function coverSpot(t){
-    if(!t||!p.og||typeof gridWorldSolid!=='function') return null;
-    const side=t.ex>p.x+SW/2?1:-1, x=p.x+side*58, feet=p.y+FEET_OFF;
-    if(gridWorldSolid(x+SW/2,feet-30)||gridWorldSolid(x+SW/2,feet-60)) return null;            // a wall there
-    if(!gridWorldSolid(x+SW/2,feet+4)&&!gridWorldSolid(x+SW/2,feet+20)) return null;            // no floor there
-    return {x, y:p.y};
+
+  // ── reading you (T124): what are you doing, and how does it join in ──
+  const blockOk=w=>!!(w&&w.hp>0&&w.only!=='laser'&&w.only!=='push'&&w.only!=='pull'&&!w._carried&&!w._fly);   // TRS-only cages are yours; push/pull blocks don't break
+  // the breakable blocks of the same wall (within a few tiles of this one), nearest it first
+  function wallOf(w0){
+    const o=[]; for(const w of (typeof BWALLS!=='undefined'?BWALLS:[])) if(blockOk(w)&&Math.hypot(w.x-w0.x,w.y-w0.y)<=3.5*32) o.push(w);
+    return o.sort((a,b)=>Math.hypot(a.x-w0.x,a.y-w0.y)-Math.hypot(b.x-w0.x,b.y-w0.y));
+  }
+  let sibEnemyHitFr=-99; const hpE=new WeakMap();
+  function readAction(){
+    const P=centre(p), ax=p.aimDX||(p.fc?1:-1), ay=p.aimDY||0, al=Math.hypot(ax,ay)||1;
+    const punching=!!(p.pCharging||p.pt>0);
+    const inAim=(x,y,R,cone)=>{ const dx=x-P.x, dy=y-P.y, d=Math.hypot(dx,dy)||1; return d<=R&&(dx*ax+dy*ay)/(al*d)>=cone?d:0; };
+    let kind=null, tgt=null, bd=1e9;
+    for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){                    // an enemy you just hurt (not by its bolts)
+      if(!e) continue; const was=hpE.get(e); hpE.set(e,e.hp);
+      if(!kind&&e.alive&&was!=null&&e.hp<was&&fr-sibEnemyHitFr>3&&Math.hypot(e.x+(e.w||0)/2-P.x,e.y+(e.h||0)/2-P.y)<360){ kind='fight'; tgt=e; }
+    }
+    if(!kind&&p.magOn&&B.mag&&B.mag.held&&B.mag.held.length){ kind='pull'; tgt=B.mag.held[0]; }   // a load on your magnet
+    if(!kind&&punching){                                                      // your fist on its way to a block
+      for(const w of (typeof BWALLS!=='undefined'?BWALLS:[])){ if(!blockOk(w)) continue; const d=inAim(w.x+(w.w||32)/2,w.y+(w.h||32)/2,120,0.45); if(d&&d<bd){ bd=d; tgt=w; } }
+      if(tgt) kind='block';
+    }
+    if(!kind&&blockT&&fr-blockT.t<4&&blockOk(blockT.w)){ kind='block'; tgt=blockT.w; }   // a block you just chipped (fist, shot)
+    if(!kind&&punching) for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){   // squaring up to an enemy
+      if(!e||!e.alive||e._hidden) continue; const d=inAim(e.x+(e.w||0)/2,e.y+(e.h||0)/2,180,0.5); if(d&&d<bd){ bd=d; tgt=e; kind='fight'; }
+    }
+    const A=S._act;
+    if(kind){
+      const same=A&&A.kind===kind&&(A.tgt===tgt||(kind==='block'&&blockOk(A.tgt)&&Math.hypot(A.tgt.x-tgt.x,A.tgt.y-tgt.y)<=3.5*32));
+      if(!same){
+        S._act={kind,tgt,t:fr,t0:fr,spot:null,badSpot:-999}; S._bang=BANG_T; S._spot=null; stats.clocks++;   // it clocks it: "!"
+        try{ sfx('enemy_alert',S.hero==='venture'?1.25:1.4); }catch(e){}
+      }else{ A.t=fr; if(kind!=='block') A.tgt=tgt; }
+    }
+    const C=S._act; if(!C) return;
+    if(C.kind==='block'&&!blockOk(C.tgt)){ const nx=wallOf(C.tgt)[0]; if(nx){ C.tgt=nx; C.spot=null; } else { S._act=null; return; } }   // that one's broken: the next block of the same wall
+    const tx=C.tgt?C.tgt.x+(C.tgt.w||0)/2:P.x, ty=C.tgt?C.tgt.y+(C.tgt.h||0)/2:P.y;
+    if(fr-C.t>ACT_HOLD[C.kind]||Math.hypot(tx-P.x,ty-P.y)>360||(C.kind==='fight'&&!C.tgt.alive)){ S._act=null; S._spot=null; return; }   // you've moved on
+    if(C.kind==='block'&&(!C.spot||fr%20===0)){
+      const keep=C.spot&&blockOk(C.spot.work)&&Math.abs(C.spot.x-p.x)>=30;    // its place at the wall holds while you shuffle
+      if(!keep) C.spot=fr-C.badSpot>180?workSpot(C.tgt):null;
+    }
+  }
+  // a floor spot beside an open face of that wall, where its fist reaches a block, clear of you
+  function workSpot(w0){
+    const feet=p.y+FEET_OFF; let best=null, bs=-1e9;
+    for(const o of wallOf(w0)) for(const side of [-1,1]){
+      const faceX=side<0?o.x:o.x+(o.w||32), cy=o.y+(o.h||32)/2;
+      if(solidAt(faceX+side*6,cy)) continue;                                  // that face is buried
+      const x0=side<0?faceX-SW-6:faceX+6;
+      for(const back of [0,40]){                                              // right at the face, or at your shoulder when you're there
+        const x=x0+side*back;
+        let fy=null; for(let yy=Math.floor((cy+12)/8)*8;yy<=cy+120;yy+=8){ const c=x+SW/2; if(solidAt(c,yy)&&!solidAt(c,yy-8)&&!solidAt(c,yy-40)&&!solidAt(c,yy-66)){ fy=yy; break; } }
+        if(fy==null||deadly(x,fy-FEET_OFF)) continue;
+        if(Math.abs(x-p.x)<36&&Math.abs(fy-feet)<60) continue;               // you're standing there
+        if(!walkable(p.x,feet,x,fy)) continue;                                // it has to get there from you
+        const s=(o===w0?40:0)-back*0.6-Math.abs(cy-(fy-62))*0.6-Math.abs(x-S.x)*0.15;
+        if(s>bs){ bs=s; best={x, y:fy-FEET_OFF, work:o}; }
+      }
+    }
+    return best;
+  }
+  // the floor in this column within a step of a feet height
+  function floorStep(x,f){
+    const c=x+SW/2; let best=null, bd=1e9;
+    for(let yy=Math.floor((f-56)/8)*8;yy<=f+72;yy+=8){
+      if(!solidAt(c,yy)||solidAt(c,yy-8)||solidAt(c,yy-40)||solidAt(c,yy-66)) continue;
+      const d=Math.abs(yy-f); if(d<bd){ bd=d; best=yy; }
+    }
+    return best;
+  }
+  // can it roll from here to there along the floor (steps it can hop, no pits, no live water)
+  function walkable(x0,f0,x1,f1){
+    const dir=Math.sign(x1-x0), n=Math.ceil(Math.abs(x1-x0)/16); let f=f0;
+    for(let i=1;i<=n;i++){ const x=i===n?x1:x0+dir*16*i, g=floorStep(x,f); if(g==null||deadly(x,g-FEET_OFF)) return false; f=g; }
+    return Math.abs(f-f1)<28;
+  }
+  const inView=(x,m)=>{ const v=view(); return x>=v.x0+m&&x+SW<=v.x1-m; };
+  // ── its own spot near you (T124): in the scene, one it can get to, covering your side that faces
+  //    the danger, clear of your line of fire, and now and then a new one when you hang about ──
+  function pickSpot(){
+    const A=S._act, feet=p.y+FEET_OFF;
+    if(S._pref==null) S._pref=80+Math.random()*50;
+    if(A&&A.kind==='block'&&A.spot) return A.spot;
+    const sp=S._spot, t=S._threat, still=Math.hypot(p.vx||0,p.vy||0)<0.6&&p.og;
+    if(sp&&fr<sp.until&&Math.abs(p.x-sp.px)<90&&Math.abs(p.y-sp.py)<60&&(!!t)===sp.th&&(sp.fb||standOk(sp.x,sp.y))) return sp;
+    const using=!!(p.xlrOn||p.magOn||p.pCharging||p.pt>0||p.fireRecoil>0);
+    const urgent=!!t&&(t.dP<160||(p.hp||0)<(p.maxHp||100)*0.5);
+    const load=A&&A.kind==='pull'&&A.tgt?A.tgt.x+(A.tgt.w||32)/2:null;
+    const wander=!t&&still&&sp&&fr>=sp.until;                                 // you're hanging about: it finds somewhere new to be
+    if(wander) S._pref=70+Math.random()*90;
+    let best=null, bs=-1e9;
+    for(let k=-8;k<=8;k++){
+      if(k>-2&&k<2) continue;
+      const x=p.x+k*24; if(!inView(x,24)) continue;
+      const fy=floorStep(x,feet); if(fy==null||deadly(x,fy-FEET_OFF)) continue;
+      if(!walkable(p.x,feet,x,fy)) continue;
+      const d=Math.abs(x-p.x), side=Math.sign(x-p.x);
+      let s=-Math.abs(d-S._pref)*0.5-Math.abs(fy-feet)*0.4;
+      if(t){
+        const cx=x+SW/2, cy=fy-STAND_H*0.45, dT=Math.hypot(t.ex-cx,t.ey-cy);
+        s+=clearLine(cx,cy-6,t.ex,t.ey)?50:-40;                               // a clear shot at it
+        if(side===Math.sign(t.ex-(p.x+SW/2))) s+=urgent?60:30;                // between it and you
+        if(dT<90) s-=90;                                                      // not in its face
+      }else{
+        if(side===S._side) s+=18;                                             // it likes your back, but that's not a rule
+        if(using&&side===(p.fc?1:-1)&&Math.abs(fy-feet)<60) s-=60;            // out of your line of fire
+        if(load!=null&&side===Math.sign(load-(p.x+SW/2))) s-=50;              // clear of the load you're hauling
+        if(still) s+=(Math.random()-0.5)*24;                                  // it looks around on its own
+      }
+      if(sp&&Math.abs(x-sp.x)<26) s+=wander?-30:14;
+      if(s>bs){ bs=s; best={x, y:fy-FEET_OFF}; }
+    }
+    if(!best) best={x:p.x+S._side*70, y:p.y, fb:true};
+    else if(!sp||Math.abs(best.x-sp.x)>30) stats.spots++;
+    best.px=p.x; best.py=p.y; best.th=!!t; best.until=fr+(t?30:still?180+(Math.random()*180|0):45);
+    return S._spot=best;
+  }
+  // a punch from its glove (the hit lands at once; the arm is drawn by the game from S.pt)
+  function sibPunch(tx,ty,hit){
+    const me=centre(S), dx=tx-me.x, dy=ty-me.y, d=Math.hypot(dx,dy)||1;
+    S.aimDX=S.tAimDX=dx/d; S.aimDY=S.tAimDY=dy/d; if(Math.abs(dx)>4) S.fc=dx>0;
+    S.pt=7; S.pCharge=0; S.pCharging=false; S._hitDone=true; S._punchCd=PUNCH_CD; S._shotCd=Math.max(S._shotCd||0,10);
+    stats.punches++;
+    try{ sfx('punch',S.hero==='venture'?1.1:1.2); }catch(e){}
+    hit(me.x+dx/d*Math.min(d,60), me.y+dy/d*Math.min(d,60), Math.atan2(dy,dx));
+  }
+  // join what you're doing; true while it's busy with that (it doesn't idle-aim then)
+  function joinAct(){
+    const A=S._act; if(!A||S._fly||S._zip) return false;
+    const me=centre(S);
+    if(A.kind==='block'){
+      let o=null, od=1e9;
+      for(const w of wallOf(A.tgt)){ const cx=w.x+(w.w||32)/2, cy=w.y+(w.h||32)/2, d=Math.hypot(cx-me.x,cy-me.y);
+        if(d<=PUNCH_R_WALL&&d<od&&(typeof _punchReach!=='function'||_punchReach(me.x,me.y,cx,cy,w))){ od=d; o=w; } }
+      if(o){                                                                  // at the wall: punch it with you
+        if(!(S._punchCd>0)&&S.og&&Math.abs(S.vx)<1.5){
+          sibPunch(o.x+(o.w||32)/2,o.y+(o.h||32)/2,(fx,fy,a)=>{ sibHitFr=fr; if(typeof _damageBwall==='function') _damageBwall(o,'punch',{shakeX:Math.cos(a)*4,shakeY:Math.sin(a)*4}); });
+          if(od>70) S.pCharge=28;                                             // from your shoulder: the long hook reaches past you
+        }
+        return true;
+      }
+      if(!A.spot||Math.abs(S.x-A.spot.x)<12) boltBlock(A.tgt);               // no way to the wall (or out of reach there): bolts from where it stands
+      return true;
+    }
+    if(A.kind==='pull'&&A.tgt){                                              // its MAG on your load, from the side
+      const cx=A.tgt.x+(A.tgt.w||32)/2, cy=A.tgt.y+(A.tgt.h||32)/2, dx=cx-me.x, dy=cy-me.y, d=Math.hypot(dx,dy)||1;
+      S.aimDX+=(dx/d-S.aimDX)*0.3; S.aimDY+=(dy/d-S.aimDY)*0.3; if(Math.abs(dx)>6) S.fc=dx>0;
+      if(d<260){ S._magShow=true; if(fr%4===0){ const tp=tipOf(S), k=0.3+Math.random()*0.5; PFXS.push({x:tp.x+dx*k,y:tp.y+dy*k,vx:-dx/d*2.2,vy:-dy/d*2.2,life:10,maxLife:10,r:1.6,col:fr%8?'#ff6060':'#6090ff'}); } }
+      return true;
+    }
+    return false;
+  }
+  // what it looks at when it isn't moving
+  function lookAt(){
+    if(S._threat) return {x:S._threat.ex};
+    const A=S._act; if(A&&A.tgt) return {x:A.tgt.x+(A.tgt.w||0)/2};
+    return null;
   }
 
   // ── SOLO: the other sibling at home, pottering about like Laitu ──
@@ -641,7 +826,7 @@
     // the old lead walks with you from here: fresh trail, no leftover plans or hovers
     trail.length=0; record();
     S._ti=null; S._plan=null; S._fly=false; S._flying=false; S._zip=null; S._trailMode=false; S._noProg=0; S._best=null; S._stuck=0; S._waiting=false;
-    S._side=null; S._shotCd=30;
+    S._side=null; S._shotCd=30; S._act=null; S._spot=null; S._bang=0; S._punchCd=0; S.pt=0; if(S._pref==null) S._pref=80+Math.random()*50;
     for(const b of [p,S]){ const c=centre(b), col=b.hero==='venture'?'#ff8a96':'#d8b4ff';
       for(let k=0;k<14;k++){ const a=k/14*Math.PI*2; PFXS.push({x:c.x,y:c.y,vx:Math.cos(a)*4,vy:Math.sin(a)*4,life:14,maxLife:14,r:2.4,col}); } }
     stats.swaps++;
@@ -692,12 +877,13 @@
       if(S.fireRecoil>0) S.fireRecoil--;
       if(S.flashF>0) S.flashF--;
       if(S._shootT>0) S._shootT--;
+      if(S.pt>0) S.pt--; if(S._bang>0) S._bang--; if(S._punchCd>0) S._punchCd--;
       if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
       envTick(S);
       if(S._madT>0){ madTick(S); boltsTick(); return r; }
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
-      watchBlocks();
+      watchBlocks(); readAction();
       if(S.free>0){ bodyPhysics(S); assist(); boltsTick(); S._catch=30; return r; }      // moved by you: it lands, then rides back to your trail
       assist(); follow(); boltsTick();
     }catch(e){ console.warn('sibling',e); }
@@ -720,7 +906,7 @@
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       const swing=who===S&&S.hook&&S.hook.st!=='idle';
       const jack=ITEM===4?-1:(ITEM>=0?ITEM:-1);   // the kiritsuke is the lead's alone; the brother keeps fists
-      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._shootT>0?0:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
+      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._magShow?3:S._shootT>0?0:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
       try{
         who._armPose=computeConnectorArmPose(who);
@@ -728,7 +914,20 @@
         ctx.save(); ctx.globalAlpha=who===S&&S._blink>0?0.4+0.05*(12-S._blink):(who===S?0.92:1);
         try{ drawCharacterFor(who); } finally{ ctx.restore(); }
       } finally{ B.ropeClip=keep.rc; B.magPark=keep.mp; ITEM=keep.it; }   // your item, rope and magnet are always handed back
+      if(who===S&&S._bang>0) drawBang();
     }catch(e){ console.warn('sibling draw',e); }
     return r;
   };
+  // the "!" when it clocks what you're doing: pops in, holds, fades; its own colour (an enemy's is yellow)
+  function drawBang(){
+    const t=BANG_T-S._bang, a=t<44?1:Math.max(0,1-(t-44)/16), pop=t<8?0.5+0.7*Math.sin(t/8*Math.PI*0.75):1;
+    const x=sx(S.x+SW/2), y=sy(S.y)-sw(34)-Math.min(6,t*0.6), r=sw(13)*pop;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.fillStyle=S.hero==='venture'?'#ff8a96':'#d8b4ff'; ctx.strokeStyle='#1a0e08'; ctx.lineWidth=Math.max(2,sw(2.5));
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x-r*0.25,y+r*0.85); ctx.lineTo(x,y+r*1.45); ctx.lineTo(x+r*0.3,y+r*0.82); ctx.fill();
+    ctx.fillStyle='#1a0e08'; ctx.font=Math.round(r*1.9)+'px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('!',x,y+r*0.06);
+    ctx.restore();
+  }
 })();
