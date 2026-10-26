@@ -440,7 +440,8 @@
       // the sibling itself: a touch see-through while it blinks in, never the focus
       const keep={rc:B.ropeClip, mp:B.magPark, it:ITEM};
       const swing=who===S&&p.hook&&p.hook.st==='on';
-      const show=who._madT>0?-1:(who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:(ITEM>=0?ITEM:0)));   // a loaded punch is bare fists; otherwise its jack
+      const jack=ITEM===4?-1:(ITEM>=0?ITEM:-1);   // the kiritsuke is the lead's alone; the brother keeps fists
+      const show=who._madT>0?-1:(who!==S?-1:(S._shootT>0?0:swing?1:S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
       if(swing){                                                              // it swings with you: its own line to the same anchor
         const h=p.hook, P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
