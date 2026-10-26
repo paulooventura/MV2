@@ -83,6 +83,8 @@ function _pickFromPool(pool,except){
 const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
 const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
 const GORE_TRACK='assets/bgm/chaos-theory.mp3';
+const SNES_TRACK='assets/bgm/snes-awdjoo.mp3';
+const GENESIS_TRACK='assets/bgm/genesis-awdjoo.mp3';
 function _filterMode(){
   try{
     const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
@@ -97,24 +99,35 @@ function _filterMode(){
   }catch(e){}
   return 'ink';
 }
-// Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. Other filters keep the OST.
+// Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. SNES and Genesis
+// each have their own Awdjoo theme. POSH keeps the OST.
 function _inkSound(){ return _filterMode()==='ink'; }
 function _goreSound(){ return _filterMode()==='gore'; }
+function _snesSound(){ return _filterMode()==='snes'; }
+function _genesisSound(){ return _filterMode()==='md'; }
+function _filterScore(type){
+  if(_goreSound()) return GORE_TRACK;
+  if(_inkSound()) return type==='story'?INK_STORI:INK_1GO;
+  if(_snesSound()) return SNES_TRACK;
+  if(_genesisSound()) return GENESIS_TRACK;
+  return null;
+}
 window.MV_INK_SOUND=_inkSound;
 window.MV_GORE_SOUND=_goreSound;
+window.MV_SNES_SOUND=_snesSound;
+window.MV_GENESIS_SOUND=_genesisSound;
 function _pickRandomNewMusic(except){ return _pickFromPool(NEW_MUSIC_TRACKS,except); }
-function _pickTitleMusic(except){ if(_goreSound()) return GORE_TRACK; if(_inkSound()) return INK_1GO; return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
+function _pickTitleMusic(except){ const s=_filterScore('title'); if(s) return s; return _pickFromPool(TITLE_MUSIC_TRACKS,except)||_pickFromPool(STORY_MUSIC_TRACKS,except); }
 // The storyline theme (Paulo, Oct 22): "The Knowl Tree" opens every story — the intro pages
 // and the hero pick — always this song, never a random pick.
 const STORY_THEME='assets/bgm/the-knowl-tree.mp3';
-function _pickStoryMusic(except){ if(_goreSound()) return GORE_TRACK; if(_inkSound()) return INK_STORI; return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
+function _pickStoryMusic(except){ const s=_filterScore('story'); if(s) return s; return except!==STORY_THEME?STORY_THEME:(_pickFromPool(STORY_MUSIC_TRACKS,except)||_pickFromPool(TITLE_MUSIC_TRACKS,except)); }
 function _zoneMusicPath(idx){
   const i=Math.max(0,Math.min(ZONE_MUSIC_TRACKS.length-1,(idx!=null?idx:_zoneIdx)|0));
   return ZONE_MUSIC_TRACKS[i]||ZONE_MUSIC_TRACKS[0];
 }
 function _pickGameMusic(except){
-  if(_goreSound()) return GORE_TRACK;
-  if(_inkSound()) return INK_1GO;
+  const s=_filterScore('game'); if(s) return s;
   const path=_zoneMusicPath(typeof _zoneIdx!=='undefined'?_zoneIdx:0);
   if(path&&path!==except) return path;
   return path||_pickFromPool(ZONE_MUSIC_TRACKS,except);
@@ -438,7 +451,7 @@ function _playBGM(type,vol=0.7){
   };
   let el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
   if(!el) el=_mp3Pool[type];
-  const score=_goreSound()?GORE_TRACK:_inkSound()?(type==='story'?INK_STORI:INK_1GO):null;
+  const score=_filterScore(type);
   if(score&&_bgmPathFor(type)!==score) el=_loadBgmElement(type,score);
   if(!el){
     const path=_pickBgmPath(type,_bgmPathFor(type));

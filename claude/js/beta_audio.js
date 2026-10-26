@@ -23,6 +23,8 @@
   const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
   const GORE_TRACK='assets/bgm/chaos-theory.mp3';
   const GORE_TRACK_2='assets/bgm/chaos-theory-2.mp3';
+  const SNES_TRACK='assets/bgm/snes-awdjoo.mp3';
+  const GENESIS_TRACK='assets/bgm/genesis-awdjoo.mp3';
   const els={};
   let current=null, wantPlay=null, ensureN=0, held=null;
   const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75)); }catch(e){ return 0.75; } };
@@ -38,6 +40,8 @@
         if(name==='item'||name==='results'||name==='calm') return INK_STORI;
         return INK_1GO;
       }
+      if(window.MV_SNES_SOUND&&MV_SNES_SOUND()) return SNES_TRACK;
+      if(window.MV_GENESIS_SOUND&&MV_GENESIS_SOUND()) return GENESIS_TRACK;
     }catch(e){}
     return base;
   }
