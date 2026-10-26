@@ -202,6 +202,14 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 310 — the kiritsuke's feel + the 1.3 boss finish (Oct 26, Jack / T112)
+- New `js/beta_knife.js` (after `beta_music.js` on index + play-1-3), hooks only (no edits to `beta_foes.js`). `MV_KNIFE.state()` for tests.
+- **A+B drop:** jump + item-select within 6 frames drops the selected jack (TRS/RCA/XLR/MAG) in front of MIND; the drop wins over the hop / switch. Touch it to take it back. The knife never drops. Items left lying when the stage changes are given back.
+- **Boss intro:** the first time `B.bossOn` rises, the game holds, letterbox bars, camera on the Heptagon, 4 placeholder lines (`// PAULO: final lines`) typed with a voice blip. A = next, B = skip.
+- **Bolts:** 28 damage + big shove (was 10). Deflected by a fast knife swing (blade swept against bolts), a loaded slash's crescent, the XLR held (cone 230 px), the MAG held (pulled to the poles, thrown on release). Deflected bolts never hurt MIND and chip the Heptagon 8 (floor 1 HP: the knife finishes it).
+- **Finish:** after the fall's freeze the knife leaves MIND (bit 16 cleared), flies to `B.gate` with sparks, strikes it (`B.open=true`), stands up as a golden beam with rising motes + a swelling chord, and fades.
+- **Sound/feel:** band-passed noise whoosh per swing (up/down alternate), loaded slash longer + lower by reach; blade tip in rock = clang + sparks + scrape mark + 2–3 frame hitstop + push back; "shing" on drawing it; a hum that rises with the heat.
+
 ### Build 286 — music sources + the heptagon's fall (Oct 22, Claude)
 - **New `js/beta_music.js`** (loaded after `beta_city.js` on all four pages) is a music director, run after each `update`. Each frame it picks the track and places it on its source, and sets `B.music` so the item window hands back the right one.
   - 1.2: `B.music` from D (`e.mirror`) while D is on; the `calm` track from the exit gate once D is down.
