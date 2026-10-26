@@ -904,11 +904,9 @@
     'THE XLR THROWS YOU BACK FROM WHERE YOU AIM.','KNOWLS WAKE ANYTHING UP. CAREFUL!'];
 
   // ── Magnet carry (Paulo): hold the MAG to lock things to the poles and carry
-  //   them. Grip is a weight budget: full power holds 9 units = 3 omni cubes,
-  //   or one enemy / pull block / knowl / object. As power drains the budget
-  //   shrinks and the outer cubes slip off; the last thing held lets go only
-  //   at 0%. Held things sit flush on the poles. Letting go is immediate:
-  //   they leave with the speed the body already has.
+  //   them. One thing at a time (#144): a cube, enemy, pull block, knowl or
+  //   object; it lets go only at 0%. Held things sit flush on the poles. Letting
+  //   go is immediate: they leave with the body's speed plus the arm's swing.
   const MAG={LOCK:104, DRAIN:0.45, GAME_DRAIN:1.55, ENH_DRAIN:1.0, THROW:1.25, MAXV:20, GRIP:9};
   const magCap=pw=>MAG.GRIP*Math.max(0,pw)/100;
   const heldWeight=()=>B.mag.held.reduce((s,h)=>s+weightOf(h.kind,h.ref),0);
@@ -924,6 +922,7 @@
   }
   function throwVel(){
     let vx=p.vx||0, vy=p.vy||0;
+    if(B.magSwing){ const w=B.magSwing(); vx+=w.x; vy+=w.y; }       // the arm's swing (beta_items.js)
     const s=Math.hypot(vx,vy); if(s>MAG.MAXV){ vx*=MAG.MAXV/s; vy*=MAG.MAXV/s; }
     return {vx, vy};
   }
@@ -1160,7 +1159,7 @@
     }
     M.wasOn=on; if(!on) M.noRelock=false;
     if(!on||p.itemStamina<=0){ if(B.magLock){ B.magLock=null; try{ MV_BETA_AUDIO.magHum(false); }catch(e){} } while(M.held.length) dropHeld(M.held.pop()); return; }
-    pullAround();
+    if(!M.held.length) pullAround();                         // Paulo (#144): once something sticks, the rest stop sliding in
     // Paulo: standing and aiming it straight down (DOWN held), the magnet locks
     // MIND to SOLID ground — nothing moves him (pushes, currents, slopes) until he
     // lets go of the button. On an omni / pull block it grabs the block instead
@@ -1187,8 +1186,7 @@
     // grip loosens as power falls: the outermost thing slips first; the last one holds until 0%
     if(M.held.length>1&&heldWeight()>magCap(p.itemStamina)+0.01){ dropHeld(M.held.pop()); try{ sfx('omniblock_chip'); }catch(e){} }
     // lock new things that come within reach of the poles (never through a wall)
-    const onlyCubes=M.held.every(h=>h.kind==='cube');
-    if(onlyCubes){
+    if(!M.held.length){                                      // Paulo (#144): it holds one thing at a time
       let best=null, bd=MAG.LOCK;
       const reach=M.held.length?M.held.length*(T+1):0;   // the next cube locks onto the outer face
       const room=M.held.length?magCap(p.itemStamina)-heldWeight():MAG.GRIP;
@@ -1886,7 +1884,7 @@
     {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
     {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. UP / DOWN REEL IN AND OUT,','A JUMPS OFF. WATCH THE TENSION BAR:','PULL TOO HARD AND THE ROPE SNAPS.']},
     {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
-    {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY: 3 OMNI BLOCKS, OR','1 RED PULL BLOCK, ENEMY OR KNOWL. AIM DOWN AND','IT LOCKS TO THE FLOOR. THE GRIP WEAKENS AS','POWER DRAINS. LET GO TO THROW.']}
+    {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY ONE THING: A BLOCK,','AN ENEMY OR A KNOWL. AIM DOWN AND IT LOCKS TO','THE FLOOR. THE GRIP WEAKENS AS POWER DRAINS.','SWING THE ARM AND LET GO TO THROW.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
   // Paulo: the item card only comes up the first time you get that item
