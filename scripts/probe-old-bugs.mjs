@@ -634,6 +634,57 @@ const PROBES = {
     return { pass: ok, note: JSON.stringify(s), samples: [s] };
   },
 
+  // T170 — ERASE on level-placed (LDtk) things: SAVE + stage reload keeps them gone; CLEAR + reload brings them back
+  async editorGone() {
+    const H = __PH, T = H.T; H.hold();
+    const GH = cv.height, id = MV_BETA.stageId;
+    const click = (mx, my) => { const rect = cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0,
+      clientX: rect.left + mx * rect.width / W, clientY: rect.top + my * rect.height / GH })); cv.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); };
+    for (const k of ['ents', 'cells', 'gone']) localStorage.removeItem('mv2.editor.' + k + '.' + id);
+    const reload = async () => {
+      await startBetaLab(id, 15, { fresh: true });
+      for (let i = 0; i < 200 && (MV_BETA.loading || !MV_GRID.ready); i++) await new Promise((r) => setTimeout(r, 50));
+      edLoadStageEdits(); H.hold(); H.step(10);
+    };
+    const pick = () => {
+      const e = ENEMS.find((o) => o._lk && o._lk.startsWith('Enemy@'));
+      const d = ITEM_DROPS.find((o) => o._lk && o._lk.startsWith('Item@'));
+      const b = BWALLS.find((o) => o._lk && o.cube && o.hp > 0 && !o.only);
+      const near = (x, y) => ENEMS.some((o) => x > o.x - 48 && x < o.x + o.w + 48 && y > o.y - 48 && y < o.y + o.h + 48);
+      const k = KDROP.find((o) => o._lk && !o.got && !near(o.x, o.y));
+      return [e && { key: e._lk, x: e.x + e.w / 2, y: e.y + e.h / 2 }, d && { key: d._lk, x: d.x, y: d.y },
+        b && { key: b._lk, x: b.x + T / 2, y: b.y + T / 2 }, k && { key: k._lk, x: k.x, y: k.y }].filter(Boolean);
+    };
+    const present = (key) => ENEMS.some((o) => o._lk === key) || ITEM_DROPS.some((o) => o._lk === key)
+      || BWALLS.some((o) => o._lk === key) || KDROP.some((o) => o._lk === key);
+    const targets = pick();
+    const s = { targets: targets.map((t) => t.key) };
+    _edSetActive(true); ED.tool = 'erase';
+    for (const t of targets) {
+      camX = camClampX(t.x - (W - ED.panelW) / 2); camY = camClampY(t.y - 300); _snapRenderCam(); drawEditorOverlay();
+      click(sx(t.x) * camZoom, sy(t.y) * camZoom);
+    }
+    s.erased = targets.map((t) => !present(t.key));
+    drawEditorOverlay();
+    const hit = (l) => ED.hits.find((h) => h.label === l);
+    let b = hit('SAVE'); click(b.x + b.w / 2, b.y + 10);
+    s.stored = JSON.parse(localStorage.getItem('mv2.editor.gone.' + id) || '[]');
+    _edSetActive(false);
+    await reload();
+    s.afterSave = targets.map((t) => !present(t.key));
+    _edSetActive(true); drawEditorOverlay();
+    b = hit('CLEAR'); click(b.x + b.w / 2, b.y + 10);
+    s.clearedStore = localStorage.getItem('mv2.editor.gone.' + id);
+    _edSetActive(false);
+    await reload();
+    s.afterClear = targets.map((t) => present(t.key));
+    const kinds = new Set(s.targets.map((k) => k.split('@')[0]));
+    const all = (a) => a.length === targets.length && a.every(Boolean);
+    const ok = kinds.has('Enemy') && (id !== '1.1' || kinds.has('Item')) && all(s.erased) && s.stored.length === targets.length
+      && all(s.afterSave) && s.clearedStore === null && all(s.afterClear);
+    return { pass: ok, note: JSON.stringify(s), samples: [s] };
+  },
+
   // #136c (T134) — pass-through ramp: plain right rolls past it on the floor; right+up climbs it
   passRamp() {
     const H = __PH, T = H.T; H.hold(); H.parkEnemies();
@@ -662,5 +713,6 @@ const PROBES = {
 PROBES.editor.lvls = ['1.1'];
 PROBES.passRamp.lvls = ['1.1'];
 PROBES.editorEnts.lvls = ['1.1', '1.2'];
+PROBES.editorGone.lvls = ['1.1', '1.2'];
 
 main().catch((e) => { console.error('probe runner failed:', e.message); process.exitCode = 2; });

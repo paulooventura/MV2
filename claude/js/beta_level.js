@@ -39,6 +39,24 @@
   const cell=e=>({c:e.__grid?e.__grid[0]:Math.round(e.px[0]/16), r:e.__grid?e.__grid[1]:Math.round(e.px[1]/16),
     w:Math.round((e.width||16)/16), h:Math.round((e.height||16)/16)});
 
+  // Level things the live-stage editor erased (this browser only; the .ldtk is untouched).
+  // Key = type + spawn cell; Knowls (seeds) by their centre cell, like KDROP.
+  const entKey=e=>{
+    if(e.__identifier==='Knowl') return 'Knowl@'+Math.floor((e.px[0]+(e.width||16)/2)/16)+','+Math.floor((e.px[1]+(e.height||16)/2)/16);
+    const g=cell(e); return e.__identifier+'@'+g.c+','+g.r;
+  };
+  B.entKey=entKey;
+  B.goneKey='mv2.editor.gone.';
+  function dropGone(raw, id){
+    let gone=null;
+    try{ gone=new Set(JSON.parse(localStorage.getItem(B.goneKey+id)||'[]')); }catch(e){}
+    if(!gone||!gone.size) return;
+    for(const lv of raw.levels||[]){
+      const L=(lv.layerInstances||[]).find(l=>l.__identifier==='Entities');
+      if(L) L.entityInstances=L.entityInstances.filter(e=>!gone.has(entKey(e)));
+    }
+  }
+
   const LOAD_FADE=22;
   async function startBetaLab(id, carryMask, opts){
     opts=opts||{};
@@ -58,6 +76,7 @@
     if(opts.fresh) delete B.saves[id];
     const tier=revisitTier(id);
     const raw=applyTiers(raw0, tier);                  // revisit layers: new areas, echo crystals
+    dropGone(raw, id);
     const level=await parseLdtkProject(raw, PATH);   // Collision grid + seeds (Knowl) via lab F
     if(gen!==B.loadGen) return;
     B.tier=tier; B.progress=Math.max(B.progress||0, ORDER.indexOf(id));
@@ -246,13 +265,22 @@
     for(const k of KDROP){
       k.kind='seed';
       const c=Math.floor(k.x/T), r=Math.floor(k.y/T);
+      k._lk='Knowl@'+c+','+r;
       const floorY=(typeof gridStandY==='function')?gridStandY(k.x,(r+1)*T,{maxUp:4,maxDrop:T*2}):null;
       if(floorY!=null){ k.y=k.oy=floorY-15; k.ox=k.x; }
       k.floorY=floorY!=null?floorY:(r+1)*T; k.c=c;
     }
 
     B._placeEnt=placeEnt;
-    for(const e of ents) placeEnt(e);
+    for(const e of ents){                     // tag what each level entity made, so the editor can erase it
+      const n=[ENEMS.length, KDROP.length, BWALLS.length, ITEM_DROPS.length], rp=_mapRopePickup, k=entKey(e);
+      placeEnt(e);
+      for(const o of ENEMS.slice(n[0])) o._lk=k;
+      for(const o of KDROP.slice(n[1])) o._lk=k;
+      for(const o of BWALLS.slice(n[2])) o._lk=k;
+      for(const o of ITEM_DROPS.slice(n[3])) o._lk=k;
+      if(_mapRopePickup&&_mapRopePickup!==rp) _mapRopePickup._lk=k;
+    }
     function placeEnt(e){
       const id=e.__identifier, g=cell(e);
       const x=g.c*T, y=g.r*T, cx=x+g.w*T/2, feet=(g.r+g.h)*T;

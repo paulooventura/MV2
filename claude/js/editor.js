@@ -202,19 +202,22 @@ function _edRectCells(x0,y0,x1,y1){
 }
 function _edStageKey(){ return ED_CELLS_KEY+(MV_BETA.stageId||'?'); }
 function _edEntsKey(){ return ED_ENTS_KEY+(MV_BETA.stageId||'?'); }
+function _edGoneKey(){ return (MV_BETA.goneKey||'mv2.editor.gone.')+(MV_BETA.stageId||'?'); }
 function edSaveCells(){
   const n=Object.keys(ED.cellEdits).length, m=ED.ents.length;
   try{
     localStorage.setItem(_edStageKey(), JSON.stringify(ED.cellEdits));
     localStorage.setItem(_edEntsKey(), JSON.stringify(ED.ents.map(en=>({t:en.t,k:en.k,c:en.c,r:en.r}))));
+    if(ED.gone.size) localStorage.setItem(_edGoneKey(), JSON.stringify([...ED.gone]));
+    else localStorage.removeItem(_edGoneKey());
   }catch(e){}
-  edShowToast('SAVED '+n+' BLOCKS + '+m+' THINGS FOR '+(MV_BETA.stageId||'THIS STAGE'));
+  edShowToast('SAVED '+n+' BLOCKS + '+m+' THINGS'+(ED.gone.size?' - '+ED.gone.size+' REMOVED':'')+' FOR '+(MV_BETA.stageId||'THIS STAGE'));
 }
 function edClearCells(){
-  try{ localStorage.removeItem(_edStageKey()); localStorage.removeItem(_edEntsKey()); }catch(e){}
+  try{ localStorage.removeItem(_edStageKey()); localStorage.removeItem(_edEntsKey()); localStorage.removeItem(_edGoneKey()); }catch(e){}
   ED.cellEdits={};
   for(const en of ED.ents) _edEntRemove(en);
-  ED.ents=[];
+  ED.ents=[]; ED.gone=new Set();
   edShowToast('EDITS CLEARED — TAB RESTARTS THE STAGE CLEAN');
 }
 
@@ -228,6 +231,7 @@ const ED_LIVE={
   bwall:{label:'BWALL', kinds:['omni','push','pull','laser'], names:['OMNI','PUSH','PULL','CAGE']},
 };
 ED.ents=[];
+ED.gone=new Set();          // level things (MV_BETA.entKey) erased on this stage
 ED.liveKind={enemy:0, crate:0, knowl:0, bwall:0};
 function _edLiveName(t){ const d=ED_LIVE[t]; return d?d.names[ED.liveKind[t]%d.kinds.length]:''; }
 function _edEntSpawn(t,k,c,r){
@@ -289,7 +293,52 @@ function edEraseLiveEnt(wx,wy){
     ED.ents.splice(i,1);
     return true;
   }
-  return false;
+  return edEraseLevelEnt(wx,wy);
+}
+// Level-placed things (tagged _lk by beta_level): erase every live object of that entity
+// and remember its key, so SAVE keeps it off the stage on the next load.
+function _edLevelObjs(key){
+  const has=o=>o&&o._lk===key;
+  return {enemies:ENEMS.filter(has), knowls:KDROP.filter(has), drops:ITEM_DROPS.filter(has),
+    bwalls:BWALLS.filter(has), rope:has(_mapRopePickup)?_mapRopePickup:null};
+}
+function _edLevelHit(wx,wy){
+  const T=MV_GRID.tile, box=o=>wx>=o.x-4&&wx<=o.x+(o.w||T)+4&&wy>=o.y-4&&wy<=o.y+(o.h||T)+4;
+  const cell=Math.floor(wx/T)+','+Math.floor(wy/T);
+  for(const o of ENEMS) if(o._lk&&box(o)) return o._lk;
+  for(const o of ITEM_DROPS) if(o._lk&&(o._cell===cell||Math.abs(wx-o.x)<24&&Math.abs(wy-o.y)<24)) return o._lk;
+  for(const o of BWALLS) if(o._lk&&o.hp>0&&box(o)) return o._lk;
+  for(const o of KDROP) if(o._lk&&Math.abs(wx-o.x)<24&&Math.abs(wy-o.y)<24) return o._lk;
+  if(_mapRopePickup&&_mapRopePickup._lk&&box(_mapRopePickup)) return _mapRopePickup._lk;
+  return null;
+}
+function _edLevelPut(objs,on){
+  const B=MV_BETA, add=(arr,o)=>{ if(!arr.includes(o)) arr.push(o); };
+  if(on){
+    for(const o of objs.enemies) add(ENEMS,o);
+    for(const o of objs.knowls) add(KDROP,o);
+    for(const o of objs.drops){ add(ITEM_DROPS,o); if(o._cell&&B.crateCells) B.crateCells.add(o._cell); }
+    for(const o of objs.bwalls) add(BWALLS,o);
+    if(objs.rope){ _mapRopePickup=objs.rope; if(B.crateCells) B.crateCells.add(Math.floor(objs.rope.x/MV_GRID.tile)+','+Math.floor(objs.rope.y/MV_GRID.tile)); }
+    if(objs.bwalls.length&&typeof gridStampLiveBwalls==='function') gridStampLiveBwalls();
+    kTotal=KDROP.length;
+  } else {
+    _edEntRemove({made:objs});
+    if(objs.rope){
+      if(_mapRopePickup===objs.rope) _mapRopePickup=null;
+      if(B.crateCells) B.crateCells.delete(Math.floor(objs.rope.x/MV_GRID.tile)+','+Math.floor(objs.rope.y/MV_GRID.tile));
+    }
+  }
+}
+function edEraseLevelEnt(wx,wy){
+  const key=_edLevelHit(wx,wy);
+  if(!key) return false;
+  const objs=_edLevelObjs(key);
+  _edLevelPut(objs,false);
+  ED.gone.add(key);
+  edPushUndo(); ED.undoStack[ED.undoStack.length-1].L_={key,objs};
+  edShowToast('REMOVED LEVEL '+key.split('@')[0].toUpperCase()+' - SAVE TO KEEP IT GONE');
+  return true;
 }
 function _edEntBox(en){
   const m=en.made||{}, T=MV_GRID.tile;
@@ -316,7 +365,8 @@ let _edLevelSeen=null;
 function edLoadStageEdits(){
   const B=window.MV_BETA;
   _edLevelSeen=B.level;
-  ED.cellEdits={}; ED.ents=[];
+  ED.cellEdits={}; ED.ents=[]; ED.gone=new Set();
+  try{ ED.gone=new Set(JSON.parse(localStorage.getItem(_edGoneKey())||'[]')); }catch(e){}
   if(typeof _gridReady!=='function'||!_gridReady()) return 0;
   let saved=null, ents=null;
   try{ saved=JSON.parse(localStorage.getItem(_edStageKey())||'null'); }catch(e){}
@@ -472,6 +522,7 @@ function edUndo(){
   TR.length=0; snap.TR.forEach(t=>TR.push(t));
   if(snap.G_&&_edLive()) for(const g of snap.G_.slice().reverse()){ _edCellSet(g.c,g.r,g.id); ED.cellEdits[g.c+','+g.r]=g.id; }
   if(snap.E_){ const i=ED.ents.indexOf(snap.E_); if(i>=0){ _edEntRemove(snap.E_); ED.ents.splice(i,1); } }
+  if(snap.L_){ _edLevelPut(snap.L_.objs,true); ED.gone.delete(snap.L_.key); }
   // Note: enemies/crates/etc are runtime objects; partial restore
   edShowToast('Undone');
 }
