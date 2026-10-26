@@ -54,7 +54,7 @@
   window.MV_CONSOLE=api;
   function syncHue(){
     const c=document.getElementById('c');
-    if(c) c.style.filter=mode==='gore'?'contrast(1.28) saturate(0.38) brightness(0.68)':'';
+    if(c) c.style.filter='';
   }
   syncHue();
 

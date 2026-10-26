@@ -124,4 +124,122 @@
     if(_draw) _draw.apply(this,arguments);
     if(typeof ctx!=='undefined') drawBlood();
   };
+
+  // Greens become bright glowing red. Every other hue is pulled toward
+  // that red so the whole picture sits in the same key. Gore only.
+  const cv=document.getElementById('c');
+  const oc=document.createElement('canvas');
+  oc.className='mv-gore-grade';
+  oc.setAttribute('aria-hidden','true');
+  oc.style.cssText='position:absolute;pointer-events:none;z-index:8;display:none;';
+  function mount(){
+    if(!cv||!cv.parentNode) return;
+    const par=cv.parentNode;
+    if(getComputedStyle(par).position==='static') par.style.position='relative';
+    if(!oc.parentNode) par.appendChild(oc);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mount); else mount();
+  function syncBox(){
+    if(!cv) return;
+    if(oc.width!==cv.width||oc.height!==cv.height){ oc.width=cv.width; oc.height=cv.height; }
+    oc.style.left=cv.offsetLeft+'px'; oc.style.top=cv.offsetTop+'px';
+    oc.style.width=cv.clientWidth+'px'; oc.style.height=cv.clientHeight+'px';
+  }
+  let gl=null, prog=null, buf=null, tex=null, U=null, glState=0;
+  function initGL(){
+    if(glState) return glState>0;
+    glState=-1;
+    mount();
+    gl=oc.getContext('webgl',{alpha:false,antialias:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
+    if(!gl) return false;
+    const VS='attribute vec2 p; varying vec2 uv; void main(){ uv=p*0.5+0.5; gl_Position=vec4(p,0.0,1.0); }';
+    const FS=`precision mediump float;
+uniform sampler2D tex; uniform vec2 res; varying vec2 uv;
+vec3 rgb2hsv(vec3 c){
+  vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0);
+  vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+  vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
+  float d=q.x-min(q.w,q.y); float e=1.0e-10;
+  return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)), d/(q.x+e), q.x);
+}
+vec3 hsv2rgb(vec3 c){
+  vec3 p=abs(fract(c.xxx+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0);
+  return c.z*mix(vec3(1.0), clamp(p-1.0,0.0,1.0), c.y);
+}
+float greenAmt(vec3 c){
+  vec3 k=rgb2hsv(c);
+  float band=smoothstep(0.10,0.18,k.x)*smoothstep(0.52,0.44,k.x);
+  return band*smoothstep(0.10,0.28,k.y);
+}
+void main(){
+  vec3 c=texture2D(tex,uv).rgb;
+  vec3 k=rgb2hsv(c);
+  float signedH=k.x>0.5?k.x-1.0:k.x;
+  float h=fract(signedH*0.38);
+  float s=min(1.0,k.y*1.08);
+  float v=k.z;
+  float g=greenAmt(c);
+  h=mix(h,0.0,g);
+  s=mix(s,1.0,g);
+  v=mix(v,min(1.0,v*1.28+0.14),g);
+  vec3 o=hsv2rgb(vec3(h,s,v));
+  vec2 px=6.0/res;
+  float glow=greenAmt(texture2D(tex,uv+vec2(px.x,0.0)).rgb);
+  glow+=greenAmt(texture2D(tex,uv-vec2(px.x,0.0)).rgb);
+  glow+=greenAmt(texture2D(tex,uv+vec2(0.0,px.y)).rgb);
+  glow+=greenAmt(texture2D(tex,uv-vec2(0.0,px.y)).rgb);
+  glow+=greenAmt(texture2D(tex,uv+px).rgb)*0.7;
+  glow+=greenAmt(texture2D(tex,uv-px).rgb)*0.7;
+  o+=vec3(1.0,0.05,0.07)*(glow*0.16+g*0.45);
+  gl_FragColor=vec4(min(o,1.0),1.0);
+}`;
+    function sh(type,src){
+      const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+      if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error('MV gore grade',gl.getShaderInfoLog(s)); return null; }
+      return s;
+    }
+    const vs=sh(gl.VERTEX_SHADER,VS), fs=sh(gl.FRAGMENT_SHADER,FS);
+    if(!vs||!fs) return false;
+    prog=gl.createProgram(); gl.attachShader(prog,vs); gl.attachShader(prog,fs); gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){ console.error('MV gore grade link',gl.getProgramInfoLog(prog)); return false; }
+    gl.useProgram(prog);
+    buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const ap=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,2,gl.FLOAT,false,0,0);
+    tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+    U={tex:gl.getUniformLocation(prog,'tex'), res:gl.getUniformLocation(prog,'res')};
+    gl.uniform1i(U.tex,0);
+    glState=1; return true;
+  }
+  function grade(){
+    if(!cv||!gore()||!initGL()){
+      if(oc.style.display!=='none') oc.style.display='none';
+      return;
+    }
+    syncBox();
+    if(oc.style.display==='none') oc.style.display='';
+    gl.viewport(0,0,oc.width,oc.height);
+    gl.bindTexture(gl.TEXTURE_2D,tex);
+    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,cv); }catch(e){ return; }
+    gl.uniform2f(U.res,cv.width,cv.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  }
+  function hookGrade(){
+    const prev=window.draw;
+    if(typeof prev!=='function'){ setTimeout(hookGrade,30); return; }
+    if(prev._goreGrade) return;
+    const wrapped=function(){
+      const r=prev.apply(this,arguments);
+      try{ grade(); }catch(e){}
+      return r;
+    };
+    wrapped._goreGrade=true;
+    window.draw=wrapped;
+  }
+  setTimeout(hookGrade,0);
 })();
