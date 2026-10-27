@@ -36,6 +36,11 @@
     if(hitCd>0||(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)||(p.inv>0)) return false;
     hitCd=40; if(typeof applyPlayerHit==='function') applyPlayerHit(kx,ky,dmg); return true;
   }
+  // the hexagon hurts, but it does not knock the Isolator off
+  function hexHurt(kx,ky,dmg){
+    window._skipIsoKnock=true;
+    try{ return hurtMind(kx,ky,dmg); } finally{ window._skipIsoKnock=false; }
+  }
   function burst(x,y,n,cols,sp){ for(let k=0;k<n;k++){ const a=Math.random()*Math.PI*2, s=(sp||3)*(0.4+Math.random()); PFXS.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:12+Math.random()*14|0,maxLife:26,r:1.5+Math.random()*2,col:cols[k%cols.length]}); } }
   const S=(n,v)=>{ try{ sfx(n,v); }catch(e){} };
 
@@ -142,13 +147,11 @@
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
     const close=d<260;
     if(!close){ e.st='sleep'; e.beams=null; return; }
-    // the body itself is a hit: overlapping the hexagon knocks the Isolator off
-    if(d<e.w*0.46+22) hurtMind((dx/d)*8,-5,14);
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
     else {
       e.st='zap'; e.cd=240; e.elecT=18;
       const wet=B.inWater&&B.inWater(c.x,c.y)&&B.inWater(P.x,P.y);
-      if(wet) hurtMind((dx/d)*2,-2,22);
+      if(wet) hexHurt((dx/d)*2,-2,22);
       e.beams=[];
       for(let i=0;i<4;i++) e.beams.push({a:Math.atan2(dy,dx)+(i-1.5)*0.42, life:16});
       S('laser',0.55); S('zap',0.8);
@@ -158,7 +161,7 @@
         b.life--;
         const L=220, t=Math.max(0,Math.min(1,((P.x-c.x)*Math.cos(b.a)+(P.y-c.y)*Math.sin(b.a))/L));
         const hx=c.x+Math.cos(b.a)*L*t, hy=c.y+Math.sin(b.a)*L*t;
-        if(Math.hypot(P.x-hx,P.y-hy)<42) hurtMind(Math.cos(b.a)*5,-3,18);
+        if(Math.hypot(P.x-hx,P.y-hy)<24) hexHurt(Math.cos(b.a)*5,-3,18);
       }
       e.beams=e.beams.filter(b=>b.life>0);
       if(!e.beams.length&&e.st==='zap') e.st='sleep';

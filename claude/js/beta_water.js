@@ -1042,7 +1042,7 @@
   if(_origHit) window.applyPlayerHit=function(kx,ky,dmg){
     const had=on()&&B.hasIsolator&&(dmg==null||dmg>0)&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(p.inv>0);
     const r=_origHit.apply(this, arguments);
-    if(had) B.knockIsolator(Math.sign(kx||0)||null,'hit');
+    if(had&&!window._skipIsoKnock) B.knockIsolator(Math.sign(kx||0)||null,'hit');
     return r;
   };
   function looseTick(){
