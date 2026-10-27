@@ -76,7 +76,7 @@ function _driveMenusFromPads(){
     return;
   }
   if(_gameState==='testmode'&&window.MV_TEST_INPUT){
-    MV_TEST_INPUT({up,down:dn,left:lf,right:rt,confirm:ok,back:back||!!Kj['KeyF']});
+    MV_TEST_INPUT({up,down:dn,left:!!Kj['ArrowLeft'],right:!!Kj['ArrowRight']||!!Kj['KeyD'],confirm:ok||!!Kj['KeyA']||!!Kj['Enter'],back:back||!!Kj['KeyF']});
     return;
   }
   if(_gameState==='tutorial'&&(ok||back)){ _gameState='title'; return; }
@@ -599,7 +599,7 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();return;
   }
   if(_gameState==='testmode'&&window.MV_TEST_INPUT){
-    MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
+    MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space'||e.code==='KeyA',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
     e.preventDefault();return;
   }
   if(_gameState==='title'){
@@ -840,10 +840,7 @@ function MV_TEST_INPUT(ev){
   if(ev.down){ MV_TEST.row=(MV_TEST.row+1)%n; try{ sfx('menu'); }catch(e){} return; }
   if(ev.left){ _testNudge(-1); try{ sfx('menu'); }catch(e){} return; }
   if(ev.right){ _testNudge(1); try{ sfx('menu'); }catch(e){} return; }
-  if(ev.confirm){
-    if(MV_TEST.row===n-1){ try{ sfx('confirm'); }catch(e){} _testSpawn(); }
-    else { _testNudge(1); try{ sfx('menu'); }catch(e){} }
-  }
+  if(ev.confirm){ try{ sfx('confirm'); }catch(e){} _testSpawn(); }
 }
 window.MV_TEST_INPUT=MV_TEST_INPUT;
 function drawTestMode(){
