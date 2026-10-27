@@ -458,9 +458,15 @@
   function tumbleTick(e){
     const tb=e.tumble; tb.t++;
     const k=Math.min(1,tb.t/tb.dur);
-    e.ang=tb.dir*(e._ai==='tri'?Math.PI*2/3:Math.PI/2)*k;
+    const turn=(e._ai==='tri'?Math.PI*2/3:Math.PI/2)*k;
+    e.ang=tb.dir*turn;
+    if(tb.baseY==null){ tb.baseY=e.y; tb.baseX=e.x; }
+    const half=Math.hypot(e.w,e.h)*0.5, rest=e.h*0.5;
+    const lift=Math.max(0,(half-rest)*Math.sin(Math.PI*k));
+    e.y=tb.baseY-lift;
+    e.x=tb.baseX+(tb.nx-tb.baseX)*k+tb.dir*(e.w*0.5)*(1-Math.cos(turn))*0.5;
     if(k>=1){
-      e.x=tb.nx; e.ang=0; e.tumble=null;
+      e.x=tb.nx; e.y=tb.baseY; e.ang=0; e.tumble=null;
       if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
       try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfxAt(e,'tumble'); }catch(_e){}
       if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
@@ -551,8 +557,14 @@
     // landing on MIND or another enemy hurts them (the square's thing)
     if(e.vy>3){
       const h=playerCoreHB(p);
-      if(_shutdownTimer<=0&&ov(e.x+6,ny+e.h-12,e.w-12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ applyPlayerHit((p.x+SW/2-(e.x+e.w/2))*0.08,2,Math.round(10+e.vy*1.5)); e.vy=-3; }
-      for(const o of ENEMS){ if(o===e||!o.alive||!o._betaEnemy) continue; if(ov(e.x+6,ny+e.h-12,e.w-12,12,o.x,o.y,o.w,o.h)){ _damageEnemy(o,Math.round(12+e.vy*2),e.x+e.w/2,e.y+e.h,0.6); e.vy=-3; } }
+      if(_shutdownTimer<=0&&ov(e.x+6,ny+e.h-12,e.w-12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
+        const m=B.weightOf?B.weightOf('enemy',e):6, massK=Math.max(0.35,Math.min(2.2,Math.sqrt(m/8)));
+        applyPlayerHit((p.x+SW/2-(e.x+e.w/2))*0.08,2,Math.max(1,Math.round((8+e.vy*1.1)*massK))); e.vy=-3;
+      }
+      for(const o of ENEMS){ if(o===e||!o.alive||!o._betaEnemy) continue; if(ov(e.x+6,ny+e.h-12,e.w-12,12,o.x,o.y,o.w,o.h)){
+        const m=B.weightOf?B.weightOf('enemy',e):6, massK=Math.max(0.35,Math.min(2.2,Math.sqrt(m/8)));
+        _damageEnemy(o,Math.max(1,Math.round((10+e.vy*1.4)*massK)),e.x+e.w/2,e.y+e.h,0.6); e.vy=-3;
+      } }
     }
     const lp=platUnder(e.x,e.w,feet);
     if(lp&&e.vy>=0){ e.y=lp.y-e.h; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; e._plat=lp; e._platOff=e.x-lp.x; return; }

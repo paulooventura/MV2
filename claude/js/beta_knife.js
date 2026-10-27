@@ -17,9 +17,9 @@
 //              never hurt MIND and chip the Heptagon (never below 1: the knife ends it).
 //   FINISH     once it falls, the knife leaves MIND, flies to the gate and opens it,
 //              stands up as a golden beam and is gone (bit 16 cleared).
-//   SOUND      a whoosh on every swing (loaded = longer and lower), a clang + sparks +
-//              hitstop when the blade meets rock, a "shing" on drawing it, a hum that
-//              rises with the heat.
+  //   SOUND      a whoosh on a swing through the air. The clang only when the
+  //              blade meets an object. Slashing an electro-box shocks MIND.
+  //              A "shing" on drawing the knife, a hum that rises with the heat.
 //  Rides on beta_foes.js (B.knifePose / B.knifeBig / B.knifeHeat / B.drawKnifeArt).
 // ============================================================
 (function(){
@@ -42,14 +42,13 @@
   let NB=null;
   function noise(a){ if(NB&&NB.sampleRate===a.sampleRate) return NB; const n=a.sampleRate*2; NB=a.createBuffer(1,n,a.sampleRate); const d=NB.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; return NB; }
   function env(a,g,t,atk,dur){ const n=a.createGain(); n.gain.setValueAtTime(0.0001,t); n.gain.exponentialRampToValueAtTime(Math.max(0.0002,g*vol()),t+atk); n.gain.exponentialRampToValueAtTime(0.0001,t+dur); return n; }
-  // a band-passed noise sweep: up with the blade's speed, back down as it slows
+  // a band-passed noise sweep: air moving with the blade. No metal in it.
   function whoosh(dur,f0,f1,g){
     const a=ac(); if(!a) return; const t=a.currentTime;
     const s=a.createBufferSource(); s.buffer=noise(a);
-    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=1.4;
-    bp.frequency.setValueAtTime(f0,t); bp.frequency.exponentialRampToValueAtTime(f1,t+dur*0.45); bp.frequency.exponentialRampToValueAtTime(f0*0.6,t+dur);
-    const n=env(a,g*2.8,t,0.004,dur); s.connect(bp); bp.connect(n); n.connect(a.destination);
-    tone('sawtooth', Math.max(80,f0*0.45), g*1.4, t, 0.002, Math.min(0.16,dur*0.7), Math.max(40,f1*0.2));
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=0.9;
+    bp.frequency.setValueAtTime(f0,t); bp.frequency.exponentialRampToValueAtTime(f1,t+dur*0.45); bp.frequency.exponentialRampToValueAtTime(Math.max(80,f0*0.55),t+dur);
+    const n=env(a,g*2.2,t,0.006,dur); s.connect(bp); bp.connect(n); n.connect(a.destination);
     s.start(t,Math.random()); s.stop(t+dur+0.05);
   }
   function tone(type,f,g,t,atk,dur,f2){ const a=ac(); if(!a) return; const o=a.createOscillator(); o.type=type; o.frequency.setValueAtTime(f,t); if(f2) o.frequency.exponentialRampToValueAtTime(f2,t+dur); const n=env(a,g,t,atk,dur); o.connect(n); n.connect(a.destination); o.start(t); o.stop(t+dur+0.05); }
@@ -391,10 +390,8 @@
     const big=B.knifeBig&&B.knifeBig();
     if(big&&big!==lastBig){
       const f=Math.min(1,Math.max(0,(big.R-176)/(430-176)));
-      whoosh(0.32+0.55*f,900-450*f,2000-1000*f,0.13+0.06*f); whoosh(0.2,1400-500*f,3200-1200*f,0.05);
-      // the crescent meets rock: a clang where it does
-      const ux=Math.cos(big.ang), uy=Math.sin(big.ang);
-      for(let d=40;d<big.R;d+=12){ const x=big.x+ux*d, y=big.y+uy*d; if(solid(x,y)){ bladeHit(x,y,0.4+0.6*f,ux,uy); break; } }
+      whoosh(0.28+0.2*f,420-160*f,1600-500*f,0.16);
+      meetBlade(big.x,big.y,Math.cos(big.ang),Math.sin(big.ang),big.R,big.H,f>0.85);
     }
     lastBig=big;
     const bl=blade();
@@ -402,14 +399,58 @@
     const om=knPrev==null?0:wrap(bl.kn-knPrev), fast=Math.abs(om)>0.14;
     if(fast&&!swingOn){ swingN++; swingClanged=false;
       const up=om<0, alt=swingN%2?1:0.9;
-      whoosh(0.15,(up?1900:1600)*alt,(up?4400:3600)*alt,0.09); }
+      whoosh(0.12,(up?1600:1300)*alt,(up?3600:2800)*alt,0.1); }
     swingOn=fast;
-    if(fast&&!swingClanged){
-      const aw=toW(bl.kn);
-      for(const r of [58,40,24]){ const x=bl.hx+Math.cos(aw)*r, y=bl.hy+Math.sin(aw)*r;
-        if(solid(x,y)){ swingClanged=true; bladeHit(x,y,Math.min(1,Math.abs(om)/0.5),Math.cos(aw),Math.sin(aw)); break; } }
+    if(fast&&!swingClanged&&knPrev!=null){
+      for(let s=0;s<=4&&!swingClanged;s++){
+        const aw=toW(knPrev+om*s/4);
+        const x1=bl.hx+Math.cos(aw)*62, y1=bl.hy+Math.sin(aw)*62;
+        if(meetBlade(bl.hx,bl.hy,Math.cos(aw),Math.sin(aw),62,22,false)) swingClanged=true;
+        else if(wallAhead(x1,y1,Math.cos(aw),Math.sin(aw))){ swingClanged=true; bladeHit(x1,y1,Math.min(1,Math.abs(om)/0.5),Math.cos(aw),Math.sin(aw)); }
+      }
     }
     knPrev=bl.kn;
+  }
+  // The floor under the wheel is not a hit. A wall in front of the blade is.
+  function wallAhead(x,y,ux,uy){
+    if(!solid(x,y)) return false;
+    const feet=p.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+    if(y>=feet-10&&Math.abs(x-(p.x+SW/2))<46) return false;
+    return uy<0.35||Math.abs(x-(p.x+SW/2))>28;
+  }
+  // Objects the blade can meet: cubes, crates, enemies. An electro-box shocks.
+  function meetBlade(ox,oy,ux,uy,reach,half,loaded){
+    const hit=(x,y)=> {
+      const dx=x-ox, dy=y-oy, along=dx*ux+dy*uy, across=-dx*uy+dy*ux;
+      return along>8&&along<reach&&Math.abs(across)<half;
+    };
+    for(const bw of (typeof BWALLS!=='undefined'?BWALLS:[])){
+      if(!bw||bw.hp<=0||bw.only==='vine') continue;
+      const x=bw.x+(bw._ox||0)+(bw.w||32)/2, y=bw.y+(bw._oy||0)+(bw.h||32)/2;
+      if(!hit(x,y)) continue;
+      if(bw.only==='laser'){
+        try{ if(window._shockFromBlock) _shockFromBlock(bw, loaded?'punchLoaded':'punch'); }catch(e){}
+        return true;
+      }
+      bladeHit(x,y,loaded?0.85:0.55,ux,uy);
+      return true;
+    }
+    for(const c of (typeof CRATES!=='undefined'?CRATES:[])){
+      if(!c) continue;
+      const x=c.x+c.w/2, y=c.y+c.h/2;
+      if(!hit(x,y)) continue;
+      bladeHit(x,y,0.7,ux,uy);
+      return true;
+    }
+    for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){
+      if(!e||!e.alive||e._betaHeld) continue;
+      const x=e.x+e.w/2, y=e.y+e.h/2;
+      if(!hit(x,y)) continue;
+      if(e._boss) continue;
+      bladeHit(x,y,loaded?0.9:0.6,ux,uy);
+      return true;
+    }
+    return false;
   }
   function bladeHit(x,y,k,ux,uy){
     clang(k); hitstop=2+(k>0.6?1:0);
@@ -533,5 +574,5 @@
     return r;
   };
   window.MV_KNIFE={ state:()=>({intro:!!intro, introSeen, finish:finish&&finish.st, free:free.length, shared:shared.length, sibCarry:carrier?carrier._carry:null}), drop:()=>on()&&dropItem() };
-  window.MV_KNIFE_SFX={ swing(big){ if(big){ whoosh(0.42,280,1400,0.34); whoosh(0.2,900,2800,0.18); shing(); } else { whoosh(0.16,640,3400,0.26); shing(); } } };
+  window.MV_KNIFE_SFX={ swing(big){ if(big){ whoosh(0.36,320,1500,0.26); } else { whoosh(0.14,700,3200,0.2); } } };
 })();

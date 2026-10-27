@@ -176,7 +176,7 @@ function _damageBwall(bw,kind,fx){
     if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
     bw.hitGlow=16;
     spawnDebris(bw,4+Math.ceil(pct/15)); sfxAt(bw,'omniblock_chip');
-    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+    if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,22);if(bw.only!=='laser')sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
     return;
   }
   const dmg=typeof kind==='number'?kind:(kind==='punchCharged'?2:1);
@@ -184,7 +184,7 @@ function _damageBwall(bw,kind,fx){
   if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
   bw.hitGlow=16;
   spawnDebris(bw,4+dmg*2); sfxAt(bw,'omniblock_chip');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);if(bw.only!=='laser')sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 function _bwallApplyImpact(bw,speed){
   if(speed<BWALL_IMPACT_DMG) return;
@@ -194,7 +194,7 @@ function _bwallApplyImpact(bw,speed){
   const dmg=speed>=BWALL_IMPACT_HARD?2:1;
   bw.hp=Math.max(0,bw.hp-dmg); bw.cracked=true;
   spawnDebris(bw,4+dmg*3); sfxAt(bw,'omniblock_chip');
-  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
+  if(bw.hp<=0){bw._destroyFr=fr;spawnDebris(bw,18);if(bw.only!=='laser')sfxAt(bw,'omniblock_shatter'); if(typeof gridSyncDestroyedBwall==='function') gridSyncDestroyedBwall(bw);}
 }
 const BOX_ROLL_SPEED=2.8, BOX_TUMBLE_FRAMES=11, BOX_GROUND_FRIC=0.76, BOX_REST=0.22;
 const BOX_MAG_STICK=26;

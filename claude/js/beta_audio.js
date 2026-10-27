@@ -85,7 +85,44 @@
       try{ if(els[h.from]) els[h.from].currentTime=h.at; }catch(e){}
     }
   }
-  let octaved=false, lastName=null, lastRate=1;
+  let octaved=false, lastName=null, lastRate=1, vinylFrom=null;
+  function vinylBrake(fracLeft){
+    if(octaved||window._mvOctave) return;
+    const a=current&&els[current];
+    if(!a||a.paused) return;
+    if(vinylFrom==null) vinylFrom=a.playbackRate||1;
+    const t=Math.max(0,Math.min(1,fracLeft));
+    a.playbackRate=Math.max(0.04, vinylFrom*Math.pow(t,1.55));
+    window._mvVinyl=true;
+  }
+  function vinylSpinUp(){
+    window._mvVinyl=false;
+    if(octaved||window._mvOctave){ vinylFrom=null; return; }
+    const a=current&&els[current];
+    if(a&&!a.paused) a.playbackRate=Math.max(0.08, vinylFrom||a.playbackRate||0.2);
+    vinylFrom=null;
+    window._mvVinylSpin=1;
+  }
+  function vinylToOctave(){
+    const from=vinylFrom||lastRate||1;
+    vinylFrom=null; window._mvVinyl=false; window._mvVinylSpin=0;
+    octaved=true; window._mvOctave=true;
+    const rate=Math.max(0.25, from*0.5);
+    let any=false;
+    for(const k in els){
+      const a=els[k];
+      if(!a||a.paused) continue;
+      lastName=k; lastRate=from;
+      a.playbackRate=rate; any=true;
+    }
+    if(!any){
+      const name=lastName, a=name&&els[name];
+      if(a){
+        a.playbackRate=rate; current=name; wantPlay=name;
+        try{ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+      }
+    }
+  }
   function play(name,{restart=false,volume=1}={}){
     if(!TRACKS[name]) name='stage';
     const a=el(name);
@@ -123,11 +160,17 @@
   // track sits a little further forward (about 14% at the deepest dip),
   // then eases back to the slider as he recovers.
   function hurtTick(){
-    if(current&&els[current]&&!els[current].paused){ lastName=current; lastRate=els[current].playbackRate||1; }
+    if(window._mvVinyl) return;
+    if(current&&els[current]&&!els[current].paused&&!window._mvVinylSpin){ lastName=current; lastRate=els[current].playbackRate||1; }
     if(octaved) return;
     if(!current||!els[current]||current==='item'||current==='results') return;
     const a=els[current], f=Math.max(0.3,typeof _healFrac!=='undefined'?_healFrac:1);
     const r=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);   // HP phase → slower music
+    if(window._mvVinylSpin){
+      a.playbackRate+=(r-a.playbackRate)*0.06;
+      if(Math.abs(a.playbackRate-r)<0.02) window._mvVinylSpin=0;
+      return;
+    }
     if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
     const presence=1+0.2*Math.max(0,1-f);
     a.volume=Math.min(1,Math.max(0.05,vol()*(a._baseVol||1)*presence));
@@ -209,6 +252,31 @@
     const o=a.createOscillator(), og=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(38,t+0.35);
     og.gain.setValueAtTime(0.4*sv(),t); og.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
     o.connect(og); og.connect(D(a)); o.start(t); o.stop(t+0.45);
+  }
+  // One electro-block is a small pop. A pile of them, destroyed together, is one bigger blast.
+  function cageBoom(n){
+    const a=ac(); if(!a||a.state!=='running') return;
+    const t=a.currentTime, count=Math.max(1,n|0);
+    const k=count<=1?0.22:Math.min(3.2,0.4+0.48*(count-1));
+    const dur=count<=1?0.12:Math.min(0.9,0.16+0.07*count);
+    const ns=a.createBufferSource(); ns.buffer=noise(a);
+    const lp=a.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(count<=1?2800:2200,t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(70, count<=1?900:1400-count*80), t+dur);
+    const g=a.createGain();
+    const peak=(count<=1?0.07:Math.min(0.5,0.1+0.045*count))*sv();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    ns.connect(lp); lp.connect(g); g.connect(D(a)); ns.start(t); ns.stop(t+dur+0.05);
+    if(count>1){
+      const o=a.createOscillator(), og=a.createGain(); o.type='sine';
+      o.frequency.setValueAtTime(Math.max(36,150-count*8),t);
+      o.frequency.exponentialRampToValueAtTime(32,t+dur);
+      og.gain.setValueAtTime(Math.min(0.5,0.05*k)*sv(),t);
+      og.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(og); og.connect(D(a)); o.start(t); o.stop(t+dur+0.02);
+    }
   }
   // rope creak: a short scratchy squeak whose pitch climbs with tension
   let lastCreak=0;
@@ -347,7 +415,28 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  let eng=null;
+  function engine(on, rev){
+    const a=ac(); if(!a) return;
+    const ev=Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.engineVol!=null)?OPT.engineVol:0.8));
+    if(on&&a.state==='running'){
+      if(!eng){
+        const g=a.createGain(), o=a.createOscillator(), o2=a.createOscillator(), lp=a.createBiquadFilter();
+        o.type='sawtooth'; o2.type='square'; lp.type='lowpass'; lp.frequency.value=220;
+        o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(D(a));
+        g.gain.value=0.0001; o.start(); o2.start(); eng={g,o,o2,lp};
+      }
+      const t=a.currentTime, r=Math.max(0,Math.min(1,rev||0));
+      eng.o.frequency.setTargetAtTime(46+r*110,t,0.05);
+      eng.o2.frequency.setTargetAtTime(50+r*160,t,0.05);
+      eng.lp.frequency.setTargetAtTime(160+r*1100,t,0.08);
+      eng.g.gain.setTargetAtTime((0.028+0.08*r)*ev*sv(),t,0.05);
+    }else if(eng){
+      const t=a.currentTime, h=eng; eng=null;
+      try{ h.g.gain.setTargetAtTime(0.0001,t,0.06); h.o.stop(t+0.22); h.o2.stop(t+0.22); }catch(e){}
+    }
+  }
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
   function recure(){
     if(!current) return;
     const next=pathOf(current), prev=els[current];

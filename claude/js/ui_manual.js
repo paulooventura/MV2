@@ -20,14 +20,15 @@
   const ready=im=>im&&im.complete&&im.naturalWidth>0;
   const HEAD=()=>fontsOk?'"MV Booklet Head", "Arial Black", sans-serif':'"Arial Black", Impact, sans-serif';
   const BODY=()=>fontsOk?'"MV Booklet Body", "Trebuchet MS", sans-serif':'"Trebuchet MS", Arial, sans-serif';
-  const PAPER='#f2e8cc', INK='#1d1a22', RED='#c8281e', BLUE='#1f4fa8', GOLD='#e8a820';
+  const WASHI='#e9d8c3', SUMI='#14110e', SEAL='#b4332c', INDIGO='#243e66', MOSS='#2a4636', GOLD='#8d6a32';
+  const PAPER=WASHI, INK=SUMI, RED=SEAL, BLUE=INDIGO;
 
   const S={page:0, from:0, t:1, back:'options'};
   // ── tiny typesetting kit ──
   function wrap(text,x,y,maxW,size,lh,col,opt){
-    ctx.save(); ctx.font=(opt&&opt.bold?'800 ':'')+size+'px '+BODY(); ctx.fillStyle=col||INK; ctx.textBaseline='top'; ctx.lineJoin='round';
+    ctx.save(); ctx.font=size+'px '+BODY(); ctx.fillStyle=col||SUMI; ctx.textBaseline='top'; ctx.textAlign=(opt&&opt.align)||'left';
     const words=String(text).split(' '); let line='', yy=y;
-    const ink=()=>{ ctx.lineWidth=Math.max(2,size*0.08); ctx.strokeStyle='#14070a'; ctx.strokeText(line,x,yy); ctx.fillText(line,x,yy); };
+    const ink=()=>{ const dx=(opt&&opt.align)==='center'?x+maxW/2:x; ctx.fillText(line,dx,yy); };
     for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW&&line){ ink(); yy+=lh; line=w; } else line=t; }
     if(line){ ink(); yy+=lh; }
     ctx.restore(); return yy;
@@ -56,13 +57,81 @@
     ctx.font=Math.round(r*0.42)+'px '+HEAD(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#fff'; ctx.strokeText(text,0,0); ctx.fillStyle=RED; ctx.fillText(text,0,0);
     ctx.restore();
   }
-  function box(x,y,w,h,title,col){
+  function box(x,y,w,h,title,col,titleSize){
+    const ts=titleSize||22, th=ts+12;
     ctx.save(); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(x+5,y+5,w,h);
     ctx.fillStyle='#fffaf0'; ctx.fillRect(x,y,w,h); ctx.lineWidth=3; ctx.strokeStyle=col||BLUE; ctx.strokeRect(x,y,w,h);
-    if(title){ ctx.fillStyle=col||BLUE; ctx.fillRect(x,y,w,26); ctx.font='18px '+HEAD(); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(title,x+10,y+14); }
+    if(title){ ctx.fillStyle=col||BLUE; ctx.fillRect(x,y,w,th); ctx.font=ts+'px '+HEAD(); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(title,x+12,y+th/2); }
+    ctx.restore();
+    return th;
+  }
+  function arcWord(text,cx,cy,size,col,spread,bend){
+    ctx.save(); ctx.font=size+'px '+HEAD(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+    const letters=[...String(text)], widths=letters.map(ch=>ctx.measureText(ch).width);
+    const total=widths.reduce((a,b)=>a+b,0)+(spread||0)*Math.max(0,letters.length-1);
+    let px=cx-total/2;
+    letters.forEach((ch,i)=>{
+      const hw=widths[i]/2; px+=hw;
+      const t=letters.length<2?0:(i/(letters.length-1))-0.5;
+      ctx.save(); ctx.translate(px,cy+(bend||0)*Math.cos(t*Math.PI)); ctx.rotate(t*0.16);
+      ctx.lineWidth=Math.max(5,size*0.07); ctx.strokeStyle='#14070a'; ctx.strokeText(ch,0,0);
+      ctx.fillStyle=col; ctx.fillText(ch,0,0); ctx.restore();
+      px+=hw+(spread||0);
+    });
     ctx.restore();
   }
-  function label(t,x,y,size,col,align){ ctx.save(); ctx.font=size+'px '+HEAD(); ctx.fillStyle=col||INK; ctx.textAlign=align||'left'; ctx.textBaseline='top'; ctx.lineJoin='round'; ctx.lineWidth=Math.max(2,size*0.08); ctx.strokeStyle='#14070a'; ctx.strokeText(t,x,y); ctx.fillText(t,x,y); ctx.restore(); }
+  function label(t,x,y,size,col,align){ ctx.save(); ctx.font=size+'px '+HEAD(); ctx.fillStyle=col||SUMI; ctx.textAlign=align||'left'; ctx.textBaseline='top'; ctx.fillText(t,x,y); ctx.restore(); }
+  let _mmrMark=null, _sealCv=null, _sealG=null;
+  function mmrMark(){
+    const im=img('mmr','assets/splash/mmr-logo.jpg');
+    if(!ready(im)) return null;
+    if(_mmrMark) return _mmrMark;
+    const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+    const g=c.getContext('2d',{willReadFrequently:true});
+    g.drawImage(im,0,0);
+    const d=g.getImageData(0,0,c.width,c.height), p=d.data;
+    for(let i=0;i<p.length;i+=4){
+      const L=p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114;
+      p[i]=p[i+1]=p[i+2]=16;
+      p[i+3]=L<80?255:L<168?Math.round((168-L)/88*255):0;
+    }
+    g.putImageData(d,0,0);
+    _mmrMark=c;
+    return c;
+  }
+  // The approval mark: the MMR logo, keyed off the white, with a prismatic
+  // outline around every stroke and a shine that walks across it.
+  function mmrSeal(cx,cy,size){
+    const mark=mmrMark(); if(!mark) return;
+    const pad=7, S=Math.ceil(size+pad*2);
+    if(!_sealCv||_sealCv.width!==S){ _sealCv=document.createElement('canvas'); _sealCv.width=_sealCv.height=S; _sealG=_sealCv.getContext('2d'); }
+    const g=_sealG, t=(typeof fr!=='undefined'?fr:0);
+    g.clearRect(0,0,S,S);
+    for(let i=0;i<12;i++){
+      const a=i/12*Math.PI*2, dx=Math.cos(a)*2.6, dy=Math.sin(a)*2.6;
+      g.save();
+      g.drawImage(mark,pad+dx,pad+dy,size,size);
+      g.globalCompositeOperation='source-atop';
+      g.fillStyle='hsl('+((i*30+t*2.4)%360)+' 90% 58%)';
+      g.fillRect(0,0,S,S);
+      g.restore();
+    }
+    g.drawImage(mark,pad,pad,size,size);
+    g.save();
+    g.globalCompositeOperation='source-atop';
+    const u=((t%96)/96), x0=-size*0.35+u*size*1.7;
+    const grd=g.createLinearGradient(x0,0,x0+size*0.38,size*0.12);
+    grd.addColorStop(0,'rgba(255,255,255,0)');
+    grd.addColorStop(0.46,'rgba(255,255,255,0)');
+    grd.addColorStop(0.5,'rgba(255,255,255,0.88)');
+    grd.addColorStop(0.56,'rgba(110,230,255,0.5)');
+    grd.addColorStop(0.62,'rgba(255,186,70,0.4)');
+    grd.addColorStop(0.74,'rgba(255,255,255,0)');
+    grd.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=grd; g.fillRect(0,0,S,S);
+    g.restore();
+    ctx.drawImage(_sealCv,cx-S/2,cy-S/2);
+  }
 
   // the jack crops in the item-box sheet (1536×1024): TRS, RCA, XLR, MAG
   const JACK_X=[56,432,808,1180];
@@ -91,18 +160,19 @@
       framed(img('s1','assets/story/story-1.png'),x+30,y+100,w-60,180,{ay:0.4});
       wrap('Their neighbor Laitu said: "They are long gone, and left a trail of Knowl seeds. Tradzkul probably took them to his lair. You should follow the trail and find them!"',x+30,y+310,w-60,20,26);
     },
-    // 3 · the heroes
+    // 3 · the heroes. One column, measured, so the bios never sit on the portraits.
     (x,y,w,h)=>{
-      ribbon('MEET THE HEROES',x+30,y+30,330,BLUE);
-      const cw=(w-90)/2;
+      ribbon('MEET THE HEROES',x+24,y+16,Math.min(340,w-120),BLUE);
+      starburst(x+w-58,y+46,36,'2P');
+      let yy=y+84;
+      const pic=Math.max(112,Math.min(148,Math.floor((h-250)/2)));
       [['mind','MIND','#6a2cc8','The big brother. Wide black hat, purple circuits, steady hands and big ideas. Rolls on a dirt-bike wheel with a V8 in the hub.'],
-       ['venture','VENTURE','#c8281e','The little brother. Backward cap, red circuits, no brakes and all nerve. Rides along as your ally — or as Player 2.']].forEach(([k,n,c,t],i)=>{
-        const one=window.uiLayout&&uiLayout().oneCol;
-        const bx=one?x+30:x+30+i*(cw+30), by=one?y+96+i*250:y+100, bw=one?w-60:cw, bh=one?150:260;
-        framed(img('h'+k,'assets/ui/hero-'+k+'.png'),bx,by,bw,bh,{ay:0.1});
-        label(n,bx,by+bh+8,28,c); wrap(t,bx,by+bh+42,bw,22,26);
+       ['venture','VENTURE','#c8281e','The little brother. Backward cap, red circuits, no brakes and all nerve. Rides along as your ally, or as Player 2.']].forEach(([k,n,c,t])=>{
+        framed(img('h'+k,'assets/ui/hero-'+k+'.png'),x+24,yy,w-48,pic,{ay:0.12});
+        yy+=pic+8;
+        label(n,x+24,yy,28,c);
+        yy=wrap(t,x+24,yy+34,w-48,22,28)+10;
       });
-      starburst(x+w-80,y+h-90,58,'2 PLAYER!');
     },
     // 4 · controls
     (x,y,w,h)=>{
@@ -131,41 +201,41 @@
       ribbon('THE FOUR JACKS',x+30,y+30,320,BLUE);
       const sheet=img('boxes','assets/items/mv2-item-boxes-standard-enhanced.png');
       const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Latch on, swing, reel in with UP / DOWN. It plugs into your back.'],['XLR','A blast that throws blocks and enemies — and you, the other way.'],['MEG','The magnet. Locks to the floor when you aim down. Grab, carry, let go to throw.']];
-      T.forEach(([n,t],i)=>{ const by=y+100+i*128; framed(sheet,x+30,by,120,112,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+170,by+4,26,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+170,by+40,w-200,15,19); });
-      starburst(x+w-70,y+86,48,'POWER!');
+      T.forEach(([n,t],i)=>{ const by=y+92+i*142; framed(sheet,x+24,by,112,104,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+152,by+4,30,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+152,by+42,w-188,22,28); });
+      starburst(x+w-58,y+48,34,'PWR');
     },
     // 6 · Awdjoo Town
     (x,y,w,h)=>{
-      ribbon('AWDJOO TOWN',x+30,y+30,280);
-      framed(img('s5','assets/story/story-5.png'),x+30,y+100,w-60,180,{ay:0.5});
-      box(x+30,y+300,w-60,120,'STAGE 1.1 · THE STREET','#2a7a3a');
-      wrap('Find the four jacks in their crates, collect the Knowl seeds, meet Laitu and open the arch. Watch for the minions — and the gramophone in your living room.',x+42,y+334,w-84,14,18);
-      box(x+30,y+430,w-60,90,'STAGE 1.2 · DEEP WATERS',BLUE);
-      wrap('A flooded house, a crystal chamber and a corridor where D waits. Pull the drain plug. Water shorts out robots.',x+42,y+458,w-84,13,16);
-      box(x+30,y+530,w-60,90,'STAGE 1.3 · THE LAIR',RED);
-      wrap('Past the flooded street. E watches from one eye. F sleeps under the water. The knife is the only thing that can finish what waits at the end.',x+42,y+558,w-84,13,16);
+      ribbon('AWDJOO TOWN',x+24,y+16,280);
+      framed(img('s5','assets/story/story-5.png'),x+24,y+78,w-48,96,{ay:0.5});
+      box(x+24,y+186,w-48,150,'STAGE 1.1 · THE STREET','#2a7a3a',22);
+      wrap('Find the four jacks in their crates, collect the Knowl seeds, meet Laitu and open the arch. Watch for the minions, and the gramophone in your living room.',x+40,y+230,w-80,22,28);
+      box(x+24,y+348,w-48,130,'STAGE 1.2 · DEEP WATERS',BLUE,22);
+      wrap('A flooded house, a crystal chamber and a corridor where D waits. Pull the drain plug. Water shorts out robots.',x+40,y+392,w-80,22,28);
+      box(x+24,y+490,w-48,150,'STAGE 1.3 · THE LAIR',RED,22);
+      wrap('Past the flooded street. E watches from one eye. F sleeps under the water. The knife is the only thing that can finish what waits at the end.',x+40,y+534,w-80,22,28);
     },
     // 7 · tips
     (x,y,w,h)=>{
-      ribbon('TIPS & SECRETS',x+30,y+30,320,RED);
-      const tips=['Boil enough water with the TRS and the clouds roll in. What goes up comes down as rain.','Drive INTO your own XLR blast: the tire fights it, heats up and smokes.','Hold the XLR under water to blow an air pocket. Let go and it bursts to the surface.','The rope plugs into your back once it bites — your hand is free for another item.','A hard landing bounces off the rubber. Hold jump in the air and the wheel climbs.','Every slot remembers your hero, your jacks and every seed you found.','On filters, hold the item selection button, and press down, left, down, right, down, up, and see what happens!'];
-      let yy=y+100; tips.forEach((t,i)=>{ ctx.save(); ctx.fillStyle=i%2?BLUE:RED; ctx.beginPath(); ctx.arc(x+44,yy+10,11,0,Math.PI*2); ctx.fill(); ctx.font='14px '+HEAD(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),x+44,yy+11); ctx.restore(); yy=wrap(t,x+66,yy,w-100,15,20)+14; });
-      starburst(x+w-80,y+h-80,52,'HINT!');
+      ribbon('TIPS & SECRETS',x+24,y+16,Math.min(320,w-110),RED);
+      starburst(x+w-52,y+46,32,'!');
+      const tips=['Boil enough water with the TRS and the clouds roll in. What goes up comes down as rain.','Drive into your own XLR blast: the tire fights it, heats up and smokes.','Hold the XLR under water to blow an air pocket. Let go and it bursts to the surface.','The rope plugs into your back once it bites. Your hand is free for another item.','A hard landing bounces off the rubber. Hold jump in the air and the wheel climbs.','Every slot remembers your hero, your jacks and every seed you found.','On filters, hold the item button, then down, left, down, right, down, up.'];
+      let yy=y+86; tips.forEach((t,i)=>{ ctx.save(); ctx.fillStyle=i%2?BLUE:RED; ctx.beginPath(); ctx.arc(x+40,yy+14,16,0,Math.PI*2); ctx.fill(); ctx.font='18px '+HEAD(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),x+40,yy+15); ctx.restore(); yy=wrap(t,x+66,yy,w-96,20,26)+12; });
     },
     // 8 · credits
     (x,y,w,h)=>{
       ctx.fillStyle='#120a20'; ctx.fillRect(x,y,w,h);
       ribbon('CREDITS',x+30,y+30,220,GOLD);
-      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE" — PAULO VENTURA'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','M.M.R.'],['PROGRAMMING & SOUND DESIGN','PAULO VENTURA · CLAUDE (ANTHROPIC) · CURSOR'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
-      let yy=y+110; for(const [r,n] of C){ label(r,x+w/2,yy,13,'#9c8cc8','center'); label(n,x+w/2,yy+18,20,'#fff2c8','center'); yy+=62; }
-      label('(c) 2026 Paulo Ventura · BETA build '+(window.MV_BUILD||'?'),x+w/2,y+h-48,14,'#9c8cc8','center');
+      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE"'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','M.M.R.'],['PROGRAMMING & SOUND','PAULO VENTURA'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
+      let yy=y+96; for(const [r,n] of C){ label(r,x+w/2,yy,16,'#c8b8e8','center'); label(n,x+w/2,yy+22,26,'#fff2c8','center'); yy+=72; }
+      label('(c) 2026 Paulo Ventura · build '+(window.MV_BUILD||'?'),x+w/2,y+h-44,16,'#c8b8e8','center');
     },
     // 9 · progress
     (x,y,w,h)=>{
       ribbon('HOW FAR WE ARE',x+30,y+30,310,BLUE);
       const build=window.MV_BUILD||'?';
       const st=[['BUILD',build],['STAGES PLAYABLE','2  (AWDJOO 1.1 · 1.2)'],['ZONES PLANNED','6  (TOWN → HILLS → GARDEN → CAVERN → FACTORY → LAIR)'],['CODE','30,000 LINES · 50+ MODULES'],['NEXT','THE ALPHA: CREATIVE MODE + GAUDER HILLS']];
-      let yy=y+100; for(const [a,b] of st){ box(x+30,yy,w-60,70,a,BLUE); label(b,x+44,yy+34,18,INK); yy+=86; }
+      let yy=y+88; for(const [a,b] of st){ box(x+24,yy,w-48,78,a,BLUE,20); label(b,x+40,yy+42,24,INK); yy+=90; }
       // a progress bar: zones done / planned
       ctx.save(); ctx.fillStyle='#000'; ctx.fillRect(x+30,yy+8,w-60,22); ctx.fillStyle='#3fae5a'; ctx.fillRect(x+32,yy+10,(w-64)*(1/6),18); ctx.restore();
       label('ZONE 1 OF 6',x+w/2,yy+40,14,INK,'center');
@@ -174,14 +244,24 @@
     (x,y,w,h)=>{
       ribbon('CURIOUS FACTS',x+30,y+30,300,RED);
       const F=['Every drop of water is counted. Boil it to steam and it still exists — until it rains back down.','Mind\'s wheel hides a V8: five gears, a rev limiter, burble at idle and crackles when you lift off.','You hear the world from Mind\'s spot: walls muffle, rooms ring, and 3D "ears" put sounds beside or behind you.','The stage music isn\'t everywhere — it comes out of the gramophone in the living room.','Mind\'s eye squints harder the more danger is around him.','The title screen is hand-painted pixel art, and so is every story page.'];
-      let yy=y+100; F.forEach((t,i)=>{ box(x+30,yy,w-60,82,'FACT #'+(i+1),i%2?BLUE:RED); wrap(t,x+42,yy+32,w-84,13,17); yy+=94; });
+      let yy=y+84; F.forEach((t,i)=>{ box(x+24,yy,w-48,90,'FACT '+(i+1),i%2?BLUE:RED,20); wrap(t,x+40,yy+40,w-80,18,23); yy+=96; });
     },
-    // 11 · back cover
+    // 11 · the endeavor, full bleed, with its own title
     (x,y,w,h)=>{
-      ctx.fillStyle='#0c1a12'; ctx.fillRect(x,y,w,h);
-      if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+h/2-80,40,{col:'#b8f5a0',sweep:220});
-      label('THANK YOU FOR PLAYING',x+w/2,y+h/2,22,'#fff2c8','center');
-      label('© M.M.R. · MUSIC MECCA RECORDS',x+w/2,y+h-60,14,'#9c8cc8','center');
+      const im=img('home','assets/ui/title-home.jpg?v=297');
+      if(ready(im)){
+        const k=Math.max(w/im.naturalWidth,h/im.naturalHeight), dw=im.naturalWidth*k, dh=im.naturalHeight*k;
+        ctx.drawImage(im,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+      }else{ ctx.fillStyle='#120a18'; ctx.fillRect(x,y,w,h); }
+      const vg=ctx.createLinearGradient(0,y,0,y+h);
+      vg.addColorStop(0,'rgba(8,4,14,0.25)'); vg.addColorStop(0.42,'rgba(8,4,14,0.55)'); vg.addColorStop(1,'rgba(8,4,14,0.82)');
+      ctx.fillStyle=vg; ctx.fillRect(x,y,w,h);
+      const cx=x+w/2, cy=y+h*0.40, sz=Math.max(54,Math.min(86,w*0.15));
+      arcWord('MIND',cx,cy-sz*0.85,sz,'#f7f1e4',sz*0.06,sz*0.08);
+      arcWord('&',cx,cy,Math.round(sz*0.55),GOLD,0,0);
+      arcWord('VENTURE',cx,cy+sz*0.95,Math.round(sz*0.78),'#f7f1e4',sz*0.04,sz*0.06);
+      ctx.save(); ctx.strokeStyle=GOLD; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(cx-sz*1.3,cy+sz*1.55); ctx.lineTo(cx+sz*1.3,cy+sz*1.55); ctx.stroke(); ctx.restore();
+      label('AWDJOO TOWN',cx,cy+sz*1.7,18,'#fff2c8','center');
     },
   ];
   { const facts=PAGES[9], credits=PAGES[7]; PAGES[7]=facts; PAGES[9]=credits; }
@@ -210,12 +290,12 @@
     // controls hint
     if(typeof drawTextC==='function') drawTextC((window.uiMenuHint?uiMenuHint('manual'):'TURN THE PAGE')+'    '+(S.page+1)+' / '+PAGES.length,W/2,H-36,'#f2ffe8',3);
   }
-  function turn(d){ const n=Math.max(0,Math.min(PAGES.length-1,S.page+d)); if(n===S.page) return; S.from=S.page; S.page=n; S.t=0; try{ sfx('menu'); }catch(e){} }
+  function turn(d){ if(performance.now()-(S.openAt||0)<700) return; const n=Math.max(0,Math.min(PAGES.length-1,S.page+d)); if(n===S.page) return; S.from=S.page; S.page=n; S.t=0; try{ sfx('menu'); }catch(e){} }
   function close(){ _gameState=S.back; try{ sfx('confirm'); }catch(e){} }
-  function open(){ S.back=_gameState==='options'?'options':'title'; S.page=0; S.from=0; S.t=1; S.openAt=performance.now(); _gameState='manual'; try{ sfx('confirm'); }catch(e){} }
+  function open(){ S.back=_gameState==='options'?'options':'title'; S.page=0; S.from=0; S.t=1; S.openAt=performance.now(); _gameState='manual'; try{ ['Space','Enter','NumpadEnter','ArrowRight','KeyD','ArrowLeft','KeyA'].forEach(k=>{ delete Kj[k]; delete K[k]; }); }catch(e){} try{ sfx('confirm'); }catch(e){} }
   document.addEventListener('keydown',e=>{
     if(_gameState!=='manual') return;
-    if(performance.now()-(S.openAt||0)<180){ e.preventDefault(); e.stopImmediatePropagation(); return; }   // the key that opened it
+    if(performance.now()-(S.openAt||0)<700){ e.preventDefault(); e.stopImmediatePropagation(); return; }   // the key that opened it stays on page 1
     const c=e.code;
     if(c==='KeyF'||c==='Escape'||c==='Backspace') close();   // Y (punch) closes the booklet. B does not.
     else if(c==='ArrowRight'||c==='KeyD'||c==='Enter'||c==='Space') turn(1);

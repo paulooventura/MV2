@@ -888,13 +888,17 @@
   //   grip, how fast things fly when thrown, what a thrown thing does when it
   //   hits, and how MIND bounces (js/beta_feel.js).
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
-    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:2, b_square:19, b_tri:7};   // by size (omni block = 3): A tiny, C heavier than MIND (9.5)
+    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // area against a 32px omni (weight 3)
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
   function weightOf(kind,ref){
     if(kind==='cube') return WEIGHT[ref.only||'omni']||3;
     if(kind==='knowl') return ref.kind==='crystal'?WEIGHT.crystal:WEIGHT.seed;
-    if(kind==='enemy') return WEIGHT[ref.type]||6;
+    if(kind==='enemy'){
+      if(WEIGHT[ref.type]) return WEIGHT[ref.type];
+      const area=Math.max(1,(ref.w||32)*(ref.h||32));
+      return Math.max(1, Math.round(area/1024*3*10)/10);
+    }
     return WEIGHT.object;
   }
   B.weightOf=weightOf;
@@ -1476,42 +1480,62 @@
     }
     B.booms=B.booms.filter(t=>fr-t<BOOM.WINDOW);
     if(!B.booms.length){ B.chainHurtP=0; for(const e of ENEMS) e._chainHurt=0; }
+    flushCage();
   }
   function explode(bw){
     const cx=bw.x+bw.w/2, cy=bw.y+bw.h/2;
     if(bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow);
     B.booms.push(fr); B.stats.booms++;
-    const amp=1+0.35*(B.booms.length-1);                 // chain reactions hit harder
-    B.blasts.push({x:cx,y:cy,t:0,amp});
-    if(B.onBoom) B.onBoom(amp);
-    B.shake=Math.max(B.shake||0,Math.min(14,6*amp));
-    const dmg=BOOM.DMG*amp;
+    B.blasts.push({x:cx,y:cy,t:0,amp:0.45});
+    B.cageQ=B.cageQ||[];
+    B.cageQ.push({x:cx,y:cy});
+    B.cageFr=fr;
     for(const o of BWALLS){
       if(o===bw||o.hp<=0) continue;
       const d=Math.hypot(o.x+o.w/2-cx,o.y+o.h/2-cy); if(d>BOOM.R) continue;
-      if(o.only==='laser'){ if(!(o._fuse>0)) o._fuse=BOOM.FUSE+((Math.random()*4)|0); continue; }
-      if(o.cube&&!o.only){ o.hp=Math.max(0,o.hp-dmg*1.6); o.hitGlow=12; }
+      if(o.only==='laser'){ if(!(o._fuse>0)) o._fuse=BOOM.FUSE+((Math.random()*4)|0); }
+    }
+    for(let i=0;i<8;i++){ const a=Math.random()*Math.PI*2, sp=1.2+Math.random()*2.2;
+      PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.6,life:10+Math.random()*8|0,maxLife:18,r:1.4+Math.random()*1.6,col:i%2?'#ffd040':'#ff7020'}); }
+  }
+  function flushCage(){
+    if(!B.cageQ||!B.cageQ.length) return;
+    if(fr-(B.cageFr||0)<8) return;
+    const hits=B.cageQ; B.cageQ=[];
+    const n=hits.length;
+    try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.cageBoom) MV_BETA_AUDIO.cageBoom(n); }catch(e){}
+    B.shake=Math.max(B.shake||0, n<=1?1.2:Math.min(14,2.5+n*1.3));
+    const dmg=n<=1?0:Math.min(36, 3+5*(n-1));
+    const amp=n<=1?0.25:Math.min(2.4,0.45+0.28*(n-1));
+    for(let i=0;i<Math.min(28,6+n*3);i++){ const h=hits[i%hits.length], a=Math.random()*Math.PI*2, sp=1.5+Math.random()*4*amp;
+      PFXS.push({x:h.x,y:h.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.2,life:14+Math.random()*14|0,maxLife:28,r:2+Math.random()*2.4,col:i%3?'#ffd040':'#ff7020'}); }
+    if(dmg<=0) return;
+    for(const o of BWALLS){
+      if(!o||o.hp<=0||o.only==='laser'||!o.cube||o.only) continue;
+      let near=1e9; for(const h of hits) near=Math.min(near, Math.hypot(o.x+o.w/2-h.x,o.y+o.h/2-h.y));
+      if(near>BOOM.R) continue;
+      o.hp=Math.max(0,o.hp-dmg*1.2); o.hitGlow=12;
     }
     for(const e of ENEMS){
       if(!e.alive) continue;
-      const d=Math.hypot(e.x+e.w/2-cx,e.y+e.h/2-cy); if(d>BOOM.R+30) continue;
-      // a chain hurts, but never takes more than ~60% of an enemy's energy, and never the last of it
+      let near=1e9, hx=hits[0].x, hy=hits[0].y;
+      for(const h of hits){ const d=Math.hypot(e.x+e.w/2-h.x,e.y+e.h/2-h.y); if(d<near){ near=d; hx=h.x; hy=h.y; } }
+      if(near>BOOM.R+30) continue;
       const hit=Math.min(Math.round(dmg),Math.max(0,e.hp-1),Math.max(0,Math.round(e.mhp*0.6-(e._chainHurt||0))));
-      if(hit>0&&typeof _damageEnemy==='function'){ _damageEnemy(e,hit,cx,cy,1.2); e._chainHurt=(e._chainHurt||0)+hit; }
+      if(hit>0&&typeof _damageEnemy==='function'){ _damageEnemy(e,hit,hx,hy,1.2); e._chainHurt=(e._chainHurt||0)+hit; }
     }
     if(p){
-      const d=Math.hypot(p.x+SW/2-cx,p.y+FEET_OFF-50-cy);
-      if(d<BOOM.R+30){
-        const hit=Math.min(Math.round(dmg*0.6),Math.max(0,p.hp-1),Math.max(0,BOOM.MAX_P-(B.chainHurtP||0)));   // MIND: at most ~a third of his energy per chain
+      let near=1e9, hx=hits[0].x, hy=hits[0].y;
+      for(const h of hits){ const d=Math.hypot(p.x+SW/2-h.x,p.y+FEET_OFF-50-h.y); if(d<near){ near=d; hx=h.x; hy=h.y; } }
+      if(near<BOOM.R+30){
+        const hit=Math.min(Math.round(dmg*0.55),Math.max(0,p.hp-1),Math.max(0,BOOM.MAX_P-(B.chainHurtP||0)));
         B.chainHurtP=(B.chainHurtP||0)+hit;
-        const k=1/(Math.max(20,d)), kx=(p.x+SW/2-cx)*k, ky=(p.y+FEET_OFF-50-cy)*k;
-        if(hit>0&&typeof applyPlayerHit==='function') applyPlayerHit(kx*6*amp,ky*5*amp-2,hit);
-        else { p.vx+=kx*6; p.vy+=ky*5-2; }
+        const k=1/Math.max(20,near), kx=(p.x+SW/2-hx)*k, ky=(p.y+FEET_OFF-50-hy)*k;
+        if(hit>0&&typeof applyPlayerHit==='function') applyPlayerHit(kx*5*amp,ky*4*amp-1,hit);
+        else { p.vx+=kx*4; p.vy+=ky*3-1; }
       }
     }
-    if(B.sibHurtAt) B.sibHurtAt(cx,cy,BOOM.R+30,dmg*0.6);          // a chain going off hurts your sibling too
-    for(let i=0;i<22;i++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*5*amp;
-      PFXS.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:16+Math.random()*16|0,maxLife:32,r:2+Math.random()*3,col:i%3?'#ffd040':'#ff7020'}); }
+    if(B.sibHurtAt) B.sibHurtAt(hits[0].x,hits[0].y,BOOM.R+30,dmg*0.5);
   }
 
   // octave up, then +0.5% for each percent of this level's seeds already gathered

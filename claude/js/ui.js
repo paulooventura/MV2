@@ -880,12 +880,13 @@ function drawOptions(){
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'DIFFICULTY',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()}];
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a),rule:i===0?'CONTROLS':null}));
-  rows.push({label:'MANUAL & CREDITS',val:'OPEN >'});
+  rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
   const rowH=stacked?78:52, VIS=6;
   const start=rows.length<=VIS?0:Math.max(0,Math.min(_optRow-2, rows.length-VIS));
   const show=Math.min(VIS, rows.length);
-  const panelH=86+show*rowH+56;
+  let gapSum=0; for(let vi=0;vi<show;vi++){ const rr=rows[start+vi]; if(rr.rule||rr.sep) gapSum+=36; }
+  const panelH=86+show*rowH+gapSum+56;
   const panelY=Math.max(16+L.inset.t, Math.round((H-panelH)/2));
   uiPanel(panelX,panelY,panelW,panelH,{r:16});
   uiLogo('OPTIONS',W/2,panelY+12,36,{sweep:300});
@@ -893,20 +894,21 @@ function drawOptions(){
   let y=panelY+70;
   for(let vi=0;vi<show;vi++){
     const i=start+vi, r=rows[i], sel=i===_optRow;
-    if(r.rule){
-      ctx.fillStyle='rgba(255,227,154,0.85)'; ctx.fillRect(panelX+24,y-10,panelW-48,3);
-      drawText(r.rule,panelX+28,y-22,'#ffe39a',2);
+    if(r.rule||r.sep){
+      y+=28;
+      ctx.fillStyle='rgba(255,227,154,0.85)'; ctx.fillRect(panelX+24,y-16,panelW-48,2);
+      if(r.rule) drawText(r.rule,panelX+28,y-28,'#ffe39a',2);
     }
     if(sel){ uiPanel(panelX+16,y-8,panelW-32,rowH-8,{sel:true,r:10,flat:true}); uiCursor(panelX+28,y+8,9); }
     const col=sel?'#ffffff':'#d8ffc8', valCol=sel?'#ffe39a':'#d8ffc8';
     if(stacked){
       drawText(r.label,panelX+48,y,col,scl);
       if(r.bar!=null){ uiBar(panelX+48,y+32,panelW-160,14,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,panelX+panelW-28,y+30,valCol,scl); }
-      else drawText(r.val,panelX+48,y+32,valCol,scl);
+      else if(!r.sep) drawText(r.val,panelX+48,y+32,valCol,scl);
     }else{
       drawText(r.label,panelX+48,y,col,scl);
       if(r.bar!=null){ uiBar(panelX+panelW-230,y+4,120,14,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,panelX+panelW-28,y,valCol,scl); }
-      else drawTextR(r.val,panelX+panelW-28,y,valCol,scl);
+      else if(!r.sep) drawTextR(r.val,panelX+panelW-28,y,valCol,scl);
     }
     y+=rowH;
   }

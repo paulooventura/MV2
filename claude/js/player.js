@@ -240,6 +240,7 @@ function _itemBtnDown(){
 }
 function isSprintHeld(){
   if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
+  if(p&&p._ignition&&_moveInputX()!==0) return true;
   if(p&&p._sprintMode&&_itemBtnDown()&&_moveInputX()!==0) return true;
   return false;
 }
@@ -257,6 +258,12 @@ function _updateRunEntry(pl){
   }
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
+  if((pl._standTapT||0)>0) pl._standTapT--;
+  const standing=!dir&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
+  if(btn&&!was&&standing){
+    if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
+    else pl._standTapT=16;
+  }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)
   const dirWas=pl._dirWas||0;
@@ -292,6 +299,7 @@ function _updateRunEntry(pl){
   }
 }
 function _runItemQuiet(pl){
+  if(pl&&(pl._ignEat||0)>0){ pl._ignEat--; return true; }
   if(!pl||!_itemBtnDown()) return false;
   // Paulo (Oct 22, "the item button is not working"): the button used to be held back for the first
   // 12 frames of EVERY press (in case it was a sprint), and a second press within 40 frames while

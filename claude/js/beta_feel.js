@@ -175,13 +175,18 @@
     // smoothly. The jet tilts back so it blows down-and-behind, carrying him forward.
     const lift=typeof isDn==='function'&&isDn()&&a.y>0.3;
     if(lift){
-      a.x=0; a.y=1;
       const vx0=p.vx;
-      p._xlrSwayA=(p._xlrSwayA||0)+((-inDir*0.38)-(p._xlrSwayA||0))*0.15;
+      // Tip follows the stick. Press left while the jet is down: the tip goes SW.
+      // The body is the opposite reaction, so it travels NE. Facing stays put.
+      p._xlrSwayA=(p._xlrSwayA||0)+((inDir||0)*0.85-(p._xlrSwayA||0))*0.22;
+      const ax=p._xlrSwayA, ay=1, l=Math.hypot(ax,ay)||1;
+      p.aimDX=ax/l; p.aimDY=ay/l;
       liftJet(a,held,enh,run,grounded);
-      p.vx=vx0+((inDir*run*FEEL.XLR_SWAY)-vx0)*(inDir?FEEL.XLR_SWAY_K:FEEL.XLR_SWAY_K*0.6);
-      const l=Math.hypot(p._xlrSwayA,1); p.aimDX=p._xlrSwayA/l; p.aimDY=1/l;
-      if(inDir) p.fc=inDir>0;
+      if(inDir){
+        const pw=0.45+0.55*Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+        const push=(-p.aimDX)*run*0.72*enh*pw;
+        p.vx=vx0+(push-vx0)*0.34;
+      }
       if(fr%3===0) PFXS.push({x:p.x+SW/2+p.aimDX*18,y:p.y+FEET_OFF-36+p.aimDY*18,vx:p.aimDX*3.2,vy:p.aimDY*3.2,life:8,maxLife:8,r:2.4,col:'#aaddff'});
       return;
     }
@@ -248,6 +253,12 @@
     // MIND anywhere — the pull only carries him once he's in the air
     if(typeof _playerOnGround==='function'&&_playerOnGround(p)) return;
     const a=aimUnit();
+    const inDir=(typeof isRt==='function'&&isRt())?1:(typeof isLf==='function'&&isLf())?-1:0;
+    const rising=a.y<-0.25||(p.vy<-1.2);
+    if(rising&&inDir){
+      const tx=inDir*0.75, ty=-0.66, l=Math.hypot(tx,ty);
+      p.aimDX=tx/l; p.aimDY=ty/l; a.x=p.aimDX; a.y=p.aimDY;
+    }
     // Paulo (Oct 22): aimed down, the pull doesn't fight a jump (or drag him down while it's drawing water up)
     if(a.y>0.4&&((p._jumpFr!=null&&fr-p._jumpFr<45)||(typeof isJump==='function'&&isJump()&&p.vy<0)||(B.ferro&&fr-B.ferro.t<=1))) return;
     const charge=Math.min(1,(p.magHeld||0)/FEEL.XLR_FULL);
@@ -603,6 +614,15 @@
     hookTick();
     wallTick();
     ropeSounds();
+    if(p._ignition){
+      const hot=Math.min(1,Math.abs(p.vx||0)/8);
+      const every=hot>0.45?2:5;
+      if(p.smoke&&p.smoke.length<30&&fr%every===0) p.smoke.push({x:p.x+SW/2+(Math.random()-0.5)*12,y:p.y+FEET_OFF-6,vx:(Math.random()-0.5)*(1+hot*2)-Math.sign(p.vx||0)*hot*0.8,vy:-0.35-Math.random()*(0.5+hot*1.4),life:16+(hot*18)|0,maxLife:36,r:2+Math.random()*2+hot*3});
+      if(fr%(hot>0.5?2:4)===0) PFXS.push({x:p.x+SW/2+(Math.random()-0.5)*8,y:p.y+FEET_OFF-4,vx:(Math.random()-0.5)*(2+hot*4),vy:-1-Math.random()*(1+hot*2),life:8,maxLife:8,r:1.1+hot,col:hot>0.55?'#ff9a40':'#ffd090'});
+      try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.engine) MV_BETA_AUDIO.engine(true,hot); }catch(e){}
+    }else{
+      try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.engine) MV_BETA_AUDIO.engine(false,0); }catch(e){}
+    }
     if(st.tuckT>0){ st.tuckT--; p._autoHeadTuck=Math.max(p._autoHeadTuck||0,st.tuckT>6?1:st.tuckT/6); }
     else{
       // the head pops back out once nothing is overhead (it never stays stuck in the box)

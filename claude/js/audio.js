@@ -112,6 +112,11 @@ function _filterScore(type){
   if(_genesisSound()) return GENESIS_TRACK;
   return null;
 }
+function _isFilterTrack(path){
+  if(!path) return false;
+  return path===GORE_TRACK||path===INK_1GO||path===INK_STORI||path===SNES_TRACK||path===GENESIS_TRACK
+    ||/chaos-theory|kiyoki-senritsu|snes-awdjoo|genesis-awdjoo/.test(String(path));
+}
 window.MV_INK_SOUND=_inkSound;
 window.MV_GORE_SOUND=_goreSound;
 window.MV_SNES_SOUND=_snesSound;
@@ -452,7 +457,13 @@ function _playBGM(type,vol=0.7){
   let el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
   if(!el) el=_mp3Pool[type];
   const score=_filterScore(type);
-  if(score&&_bgmPathFor(type)!==score) el=_loadBgmElement(type,score);
+  const cur=_bgmPathFor(type);
+  if(score){
+    if(cur!==score) el=_loadBgmElement(type,score);
+  }else if(_isFilterTrack(cur)){
+    const path=_pickBgmPath(type,null);
+    if(path&&path!==cur) el=_loadBgmElement(type,path);
+  }
   if(!el){
     const path=_pickBgmPath(type,_bgmPathFor(type));
     if(path) el=_loadBgmElement(type,path);
@@ -491,7 +502,7 @@ function _stopBGM(type){
   }
 }
 function updateGameBgm(){
-  if(window._mvOctave) return;
+  if(window._mvOctave||window._mvVinyl||window._mvVinylSpin) return;
   if(_gameState!=='game')return;
   const f=Math.max(0.3,_healFrac);
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
@@ -527,9 +538,8 @@ function _cueFilterMusic(){
   // stop the title/story/OST elements so they cannot keep the main theme going.
   try{
     const B=window.MV_BETA, A=window.MV_BETA_AUDIO;
-    if(B&&B.on&&A&&typeof A.play==='function'&&(typeof _gameState==='undefined'||_gameState==='game'||_gameState==='options')){
-      const name=(A.current&&A.current())||(B.popup?'item':(B.music||'stage'));
-      A.play(name,{restart:true});
+    if(B&&B.on&&A&&typeof A.recure==='function'&&(typeof _gameState==='undefined'||_gameState==='game'||_gameState==='options')){
+      A.recure();
       return;
     }
   }catch(e){}

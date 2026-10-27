@@ -873,13 +873,15 @@ function update(){
   if(win){clkj();return;}
   if(_shutdownTimer>0){
     _shutdownTimer--;
+    try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.vinylBrake) MV_BETA_AUDIO.vinylBrake(_shutdownTimer/SHUTDOWN_FRAMES); }catch(e){}
     p.vx*=0.88; p.vy=Math.min(p.vy+GRAV*0.7,10);
     const pf=p.y+FEET_OFF;
     p.x+=p.vx;if(p.x<0){p.x=0;p.vx=0;}if(p.x>WW-SW){p.x=WW-SW;p.vx=0;}
     resX();p.y+=p.vy;resY(pf);
     if(p.y<20){p.y=20;p.vy=Math.max(0,p.vy);}
     if(_shutdownTimer===0){
-      if(_gameOver){ try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.octaveDown(); }catch(e){} clkj();return; }
+      if(_gameOver){ try{ if(window.MV_BETA_AUDIO){ if(MV_BETA_AUDIO.vinylToOctave) MV_BETA_AUDIO.vinylToOctave(); else MV_BETA_AUDIO.octaveDown(); } }catch(e){} clkj();return; }
+      try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.vinylSpinUp) MV_BETA_AUDIO.vinylSpinUp(); }catch(e){}
       _respawnPlayer();
     }
     clkj();return;
@@ -894,7 +896,11 @@ function update(){
   else if(dn&&_punchingNow){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
   else if(ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p._hasAimInput=true; }
   else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=p.fc?1:-1;p.tAimDY=0;}}
-  if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
+  const risingXlr=dn&&ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')));
+  const risingMag=ITEM===3&&p.magOn&&(up||(p.vy||0)<-0.8);
+  if(!(risingXlr||risingMag)){
+    if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
+  }
   // spamming the TRS: the arm sweeps to the new aim instead of snapping (the shots fan out on the way)
   const _trsSweep=ITEM===0&&typeof TRS_SWEEP_FR!=='undefined'&&fr-(p._trsLastFr==null?-99:p._trsLastFr)<TRS_SWEEP_FR;
   if(_trsSweep&&!p._hasAimInput){p.tAimDX=p.fc?1:-1;p.tAimDY=0;}
