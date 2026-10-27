@@ -27,6 +27,8 @@
     {id:3, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
   ];
   const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
+  const EYE={mind:{u:0.50,v:0.31}, venture:{u:0.50,v:0.28}};
+  let eyeT=0, eyeKey='mind', ask=null;
   const sparks=[];
   const ease=(a,b,k)=>a+(b-a)*k;
 
@@ -118,6 +120,15 @@
         FEATHER[ck]=off; }
       ctx.drawImage(off, cx-iw/2, y+h*0.01);
       ctx.filter='none';
+      if(sel&&eyeKey===key&&eyeT>0.04){
+        const e=EYE[key], z=1+eyeT*3.4;
+        const zw=iw*z, zh=ih*z;
+        const ex=cx-iw/2+iw*e.u, ey=y+h*0.01+ih*e.v;
+        ctx.save(); ctx.globalAlpha=Math.min(1,eyeT*1.35);
+        ctx.beginPath(); ctx.arc(ex,ey,18+ (1-eyeT)*h*0.45,0,Math.PI*2); ctx.clip();
+        ctx.drawImage(im, ex-zw*e.u, ey-zh*e.v, zw, zh);
+        ctx.restore();
+      }
     }
     // the hero's colour washed up from the bottom + a name plate
     const g=ctx.createLinearGradient(0,y+h*0.45,0,y+h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.55,'rgba(4,6,10,0.75)'); g.addColorStop(1,'rgba(4,6,10,0.96)');
@@ -186,7 +197,7 @@
     const L=uiLayout(), sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     const top=title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS':(sib?'BROTHER RIDES WITH YOU':'BROTHER STAYS HOME'));
     const showSwitches=_playerCount!==2&&window.MV_SIBLING;
-    const switchH=showSwitches?92:0;
+    const switchH=showSwitches?48:0;
     const yHint=hintY();
     const ySw=yHint-28-switchH;
     const gap=12;
@@ -201,13 +212,13 @@
       sibRects=[];
       const y=heroRects[1].y+heroRects[1].h+16;
       phonePills('BROTHER',[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH',col:'#ffb86a'}],!!MV_SIBLING.on,L.panelX,y,L.panelW,1,selRow===1);
-      phonePills('HURT',[{k:false,label:'OFF',col:'#9ef58a'},{k:true,label:'ON',col:'#ff7a6a'}],!!MV_SIBLING.ff,L.panelX,y+48,L.panelW,2,selRow===2);
     }
     hints();
   }
   function drawHeroes(){
     const mSel=_heroChoice==='mind';
-    if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
+    if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; eyeT=1; eyeKey=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
+    eyeT*=0.9;
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
     const one=window.uiLayout&&uiLayout().oneCol;
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
@@ -253,25 +264,20 @@
   function sibToggle(){
     sibRects=[];
     const g1=[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH BROTHER',col:'#ffb86a'}];
-    const g2=[{k:false,label:'OFF',col:'#9ef58a'},{k:true,label:'ON',col:'#ff7a6a'}];
     const L=window.uiLayout?uiLayout():{oneCol:false,panelX:40,panelW:520,pad:{b:0}};
-    ctx.save(); ctx.font='22px "MV Pixel", monospace';
-    const wOf=g=>g.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+8; ctx.restore();
     if(L.oneCol){
-      const y=H-Math.max(150,(L.pad.b||0)+150);
+      const y=H-Math.max(110,(L.pad.b||0)+110);
       pillGroup('COMPANION',g1,!!MV_SIBLING.on,L.panelX+12,y,selRow===1,1);
-      pillGroup('FRIENDLY FIRE',g2,!!MV_SIBLING.ff,L.panelX+12,y+54,selRow===2,2);
       return;
     }
-    const w1=wOf(g1)+textW('COMPANION',2)+14, w2=wOf(g2)+textW('FRIENDLY FIRE',2)+14;
-    const gap=28, x0=W/2-(w1+gap+w2)/2, y=H-108;
-    pillGroup('COMPANION',g1,!!MV_SIBLING.on,x0,y,selRow===1,1);
-    pillGroup('FRIENDLY FIRE',g2,!!MV_SIBLING.ff,x0+w1+gap,y,selRow===2,2);
+    ctx.save(); ctx.font='22px "MV Pixel", monospace';
+    const w1=g1.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+8+textW('COMPANION',2)+14; ctx.restore();
+    pillGroup('COMPANION',g1,!!MV_SIBLING.on,W/2-w1/2,H-108,selRow===1,1);
   }
   function rowChange(dx){
+    if(ask){ ask.sel=dx>0?1:0; try{ sfx('menu'); }catch(e2){} return; }
     if(selRow===0){ _heroChoice=dx<0?'mind':'venture'; return; }
     if(selRow===1) setCompanion(dx>0);
-    else MV_SIBLING.ff=dx>0;
     try{ sfx('menu'); }catch(e2){}
   }
   // Paulo (Oct 22): pick with the mouse / a finger — a tap on a card picks it, a tap on the picked
@@ -286,10 +292,16 @@
       for(const b of modeRects) if(inR(b,mx,my)){ if(_playModeIdx===b.i) startGame(); else { _playModeIdx=b.i; beep(); } return; }
       return;
     }
+    if(ask){
+      const mid=W/2;
+      ask.sel=mx<mid?0:1;
+      beep();
+      startGame();
+      return;
+    }
     if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
       selRow=b.row;
-      if(b.row===1){ if(!!MV_SIBLING.on!==b.k){ setCompanion(b.k); beep(); } }
-      else if(!!MV_SIBLING.ff!==b.k){ MV_SIBLING.ff=b.k; beep(); }
+      if(b.row===1&&!!MV_SIBLING.on!==b.k){ setCompanion(b.k); beep(); }
       return;
     }
     for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
@@ -325,6 +337,11 @@
       try{ sfx('menu'); }catch(e2){}
       return true;
     }
+    if(ask){
+      if(dx) ask.sel=dx>0?1:0;
+      try{ sfx('menu'); }catch(e2){}
+      return true;
+    }
     if(_playerCount===2||!window.MV_SIBLING){
       if(dx<0||(one&&dy<0)) _heroChoice='mind';
       if(dx>0||(one&&dy>0)) _heroChoice='venture';
@@ -334,7 +351,7 @@
       if(dy>0&&_heroChoice==='mind'){ _heroChoice='venture'; try{ sfx('menu'); }catch(e2){} return true; }
       if(dy<0&&_heroChoice==='venture'){ _heroChoice='mind'; try{ sfx('menu'); }catch(e2){} return true; }
     }
-    if(dy){ selRow=Math.max(0,Math.min(2,selRow+dy)); try{ sfx('menu'); }catch(e2){} }
+    if(dy){ selRow=Math.max(0,Math.min(1,selRow+dy)); try{ sfx('menu'); }catch(e2){} }
     if(dx) rowChange(dx);
     return true;
   };
@@ -400,10 +417,45 @@
     hints();
   }
 
+  function drawAsk(){
+    if(!ask) return;
+    const two=_playerCount===2;
+    ctx.save();
+    ctx.fillStyle='rgba(4,8,6,0.72)'; ctx.fillRect(0,0,W,H);
+    const pw=Math.min(640,W-48), ph=220, px=(W-pw)/2, py=(H-ph)/2;
+    if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:16});
+    else { ctx.fillStyle='#102018'; ctx.fillRect(px,py,pw,ph); }
+    drawTextC(two?'CALL YOUR BROTHER?':'DOES YOUR BROTHER COME?', W/2, py+28, '#f2ffe8', 3);
+    drawTextC(two?'PLAYER 2 RIDES WITH YOU':'COME ALONG, OR STAY IN THE HOUSE', W/2, py+68, '#d8ffc8', 2);
+    const opts=two?['CALL','NOT NOW']:['COMES','STAYS'];
+    opts.forEach((t,i)=>{
+      const on=ask.sel===i, bw=220, bx=W/2-240+i*250, by=py+110;
+      ctx.fillStyle=on?'#1c3a28':'#0c1812';
+      if(typeof uiRound==='function'){ uiRound(bx,by,bw,52,10); ctx.fill(); }
+      else ctx.fillRect(bx,by,bw,52);
+      ctx.strokeStyle=on?'#b8f5a0':'#3a5a48'; ctx.lineWidth=on?3:1.5;
+      if(typeof uiRound==='function'){ uiRound(bx,by,bw,52,10); ctx.stroke(); }
+      drawTextC(t, bx+bw/2, by+16, on?'#ffffff':'#9aab9c', 2);
+    });
+    ctx.restore();
+  }
+  window.MV_SELECT_GATE=function(){
+    if(window.MV_SIBLING) MV_SIBLING.ff=true;
+    if(ask){
+      if(_playerCount===2&&ask.sel===1){ ask=null; _selectStep=0; return true; }
+      if(_playerCount!==2) setCompanion(ask.sel===0);
+      else if(window.MV_SIBLING) MV_SIBLING.on=false;
+      ask=null;
+      return false;
+    }
+    ask={sel:_playerCount===2?0:(window.MV_SIBLING&&MV_SIBLING.on?0:1)};
+    return true;
+  };
   window.drawSelect=function(){
     ctx.save(); ctx.imageSmoothingEnabled=false;
     bg();
     if(_selectStep===0) drawModes(); else drawHeroes();
+    drawAsk();
     if(typeof _drawUiToast==='function') _drawUiToast();
     ctx.restore(); ctx.imageSmoothingEnabled=true;
   };

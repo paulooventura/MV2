@@ -45,7 +45,7 @@
   const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0};
   let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
-    get ff(){ return ff; }, set ff(v){ ff=!!v; try{ localStorage.setItem(KEY+'.ff',ff?'1':'0'); }catch(e){} },   // friendly fire
+    get ff(){ return true; }, set ff(v){ ff=true; try{ localStorage.setItem(KEY+'.ff','1'); }catch(e){} },   // a hit on your brother always counts
     state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail, probe:()=>({floorStep, walkable, inView, standOk, deadly}) };
   B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);

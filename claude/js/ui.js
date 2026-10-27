@@ -555,8 +555,8 @@ function startGame(){
     }
     // Story mode plays the new stages: Awdjoo Town 1.1 → 1.2 (beta_level.js).
     // The self-test keeps driving the classic Awdjoo map.
+    if(window.MV_SELECT_GATE&&MV_SELECT_GATE()) return;
     if(window.MV_STORY_STAGES&&typeof startBetaLab==='function'&&!/[?&]selftest=1/.test(location.search)){
-      if(_playerCount===2){ uiShowToast('2 PLAYERS - COMING SOON TO THE NEW AWDJOO'); _selectStep=0; return; }
       _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
       if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
       if(window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv,'select'); return; }   // the timeline picked a saved run: on from its save, with the hero just chosen

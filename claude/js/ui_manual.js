@@ -133,6 +133,44 @@
     ctx.drawImage(_sealCv,cx-S/2,cy-S/2);
   }
 
+  const CTRL_NAME={key:'KEYBOARD & MOUSE', xbox:'XBOX', snes:'SUPER NINTENDO', genesis:'GENESIS', mobile:'MOBILE'};
+  function ctrlNow(){
+    const dev=(typeof _uiDev!=='undefined')?_uiDev:'key';
+    if(dev==='touch') return 'mobile';
+    if(dev==='pad'){
+      const f=(typeof _uiPadFamily!=='undefined')?_uiPadFamily:'other';
+      if(f==='xbox') return 'xbox';
+      if(f==='nintendo') return 'snes';
+      return 'genesis';
+    }
+    return 'key';
+  }
+  function drawCtrl(id,x,y,w,h){
+    const cx=x+w/2, cy=y+h*0.55;
+    ctx.save();
+    if(id==='key'){
+      ctx.fillStyle='#1c140e'; ctx.fillRect(cx-150,cy-28,300,56);
+      ctx.strokeStyle='#c4a574'; ctx.lineWidth=2; ctx.strokeRect(cx-150,cy-28,300,56);
+      'ASDF'.split('').forEach((ch,i)=>{ ctx.fillStyle='#f4efe4'; ctx.fillRect(cx-132+i*36,cy-16,30,28); ctx.fillStyle='#1c140e'; ctx.font='16px '+HEAD(); ctx.textAlign='center'; ctx.fillText(ch,cx-117+i*36,cy+4); });
+      ctx.fillStyle='#d8d2c8'; ctx.beginPath(); ctx.ellipse(cx+120,cy+8,16,22,0.4,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#2a241c'; ctx.fillRect(cx+112,cy-8,6,16);
+    }else if(id==='mobile'){
+      ctx.strokeStyle='#1c140e'; ctx.lineWidth=4; ctx.strokeRect(cx-70,cy-78,140,156);
+      ctx.fillStyle='#f7f1e4'; ctx.fillRect(cx-66,cy-74,132,148);
+      ctx.fillStyle='#1c140e'; ctx.beginPath(); ctx.arc(cx-28,cy+36,16,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx+30,cy+28,14,0,Math.PI*2); ctx.fill();
+    }else{
+      const body=id==='xbox'?'#3a3a3a':id==='snes'?'#d7d3cf':'#1a1a1a';
+      ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(cx+4,cy+6,168,62,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=body; ctx.beginPath(); ctx.ellipse(cx,cy,168,62,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#14070a'; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle='#111'; ctx.fillRect(cx-120,cy-10,44,16); ctx.fillRect(cx-106,cy-24,16,44);
+      const faces=id==='genesis'?[['#c8281e',cx+70,cy],['#e8c040',cx+104,cy],['#3fae5a',cx+138,cy]]:id==='xbox'?[['#3fae5a',cx+118,cy-8],['#c8281e',cx+148,cy+10],['#3a6ad8',cx+88,cy+10],['#e8c040',cx+118,cy+28]]:[['#7a4fd8',cx+100,cy-16],['#3fae5a',cx+128,cy+4],['#e8c040',cx+72,cy+4],['#c8281e',cx+100,cy+24]];
+      faces.forEach(([c,bx,by])=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(bx,by,id==='genesis'?11:12,0,Math.PI*2); ctx.fill(); });
+    }
+    ctx.restore();
+  }
+
   // the jack crops in the item-box sheet (1536×1024): TRS, RCA, XLR, MAG
   const JACK_X=[56,432,808,1180];
   const PAGES=[
@@ -144,14 +182,7 @@
       label('INSTRUCTION BOOKLET',x+w/2,y+18,22,'#fff8e6','center');
       if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#b8f5a0',sweep:9999});
       label('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,16,'#9ef58a','center');
-      ctx.save();
-      const seal=img('mmr','assets/splash/mmr-logo.jpg');
-      ctx.beginPath(); ctx.arc(x+w-70,y+h-70,46,0,Math.PI*2); ctx.clip();
-      if(ready(seal)) ctx.drawImage(seal,x+w-116,y+h-116,92,92);
-      else { ctx.fillStyle=GOLD; ctx.fill(); }
-      ctx.restore();
-      ctx.save(); ctx.beginPath(); ctx.arc(x+w-70,y+h-70,46,0,Math.PI*2); ctx.lineWidth=4; ctx.strokeStyle='#14070a'; ctx.stroke();
-      ctx.font='13px '+HEAD(); ctx.fillStyle='#14070a'; ctx.textAlign='center'; ctx.fillText('MMR',x+w-70,y+h-88); ctx.fillText('SEAL OF',x+w-70,y+h-72); ctx.fillText('GROOVE',x+w-70,y+h-56); ctx.restore();
+      mmrSeal(x+w-78,y+h-78,92);
       label('AN M.M.R. GAME',x+30,y+h-62,16,'#c8b8ff');
     },
     // 2 · the story
@@ -174,16 +205,14 @@
         yy=wrap(t,x+24,yy+34,w-48,22,28)+10;
       });
     },
-    // 4 · controls
+    // 4 · controls. The drawing follows the device in the player's hands.
     (x,y,w,h)=>{
-      ribbon('CONTROLS',x+30,y+30,240);
-      // a 16-bit pad, drawn
-      const cx=x+w/2, cy=y+220;
-      ctx.save(); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(cx+6,cy+8,220,90,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#cfcad8'; ctx.beginPath(); ctx.ellipse(cx,cy,220,90,0,0,Math.PI*2); ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='#4a4656'; ctx.stroke();
-      ctx.fillStyle='#2a2830'; ctx.fillRect(cx-160,cy-12,60,24); ctx.fillRect(cx-142,cy-30,24,60);           // d-pad
-      [['#7a4fd8',cx+120,cy-22],['#3fae5a',cx+150,cy+4],['#e8c040',cx+90,cy+4],['#c8281e',cx+120,cy+30]].forEach(([c,bx,by])=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(bx,by,15,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#14070a'; ctx.lineWidth=2; ctx.stroke(); });
-      ctx.fillStyle='#6a6676'; ctx.fillRect(cx-36,cy+4,28,8); ctx.fillRect(cx+8,cy+4,28,8); ctx.restore();
+      const id=ctrlNow();
+      if(S.ctrl!==id){ S.ctrlFrom=S.ctrl||id; S.ctrl=id; S.ctrlT=0; }
+      S.ctrlT=Math.min(1,(S.ctrlT||0)+0.06);
+      ribbon(CTRL_NAME[id]||'CONTROLS',x+30,y+30,420);
+      if(S.ctrlT<1&&S.ctrlFrom&&S.ctrlFrom!==id){ ctx.save(); ctx.globalAlpha=1-S.ctrlT; drawCtrl(S.ctrlFrom,x,y+78,w,150); ctx.restore(); }
+      ctx.save(); ctx.globalAlpha=S.ctrlFrom&&S.ctrlFrom!==id?S.ctrlT:1; drawCtrl(id,x,y+78,w,150); ctx.restore();
       const dev=(typeof _uiDev!=='undefined')?_uiDev:'key';
       const keyOf=a=>{ const B=(typeof OPT!=='undefined'&&OPT.binds)?OPT.binds:{}; return (B[a]||[]).map(c=>String(c).replace('Key','').replace('Arrow','')).join('/')||a.toUpperCase(); };
       const act=a=>{
@@ -192,7 +221,7 @@
         return keyOf(a==='swap'?'swap':a==='use'?'use':a==='punch'?'punch':'jump');
       };
       const rows=[['MOVE',act('left')+'  ·  '+act('right')],['JUMP  ·  hold it in the air to climb',act('jump')],['USE ITEM (hold to charge)',act('swap')],['SWITCH ITEM',act('use')],['PUNCH',act('punch')],['SPORTS-MODE: double-tap run and hold while moving',act('swap')],['LOADED JUMP: hold down on the ground, then jump',act('down')+' + '+act('jump')]];
-      let yy=y+340;
+      let yy=y+250;
       for(const [a,b] of rows){ label(a,x+24,yy,20,INK); label(b,x+w-24,yy,20,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+24,w-48,1); yy+=36; }
       box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the filter and this booklet.',x+52,yy+36,w-104,14,18);
     },
