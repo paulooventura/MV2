@@ -792,7 +792,15 @@ const TEST_CRYSTALS=[0,1,2,3,'ALL'];
 const TEST_FLAGS=['trs','rca','xlr','meg','knife','iso'];
 const MV_TEST={row:0, level:0, trs:true, rca:true, xlr:true, meg:true, knife:true, iso:true, seeds:TEST_SEEDS.length-1, crystals:TEST_CRYSTALS.length-1};
 window.MV_TEST=MV_TEST;
-function openTestMode(){ _unlockAudio(); MV_TEST.row=0; _gameState='testmode'; }
+let _testEat=0;
+function openTestMode(){
+  _unlockAudio();
+  MV_TEST.row=0;
+  _gameState='testmode';
+  // The A / Enter that picked TEST MODE is still down. Don't let it spawn
+  // the stage on the same press — the chooser has to come up first.
+  _testEat=3;
+}
 function _testRows(){
   const on=v=>v?'ON':'OFF';
   return [
@@ -834,6 +842,7 @@ function _testSpawn(){
   startBetaLab(TEST_LEVELS[MV_TEST.level], mask, {fresh:true, test:{seeds, crystals, iso:!!MV_TEST.iso}}).catch(err=>{ console.error('test spawn failed',err); uiShowToast('STAGE DID NOT LOAD'); });
 }
 function MV_TEST_INPUT(ev){
+  if(_testEat>0){ _testEat--; if(ev.confirm) ev=Object.assign({},ev,{confirm:false}); }
   const n=_testRows().length;
   if(ev.back){ _gameState='title'; try{ sfx('menu'); }catch(e){} return; }
   if(ev.up){ MV_TEST.row=(MV_TEST.row+n-1)%n; try{ sfx('menu'); }catch(e){} return; }
