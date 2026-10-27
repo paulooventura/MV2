@@ -142,6 +142,8 @@
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
     const close=d<260;
     if(!close){ e.st='sleep'; e.beams=null; return; }
+    // the body itself is a hit: overlapping the hexagon knocks the Isolator off
+    if(d<e.w*0.46+22) hurtMind((dx/d)*8,-5,14);
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
     else {
       e.st='zap'; e.cd=240; e.elecT=18;
@@ -156,7 +158,7 @@
         b.life--;
         const L=220, t=Math.max(0,Math.min(1,((P.x-c.x)*Math.cos(b.a)+(P.y-c.y)*Math.sin(b.a))/L));
         const hx=c.x+Math.cos(b.a)*L*t, hy=c.y+Math.sin(b.a)*L*t;
-        if(Math.hypot(P.x-hx,P.y-hy)<24) hurtMind(Math.cos(b.a)*5,-3,18);
+        if(Math.hypot(P.x-hx,P.y-hy)<42) hurtMind(Math.cos(b.a)*5,-3,18);
       }
       e.beams=e.beams.filter(b=>b.life>0);
       if(!e.beams.length&&e.st==='zap') e.st='sleep';
@@ -370,7 +372,7 @@
     const near=(x,y,pad)=>pts.some(q=>Math.hypot(q.x-x,q.y-y)<pad);
     for(const bw of BWALLS){ if(bw.hp<=0||bw.only!=='vine') continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; if(near(bx,by,30)&&clearLine(sh.x,sh.y,bx,by)) cutVine(bw); }
     for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
-      if(near(ex,ey,16+e.w/2)&&clearLine(sh.x,sh.y,ex,ey)){ if(e._boss){ clink(e,sh.x,sh.y); continue; } knifeHit=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,14,sh.x,sh.y,0.8); } finally{ knifeHit=false; } burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
+      if(near(ex,ey,16+e.w/2)&&clearLine(sh.x,sh.y,ex,ey)){ if(e._boss){ clink(e,sh.x,sh.y); continue; } knifeHit=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,knifeEnds(e)?9999:14,sh.x,sh.y,0.8); } finally{ knifeHit=false; } burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
   }
   // held, then let go: one wide sweep out along the aimed direction, from just behind MIND
   // out to ~5.5 tiles; walls still block it (line of sight from the chest)
@@ -388,9 +390,9 @@
       else if(bw.movable&&!bw._carried&&B.throwCube){ const d=Math.max(1,Math.hypot(bx-cx,by-cy)), k=push*(1-0.5*Math.min(1,d/Rr)); B.throwCube(bw,(bx-cx)/d*k,(by-cy)/d*k-2); } }   // shoved away
     for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
       if(!inArc(ex,ey,e.w/2)||!clearLine(cx,cy,ex,ey)) continue;
-      // Paulo (Oct 22): one loaded slash shuts A, B, C and D down for good
-      const perm=!e._boss&&(e.mirror||(e._betaEnemy&&['circle','tri','square'].includes(e._ai)));
-      if(perm) e._downs=Math.max(e._downs||0,2);
+      // one kiritsuke hit, quick or loaded, shuts A–F down for good
+      const perm=knifeEnds(e);
+      if(perm) knifeFinish(e);
       const hit=e._boss?Math.round(BOSS_FULL*f):perm?9999:dmg;
       if(e._boss&&hit<=0){ clink(e,cx,cy); continue; }
       knifeHit=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,hit,cx,cy,e._boss?0.3:kb); } finally{ knifeHit=false; }
@@ -402,9 +404,26 @@
   // the boss shrugs off anything that isn't the knife's loaded slash: a spark and a ring
   function clink(e,fx,fy){ const ex=e.x+e.w/2, ey=e.y+e.h/2, d=Math.hypot(ex-fx,ey-fy)||1, x=ex-(ex-fx)/d*e.w*0.45, y=ey-(ey-fy)/d*e.h*0.45;
     burst(x,y,6,['#ffffff','#c0c8d8'],3); S('omniblock_chip',1.6); }
+  function knifeEnds(e){
+    if(!e||e._boss) return false;
+    if(e.mirror) return true;
+    const id=e._foe||e._ai||e._betaEnemy;
+    return id==='circle'||id==='tri'||id==='square'||id==='eye'||id==='cube'||id==='mirror';
+  }
+  function knifeFinish(e){
+    e._downs=3; e._permOff=true; e._stayDown=true; e._shutCount=99;
+    if(e._foe==='eye'||e._ai==='eye'){ e.st='down'; e._downed=true; e.beam=null; }
+    if(e._foe==='cube'||e._ai==='cube'){ e.st='down'; e.beams=null; }
+  }
   const _dmgE=window._damageEnemy;
   if(typeof _dmgE==="function") window._damageEnemy=function(e,dmg,fx,fy,kb){
     if(e&&e._boss&&on()&&!knifeHit){ if(e.alive&&fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } return false; }
+    if(knifeHit&&knifeEnds(e)){
+      knifeFinish(e);
+      const r=_dmgE.call(this,e,9999,fx,fy,kb);
+      knifeFinish(e); e.alive=false;
+      return r;
+    }
     if(e&&e._foe==='eye'&&e.alive&&e.st!=='down'&&fx!=null&&fy!=null){
       const lx=(e.look&&e.look.x)||0, ly=(e.look&&e.look.y)||0;
       const hx=fx-(e.x+e.w/2), hy=fy-(e.y+e.h*0.4), hl=Math.hypot(hx,hy)||1;

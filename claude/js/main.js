@@ -879,7 +879,7 @@ function update(){
     resX();p.y+=p.vy;resY(pf);
     if(p.y<20){p.y=20;p.vy=Math.max(0,p.vy);}
     if(_shutdownTimer===0){
-      if(_gameOver){clkj();return;}
+      if(_gameOver){ try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.octaveDown(); }catch(e){} clkj();return; }
       _respawnPlayer();
     }
     clkj();return;

@@ -2294,7 +2294,7 @@
     if(B._lifeLostT>0) B._lifeLostT--;
     if(!shut&&B.lives<=0&&!B.contScreen&&!B.overT){
       if(B.continues>0){ B.contScreen={t:0,sel:0}; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.stopAll(); }catch(e){} }
-      else B.overT=1;
+      else{ B.overT=1; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.octaveDown(); }catch(e){} }
     }
   }
   function contInput(){
@@ -2311,7 +2311,7 @@
         B.continues--; B.lives=3; B.contScreen=null;
         if(typeof _respawnPlayer==='function') _respawnPlayer();
         if(window.MV_BETA_AUDIO&&B.music) MV_BETA_AUDIO.play(B.music,{restart:true});
-      }else{ B.contScreen=null; B.overT=1; }
+      }else{ B.contScreen=null; B.overT=1; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.octaveDown(); }catch(e){} }
     }
     if(typeof clkj==='function') clkj();
   }

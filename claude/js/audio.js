@@ -491,6 +491,7 @@ function _stopBGM(type){
   }
 }
 function updateGameBgm(){
+  if(window._mvOctave) return;
   if(_gameState!=='game')return;
   const f=Math.max(0.3,_healFrac);
   const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));

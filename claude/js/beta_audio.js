@@ -85,12 +85,14 @@
       try{ if(els[h.from]) els[h.from].currentTime=h.at; }catch(e){}
     }
   }
+  let octaved=false, lastName=null, lastRate=1;
   function play(name,{restart=false,volume=1}={}){
     if(!TRACKS[name]) name='stage';
     const a=el(name);
     try{ document.querySelectorAll('audio').forEach(n=>{ if(n!==a) n.pause(); }); }catch(e){}
     if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
     if(restart) try{ a.currentTime=0; }catch(e){}
+    octaved=false; window._mvOctave=false;
     a._baseVol=volume; a.playbackRate=1;
     a.volume=vol()*volume;
     current=name; wantPlay=name;
@@ -121,6 +123,8 @@
   // track sits a little further forward (about 14% at the deepest dip),
   // then eases back to the slider as he recovers.
   function hurtTick(){
+    if(current&&els[current]&&!els[current].paused){ lastName=current; lastRate=els[current].playbackRate||1; }
+    if(octaved) return;
     if(!current||!els[current]||current==='item'||current==='results') return;
     const a=els[current], f=Math.max(0.3,typeof _healFrac!=='undefined'?_healFrac:1);
     const r=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);   // HP phase → slower music
@@ -147,7 +151,36 @@
     r.g.gain.setTargetAtTime(gain,t,0.12); r.pan.pan.setTargetAtTime(Math.max(-1,Math.min(1,pan)),t,0.12); r.lp.frequency.setTargetAtTime(lp,t,0.15);
   }
   function unplace(name){ const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000}); }
-  function stopAll(){ for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null; }
+  function stopAll(){
+    if(current&&els[current]){ lastName=current; lastRate=els[current].playbackRate||lastRate; }
+    for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null;
+  }
+  // Game over: the track that is playing drops one octave and stays there.
+  function octaveDown(){
+    if(octaved) return;
+    octaved=true; window._mvOctave=true;
+    let any=false;
+    for(const k in els){
+      const a=els[k];
+      if(!a||a.paused) continue;
+      lastName=k; lastRate=a.playbackRate||1;
+      a.playbackRate=Math.max(0.25,lastRate*0.5);
+      any=true;
+    }
+    if(!any){
+      const name=lastName, a=name&&els[name];
+      if(a){
+        a.playbackRate=Math.max(0.25,(lastRate||1)*0.5);
+        current=name; wantPlay=name;
+        try{ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+        any=true;
+      }
+    }
+    try{
+      if(typeof _gameAudioEl!=='undefined'&&_gameAudioEl&&!_gameAudioEl.paused)
+        _gameAudioEl.playbackRate=Math.max(0.25,(_gameAudioEl.playbackRate||1)*0.5);
+    }catch(e){}
+  }
   // browsers only allow sound after a click / key: retry then
   const kick=()=>{ if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay); };
   window.addEventListener('keydown',kick); window.addEventListener('pointerdown',kick);
@@ -314,7 +347,7 @@
       h.os.forEach(o=>{ try{ o.stop(t+0.15); }catch(e){} });
     }
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, boom:spatial(boom), creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, current:()=>current, els};
   function recure(){
     if(!current) return;
     const next=pathOf(current), prev=els[current];
