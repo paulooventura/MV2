@@ -33,7 +33,12 @@
   window.MV_INK_API=INK;
   // live game: Options → CONSOLE → D · INK & VINYL (MV_CONSOLE.mode 'ink'); lab H forces it on
   const forced=!!window.MV_INK;
-  function active(){ return forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'); }
+  function liftInk(){ const L=window.MV_LIFT; return (L&&L.pull>0.08)?Math.min(1,L.pull):0; }
+  function active(){
+    const L=window.MV_LIFT;
+    if(L&&L.pull<-0.08) return false;
+    return forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink')||liftInk()>0;
+  }
   function enabled(){ return INK.on&&active(); }
   INK.active=active; INK.enabled=enabled;
 
@@ -217,8 +222,13 @@
       if(A&&A.bed&&A.bed.g.gain.value) A.bed.g.gain.value=0;
       return;
     }
+    const L=window.MV_LIFT, pull=L?L.pull:0;
+    const baseInk=forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
+    const amt=pull<=-0.08?0:(baseInk?1:Math.min(1,Math.max(0,pull)));
+    oc.style.opacity=amt.toFixed(3);
     if(oc.style.display==='none') oc.style.display='';
-    if(A&&A.bed&&!A.bed.g.gain.value) A.bed.g.gain.value=0.22;
+    if(amt>0.12){ try{ bed(); }catch(e){} }
+    if(A&&A.bed&&A.bed.g) A.bed.g.gain.value=0.22*amt;
     syncBox();
     if((INK.frames++&7)===0) expose();
     const at=ageTarget(); INK.age+=(at-INK.age)*(at>INK.age?0.35:0.06);
@@ -257,7 +267,13 @@
     'TO PROCEED':'TO OPEN THE ARCH',
     'PRESS START':'PRESS START TO PULL THE PRINT'
   };
-  const sub=s=>{ if(typeof s!=='string'||!enabled()) return s; const r=WORDS[s]; return r!==undefined?r:s; };
+  const sub=s=>{
+    if(typeof s!=='string') return s;
+    const L=window.MV_LIFT, pull=L?L.pull:0;
+    const base=forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
+    if(pull<-0.08||!(base||pull>0.75)) return s;
+    const r=WORDS[s]; return r!==undefined?r:s;
+  };
   for(const name of ['drawText','textW']){
     const orig=window[name]; if(typeof orig!=='function') continue;
     window[name]=function(s){ const a=Array.prototype.slice.call(arguments); a[0]=sub(s); return orig.apply(this,a); };

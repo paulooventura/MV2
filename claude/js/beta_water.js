@@ -54,7 +54,7 @@
         const a=(Fd(e,'a')??g.c)*T, b=(Fd(e,'b')??g.c)*T;
         if(Fd(e,'axis')==='y'){   // 1.3: vertical lifts (a..b = the top's row range); loop=1 runs one way forever and wraps (the belts)
           const ya=(Fd(e,'a')??g.r)*T, yb=(Fd(e,'b')??g.r)*T, d0=Fd(e,'dir')|0||1;
-          B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a:g.c*T, b:g.c*T, ya, yb, vert:true, loop:!!Fd(e,'loop'), dir:d0, spd:(Fd(e,'speed')||12)/10, dx:0, dy:0});
+          B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a:g.c*T, b:g.c*T, ya, yb, vert:true, loop:!!Fd(e,'loop'), dir:d0, spd:((Fd(e,'speed')||12)/10)*1.65, dx:0, dy:0});
         }else B.platforms.push({x:g.c*T, y:g.r*T, w:g.w*T, h:14, a, b, dir:1, spd:(Fd(e,'speed')||12)/10, dx:0, dy:0});
       }else if(id==='Water'){
         const r={c0:g.c, c1:g.c+g.w-1, r0:g.r, r1:g.r+g.h-1, plug:Fd(e,'plug')||null};
@@ -305,9 +305,14 @@
   function platformTick(){
     for(const m of B.platforms){
       if(m.vert){
-        const y0=m.y; m.y+=m.spd*m.dir; m.dx=0; m.wrapped=false;
-        if(m.loop){ if(m.dir>0&&m.y>m.yb){ m.y=m.ya; m.wrapped=true; } else if(m.dir<0&&m.y<m.ya){ m.y=m.yb; m.wrapped=true; } }
-        else if(m.y>=m.yb){ m.y=m.yb; m.dir=-1; } else if(m.y<=m.ya){ m.y=m.ya; m.dir=1; }
+        const y0=m.y;
+        if(m.locked&&m.lockY!=null) m.y=m.lockY;
+        else if(!m.hold) m.y+=m.spd*m.dir;
+        m.dx=0; m.wrapped=false;
+        if(!m.locked&&!m.hold){
+          if(m.loop){ if(m.dir>0&&m.y>m.yb){ m.y=m.ya; m.wrapped=true; } else if(m.dir<0&&m.y<m.ya){ m.y=m.yb; m.wrapped=true; } }
+          else if(m.y>=m.yb){ m.y=m.yb; m.dir=-1; } else if(m.y<=m.ya){ m.y=m.ya; m.dir=1; }
+        }
         m.dy=m.wrapped?0:m.y-y0;
         // Paulo (Oct 22): the belts never pop in or out in plain sight — they run on into the roof
         // and under the floor and come round there. Inside rock a cab is hidden and can't be ridden;
@@ -347,6 +352,7 @@
       }
       if(h._mplat){ h.ax=h._mplat.x+h._mdx; h.ay=h._mplat.y+h._mdy; h.ex=h.ax; h.ey=h.ay; if(h._path&&h._path[0]){ h._path[0].x=h.ax; h._path[0].y=h.ay; } }
     }else if(h){ h._mplatChecked=false; h._mplat=null; }
+    if(window.MV_LIFT&&MV_LIFT.afterPlatforms) MV_LIFT.afterPlatforms();
   }
   // the hook can bite a moving platform
   const _origRay=window._hookRayHit;

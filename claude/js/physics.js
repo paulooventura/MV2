@@ -197,7 +197,7 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
 const CAM_THREAT_ZOOM=0.09;   // a little closer once a threat is in the frame — present, not a smash
-let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0, _sportZoomS=0, _sportBlur=0;
+let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0, _sportZoomS=0, _sportBlur=0, _liftLook=0;
 // Same sense as the battle eye: nearby threats lean the frame in, and a mutual
 // notice (they have seen MIND) pulls a small zoom onto him and that zone.
 function _readThreatCam(){
@@ -249,6 +249,10 @@ function _updateCamZoom(){
   // biting, and a long pull-back once the speed is really there.
   const sportTgt=1.48+(1.0-1.48)*e;
   camZoomTgt=Math.max(1,Math.min(1.5, base*(1-_sportZoomS)+sportTgt*_sportZoomS));
+  if(window.MV_LIFT&&MV_LIFT.inside){
+    const zin=1.24+0.18*Math.min(1,MV_LIFT.zoom||0);
+    if(zin>camZoomTgt) camZoomTgt=Math.min(1.5,zin);
+  }
   camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS);
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
@@ -301,7 +305,10 @@ function _syncGameCamera(){
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
-  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY);
+  const L=window.MV_LIFT;
+  const lookWant=(L&&L.inside)?(L.dir||0)*-58*(0.35+0.65*Math.min(1,L.zoom||0)):0;
+  _liftLook+=(lookWant-_liftLook)*((L&&L.inside)?0.045:0.07);
+  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook);
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;

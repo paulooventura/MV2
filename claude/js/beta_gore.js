@@ -7,7 +7,17 @@
   'use strict';
   const drops=[], stains=[];
   let stage=null;
-  function gore(){ return !!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore'); }
+  function gore(){
+    const L=window.MV_LIFT;
+    if(L&&L.pull>0.08) return false;
+    if(L&&L.pull<-0.62) return true;
+    return !!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
+  }
+  function liftGore(){
+    const L=window.MV_LIFT;
+    if(!L||L.pull>-0.04||L.pull>0.12) return 0;
+    return Math.max(0,Math.min(1,-L.pull));
+  }
   function playing(){ return gore()&&typeof _gameState!=='undefined'&&_gameState==='game'; }
   const lens=[];
   function spray(x,y,n,bias){
@@ -233,11 +243,15 @@ void main(){
     glState=1; return true;
   }
   function grade(){
-    if(!cv||!gore()||!initGL()){
+    const L=window.MV_LIFT;
+    if(L&&L.pull>0.08){ if(oc.style.display!=='none') oc.style.display='none'; return; }
+    const amt=gore()?1:liftGore();
+    if(!cv||amt<0.04||!initGL()){
       if(oc.style.display!=='none') oc.style.display='none';
       return;
     }
     syncBox();
+    oc.style.opacity=amt.toFixed(3);
     if(oc.style.display==='none') oc.style.display='';
     gl.viewport(0,0,oc.width,oc.height);
     gl.bindTexture(gl.TEXTURE_2D,tex);

@@ -31,6 +31,16 @@
   function pathOf(name){
     const base=TRACKS[name]||TRACKS.stage;
     try{
+      const L=window.MV_LIFT;
+      if(L&&L.pull<=-0.18){
+        const music=window.MV_BETA&&MV_BETA.music;
+        const later=name==='stage2'||name==='boss'||((name==='item'||name==='results'||name==='calm')&&(music==='stage2'||music==='boss'||current==='stage2'||current==='boss'));
+        return later?GORE_TRACK_2:GORE_TRACK;
+      }
+      if(L&&L.pull>=0.18){
+        if(name==='item'||name==='results'||name==='calm') return INK_STORI;
+        return INK_1GO;
+      }
       if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
         const music=window.MV_BETA&&MV_BETA.music;
         const later=name==='stage2'||name==='boss'||((name==='item'||name==='results'||name==='calm')&&(music==='stage2'||music==='boss'||current==='stage2'||current==='boss'));

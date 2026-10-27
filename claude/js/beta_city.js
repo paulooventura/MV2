@@ -159,6 +159,10 @@
         // the cab: a lit box with a frame, open doors (you step in and out of it)
         const g=ctx.createLinearGradient(0,y-cabH,0,y); g.addColorStop(0,'rgba(255,220,160,0.20)'); g.addColorStop(1,'rgba(255,200,140,0.08)');
         ctx.fillStyle=g; ctx.fillRect(x,y-cabH,w,cabH);
+        if(m.locked){
+          ctx.fillStyle='rgba(8,6,10,0.9)'; ctx.fillRect(x+sw(3),y-cabH+sw(10),w-sw(6),cabH-sw(14));
+          ctx.fillStyle='#120e12'; ctx.fillRect(x,y-cabH,w,sw(12));
+        }
         ctx.fillStyle='#4a4048'; ctx.fillRect(x,y-cabH,w,sw(6)); ctx.fillRect(x,y-cabH,sw(3),cabH); ctx.fillRect(x+w-sw(3),y-cabH,sw(3),cabH);
         ctx.fillStyle='#ffe0a0'; ctx.fillRect(x+w/2-sw(5),y-cabH+sw(6),sw(10),sw(2));                        // the ceiling light
         ctx.fillStyle=m.loop?(m.dir>0?'#ff7060':'#60ff90'):'#c070ff'; ctx.fillRect(x+w-sw(10),y-cabH+sw(10),sw(4),sw(4));   // ▲ / ▼ lamp
@@ -167,6 +171,7 @@
         ctx.fillStyle='#d8a020'; ctx.fillRect(x-sw(2),y,w+sw(4),sw(8));
         ctx.fillStyle='#2a2a2e'; for(let k=0;k<w;k+=sw(8)) ctx.fillRect(x+k,y+sw(2),sw(4),sw(4));               // hazard stripes
         ctx.strokeStyle='rgba(216,160,32,0.7)'; ctx.lineWidth=Math.max(1,sw(2)); ctx.strokeRect(x,y-sw(3*T),w,sw(3*T));   // the cage
+        if(m.locked){ ctx.fillStyle='rgba(8,6,10,0.9)'; ctx.fillRect(x+sw(2),y-sw(3*T),w-sw(4),sw(3*T)-sw(4)); ctx.fillStyle='#120e12'; ctx.fillRect(x,y-sw(3*T)-sw(4),w,sw(8)); }
         ctx.strokeStyle='#8a8a92'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.beginPath(); ctx.moveTo(x+w/2,y-sw(3*T)); ctx.lineTo(x+w/2,sy(m.clipT!=null?m.clipT:2*T)); ctx.stroke();
       }
       return true;
