@@ -1485,6 +1485,74 @@
     }
   }
 
+  // ── Fireworks in the sky once every crystal and every seed is in ──
+  // Screen-space, drawn by the sky (behind the stage). Bursts stay small
+  // and spaced so the sky never strobes.
+  const FW_COLS=['#ffe38a','#7dffa8','#9fd8ff','#ffb0c8','#e8c0ff'];
+  function fwReady(){
+    if(!(B.need.crystals>0)||!(B.need.seeds>0)) return false;
+    const n=counts();
+    return n.crystals>=B.need.crystals&&n.seeds>=B.need.seeds;
+  }
+  function fwLaunch(volley){
+    B.fw.shells.push({
+      x:70+Math.random()*(W-140), y:H*0.46,
+      vx:(Math.random()-0.5)*(volley?1.6:0.8), vy:-(2.4+Math.random()*1.2),
+      life:0, rise:22+(Math.random()*12|0),
+      col:FW_COLS[(Math.random()*FW_COLS.length)|0], bits:null
+    });
+  }
+  function fwTick(){
+    if(!B.fw) B.fw={cd:24, shells:[], was:false, volley:0};
+    if(!fwReady()){ B.fw.shells.length=0; B.fw.was=false; B.fw.volley=0; return; }
+    if(!B.fw.was){ B.fw.was=true; B.fw.volley=3; B.fw.cd=6; }
+    if(B.fw.cd>0) B.fw.cd--;
+    else if(B.fw.shells.length<4){
+      const volley=B.fw.volley>0;
+      fwLaunch(volley);
+      if(volley) B.fw.volley--;
+      B.fw.cd=volley?16:(64+(Math.random()*36|0));
+    }
+    for(let i=B.fw.shells.length-1;i>=0;i--){
+      const s=B.fw.shells[i];
+      if(!s.bits){
+        s.x+=s.vx; s.y+=s.vy; s.vy+=0.018; s.life++;
+        if(s.life>=s.rise||s.y<H*0.08){
+          s.bits=[];
+          for(let k=0;k<18;k++){
+            const a=k/18*Math.PI*2+(Math.random()-0.5)*0.25, sp=0.6+Math.random()*1.5;
+            s.bits.push({x:s.x,y:s.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:36+(Math.random()*14|0),max:50});
+          }
+        }
+      }else{
+        let alive=false;
+        for(const b of s.bits){
+          if(b.life<=0) continue;
+          alive=true; b.x+=b.vx; b.y+=b.vy; b.vy+=0.03; b.vx*=0.99; b.life--;
+        }
+        if(!alive) B.fw.shells.splice(i,1);
+      }
+    }
+  }
+  function fwDraw(){
+    if(!B.fw) return;
+    ctx.save();
+    for(const s of B.fw.shells){
+      if(!s.bits){
+        ctx.globalAlpha=0.9; ctx.fillStyle=s.col; ctx.fillRect(s.x,s.y,2,2);
+        ctx.globalAlpha=0.35; ctx.fillRect(s.x,s.y+3,2,5);
+      }else{
+        for(const b of s.bits){
+          if(b.life<=0) continue;
+          ctx.globalAlpha=Math.max(0,b.life/b.max)*0.8;
+          ctx.fillStyle=s.col; ctx.fillRect(b.x,b.y,2,2);
+        }
+      }
+    }
+    ctx.restore();
+  }
+  window.MV_FIREWORKS={draw:fwDraw};
+
   // ── Per-frame rules (rides on updateKnowls, which runs every update) ──
   const _origUpdateKnowls=window.updateKnowls;
   window.updateKnowls=function(){
@@ -1514,6 +1582,7 @@
       try{ sfx('unlock'); }catch(e){}
       if(typeof uiShowToast==='function') uiShowToast(B.tier>0&&B.echoNeed>0?'THE ECHO IS ANSWERED - THE ARCH IS OPEN':'THE ARCH IS OPEN'); try{ sfx('gate'); }catch(e){}
     }
+    fwTick();
     if(B.revisitNote>0) B.revisitNote--;
     // The pit: a hole. Falling down it shuts MIND down (a life) and he reboots
     // at the stage entrance (Paulo, Oct 20).

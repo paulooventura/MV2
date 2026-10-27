@@ -2,7 +2,7 @@
    HTML and JS always come from the network. When this file changes, open
    tabs reload onto the new build. The page registers this against its own
    URL, not the <base> tag (that used to request /claude/sw.js, which 404s). */
-const BUILD = '321';
+const BUILD = '322';
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 

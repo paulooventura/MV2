@@ -169,6 +169,7 @@
     tile(L.town,cx*0.3,horizon-L.town.height*PXS+70,PXS);
     ctx.fillStyle=th.town; ctx.fillRect(0,horizon+70,W,Math.max(0,H-horizon-70));
     if(window.MV_WEATHER) try{ MV_WEATHER.sky(horizon); }catch(e){}            // clouds from the boiled-off water (beta_weather.js)
+    if(window.MV_FIREWORKS) try{ MV_FIREWORKS.draw(); }catch(e){}              // the full set, behind the town
     ctx.restore();
     return true;
   }

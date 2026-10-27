@@ -43,10 +43,12 @@ const WHEEL_SLOPE_DRAG=0.0006;
 const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
 // Air jump (Paulo, Oct 26): a tap only stalls the fall — the wheel recoils.
-// How long jump stays down is how high the woofer kicks. A full hold outclimbs a ground jump.
-const AIR_JUMP_LIFT=0.70;    // upward speed added each held frame after the tap
-const AIR_JUMP_HOLD=36;      // full-hold window (a ground jump holds JMH frames)
-const AIR_JUMP_CAP=-12.6;    // rise cap while that kick is held
+// How long jump stays down is how high the woofer kicks.
+// Oct 27: the second jump was carrying too far. A full hold still climbs,
+// but less high and for less time than before, so you don't travel as far.
+const AIR_JUMP_LIFT=0.56;    // upward speed added each held frame after the tap
+const AIR_JUMP_HOLD=28;      // full-hold window (a ground jump holds JMH frames)
+const AIR_JUMP_CAP=-10.4;    // rise cap while that kick is held
 // Rubber tire + fork (Paulo, Oct 22: tire rubber; then "a badass dirtbike tire/wheel kit, with suspension")
 const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
 const TIRE_MAX_SQ=7;         // px it can squash on a hard landing
