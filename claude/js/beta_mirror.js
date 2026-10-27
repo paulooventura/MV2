@@ -34,6 +34,40 @@
     const vw=typeof camViewW==='function'?camViewW():W, vh=typeof camViewH==='function'?camViewH():H;
     return e.x+e.w>vx0-T&&e.x<vx0+vw+T&&e.y+e.h>vy0-T&&e.y<vy0+vh+T;
   }
+  // The D room is a short floor with rock on the left. A patrol bound that
+  // runs into that rock plants D inside the wall, and walking into it
+  // spits MIND out the far side, into the shaft.
+  function bodyClear(e,x){
+    if(typeof gridWorldSolid!=='function') return true;
+    const y1=e.y+14, y2=e.y+Math.min(e.h*0.5,52);
+    return !gridWorldSolid(x+10,y1)&&!gridWorldSolid(x+e.w-10,y1)&&!gridWorldSolid(x+e.w*0.5,y2);
+  }
+  function floorUnder(e,x){
+    if(typeof gridWorldSolid!=='function') return true;
+    const feet=e.y+(typeof FEET_OFF==='number'?FEET_OFF:e.h-6), cx=x+e.w*0.5;
+    return gridWorldSolid(cx,feet+8)||gridWorldSolid(cx,feet+22);
+  }
+  function fitMirror(e){
+    if(typeof gridWorldSolid!=='function') return;
+    if(typeof _gridReady==='function'&&!_gridReady()) return;
+    if(e._spawnX==null) e._spawnX=e.x;
+    if(!e._fit){
+      let L=e.mn, R=e.mx, g=0;
+      while(g++<64&&L<e._spawnX&&(!bodyClear(e,L)||!floorUnder(e,L))) L+=8;
+      g=0;
+      while(g++<64&&R>e._spawnX+e.w&&(!bodyClear(e,R-e.w)||!floorUnder(e,R-e.w))) R-=8;
+      if(R<L+e.w+8) R=L+e.w+8;
+      e.mn=L; e.mx=R; e._fit=true;
+    }
+    if(!bodyClear(e,e.x)||!floorUnder(e,e.x)){
+      let best=null, bd=1e9;
+      for(let x=e.mn;x<=e.mx-e.w;x+=4){
+        if(!bodyClear(e,x)||!floorUnder(e,x)) continue;
+        const d=Math.abs(x-e._spawnX); if(d<bd){ bd=d; best=x; }
+      }
+      if(best!=null){ e.x=best; e.vx=0; }
+    }else e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
+  }
   // patrol only: walk its stretch, no items, no chasing
   function patrol(e){
     const ex0=e.x;
@@ -53,6 +87,7 @@
   const _upd=window._updateMindEnemy;
   if(typeof _upd==='function') window._updateMindEnemy=function(e){
     if(!B.on||!e||!e.mirror) return _upd.apply(this,arguments);
+    fitMirror(e);
     if(sees(e)){
       e._seenT=LOSE_FR;
       if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfxAt(e,'enemy_alert'); }catch(_e){} }

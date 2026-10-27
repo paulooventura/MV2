@@ -1512,12 +1512,24 @@
     }
     if(B.bounceT>0) B.bounceT--;
     if(B.arriveCd>0) B.arriveCd--;
-    if(B.open&&B.gate&&p&&!B.trans){
+    if(B.gateCd>0) B.gateCd--;
+    if(B.gateAsk){
+      const yes=Kj['Space']||Kj['Enter']||Kj['KeyQ'];
+      const no=Kj['Escape']||Kj['KeyF']||Kj['KeyE'];
+      if(yes){
+        const a=B.gateAsk; B.gateAsk=null;
+        if(a.kind==='results'){ B.cleared=true; openResults(); }
+        else if(a.nx&&B.arriveCd<=0) travel(a.nx, a.dir||'forward');
+      }else if(no){
+        B.gateAsk=null; B.gateCd=70;
+        if(p){ p.vx=0; p.x+=(p.fc?-22:22); }
+      }
+    }else if(B.open&&B.gate&&p&&!B.trans&&!(B.gateCd>0)){
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
         const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-        if(!B.cleared){ B.cleared=true; openResults(); }
-        else if(nx&&B.arriveCd<=0) travel(nx,'forward');
+        if(!B.cleared) B.gateAsk={kind:'results'};
+        else if(nx&&B.arriveCd<=0) B.gateAsk={kind:'go', nx, dir:'forward'};
       }
     }
     // the arch MIND came in through leads back to the stage before
@@ -1526,7 +1538,7 @@
       const arch=B.decor.find(d=>d.kind==='arrival');
       if(arch){
         const h=playerCoreHB(p), goingLeft=K.KeyA||K.ArrowLeft||p.vx<-0.6;
-        if(goingLeft&&ov(h.x,h.y,h.w,h.h,arch.x,arch.y,2*T-6,4*T)) travel(pv,'back');
+        if(goingLeft&&!(B.gateCd>0)&&!B.gateAsk&&ov(h.x,h.y,h.w,h.h,arch.x,arch.y,2*T-6,4*T)) B.gateAsk={kind:'go', nx:pv, dir:'back'};
       }
     }
     // Laitu: wanders like an NPC, stops and faces MIND when close, talks.
@@ -2179,6 +2191,15 @@
       if(b.t>26) B.blasts.splice(i,1);
     }
     if(typeof _worldZoomEnd==='function') _worldZoomEnd();
+    if(B.gateAsk&&typeof uiPanel==='function'){
+      const pw=Math.min(520,W-80), ph=168, px=(W-pw)/2, py=(H-ph)/2;
+      uiPanel(px,py,pw,ph,{r:16});
+      drawTextC('GO THROUGH?',W/2,py+28,'#ffe39a',3);
+      drawTextC(B.gateAsk.dir==='back'?'BACK TO THE LAST STREET':'THE ARCH IS OPEN',W/2,py+68,'#d8ffc8',2);
+      const yes=(typeof uiActLabel==='function'?uiActLabel('jump'):'A');
+      const no=(typeof uiActLabel==='function'?uiActLabel('punch'):'Y');
+      drawTextC(yes+'  YES      '+no+'  NOT YET',W/2,py+112,'#ffffff',3);
+    }
     if(B.popup) drawPopup();
     if(B.results) drawResults();
     if(B.trans) drawTrans();

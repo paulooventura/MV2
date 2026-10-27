@@ -208,16 +208,21 @@
       // Turbo: a tiger, not a cat. Chest saw, a slow roar pulse, rasp in the 300s.
       // The whistle sits an octave down so it rushes instead of meowing.
       const tw=520+S.boost*1400;
-      set(N.pu1.frequency,46+18*express,0.08); set(N.pu2.frequency,70+26*express,0.08);
-      set(N.ru.frequency,4.2+2.4*express,0.12); set(N.ruG.gain,0.62,0.1); set(N.br.frequency,1.15,0.2);
-      set(N.puLP.frequency,260+280*express,0.1);
-      set(N.puG.gain,(0.18+0.28*express)*(0.72+0.28*(1-r)),0.1);
+      set(N.pu1.frequency,28+16*express,0.08); set(N.pu2.frequency,42+20*express,0.08);
+      set(N.ru.frequency,3.2+2.2*express,0.12); set(N.ruG.gain,0.85,0.1); set(N.br.frequency,0.9,0.2);
+      set(N.puLP.frequency,180+160*express,0.1);
+      set(N.puG.gain,(0.42+0.38*express)*(0.8+0.2*(1-r)),0.08);
       set(N.tbp.Q,2.2,0.1);
       set(N.t1.frequency,tw,0.06); set(N.t2.frequency,tw*0.5,0.06); set(N.tbp.frequency,tw,0.06);
       set(N.tg.gain,0.018*S.boost*sportMix,0.08);
       set(N.tnbp.frequency,220+S.boost*480,0.08); set(N.tng.gain,(0.07+0.09*express)*Math.max(0.35,S.boost),0.08);
       if(N.pres){ set(N.pres.frequency,380+420*express,0.1); set(N.pres.gain,2+5*express,0.1); }
-      if(N.tight) set(N.tight.gain,2+5*express,0.12);
+      if(N.tight) set(N.tight.gain,8+6*express,0.12);
+      if(typeof p!=='undefined'&&p&&(fr%2===0)){
+        const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:90)-6;
+        if(p.smoke&&p.smoke.length<40) p.smoke.push({x:hx+(Math.random()-0.5)*14,y:hy,vx:-(p.vx||0)*0.04+(Math.random()-0.5),vy:-0.6-Math.random()*1.6,life:18+(Math.random()*12|0),maxLife:32,r:4+Math.random()*5,col:Math.random()<0.3?'#d8d4cc':'#5c5c64'});
+        if(typeof PFXS!=='undefined'&&Math.random()<0.65) PFXS.push({x:hx+(Math.random()-0.5)*16,y:hy,vx:(Math.random()-0.5)*7,vy:-1-Math.random()*5,life:9,maxLife:9,r:1.6,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
+      }
     }else{
       const tw=1400+S.boost*5600;
       set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05);
@@ -232,7 +237,7 @@
     }
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    set(N.dryG.gain,sportMix*0.74,sprinting?0.1:0.25);
+    set(N.dryG.gain,sportMix*1.15,sprinting?0.08:0.25);
     set(N.roomG.gain,sprinting?(0.32+0.2*(1-express)):0.7,0.18);
     if(N.sheen) set(N.sheen.gain,sprinting?(-6+2*express):-10,0.14);
     if(N_muffle) set(N_muffle.frequency,sprinting?(220+4200*express):95,sprinting?0.12:0.08);

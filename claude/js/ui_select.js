@@ -124,12 +124,8 @@
     ctx.fillStyle=g; ctx.fillRect(x-sk,y,w+2*sk,h);
     if(sel){ ctx.globalCompositeOperation='overlay'; ctx.fillStyle='rgba('+H0.glow+',0.22)'; ctx.fillRect(x-sk,y,w+2*sk,h); ctx.globalCompositeOperation='source-over'; }
     // scanlines + a light sweep on the lead
-    ctx.fillStyle='rgba(0,0,0,0.16)'; for(let yy=y;yy<y+h;yy+=3) ctx.fillRect(x-sk,yy,w+2*sk,1);
-    if(sel){ const t=(fr%150)/150, sx0=x-sk+t*(w+2*sk+200)-100, sg=ctx.createLinearGradient(sx0-60,0,sx0+60,0); sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(0.5,'rgba(255,255,255,0.14)'); sg.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=sg; ctx.fillRect(x-sk,y,w+2*sk,h); }
     ctx.restore();
-    // frame: double pixel line in the hero colour, glowing on the lead
     ctx.save();
-    if(sel){ ctx.shadowColor='rgba('+H0.glow+',0.9)'; ctx.shadowBlur=18+6*Math.sin(fr*0.12); }
     ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?H0.col:'rgba(120,130,140,0.6)'; cardPath(x,y,w,h,sk); ctx.stroke();
     ctx.shadowBlur=0; ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.7)'; cardPath(x+5,y+5,w-10,h-10,sk*0.95); ctx.stroke();
     ctx.restore();
@@ -247,7 +243,7 @@
       const sel=o.k===cur, w=ws[i], col=o.col;
       ctx.fillStyle='#020a04'; uiRound(xx+2,y+3,w,h,h/2); ctx.fill();
       ctx.fillStyle=sel?'rgba('+_uiRGB(col).join(',')+',0.3)':'rgba(10,20,14,0.85)'; uiRound(xx,y,w,h,h/2); ctx.fill();
-      ctx.save(); if(sel){ ctx.shadowColor=col; ctx.shadowBlur=12; } ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(xx+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(xx+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
       drawTextC(o.label,xx+w/2+(sel?8:0),y+9,sel?'#ffffff':'#7a8a80',2);
       if(sel&&typeof uiCursor==='function') uiCursor(xx+14,y+h/2,7);
       sibRects.push({x:xx,y,w,h,row,k:o.k}); xx+=w+8;
@@ -390,8 +386,6 @@
       ctx.save(); ctx.fillStyle='rgba(0,0,0,0.5)'; cardPath(x+7,y+9,w,h,sk); ctx.fill();
       const g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,sel?'rgba(30,60,40,0.96)':'rgba(10,22,16,0.9)'); g.addColorStop(1,'rgba(3,10,6,0.96)');
       ctx.fillStyle=g; cardPath(x,y,w,h,sk); ctx.fill();
-      ctx.save(); cardPath(x,y,w,h,sk); ctx.clip(); ctx.fillStyle='rgba(0,0,0,0.16)'; for(let yy=y;yy<y+h;yy+=3) ctx.fillRect(x-sk,yy,w+2*sk,1); ctx.restore();
-      if(sel){ ctx.shadowColor='rgba('+rgb+',0.9)'; ctx.shadowBlur=16; }
       ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk); ctx.stroke(); ctx.restore();
       const short=h<150;
       icon(m.icon,cx,short?y+28:y+h*0.34,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),short?1: (sel?1.5:1.2));

@@ -892,6 +892,7 @@ function update(){
   const _punchingNow=isPunch()||p.pCharging||p.pt>0;
   if(adx||ady){const l=Math.hypot(adx,ady);p.tAimDX=adx/l;p.tAimDY=ady/l;p._hasAimInput=true;}
   else if(dn&&_punchingNow){p.tAimDX=0;p.tAimDY=1;p._hasAimInput=true;}
+  else if(ITEM===2&&(p.xlrOn||(typeof _bindDown==='function'&&_bindDown('swap')))){ p._hasAimInput=true; }
   else{p._hasAimInput=false;const spd=Math.abs(p.vx);if(spd>0.4){p.tAimDX=(p.vx>0?1:-1)*Math.min(spd/(MOVE_WALK*MOVE_PEAK),1)*0.7;p.tAimDY=0;}else{p.tAimDX=p.fc?1:-1;p.tAimDY=0;}}
   if(adx)p.fc=adx>0;else if(K['KeyD']||K['ArrowRight'])p.fc=true;else if(K['KeyA']||K['ArrowLeft'])p.fc=false;
   // spamming the TRS: the arm sweeps to the new aim instead of snapping (the shots fan out on the way)

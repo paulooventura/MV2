@@ -5,8 +5,8 @@
 //   loads. The music follows it. Once it's shut down, the level music stops,
 //   and the slow smooth track starts; its source is the exit gate. D is not
 //   the speaker. Level 1.1 stays on the living-room gramophone (beta_ambience).
-//   Level 1.3's music source is the Heptagon. Once we enter its arena perimeter,
-//   the boss theme starts. When we eliminate the boss, that very frame freezes
+//   Level 1.3's music source is the Heptagon. The boss theme plays only while
+//   it is on screen or just off it. When we eliminate the boss, that very frame freezes
 //   the whole scene and zooms in to our character for a second while a glorious
 //   song plays; after a couple of seconds the game unfreezes."
 //
@@ -25,8 +25,11 @@
   // ── the sources ──
   const ctr=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
   const gatePos=()=>B.gate?{x:B.gate.x+B.gate.w/2, y:B.gate.y+B.gate.h/2}:null;
-  function arenaHas(px,py){                                        // 1.3: the open air over the bowl, right of the towers
-    return px>=52*T&&px<=91*T&&py<=65*T;
+  function bossClose(boss){                                       // on the screen, or just off it
+    const vw=typeof camViewW==='function'?camViewW():(typeof W==='number'?W:1024);
+    const vh=typeof camViewH==='function'?camViewH():(typeof H==='number'?H:768);
+    const vx=typeof camX==='number'?camX:0, vy=typeof camY==='number'?camY:0, m=200;
+    return boss.x+boss.w>vx-m&&boss.x<vx+vw+m&&boss.y+boss.h>vy-m&&boss.y<vy+vh+m;
   }
   // 1.2: the alive triangle whose top is highest when the triangles first exist.
   // y grows downward, so the highest top is the smallest e.y. Locked to that
@@ -54,9 +57,10 @@
     if(sid==='1.3'){
       const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
       if(B.bossDown||!boss||!boss.alive) return {track:'calm', at:gatePos()};
-      const px=p.x+SW/2, py=p.y+FEET_OFF-40;
-      if(!B.bossOn&&arenaHas(px,py)){ B.bossOn=true; if(!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,5); try{ sfx('chargeReady',0.5); }catch(e){} } }
-      return {track:B.bossOn?'boss':stageMusic, at:ctr(boss)};
+      const see=bossClose(boss);
+      B.bossOn=see;
+      if(see&&!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,4); }
+      return {track:see?'boss':stageMusic, at:ctr(boss)};
     }
     return null;
   }

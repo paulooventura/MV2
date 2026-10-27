@@ -131,7 +131,7 @@ function _filterName(){
   if(m==='snes') return 'A  SNES';
   if(m==='ink') return 'D  INK & VINYL';
   if(m==='gore') return 'GORE';
-  return 'C  POSH';
+  return 'NONE';
 }
 let _playerCount=1;
 let _heroChoice='mind';
@@ -424,19 +424,39 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-const OPT_FIXED_ROWS=8;   // music style, music, sfx, engine, console, CRT, enemies, manual
-function _optExtra(){ return window.MV_SIGNAL?1:0; }
-function _optRowCount(){ return BIND_ORDER.length+OPT_FIXED_ROWS+_optExtra(); }
+// music volume, sfx, sports-mode volume, filters, CRT, difficulty, then the control binds, manual last.
+// There is no music-style row: the scored music always plays.
+const OPT_FILTER_ROW=3;
+const OPT_BIND0=6;
+function _optManualRow(){ return OPT_BIND0+BIND_ORDER.length; }
+function _optRowCount(){ return _optManualRow()+1; }
+let _optHoldN=0;
+function _optNudgeBar(row,inc){
+  const step=inc?0.05:-0.05;
+  if(row===0){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+step)); _saveOpts(); _applyBgmVolumes(); }
+  else if(row===1){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+step)); _saveOpts(); }
+  else if(row===2){ OPT.engineVol=Math.max(0,Math.min(1,(OPT.engineVol==null?0.8:OPT.engineVol)+step)); _saveOpts(); }
+}
+function _optRepeat(){
+  if(_gameState!=='options'||_optRebinding){ _optHoldN=0; return; }
+  const left=!!(K['KeyA']||K['ArrowLeft']), right=!!(K['KeyD']||K['ArrowRight']);
+  if(left===right){ _optHoldN=0; return; }
+  _optHoldN++;
+  if(_optHoldN<12||((_optHoldN-12)%3)!==0) return;
+  if(_optRow>2) return;
+  _optNudgeBar(_optRow, right);
+}
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
+  try{ if(OPT.musicMode!=='ost'){ OPT.musicMode='ost'; _saveOpts(); if(typeof _switchMusicMode==='function') _switchMusicMode(); } }catch(e){}
   const held=!!ev.swapHeld;
   if(_goreWasHeld&&!held) _goreStep=0;
   _goreWasHeld=held;
   if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
   const n=_optRowCount();
   if(ev.back||ev.punch){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
-  if(held&&_optRow===4){
+  if(held&&_optRow===OPT_FILTER_ROW){
     if(ev.up) _goreFeed('up');
     else if(ev.down) _goreFeed('down');
     else if(ev.left) _goreFeed('left');
@@ -446,13 +466,10 @@ function _optionsInput(ev){
   if(ev.up){_optRow=(_optRow+n-1)%n;return true;}
   if(ev.down){_optRow=(_optRow+1)%n;return true;}
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
-  if(_optRow===0&&(dec||inc||ev.confirm)){ OPT.musicMode=OPT.musicMode==='ost'?'psg':'ost'; _saveOpts();_switchMusicMode();return true; }
-  if(_optRow===1&&(dec||inc)){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+(inc?0.05:-0.05))); _saveOpts();_applyBgmVolumes();return true; }
-  if(_optRow===2&&(dec||inc)){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+(inc?0.05:-0.05))); _saveOpts();return true; }
-  if(_optRow===3&&(dec||inc)){ OPT.engineVol=Math.max(0,Math.min(1,(OPT.engineVol==null?0.8:OPT.engineVol)+(inc?0.05:-0.05))); _saveOpts();return true; }
-  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
-  if(_optRow===5&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow===6&&(dec||inc||ev.confirm)){
+  if(_optRow<=2&&(dec||inc)){ _optNudgeBar(_optRow, inc); return true; }
+  if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
+  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optRow===5&&(dec||inc||ev.confirm)){
     const B=window.MV_BETA;
     if(B&&typeof B.setDifficulty==='function'){
       const cur=B.difficulty||2;
@@ -460,10 +477,8 @@ function _optionsInput(ev){
     }
     return true;
   }
-  if(_optRow===7&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }   // the instruction booklet + credits (ui_manual.js)
-  if(window.MV_SIGNAL&&_optRow===OPT_FIXED_ROWS&&ev.confirm){ MV_SIGNAL.open(); return true; }
-  const bind0=OPT_FIXED_ROWS+_optExtra();
-  if(_optRow>=bind0&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-bind0]; return true; }
+  if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
+  if(_optRow>=OPT_BIND0&&_optRow<_optManualRow()&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_BIND0]; return true; }
   return true;
 }
 
@@ -564,10 +579,17 @@ document.addEventListener('touchstart',e=>{ if(e.touches&&e.touches[0]) _onInter
 document.addEventListener('keyup',e=>{ if(e.code==='KeyE') _optSwapHeld=false; },true);
 document.addEventListener('keydown',e=>{
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()) return;
+  if(_gameState==='manual'&&window.MV_MANUAL){
+    if(e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF') MV_MANUAL.close();
+    else if(e.code==='ArrowRight'||e.code==='KeyD'||e.code==='Enter'||e.code==='Space') MV_MANUAL.turn(1);
+    else if(e.code==='ArrowLeft'||e.code==='KeyA') MV_MANUAL.turn(-1);
+    e.preventDefault(); return;
+  }
   if(_gameState==='options'){
     if(_optRebinding){ if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;} OPT.binds[_optRebinding]=[e.code]; _saveOpts();_optRebinding=null;e.preventDefault();return; }
     if(e.code==='KeyE') _optSwapHeld=true;
-    const onFilter=_optRow===4;
+    const slide=e.code==='ArrowLeft'||e.code==='KeyA'||e.code==='ArrowRight'||e.code==='KeyD';
+    if(e.repeat&&slide&&_optRow<=2){ e.preventDefault(); return; }
     _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace',swapHeld:_optSwapHeld||e.code==='KeyE',punch:e.code==='KeyF'});
     e.preventDefault();return;
   }
@@ -753,17 +775,17 @@ function drawHUD(){
 }
 
 function drawOptions(){
+  _optRepeat();
   _drawSnesStarfield();
   uiWatchPad();
   const L=uiLayout(), panelW=L.panelW, panelX=L.panelX, scl=3;
-  const rows=[{label:'MUSIC STYLE',val:OPT.musicMode==='ost'?'NEW MUSIC':'PSG'},{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
-    {label:'ENGINE',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
-    {label:'FILTER',val:window.MV_CONSOLE?_filterName():'-'},
+  const rows=[{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
+    {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
+    {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
-    {label:'ENEMIES',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()},
-    {label:'MANUAL & CREDITS',val:'OPEN >'}];
-  if(window.MV_SIGNAL) rows.push({label:'LEAVE A NOTE',val:'WRITE >'});
-  BIND_ORDER.forEach(a=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a)}));
+    {label:'DIFFICULTY',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()}];
+  BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a),rule:i===0?'CONTROLS':null}));
+  rows.push({label:'MANUAL & CREDITS',val:'OPEN >'});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
   const rowH=stacked?78:52, VIS=6;
   const start=rows.length<=VIS?0:Math.max(0,Math.min(_optRow-2, rows.length-VIS));
@@ -776,6 +798,10 @@ function drawOptions(){
   let y=panelY+70;
   for(let vi=0;vi<show;vi++){
     const i=start+vi, r=rows[i], sel=i===_optRow;
+    if(r.rule){
+      ctx.fillStyle='rgba(255,227,154,0.85)'; ctx.fillRect(panelX+24,y-10,panelW-48,3);
+      drawText(r.rule,panelX+28,y-22,'#ffe39a',2);
+    }
     if(sel){ uiPanel(panelX+16,y-8,panelW-32,rowH-8,{sel:true,r:10,flat:true}); uiCursor(panelX+28,y+8,9); }
     const col=sel?'#ffffff':'#d8ffc8', valCol=sel?'#ffe39a':'#d8ffc8';
     if(stacked){
@@ -924,36 +950,11 @@ function _drawTitleMenuOverArt(map){
 function drawTitle(){
   _titleT++;
   const map=_titleArtMap();
-  if(map&&map.im.naturalWidth!==1536){
-    // Paulo (Oct 22): the siblings' key art. A slow push-in, the logo dropping in at the top
-    // over a dark band, the menu on a glass plate low in the middle, sigil light breathing.
-    ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
-    // the whole art, fit to the width, sitting on the bottom: the logo gets the band above it
-    ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H);
-    const z=1+0.02*Math.min(1,_titleT/600)+0.005*Math.sin(fr*0.01), s0=W/map.im.naturalWidth;
-    const w=map.im.naturalWidth*s0*z, h=map.im.naturalHeight*s0*z;
-    ctx.drawImage(map.im,(W-w)/2,H-h+(z-1)*h*0.5,w,h);
-    ctx.save(); ctx.globalCompositeOperation='lighter';
-    const sg=ctx.createRadialGradient(W/2,H*0.25,10,W/2,H*0.25,230); sg.addColorStop(0,'rgba(140,80,255,'+(0.10+0.06*Math.sin(fr*0.05))+')'); sg.addColorStop(1,'rgba(140,80,255,0)');
-    ctx.fillStyle=sg; ctx.fillRect(0,0,W,H); ctx.restore();
-    const tg=ctx.createLinearGradient(0,0,0,170); tg.addColorStop(0,'rgba(4,2,12,0.88)'); tg.addColorStop(0.6,'rgba(4,2,12,0.45)'); tg.addColorStop(1,'rgba(4,2,12,0)');
-    ctx.fillStyle=tg; ctx.fillRect(0,0,W,170);
-    const bg=ctx.createLinearGradient(0,H-230,0,H); bg.addColorStop(0,'rgba(4,2,12,0)'); bg.addColorStop(1,'rgba(4,2,12,0.7)');
-    ctx.fillStyle=bg; ctx.fillRect(0,H-230,W,230);
-    const k=Math.min(1,_titleT/45), ease=1-Math.pow(1-k,3);
-    ctx.save(); ctx.globalAlpha=k;
-    uiLogo('MIND & VENTURE',W/2,-90+(96)*ease,58,{sweep:260});
-    ctx.restore();
-    _drawTitleMenuOverArt(Object.assign({},map,{s:0.75}));
-    _drawUiToast();
-    drawTextC('© 1993 SONNATA GAMES',W-150,H-28,'#d8ffc8',2);
-    if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }   // in from the skipped logos
-    return;
-  }
   if(map){
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
     ctx.drawImage(map.im,map.dx,map.dy,map.im.naturalWidth*map.s,map.im.naturalHeight*map.s);
     _drawTitleMenuOverArt(map);
+    if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }
     return;
   }
   ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
@@ -1049,11 +1050,14 @@ function _drawLorePanel(page,frKey,opts={}){
   const titleCol=page.col||C.SAND;
   drawTextC(page.title,W/2,panelY+14,titleCol,fs);
   let lineY=panelY+titleH+16;
-  wrapped.forEach((line,i)=>{ if(frKey<i*10) return; if(lineY>panelY+panelH-48) return; ctx.save(); ctx.globalAlpha=Math.min(1,(frKey-i*10)/10); drawTextC(line,W/2,lineY,'#f2ffe8',bs); ctx.restore(); lineY+=lh; });
+  wrapped.forEach((line,i)=>{ if(frKey<i*10) return; if(lineY>panelY+panelH-48) return; ctx.save(); ctx.globalAlpha=Math.min(1,(frKey-i*10)/10);
+    if(opts.plain){ ctx.font='22px "Trebuchet MS", Verdana, sans-serif'; ctx.fillStyle='#f4ffe8'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText(line,W/2,lineY); }
+    else drawTextC(line,W/2,lineY,'#f2ffe8',bs);
+    ctx.restore(); lineY+=lh; });
   if(showPrompt){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC(uiMenuHint('story'),W/2,panelY+panelH-36,'#ffe39a',3); ctx.restore(); }
   if(pageTotal>1){ for(let i=0;i<pageTotal;i++){ ctx.fillStyle=i===pageNum-1?'#ffe39a':'rgba(200,184,255,0.35)'; ctx.beginPath(); ctx.arc(panelX+panelW/2+(i-(pageTotal-1)/2)*18,panelY+panelH-12,i===pageNum-1?4:3,0,Math.PI*2); ctx.fill(); } }
 }
-function drawStory(){ const page=STORY_PAGES[_storyPage]; ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H); _drawCoverArt(STORY_ART[_storyPage],STORY_ART_Q,_storyPage); _drawLorePanel(page,_storyFr,{pageNum:_storyPage+1,pageTotal:STORY_PAGES.length}); }
+function drawStory(){ const page=STORY_PAGES[_storyPage]; ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H); _drawCoverArt(STORY_ART[_storyPage],STORY_ART_Q,_storyPage); _drawLorePanel(page,_storyFr,{pageNum:_storyPage+1,pageTotal:STORY_PAGES.length,plain:true}); }
 
 function drawLaitu(){
   if(_battleTestMode||!_laitu||_laitu.met||_zoneIdx!==0) return;

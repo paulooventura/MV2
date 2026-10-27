@@ -48,8 +48,8 @@
     return e;
   }
   B.mkAiEnemy=function(ai,cx,feet,opts){
-    if(ai==='eye'){ const e=base('eye',cx,feet,opts,44,44,40); e.st='hover'; e.stT=0; e.cd=60; e.look={x:-1,y:0}; return e; }
-    if(ai==='cube'){ const e=base('cube',cx,feet,opts,46,46,60); e._iso=true; e.st='sleep'; e.awakeT=0; e.cd=0; e.spin=0; return e; }
+    if(ai==='eye'){ const e=base('eye',cx,feet,opts,78,114,30); e.st='hover'; e.stT=0; e.cd=50; e.look={x:-1,y:0}; e._downed=false; return e; }
+    if(ai==='cube'){ const e=base('cube',cx,feet,opts,108,108,90); e._iso=true; e.st='sleep'; e.cd=0; e.spin=0; e.zaps=[]; e.elecT=0; return e; }
     return _mk.apply(this,arguments);
   };
   function mkBoss(cx,cy){
@@ -74,17 +74,32 @@
       if(e.stT>=32){ e.st='fire'; e.stT=0; e.beam={ux:e.look.x,uy:e.look.y}; S('laser',0.7); }
     }else if(e.st==='fire'){
       e.stT++; const b=e.beam, L=rayEnd(c.x,c.y,b.ux,b.uy,760); b.len=L;
-      if(segDist(P.x,P.y,c.x,c.y,c.x+b.ux*L,c.y+b.uy*L)<24) hurtMind(b.ux*5,-3,14);
-      if(e.stT>=14){ e.st='hover'; e.cd=95+Math.random()*40|0; e.beam=null; }
+      if(segDist(P.x,P.y,c.x,c.y,c.x+b.ux*L,c.y+b.uy*L)<26){
+        const barely=Math.max(1,(p.maxHp||100)-4);
+        hurtMind(b.ux*6,-4,barely);
+      }
+      if(e.stT>=16){
+        e.st='turned'; e.stT=0; e.beam=null;
+        const fx=-(b.ux>0.2?1:b.ux<-0.2?-1:(dx>0?1:-1));
+        e.look={x:fx,y:0};
+      }
+    }else if(e.st==='turned'){
+      e.stT++;
+      tx=c.x+e.look.x*160; ty=c.y;
+      if(e.stT>150){ e.st='hover'; e.cd=40; }
+    }else if(e.st==='fall'||e._downed){
+      e.vy=Math.min((e.vy||0)+0.45,11); e.vx*=0.86;
+      if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else { e.vy=0; e.y=Math.round(e.y); e.st='down'; e._downed=true; }
+      if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
+      return;
     }
-    if(e.st!=='hover'){ tx=c.x; ty=c.y; }                         // it holds still to shoot
-    else if(sees) e.look={x:e.look.x+(dx/d-e.look.x)*0.2, y:e.look.y+(dy/d-e.look.y)*0.2};
+    if(e.st==='aim'||e.st==='fire'){ tx=c.x; ty=c.y; }
+    else if(e.st==='hover'&&sees) e.look={x:e.look.x+(dx/d-e.look.x)*0.2, y:e.look.y+(dy/d-e.look.y)*0.2};
     // FAST: a stiff, quick steer, capped at 5 px/frame; it slides along rock
     e.vx=(e.vx||0)*0.86+(tx-c.x)*0.012; e.vy=(e.vy||0)*0.86+(ty-c.y)*0.012;
     const sp=Math.hypot(e.vx,e.vy); if(sp>5){ e.vx*=5/sp; e.vy*=5/sp; }
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx*=-0.4;
     if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy*=-0.4;
-    if(e.hitF>0&&e.st==='aim'){ e.st='hover'; e.cd=40; }             // a hit spoils its aim
   }
   function drawEye(e){
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.55), off=!e.alive;
@@ -100,8 +115,8 @@
       ctx.strokeStyle='rgba(255,80,80,'+(0.2+0.5*e.stT/32)+')'; ctx.lineWidth=1; ctx.setLineDash([6,6]);
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+e.look.x*sw(L),cy+e.look.y*sw(L)); ctx.stroke(); ctx.setLineDash([]);
     }
-    ctx.translate(cx,cy+(off?0:Math.sin(fr*0.15+e.phase)*sw(2)));
-    if(off) ctx.rotate(0.6);
+    ctx.translate(cx,cy+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
+    if(off||e.st==='down') ctx.rotate(0.7);
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#5a3a3a':'#e04848'); g.addColorStop(1,off?'#2a1a1a':'#7a1018');
@@ -118,34 +133,33 @@
 
   // ── F: the transparent cube ───────────────────────────────────
   function cubeTick(e){
+    e._fx=false;
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
-    const wet=B.inWater&&B.inWater(c.x,c.y), mindWet=B.inWater&&B.inWater(P.x,P.y);
     if(e.cd>0) e.cd--;
-    e.spin+=e.st==='sleep'?0.004:0.05;
-    if(!wet){                                                      // out of the water: it can't swim — it drops and flops
-      e.vy=Math.min((e.vy||0)+0.5,10); e.vx*=0.9;
-      if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy=0;
-      if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx;
-      e.st='sleep'; return;
+    e.spin+=e.st==='zap'?0.08:0.008;
+    e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
+    if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy=0;
+    if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
+    const close=d<260;
+    if(!close){ e.st='sleep'; e.beams=null; return; }
+    if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
+    else {
+      e.st='zap'; e.cd=240; e.elecT=18;
+      const wet=B.inWater&&B.inWater(c.x,c.y)&&B.inWater(P.x,P.y);
+      if(wet) hurtMind((dx/d)*2,-2,22);
+      e.beams=[];
+      for(let i=0;i<4;i++) e.beams.push({a:Math.atan2(dy,dx)+(i-1.5)*0.42, life:16});
+      S('laser',0.55); S('zap',0.8);
     }
-    if(e.st==='sleep'){
-      e.vx*=0.9; e.vy=e.vy*0.9+Math.sin(fr*0.04+e.phase)*0.03;
-      if(e.hitF>0||(mindWet&&d<250&&clearLine(c.x,c.y,P.x,P.y))){ e.st='hunt'; e.awakeT=0; S('enemy_boot',1.4); burst(c.x,c.y,10,['#bfe6ff','#ffffff'],2); }
-    }else{
-      e.awakeT++;
-      if(mindWet&&e.cd<=0){                                        // FAST: darts at him
-        e.vx+=dx/d*0.55; e.vy+=dy/d*0.55; e.awakeT=0;
-      }else{ e.vx*=0.94; e.vy*=0.94; }
-      const sp=Math.hypot(e.vx,e.vy); if(sp>6.5){ e.vx*=6.5/sp; e.vy*=6.5/sp; }
-      if(e.awakeT>360) e.st='sleep';                               // lost him: back to sleep
-    }
-    // stays in the water
-    const nx=e.x+e.vx, ny=e.y+e.vy;
-    if(boxFree(nx,e.y,e.w,e.h)&&B.inWater(nx+e.w/2,c.y)) e.x=nx; else e.vx*=-0.3;
-    if(boxFree(e.x,ny,e.w,e.h)&&B.inWater(c.x,ny+e.h/2-4)) e.y=ny; else e.vy*=-0.3;
-    // the ram
-    if(e.st==='hunt'&&e.cd<=0&&Math.abs(dx)<e.w/2+26&&Math.abs(dy)<e.h/2+44){
-      if(hurtMind(dx/d*7,dy/d*5-2,12)){ e.cd=50; e.vx=-dx/d*3; e.vy=-dy/d*3; burst(P.x,P.y,12,['#bfe6ff','#80c0ff'],3); }
+    if(e.beams){
+      for(const b of e.beams){
+        b.life--;
+        const L=220, t=Math.max(0,Math.min(1,((P.x-c.x)*Math.cos(b.a)+(P.y-c.y)*Math.sin(b.a))/L));
+        const hx=c.x+Math.cos(b.a)*L*t, hy=c.y+Math.sin(b.a)*L*t;
+        if(Math.hypot(P.x-hx,P.y-hy)<24) hurtMind(Math.cos(b.a)*5,-3,18);
+      }
+      e.beams=e.beams.filter(b=>b.life>0);
+      if(!e.beams.length&&e.st==='zap') e.st='sleep';
     }
   }
   function drawCube(e){
@@ -159,8 +173,16 @@
     ctx.strokeStyle=e.hitF>0?'#ffffff':'rgba(230,245,255,'+(a+0.2)+')'; ctx.lineWidth=2; ctx.stroke();
     ctx.strokeStyle='rgba(230,245,255,'+a+')'; ctx.lineWidth=1.2; ctx.beginPath();
     ctx.moveTo(0,0); ctx.lineTo(pts[1][0],pts[1][1]); ctx.moveTo(0,0); ctx.lineTo(pts[3][0],pts[3][1]); ctx.moveTo(0,0); ctx.lineTo(pts[5][0],pts[5][1]); ctx.stroke();
-    if(awake){ ctx.fillStyle='rgba(255,90,90,0.9)'; ctx.beginPath(); ctx.arc(R*0.18,-R*0.1,R*0.09,0,Math.PI*2); ctx.arc(-R*0.18,-R*0.1,R*0.09,0,Math.PI*2); ctx.fill(); }
+    if(e.st==='zap'){ ctx.fillStyle='rgba(120,220,255,0.9)'; ctx.beginPath(); ctx.arc(R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(-R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(0,R*0.22,R*0.08,0,Math.PI*2); ctx.arc(0,-R*0.22,R*0.08,0,Math.PI*2); ctx.fill(); }
     ctx.restore();
+    if(e.beams&&e.alive){
+      ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+      for(const b of e.beams){
+        ctx.strokeStyle='rgba(140,220,255,'+(b.life/16)+')'; ctx.lineWidth=sw(4);
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(b.a)*sw(220), cy+Math.sin(b.a)*sw(220)); ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   // ── the HEPTAGON ──────────────────────────────────────────────
@@ -169,8 +191,8 @@
   function bossTick(e){
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, d=Math.hypot(dx,P.y-c.y);
     const near=d<620, hard=e.hp<e.mhp*0.5;
-    if(near&&!e.awake){ e.awake=true; S('chargeReady',0.5); B.shake=Math.max(B.shake||0,5); B.bossOn=true; }
-    if(!near&&d>900&&e.awake){ e.awake=false; B.bossOn=false; }
+    if((near||B.bossOn)&&!e.awake){ e.awake=true; B.shake=Math.max(B.shake||0,4); }
+    if(!near&&!B.bossOn&&d>980&&e.awake) e.awake=false;
     // FLOATS WHEN THE HERO IS NEAR — otherwise it settles into its bowl
     const restY=e.homeY+150, tx=e.awake?Math.max(58*T,Math.min(78*T,P.x)):e.homeX, ty=e.awake?e.homeY-30+Math.sin(fr*0.025)*40:restY;
     e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006;
@@ -339,7 +361,7 @@
     const up=nextUp; nextUp=!nextUp;
     const from=up?Math.max(0.55,Math.min(1.3,armE)):-1.15, to=up?-1.15:1.05;
     swing={from,to,t:0,dur:7,up,hit:false}; comboT=0; slashCd=6;
-    S('punch_whiff',up?1.5:1.25);
+    try{ if(window.MV_KNIFE_SFX) MV_KNIFE_SFX.swing(false); else S('punch_whiff',1.2); }catch(er){}
     for(const r of (B.ropes||[]).slice()){ if(r.kind==='mind'&&r.e&&B.releaseRopeOf){ B.releaseRopeOf(r.e); burst(p.x+SW/2,p.y+FEET_OFF-60,8,['#e8d0a0','#a08060'],3); } }
   }
   function swingHit(sw){
@@ -357,7 +379,8 @@
     const dmg=Math.round(BIG_DMG+(BIG_DMG_MAX-BIG_DMG)*f), kb=2.2+4.5*h, push=4+16*h;
     const ang=toW(aE), ux=Math.cos(ang), uy=Math.sin(ang), cx=p.x+SW/2, cy=p.y+FEET_OFF-58;
     big={x:cx,y:cy,ang,aE,t:0,R:Rr,H:Hh,heat:h}; swing=null; comboT=0; nextUp=true; slashCd=28; motes=[];
-    S('punch_whiff',0.7-0.25*f); S('punch_whiff',1.9); S('omniblock_chip',0.6); if(f>0.95) S('chargeReady',0.6);
+    try{ if(window.MV_KNIFE_SFX) MV_KNIFE_SFX.swing(true); else { S('punch_whiff',0.7); S('punch_whiff',1.6); } }catch(er){}
+    if(f>0.95) S('chargeReady',0.6);
     B.shake=Math.max(B.shake||0,10+12*f);
     const inArc=(x,y,pad)=>{ const dx=x-cx, dy=y-cy, along=dx*ux+dy*uy, across=-dx*uy+dy*ux; return along>-30-pad&&along<Rr+pad&&Math.abs(across)<Hh+pad; };
     for(const bw of BWALLS){ if(bw.hp<=0) continue; const bx=bw.x+bw.w/2, by=bw.y+bw.h/2; if(!inArc(bx,by,12)||!clearLine(cx,cy,bx,by)) continue;
@@ -382,6 +405,14 @@
   const _dmgE=window._damageEnemy;
   if(typeof _dmgE==="function") window._damageEnemy=function(e,dmg,fx,fy,kb){
     if(e&&e._boss&&on()&&!knifeHit){ if(e.alive&&fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } return false; }
+    if(e&&e._foe==='eye'&&e.alive&&e.st!=='down'&&fx!=null&&fy!=null){
+      const lx=(e.look&&e.look.x)||0, ly=(e.look&&e.look.y)||0;
+      const hx=fx-(e.x+e.w/2), hy=fy-(e.y+e.h*0.4), hl=Math.hypot(hx,hy)||1;
+      const dot=(hx*lx+hy*ly)/hl;
+      if(dot>0.2){ e._downs=2; return _dmgE.call(this,e,9999,fx,fy,kb); }
+      if(dot<-0.15){ e.st='fall'; e._downed=true; e.vx=-lx*3.2; e.vy=-2.4; return false; }
+      return false;
+    }
     return _dmgE.apply(this,arguments);
   };
   // loading the slash: the knife draws things in — enemies, loose cubes — harder and from

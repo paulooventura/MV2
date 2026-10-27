@@ -74,18 +74,22 @@
       ctx.save(); ctx.fillStyle=RED; ctx.fillRect(x,y,w,96); ctx.fillStyle=GOLD; ctx.fillRect(x,y+96,w,6); ctx.restore();
       label('INSTRUCTION BOOKLET',x+w/2,y+18,22,'#fff8e6','center');
       if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#b8f5a0',sweep:9999});
-      label('AWDJOO TOWN EDITION',x+w/2,y+h-128,20,'#9ef58a','center');
-      ctx.save(); ctx.fillStyle=GOLD; ctx.beginPath(); ctx.arc(x+w-70,y+h-70,46,0,Math.PI*2); ctx.fill(); ctx.lineWidth=4; ctx.strokeStyle='#14070a'; ctx.stroke();
+      label('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,16,'#9ef58a','center');
+      ctx.save();
+      const seal=img('mmr','assets/splash/mmr-logo.jpg');
+      ctx.beginPath(); ctx.arc(x+w-70,y+h-70,46,0,Math.PI*2); ctx.clip();
+      if(ready(seal)) ctx.drawImage(seal,x+w-116,y+h-116,92,92);
+      else { ctx.fillStyle=GOLD; ctx.fill(); }
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.arc(x+w-70,y+h-70,46,0,Math.PI*2); ctx.lineWidth=4; ctx.strokeStyle='#14070a'; ctx.stroke();
       ctx.font='13px '+HEAD(); ctx.fillStyle='#14070a'; ctx.textAlign='center'; ctx.fillText('MMR',x+w-70,y+h-88); ctx.fillText('SEAL OF',x+w-70,y+h-72); ctx.fillText('GROOVE',x+w-70,y+h-56); ctx.restore();
-      label('SONNATA GAMES · 16-BIT ADVENTURE',x+30,y+h-62,16,'#c8b8ff');
+      label('AN M.M.R. GAME',x+30,y+h-62,16,'#c8b8ff');
     },
     // 2 · the story
     (x,y,w,h)=>{
-      ribbon('THE STORY',x+30,y+30,260);
-      framed(img('s1','assets/story/story-1.png'),x+30,y+100,w-60,200,{ay:0.4});
-      let yy=y+320;
-      const P=typeof STORY_PAGES!=='undefined'?STORY_PAGES:[];
-      for(const pg of P){ label(pg.title,x+30,yy,22,RED); yy=wrap(pg.lines.join(' '),x+30,yy+26,w-60,22,26); yy+=6; if(yy>y+h-40) break; }
+      ribbon('THE JOURNEY BEGINS',x+30,y+30,420);
+      framed(img('s1','assets/story/story-1.png'),x+30,y+100,w-60,180,{ay:0.4});
+      wrap('Their neighbor Laitu said: "They are long gone, and left a trail of Knowl seeds. Tradzkul probably took them to his lair. You should follow the trail and find them!"',x+30,y+310,w-60,20,26);
     },
     // 3 · the heroes
     (x,y,w,h)=>{
@@ -110,9 +114,14 @@
       ctx.fillStyle='#2a2830'; ctx.fillRect(cx-160,cy-12,60,24); ctx.fillRect(cx-142,cy-30,24,60);           // d-pad
       [['#7a4fd8',cx+120,cy-22],['#3fae5a',cx+150,cy+4],['#e8c040',cx+90,cy+4],['#c8281e',cx+120,cy+30]].forEach(([c,bx,by])=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(bx,by,15,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#14070a'; ctx.lineWidth=2; ctx.stroke(); });
       ctx.fillStyle='#6a6676'; ctx.fillRect(cx-36,cy+4,28,8); ctx.fillRect(cx+8,cy+4,28,8); ctx.restore();
-      const B=typeof OPT!=='undefined'&&OPT.binds?OPT.binds:{};
-      const k=a=>(B[a]||[]).map(c=>c.replace('Key','').replace('Arrow','').replace('Left','L').replace('Right','R')).join(' / ')||'-';
-      const rows=[['MOVE',k('left')+'  ·  '+k('right')],['JUMP (tap again in the air: DOUBLE JUMP)',k('jump')],['USE ITEM (hold to charge)',k('swap')],['SWITCH ITEM',k('use')],['PUNCH',k('punch')],['AIM',k('up')+' / '+k('down')+' + arrows'],['SPRINT: tap item, then hold it + a direction',k('sprint')]];
+      const dev=(typeof _uiDev!=='undefined')?_uiDev:'key';
+      const keyOf=a=>{ const B=(typeof OPT!=='undefined'&&OPT.binds)?OPT.binds:{}; return (B[a]||[]).map(c=>String(c).replace('Key','').replace('Arrow','')).join('/')||a.toUpperCase(); };
+      const act=a=>{
+        if(a==='left'||a==='right'||a==='up'||a==='down') return dev==='pad'?'D-PAD':dev==='touch'?'STICK':keyOf(a);
+        if(dev==='pad'||dev==='touch') return (typeof uiActLabel==='function')?uiActLabel(a):a.toUpperCase();
+        return keyOf(a==='swap'?'swap':a==='use'?'use':a==='punch'?'punch':'jump');
+      };
+      const rows=[['MOVE',act('left')+'  ·  '+act('right')],['JUMP  ·  hold it in the air to climb',act('jump')],['USE ITEM (hold to charge)',act('swap')],['SWITCH ITEM',act('use')],['PUNCH',act('punch')],['SPORTS-MODE: double-tap run and hold while moving',act('swap')],['LOADED JUMP: hold down on the ground, then jump',act('down')+' + '+act('jump')]];
       let yy=y+340;
       for(const [a,b] of rows){ label(a,x+24,yy,20,INK); label(b,x+w-24,yy,20,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+24,w-48,1); yy+=36; }
       box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the filter and this booklet.',x+52,yy+36,w-104,14,18);
@@ -131,13 +140,15 @@
       framed(img('s5','assets/story/story-5.png'),x+30,y+100,w-60,180,{ay:0.5});
       box(x+30,y+300,w-60,120,'STAGE 1.1 · THE STREET','#2a7a3a');
       wrap('Find the four jacks in their crates, collect the Knowl seeds, meet Laitu and open the arch. Watch for the minions — and the gramophone in your living room.',x+42,y+334,w-84,14,18);
-      box(x+30,y+440,w-60,140,'STAGE 1.2 · DEEP WATERS',BLUE);
-      wrap('A flooded house, a crystal chamber and a corridor where D — your mirror — waits. Pull the drain plug and the water rushes out. Water shorts out robots: you and them.',x+42,y+474,w-84,14,18);
+      box(x+30,y+430,w-60,90,'STAGE 1.2 · DEEP WATERS',BLUE);
+      wrap('A flooded house, a crystal chamber and a corridor where D waits. Pull the drain plug. Water shorts out robots.',x+42,y+458,w-84,13,16);
+      box(x+30,y+530,w-60,90,'STAGE 1.3 · THE LAIR',RED);
+      wrap('Past the flooded street. E watches from one eye. F sleeps under the water. The knife is the only thing that can finish what waits at the end.',x+42,y+558,w-84,13,16);
     },
     // 7 · tips
     (x,y,w,h)=>{
       ribbon('TIPS & SECRETS',x+30,y+30,320,RED);
-      const tips=['Boil enough water with the TRS and the clouds roll in. What goes up comes down as rain.','Drive INTO your own XLR blast: the tire fights it, heats up and smokes.','Hold the XLR under water to blow an air pocket. Let go and it bursts to the surface.','The rope plugs into your back once it bites — your hand is free for another item.','A hard landing bounces off the rubber. A second jump in the air kicks off the woofer.','Every slot remembers your hero, your jacks and every seed you found.'];
+      const tips=['Boil enough water with the TRS and the clouds roll in. What goes up comes down as rain.','Drive INTO your own XLR blast: the tire fights it, heats up and smokes.','Hold the XLR under water to blow an air pocket. Let go and it bursts to the surface.','The rope plugs into your back once it bites — your hand is free for another item.','A hard landing bounces off the rubber. Hold jump in the air and the wheel climbs.','Every slot remembers your hero, your jacks and every seed you found.','On filters, hold the item selection button, and press down, left, down, right, down, up, and see what happens!'];
       let yy=y+100; tips.forEach((t,i)=>{ ctx.save(); ctx.fillStyle=i%2?BLUE:RED; ctx.beginPath(); ctx.arc(x+44,yy+10,11,0,Math.PI*2); ctx.fill(); ctx.font='14px '+HEAD(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),x+44,yy+11); ctx.restore(); yy=wrap(t,x+66,yy,w-100,15,20)+14; });
       starburst(x+w-80,y+h-80,52,'HINT!');
     },
@@ -145,7 +156,7 @@
     (x,y,w,h)=>{
       ctx.fillStyle='#120a20'; ctx.fillRect(x,y,w,h);
       ribbon('CREDITS',x+30,y+30,220,GOLD);
-      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE" — PAULO VENTURA'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','SONNATA GAMES'],['PROGRAMMING & SOUND DESIGN','PAULO VENTURA · CLAUDE (ANTHROPIC) · CURSOR'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
+      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE" — PAULO VENTURA'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','M.M.R.'],['PROGRAMMING & SOUND DESIGN','PAULO VENTURA · CLAUDE (ANTHROPIC) · CURSOR'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
       let yy=y+110; for(const [r,n] of C){ label(r,x+w/2,yy,13,'#9c8cc8','center'); label(n,x+w/2,yy+18,20,'#fff2c8','center'); yy+=62; }
       label('(c) 2026 Paulo Ventura · BETA build '+(window.MV_BUILD||'?'),x+w/2,y+h-48,14,'#9c8cc8','center');
     },
@@ -170,9 +181,10 @@
       ctx.fillStyle='#0c1a12'; ctx.fillRect(x,y,w,h);
       if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+h/2-80,40,{col:'#b8f5a0',sweep:220});
       label('THANK YOU FOR PLAYING',x+w/2,y+h/2,22,'#fff2c8','center');
-      label('© SONNATA GAMES · MMR',x+w/2,y+h-60,14,'#9c8cc8','center');
+      label('© M.M.R. · MUSIC MECCA RECORDS',x+w/2,y+h-60,14,'#9c8cc8','center');
     },
   ];
+  { const facts=PAGES[9], credits=PAGES[7]; PAGES[7]=facts; PAGES[9]=credits; }
 
   function paper(x,y,w,h){
     ctx.save();
@@ -192,7 +204,7 @@
     const e=1-Math.pow(1-S.t,3), dir=S.page>=S.from?1:-1;
     const draw=(i,off,alpha)=>{ if(i<0||i>=PAGES.length) return; ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.translate(px+pw/2,py+ph/2); ctx.rotate(-0.006+off*0.00004); ctx.translate(-(px+pw/2),-(py+ph/2));
       paper(px,py,pw,ph); ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip(); try{ PAGES[i](px,py,pw,ph); }catch(err){} ctx.restore();
-      ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.font='14px '+HEAD(); ctx.fillStyle=(i===0||i===7||i===10)?'#9c8cc8':'#5a4a3a'; ctx.textAlign='center'; ctx.fillText('— '+(i+1)+' —',px+pw/2,py+ph-16); ctx.restore(); };
+      ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.font='14px '+HEAD(); ctx.fillStyle=(i===0||i===9||i===10)?'#9c8cc8':'#5a4a3a'; ctx.textAlign='center'; ctx.fillText('— '+(i+1)+' —',px+pw/2,py+ph-16); ctx.restore(); };
     if(S.t<1) draw(S.from,-dir*e*(W*0.8),1-e);
     draw(S.page,dir*(1-e)*(W*0.8),e);
     // controls hint

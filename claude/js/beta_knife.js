@@ -48,7 +48,8 @@
     const s=a.createBufferSource(); s.buffer=noise(a);
     const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=1.4;
     bp.frequency.setValueAtTime(f0,t); bp.frequency.exponentialRampToValueAtTime(f1,t+dur*0.45); bp.frequency.exponentialRampToValueAtTime(f0*0.6,t+dur);
-    const n=env(a,g,t,dur*0.35,dur); s.connect(bp); bp.connect(n); n.connect(a.destination);
+    const n=env(a,g*2.8,t,0.004,dur); s.connect(bp); bp.connect(n); n.connect(a.destination);
+    tone('sawtooth', Math.max(80,f0*0.45), g*1.4, t, 0.002, Math.min(0.16,dur*0.7), Math.max(40,f1*0.2));
     s.start(t,Math.random()); s.stop(t+dur+0.05);
   }
   function tone(type,f,g,t,atk,dur,f2){ const a=ac(); if(!a) return; const o=a.createOscillator(); o.type=type; o.frequency.setValueAtTime(f,t); if(f2) o.frequency.exponentialRampToValueAtTime(f2,t+dur); const n=env(a,g,t,atk,dur); o.connect(n); n.connect(a.destination); o.start(t); o.stop(t+dur+0.05); }
@@ -532,4 +533,5 @@
     return r;
   };
   window.MV_KNIFE={ state:()=>({intro:!!intro, introSeen, finish:finish&&finish.st, free:free.length, shared:shared.length, sibCarry:carrier?carrier._carry:null}), drop:()=>on()&&dropItem() };
+  window.MV_KNIFE_SFX={ swing(big){ if(big){ whoosh(0.42,280,1400,0.34); whoosh(0.2,900,2800,0.18); shing(); } else { whoosh(0.16,640,3400,0.26); shing(); } } };
 })();

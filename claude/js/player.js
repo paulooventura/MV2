@@ -173,6 +173,14 @@ function readGamepad(){
   if(_gameState==='options'){
     _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:false,swapHeld:pressed(1),punch:rose(3)});
   }
+  if(_gameState==='manual'&&window.MV_MANUAL){
+    const sx=ax<-0.55?-1:ax>0.55?1:0;
+    if(rose(14)||(sx<0&&!(GP.manX<0))) MV_MANUAL.turn(-1);
+    if(rose(15)||(sx>0&&!(GP.manX>0))) MV_MANUAL.turn(1);
+    GP.manX=sx;
+    if(rose(0)) MV_MANUAL.turn(1);
+    if(rose(3)||rose(9)||rose(8)) MV_MANUAL.close();
+  }
   if(_gameState==='select'){
     // d-pad, or the stick pushed past half (one step per push) — Paulo, Oct 22
     const sx=ax<-0.5?-1:ax>0.5?1:0, sy2=ay<-0.5?-1:ay>0.5?1:0;
