@@ -1316,8 +1316,17 @@ function resolveBodyX(pl){
     for(const c of CRATES){
       if(!ov(h.x,h.y,h.w,h.h,c.x,c.y,c.w,c.h)) continue;
       const penL=(h.x+h.w)-c.x, penR=(c.x+c.w)-h.x;
-      if(penL<=penR){ pl.x-=penL; if((pl.vx||0)>0) pl.vx=0; }
-      else{ pl.x+=penR; if((pl.vx||0)<0) pl.vx=0; }
+      const into=penL<=penR?1:-1;
+      if(into>0) pl.x-=penL; else pl.x+=penR;
+      const vx=pl.vx||0;
+      if(Math.sign(vx)===into&&Math.abs(vx)>0.6){
+        const massP=pl.hero==='venture'?7.6:9.5, m=3.2;
+        const share=(2*massP)/(massP+m), keep=(massP-m)/(massP+m);
+        c.vx=(c.vx||0)+vx*share*0.32;
+        c.vy=(c.vy||0)-Math.min(2.8,Math.abs(vx)*0.1);
+        c.og=false;
+        pl.vx=vx*Math.max(0.2,keep);
+      }else if(Math.sign(vx)===into) pl.vx*=0.45;
       moved=true;
     }
     if(!riding){
@@ -2482,8 +2491,67 @@ function _updateWheelSuspension(pl,prevVx){
     }
   }
   const onSlope=!!(pl.og&&Math.abs(pl._slopeAngle||0)>0.08);
-  const tiltTgt=pl.og&&!onSlope?Math.sign(pl.vx||0)*Math.min(0.38,Math.abs(pl.vx)/RUN*0.34)+accel*0.04:0;
+  const airLean=Math.max(-0.55,Math.min(0.55,(pl._pitchV||0)*14));
+  const tiltTgt=pl.og&&!onSlope?Math.sign(pl.vx||0)*Math.min(0.38,Math.abs(pl.vx)/RUN*0.34)+accel*0.04:airLean;
   pl.suspTilt=((pl.suspTilt||0)+(tiltTgt-(pl.suspTilt||0))*0.22);
+  _beamChassis(pl);
+}
+// 2D chassis (Paulo, Oct 27): the wheel has its own spin. Grip is what the rubber
+// can hand the body, and it gives out — burnout, skid, freewheel in the air.
+// Top speed stays the stage cap. Weight: Mind 9.5, Venture 7.6.
+function _beamChassis(pl){
+  if(!pl||pl._dead||pl._magWorldStick) return;
+  if(pl.hook&&pl.hook.st==='on') return;
+  if(pl.wallGrip>0) return;
+  const lead=(typeof p!=='undefined'&&pl===p);
+  const grounded=typeof _playerOnGround==='function'?_playerOnGround(pl):!!pl.og;
+  const light=pl.hero==='venture';
+  const heavy=light?0.82:1;
+  const mass=light?7.6:9.5;
+  let tread=pl._tread;
+  if(tread==null||!isFinite(tread)) tread=pl.vx||0;
+  const dir=lead&&typeof _moveInputX==='function'?_moveInputX():0;
+  const sprint=lead&&typeof isSprintHeld==='function'&&isSprintHeld()&&!!dir;
+  const torque=dir*(sprint?0.22:0.10)/heavy;
+  if(grounded){
+    if(dir) tread+=torque;
+    else tread+=((pl.vx||0)-tread)*0.18;
+    const slip=tread-(pl.vx||0);
+    const load=1+Math.min(0.7,Math.max(0,(pl.suspComp||0))*1.1);
+    const mu=(0.10+(sprint?0.03:0))*load/heavy;
+    let grip=slip*0.12;
+    if(grip>mu) grip=mu;
+    if(grip<-mu) grip=-mu;
+    const vx0=pl.vx||0;
+    const cap=(pl._moveCap>0?pl._moveCap:Math.abs(vx0))+0.15;
+    let vx1=vx0+grip;
+    if(dir>0){ if(vx1>cap) vx1=cap; }
+    else if(dir<0){ if(vx1<-cap) vx1=-cap; }
+    else if(Math.abs(vx1)>Math.abs(vx0)) vx1=vx0;
+    pl.vx=vx1;
+    tread-=(vx1-vx0)*(mass/8);
+    tread*=0.994;
+    pl._slip=slip;
+    pl._pitchV=(pl._pitchV||0)*0.72;
+    if(lead&&Math.abs(slip)>2.8){
+      const tick=(typeof fr!=='undefined'?fr:0);
+      if(tick%2===0){
+        const cx=pl.x+(typeof SW!=='undefined'?SW:64)/2, gy=pl.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+        if(pl.smoke&&pl.smoke.length<28) pl.smoke.push({x:cx,y:gy-2,vx:-Math.sign(slip||1)*0.6+(Math.random()-0.5),vy:-0.3-Math.random()*0.7,life:14,maxLife:20,r:3});
+        if(typeof PFXS!=='undefined') PFXS.push({x:cx+(Math.random()-0.5)*12,y:gy,vx:(Math.random()-0.5)*3.2,vy:-Math.random()*2.2,life:8,maxLife:8,r:1.3,col:Math.random()<0.5?'#ffe080':'#ff6a20'});
+      }
+    }
+  }else{
+    tread+=torque*1.5;
+    tread*=0.997;
+    pl._slip=tread-(pl.vx||0);
+    pl._pitchV=Math.max(-0.045,Math.min(0.045,(pl._pitchV||0)*0.992+(pl._slip||0)*0.0008));
+  }
+  pl._tread=Math.max(-22,Math.min(22,tread));
+  if(Math.abs(pl._slip||0)>1.2){
+    const R=typeof WHEEL_R==='number'?WHEEL_R:22;
+    pl.wheelAngle=(pl.wheelAngle||0)+(pl._slip||0)/R;
+  }
 }
 function _rollWheelFromTravel(pl,x0,y0){
   if(!pl) return;

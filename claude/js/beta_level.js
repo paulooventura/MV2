@@ -596,6 +596,7 @@
     else if(xlrNow){
       B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
       blowAround();                                              // the air pushes enemies while you hold it (the MAG's pull already does)
+      fieldShove(1);
       B.downCubeHeld=(p.aimDY||0)>0.55&&powNow()>=0.06&&blastCandidates().length>0;
       if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }   // the blow shoves frags away
       for(const bw of cubes()){
@@ -614,6 +615,7 @@
       B.relPow=powNow(); if(!B.mag.lockedThisHold) fireCube('pull',B.chM);
       spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
     }
+    ramCubes();
   }
   const ITEM_COST={XLR_BASE:28, XLR_CHARGE:27, MAG_BASE:22, MAG_CHARGE:20}, ITEM_REST=20;   // Oct 22: the bar waits less before refilling (was 35)   // Paulo (Oct 21): drains a bit faster, refills sooner
   B.ITEM_COST=ITEM_COST;
@@ -896,6 +898,7 @@
     return WEIGHT.object;
   }
   B.weightOf=weightOf;
+  function bodyMass(pl){ return pl&&pl.hero==='venture'?7.6:WEIGHT.mindTotal; }
 
   // ── Thrown cubes: real flight until they come to rest, then they snap into a cell
   function solidPx(x,y){
@@ -944,6 +947,15 @@
           e._cubeHitF=20; bw.vx*=-0.4; bw.vy=-2;
         }
       }
+      if(sp>3.2&&p&&!(bw._pHit>0)&&ov(bw.x,bw.y,T,T,p.x+8,p.y+16,(typeof SW!=='undefined'?SW:64)-16,(typeof FEET_OFF!=='undefined'?FEET_OFF:88)-16)){
+        const m=weightOf('cube',bw), massP=bodyMass(p), j=(2*m)/(massP+m);
+        p.vx+=(bw.vx||0)*j*0.32;
+        p.vy+=(bw.vy||0)*j*0.2;
+        bw.vx*=(m-massP)/(m+massP);
+        bw.vy=Math.min(bw.vy||0,-1);
+        bw._pHit=14;
+      }
+      if(bw._pHit>0) bw._pHit--;
       if(ground&&Math.abs(bw.vx)<0.35&&Math.abs(bw.vy)<0.6) bw._rest++; else bw._rest=0;
       if(bw._rest>4){
         const spot=nearestFreeCell(bw.x+T/2,bw.y+T/2);
@@ -1074,13 +1086,83 @@
   };
   // Paulo (Oct 22): the XLR's air shoves enemies in front of the jack while it's held, not only
   // on the release — strong up close, fading with distance, lighter ones fly further
+  // XLR pushes pixels away from the jack, MAG pulls them in. Force is the
+  // same; how far a body moves is that force divided by its weight. A shove
+  // that beats the weight picks the body up. Laser cages stay put.
+  function fieldShove(sign){
+    if(typeof _tipField!=='function'||!p) return;
+    const tip=sign>0?(typeof xlrTip==='function'?xlrTip():null):(typeof magTip==='function'?magTip():null);
+    if(!tip) return;
+    const a=sign>0?Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)):Math.atan2(tip.uy||0,tip.ux||1);
+    const range=sign>0?200:210, pw=0.22+0.78*powNow();
+    const hit=(ox,oy,m)=>{
+      const f=_tipField({x:tip.x,y:tip.y},a,ox,oy,range);
+      if(!f) return null;
+      const s=f.prox*f.cone*pw, mm=Math.max(0.4,m);
+      return {ax:f.ux*s*sign*2.4/mm, ay:f.uy*s*sign*2.4/mm, s};
+    };
+    for(const bw of cubes()){
+      if(!bw||bw.hp<=0||bw._carried||holdsStill(bw)) continue;
+      if(sign>0&&bw.only==='pull') continue;
+      if(sign<0&&bw.only==='push') continue;
+      const f=hit(bw.x+T/2,bw.y+T/2,weightOf('cube',bw));
+      if(!f){ bw._fvx=(bw._fvx||0)*0.7; bw._fvy=(bw._fvy||0)*0.7; continue; }
+      const m=weightOf('cube',bw);
+      if(bw._fly){ bw.vx=(bw.vx||0)+f.ax*1.35; bw.vy=(bw.vy||0)+f.ay*1.35; continue; }
+      if(busy(bw)||f.s<0.07+0.035*m){ bw.shakeX=(bw.shakeX||0)+f.ax*5; continue; }
+      bw._fvx=(bw._fvx||0)*0.84+f.ax;
+      bw._fvy=(bw._fvy||0)*0.84+f.ay;
+      const sp=Math.hypot(bw._fvx,bw._fvy);
+      if(sp<0.15+0.06*m){ bw.shakeX=bw._fvx*8; continue; }
+      throwCube(bw,bw._fvx*9,bw._fvy*9);
+      bw._fvx=0; bw._fvy=0;
+    }
+    for(const c2 of (typeof CRATES!=='undefined'?CRATES:[])){
+      if(!c2) continue;
+      const f=hit(c2.x+c2.w/2,c2.y+c2.h/2,3.2);
+      if(!f||f.s<0.12) continue;
+      c2.vx=(c2.vx||0)*0.9+f.ax*2.1;
+      c2.vy=(c2.vy||0)*0.9+f.ay*2.1;
+      c2.og=false;
+    }
+  }
+  // Driving into a loose block shares the momentum. A hard hit sends it airborne.
+  function ramCubes(){
+    if(!p) return;
+    const vx=p.vx||0, sp=Math.abs(vx), side=Math.sign(vx);
+    if(sp<2.4||!side) return;
+    const massP=bodyMass(p);
+    const bodyL=p.x, bodyR=p.x+(typeof SW!=='undefined'?SW:64);
+    const bodyT=p.y+18, bodyB=p.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+    for(const bw of cubes()){
+      if(!bw||bw.hp<=0||bw._fly||bw._carried||busy(bw)||holdsStill(bw)) continue;
+      const cl=bw.x, cr=bw.x+T, ct=bw.y, cb=bw.y+T;
+      if(bodyB<=ct+8&&bodyB>=ct-6) continue;
+      if(bodyB<ct-2||bodyT>cb+2) continue;
+      const gap=side>0?cl-bodyR:bodyL-cr;
+      if(gap>8||gap<-16) continue;
+      const m=weightOf('cube',bw);
+      if(sp<4.2+m*0.45){
+        p.vx*=Math.max(0.62,massP/(massP+m*0.55));
+        bw.shakeX=side*Math.min(5,sp*0.35);
+        bw.hitGlow=Math.max(bw.hitGlow||0,6);
+        bw._sq=0.12; bw._sqV=0.08; bw._sqAx='x';
+        continue;
+      }
+      const share=(2*massP)/(massP+m), keep=(massP-m)/(massP+m);
+      p.vx=vx*Math.max(-0.15,keep);
+      throwCube(bw, side*Math.min(13,sp*share*0.62), -Math.min(5.2,sp*0.22*(WEIGHT.mindTotal/m)));
+      try{ sfxAt(bw,'omniblock_chip'); }catch(e){}
+    }
+  }
   function blowAround(){
     if(typeof _tipField!=='function'||typeof _applyItemForceToEnemy!=='function') return;
     const tip=typeof xlrTip==='function'?xlrTip():shoulder(), a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)), range=190;
     for(const e of ENEMS){
       if(!e||!e.alive||e._betaHeld||e._hidden) continue;
       const f=_tipField({x:tip.x,y:tip.y},a,e.x+e.w/2,e.y+e.h/2,range); if(!f) continue;
-      const s=f.prox*f.cone*0.9*(0.25+0.75*powNow())*Math.max(0.5,Math.min(1.6,Math.sqrt(6/(weightOf('enemy',e)||6))));
+      const m=weightOf('enemy',e)||6;
+      const s=f.prox*f.cone*0.9*(0.25+0.75*powNow())*Math.max(0.35,Math.min(1.8,6/m));
       _applyItemForceToEnemy(e,f.ux*s,f.uy*s);
     }
   }
@@ -1108,13 +1190,10 @@
       if(bw.hp<=0||bw._carried||bw.only==='push') continue;
       const f=force(bw.x+(bw.w||T)/2, bw.y+(bw.h||T)/2);
       if(!f||f.s<0.25) continue;
+      if(bw.cube) continue;
       if(bw._fly){ bw.vx=(bw.vx||0)+f.fx; bw.vy=(bw.vy||0)+f.fy; }
-      else if(bw.cube&&f.s>0.45) throwCube(bw, f.fx*6, f.fy*6);
     }
-    for(const c2 of (typeof CRATES!=='undefined'?CRATES:[])){
-      const f=force(c2.x+c2.w/2,c2.y+c2.h/2);
-      if(f){ c2.vx=(c2.vx||0)+f.fx; c2.vy=(c2.vy||0)+f.fy; }
-    }
+    fieldShove(-1);
   }
   // ── Magnet suction + parking (Paulo, Oct 22) ──────────────────
   //   Near rock, the magnet's pull reaches out in an arc in front of the poles and

@@ -567,9 +567,10 @@ function _updatePlayerMoveX(pl){
   }
   if(pl._moveDir!==dir){
     pl._moveDir=dir;
-    // Skid: keep some spin, do not gift a chunk of cap.
-    pl.movePower=(pl.movePower||0)*(coast?0.78:0.70);
-    pl.vx*=coast?0.90:0.86;
+    // The body keeps its momentum. Turning around means the tire has to skid it the other way.
+    const skid=Math.min(1,Math.abs(pl.vx||0)/8);
+    pl.movePower=(pl.movePower||0)*(coast?0.84:0.78);
+    pl.vx*=coast?(0.96-0.02*skid):(0.94-0.02*skid);
   }
   const HS=_heroStats(pl);
   pl.movePower=Math.min(1,(pl.movePower||0)+MOVE_POWER*HS.spool);
@@ -610,8 +611,10 @@ function _updatePlayerMoveX(pl){
   }
   const vSign=pl.vx>0.15?1:(pl.vx<-0.15?-1:0);
   const turnMul=coast?1.35:MOVE_TURN;
-  if(vSign===-dir) pl.vx+=dir*accel*turnMul;
-  else             pl.vx+=dir*accel;
+  if(vSign===-dir){
+    const skid=Math.min(1,Math.abs(pl.vx)/8);
+    pl.vx+=dir*accel*turnMul*(1-0.42*skid);
+  }else pl.vx+=dir*accel;
   if(dir>0) pl.vx=Math.min(pl.vx,cap);
   else       pl.vx=Math.max(pl.vx,-cap);
   if(!gridOn && pushIntoWall){
