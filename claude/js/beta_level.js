@@ -84,6 +84,9 @@
     applyLdtkLevel(level);
     applyBeta(raw, level);
     restoreStage(opts);
+    if(opts.fresh) B.testGrant=null;
+    if(opts.test) B.testGrant=opts.test;
+    if(B.testGrant) applyTestGrant(B.testGrant);
     if(B.loading===gen){ B.loading=0; B.loadFade=LOAD_FADE; if(typeof _snapCameraToPlayer==='function'&&typeof p!=='undefined'&&p) try{ _snapCameraToPlayer(p); }catch(e){} }
     if(window.MV_BETA_AUDIO){
       if(B.music&&B.music!==guess) MV_BETA_AUDIO.play(B.music,{restart:true});
@@ -228,6 +231,30 @@
       }
     }
     return raw;
+  }
+  function applyTestGrant(g){
+    if(!g) return;
+    let seeds=g.seeds<0?1e9:(g.seeds|0), crystals=g.crystals<0?1e9:(g.crystals|0);
+    for(const k of KDROP){
+      if(!k||k.got||k._carried||k._fly) continue;
+      if(k.kind==='echo') continue;
+      if(k.kind==='crystal'){ if(crystals>0){ k.got=true; crystals--; } }
+      else if(seeds>0){ k.got=true; seeds--; }
+    }
+    kColl=KDROP.filter(k=>k.got).length;
+    if(gateReady()) B.open=true;
+    if(g.iso){
+      B.hasIsolator=true; B.isoOwned=true;
+      if(B.isoPickup){ B.isoPickup.got=true; B.isoPickup.re=999; }
+    }
+    const owned=[0,1,2,3,4].filter(i=>_unlockedMask&(1<<i));
+    ITEM=owned.length?owned[0]:-1;
+    if(typeof ITEM_DROPS!=='undefined'){
+      for(const d of ITEM_DROPS){
+        const bit=typeof ITEM_UNLOCK_BITS!=='undefined'?ITEM_UNLOCK_BITS[d.item]:(1<<d.item);
+        if(d&&bit&&(_unlockedMask&bit)) d.got=true;
+      }
+    }
   }
   function gateReady(){
     const n=counts();

@@ -75,6 +75,10 @@ function _driveMenusFromPads(){
     _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape'],swapHeld,punch:!!Kj['KeyF']});
     return;
   }
+  if(_gameState==='testmode'&&window.MV_TEST_INPUT){
+    MV_TEST_INPUT({up,down:dn,left:lf,right:rt,confirm:ok,back:back||!!Kj['KeyF']});
+    return;
+  }
   if(_gameState==='tutorial'&&(ok||back)){ _gameState='title'; return; }
   if(_gameState==='levels'){
     if(back){ _gameState='title'; return; }
@@ -330,6 +334,7 @@ function _titleMenuItems(){
     // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
     {label:'CREATIVE MODE', locked:true, note:'OPENS IN ALPHA', activate:()=>{}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
+    {label:'TEST MODE', activate:()=>openTestMode()},
   ];
 }
 function _titleMenuGeom(){
@@ -338,7 +343,7 @@ function _titleMenuGeom(){
   // The key art already paints START / OPTIONS. Hit boxes sit on those words.
   if(map&&map.im.naturalWidth!==1536){
     // the key art (Oct 22): the menu sits low in the middle, on the wet floor between the two wheels
-    const rowH=40, top=H-150;
+    const rowH=menu.length>3?32:40, top=H-12-menu.length*rowH;
     return menu.map((it,i)=>{
       const w=290, x=W/2-w/2, y=top+i*rowH;
       return {label:it.label, locked:!!it.locked, note:it.note, activate:it.activate, x, y, w, h:rowH, ty:y+rowH/2};
@@ -593,6 +598,10 @@ document.addEventListener('keydown',e=>{
     _optionsInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace',swapHeld:_optSwapHeld||e.code==='KeyE',punch:e.code==='KeyF'});
     e.preventDefault();return;
   }
+  if(_gameState==='testmode'&&window.MV_TEST_INPUT){
+    MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
+    e.preventDefault();return;
+  }
   if(_gameState==='title'){
     _ensureTitleMusic();
     if(e.code==='ArrowUp'||e.code==='KeyW'){_titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;e.preventDefault();return;}
@@ -774,6 +783,86 @@ function drawHUD(){
   }
 }
 
+// ── Test Mode ─────────────────────────────────────────────────
+// Spawn in a chosen stage with the jacks, knife, Isolator, Knowl
+// seeds and crystals already equipped or collected.
+const TEST_LEVELS=['1.1','1.2','1.3'];
+const TEST_SEEDS=[0,1,2,3,4,5,6,'ALL'];
+const TEST_CRYSTALS=[0,1,2,3,'ALL'];
+const TEST_FLAGS=['trs','rca','xlr','meg','knife','iso'];
+const MV_TEST={row:0, level:0, trs:true, rca:true, xlr:true, meg:true, knife:true, iso:true, seeds:TEST_SEEDS.length-1, crystals:TEST_CRYSTALS.length-1};
+window.MV_TEST=MV_TEST;
+function openTestMode(){ _unlockAudio(); MV_TEST.row=0; _gameState='testmode'; }
+function _testRows(){
+  const on=v=>v?'ON':'OFF';
+  return [
+    ['LEVEL','AWDJOO '+TEST_LEVELS[MV_TEST.level]],
+    ['TRS',on(MV_TEST.trs)],
+    ['RCA',on(MV_TEST.rca)],
+    ['XLR',on(MV_TEST.xlr)],
+    ['MEG',on(MV_TEST.meg)],
+    ['KNIFE',on(MV_TEST.knife)],
+    ['ISOLATOR',on(MV_TEST.iso)],
+    ['KNOWL SEEDS',String(TEST_SEEDS[MV_TEST.seeds])],
+    ['CRYSTALS',String(TEST_CRYSTALS[MV_TEST.crystals])],
+    ['START','SPAWN'],
+  ];
+}
+function _testNudge(dir){
+  const r=MV_TEST.row;
+  if(r===0) MV_TEST.level=(MV_TEST.level+dir+TEST_LEVELS.length)%TEST_LEVELS.length;
+  else if(r>=1&&r<=6){ const k=TEST_FLAGS[r-1]; MV_TEST[k]=!MV_TEST[k]; }
+  else if(r===7) MV_TEST.seeds=(MV_TEST.seeds+dir+TEST_SEEDS.length)%TEST_SEEDS.length;
+  else if(r===8) MV_TEST.crystals=(MV_TEST.crystals+dir+TEST_CRYSTALS.length)%TEST_CRYSTALS.length;
+}
+function _testSpawn(){
+  if(typeof startBetaLab!=='function'){ uiShowToast('STAGE LOAD IS NOT READY'); return; }
+  _unlockAudio();
+  _playerCount=1;
+  if(window.MV_SIBLING) MV_SIBLING.on=false;
+  try{ _stopBGM('title'); if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
+  if(window.MV_BETA){
+    MV_BETA.saves={}; MV_BETA.pendingSave=null; MV_BETA.storySlot=null; MV_BETA.isoOwned=!!MV_TEST.iso;
+    if(MV_BETA.newRun) MV_BETA.newRun();
+    MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null;
+  }
+  let mask=0;
+  TEST_FLAGS.forEach((k,i)=>{ if(k!=='iso'&&MV_TEST[k]) mask|=1<<i; });
+  const seeds=TEST_SEEDS[MV_TEST.seeds]==='ALL'?-1:TEST_SEEDS[MV_TEST.seeds]|0;
+  const crystals=TEST_CRYSTALS[MV_TEST.crystals]==='ALL'?-1:TEST_CRYSTALS[MV_TEST.crystals]|0;
+  _gameState='game';
+  startBetaLab(TEST_LEVELS[MV_TEST.level], mask, {fresh:true, test:{seeds, crystals, iso:!!MV_TEST.iso}}).catch(err=>{ console.error('test spawn failed',err); uiShowToast('STAGE DID NOT LOAD'); });
+}
+function MV_TEST_INPUT(ev){
+  const n=_testRows().length;
+  if(ev.back){ _gameState='title'; try{ sfx('menu'); }catch(e){} return; }
+  if(ev.up){ MV_TEST.row=(MV_TEST.row+n-1)%n; try{ sfx('menu'); }catch(e){} return; }
+  if(ev.down){ MV_TEST.row=(MV_TEST.row+1)%n; try{ sfx('menu'); }catch(e){} return; }
+  if(ev.left){ _testNudge(-1); try{ sfx('menu'); }catch(e){} return; }
+  if(ev.right){ _testNudge(1); try{ sfx('menu'); }catch(e){} return; }
+  if(ev.confirm){
+    if(MV_TEST.row===n-1){ try{ sfx('confirm'); }catch(e){} _testSpawn(); }
+    else { _testNudge(1); try{ sfx('menu'); }catch(e){} }
+  }
+}
+window.MV_TEST_INPUT=MV_TEST_INPUT;
+function drawTestMode(){
+  ctx.fillStyle='#07060c'; ctx.fillRect(0,0,W,H);
+  const rows=_testRows();
+  const pw=Math.min(640,W-48), rowH=46, ph=118+rows.length*rowH, px=(W-pw)/2, py=Math.max(16,(H-ph)/2);
+  if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:18});
+  else { ctx.fillStyle='#120e18'; ctx.fillRect(px,py,pw,ph); }
+  drawTextC('TEST MODE',W/2,py+18,'#ffe39a',3);
+  rows.forEach((r,i)=>{
+    const y=py+78+i*rowH, sel=i===MV_TEST.row;
+    if(sel&&typeof uiPanel==='function') uiPanel(px+24,y-8,pw-48,rowH-10,{sel:true,r:10,flat:true});
+    drawText(r[0],px+48,y,'#d8ffc8',2);
+    const val=r[1], col=sel?'#ffffff':(val==='OFF'?'#8a8098':'#ffe39a');
+    drawText(val,px+pw-48-textW(val,2),y,col,2);
+  });
+  const back=typeof uiActLabel==='function'?uiActLabel('punch'):'Y';
+  drawTextC(back+'  BACK     LEFT / RIGHT CHANGES     A  START',W/2,py+ph-36,'#c8b8ff',2);
+}
 function drawOptions(){
   _optRepeat();
   _drawSnesStarfield();
@@ -936,7 +1025,7 @@ function _drawTitleMenuOverArt(map){
   ctx.fillStyle=g; ctx.fillRect(px-30*s,py,pw+60*s,ph);
   ctx.fillStyle='rgba(150,240,140,0.35)'; ctx.fillRect(px+20*s,py+6*s,pw-40*s,1); ctx.fillRect(px+20*s,py+ph-8*s,pw-40*s,1);
   rows.forEach((r,i)=>{
-    const sel=i===_titleMenuIdx, cy=r.y+r.h/2-6*s, sz=Math.round((sel?36:30)*s*1.5);
+    const sel=i===_titleMenuIdx, cy=r.y+r.h/2-4*s, crowd=rows.length>3?0.58:1, sz=Math.round((sel?36:30)*s*1.5*crowd);
     ctx.save(); ctx.font=sz+'px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
     const col=r.locked?(sel?'#7f9a86':'#4f6656'):(sel?'#d8ffc0':'#8fd78a');
     ctx.lineWidth=Math.max(3,sz*0.12); ctx.strokeStyle='#020a04'; ctx.strokeText(r.label,W/2,cy);

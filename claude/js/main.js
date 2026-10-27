@@ -1210,6 +1210,7 @@ function draw(){
   if(_gameState==='levels'){drawLevelSelect();return;}
   if(_gameState==='stagedesign'){drawStageDesignHub();return;}
   if(_gameState==='options'){drawOptions();return;}
+  if(_gameState==='testmode'){ if(typeof drawTestMode==='function') drawTestMode(); return; }
   if(_gameState==='story'){_storyFr++;drawStory();return;}
   // a stage is loading (beta_level.js): a dark veil, never the old world; then the new one fades in
   if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }

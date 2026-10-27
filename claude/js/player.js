@@ -173,6 +173,9 @@ function readGamepad(){
   if(_gameState==='options'){
     _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:false,swapHeld:pressed(1),punch:rose(3)});
   }
+  if(_gameState==='testmode'&&window.MV_TEST_INPUT){
+    MV_TEST_INPUT({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(3)||rose(1)});
+  }
   if(_gameState==='manual'&&window.MV_MANUAL){
     const sx=ax<-0.55?-1:ax>0.55?1:0;
     if(rose(14)||(sx<0&&!(GP.manX<0))) MV_MANUAL.turn(-1);
@@ -196,7 +199,7 @@ function readGamepad(){
   // d-pad or stick moves the cursor, A picks, B resumes
   if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
   if(rose(3)) Kj['KeyF']=true;   // Y is punch in play, and Back on the options screen and the manual
-  if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual') Kj['Escape']=true;      // B backs out of menus. Options and the manual use Y.
+  if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;      // B backs out of menus. Options, the manual, and Test Mode use Y.
   if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){   // pause menu / continue screen: d-pad + stick move the cursor
     const sy=ay<-0.5?-1:ay>0.5?1:0;
     if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
