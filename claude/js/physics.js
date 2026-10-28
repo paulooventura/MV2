@@ -198,10 +198,41 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // The world is drawn scaled by camZoom (main.js draw: _worldZoomBegin/_worldZoomEnd);
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
-const CAM_FIGHT_MAX=4.8;      // close-up: the two sprites fill about two thirds of the frame
 let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0, _sportZoomS=0, _sportBlur=0, _liftLook=0;
-// Close to an enemy, the lens pushes in until that pair fills about two
-// thirds of the frame. The rest stays the room, so the hit reads up close.
+// Hat brim, crown, cabinet and wheel. Wider than the body box, taller than the feet.
+// The camera is not allowed to slice this, at any zoom.
+function _playerOutline(pl){
+  const cx=pl.x+SW*0.5, feet=pl.y+FEET_OFF;
+  return {l:cx-58, r:cx+58, t:feet-156, b:feet+16};
+}
+// Tightest zoom that still leaves the whole outline inside the frame when the
+// feet sit on the vertical middle (the normal follow point).
+function _outlineZoomCap(pl){
+  const o=_playerOutline(pl);
+  const cx=pl.x+SW*0.5, feet=pl.y+FEET_OFF;
+  const sw=W-_mapEdScreenOx(), sh=H-_mapEdScreenOy();
+  const zH=sh/(2*Math.max(24, feet-o.t, o.b-feet));
+  const zL=(sw*0.4)/Math.max(8, cx-o.l);
+  const zR=(sw*0.6)/Math.max(8, o.r-cx);
+  return Math.max(1, Math.min(zH, zL, zR));
+}
+function _containOutline(x,y,pl){
+  if(!pl) return {x,y};
+  const o=_playerOutline(pl);
+  const vw=camViewW(), vh=camViewH();
+  if(vw>=o.r-o.l){
+    if(x>o.l) x=o.l;
+    if(x+vw<o.r) x=o.r-vw;
+  }else x=(o.l+o.r)*0.5-vw*0.5;
+  if(vh>=o.b-o.t){
+    if(y>o.t) y=o.t;
+    if(y+vh<o.b) y=o.b-vh;
+  }else y=(o.t+o.b)*0.5-vh*0.5;
+  return {x:camClampX(x), y:camClampY(y)};
+}
+// Close to an enemy, the lens eases in. It never goes tight enough to cut
+// the hat, the brim, or the wheel, and the nudge toward the enemy stops
+// at that same edge.
 function _readThreatCam(){
   const none={zoom:1,x:0,y:0};
   if(!p||typeof ENEMS==='undefined') return none;
@@ -220,17 +251,19 @@ function _readThreatCam(){
   let t=best.d<=CLOSE?1:best.d>=FAR?0:(FAR-best.d)/(FAR-CLOSE);
   t=t*t*(3-2*t);
   if(t<0.015) return none;
-  const spanW=Math.abs(best.dx)+SW*0.55+best.ew*0.55;
-  const spanH=Math.abs(best.dy)+SH*0.85+best.eh*0.7;
-  const zW=(W*(2/3))/Math.max(88,spanW);
-  const zH=(H*(2/3))/Math.max(110,spanH);
-  const close=Math.max(1.35,Math.min(CAM_FIGHT_MAX,Math.min(zW,zH)));
+  const o=_playerOutline(p);
+  const spanW=Math.abs(best.dx)+(o.r-o.l)*0.5+best.ew*0.5;
+  const spanH=Math.abs(best.dy)+(o.b-o.t)*0.55+best.eh*0.45;
+  const zW=(W*0.55)/Math.max(200,spanW);
+  const zH=(H*0.5)/Math.max(210,spanH);
+  const cap=_outlineZoomCap(p);
+  const close=Math.min(cap, Math.max(1.15, Math.min(zW,zH)));
   const zoom=1+(close-1)*t;
   const vw=camViewW(), vh=camViewH();
   return {
     zoom,
-    x:Math.max(-vw*0.38,Math.min(vw*0.38,best.dx*0.5))*t,
-    y:Math.max(-vh*0.28,Math.min(vh*0.28,best.dy*0.42))*t
+    x:Math.max(-vw*0.16,Math.min(vw*0.16,best.dx*0.32))*t,
+    y:Math.max(-vh*0.1,Math.min(vh*0.1,best.dy*0.22))*t
   };
 }
 function _updateCamZoom(){
@@ -260,8 +293,11 @@ function _updateCamZoom(){
     const zin=1.24+0.18*Math.min(1,MV_LIFT.zoom||0);
     if(zin>camZoomTgt) camZoomTgt=Math.min(1.5,zin);
   }
-  if(_threatZoomS>camZoomTgt) camZoomTgt=Math.min(CAM_FIGHT_MAX,_threatZoomS);
+  const fit=p?_outlineZoomCap(p):1.5;
+  if(_threatZoomS>camZoomTgt) camZoomTgt=Math.min(fit,_threatZoomS);
+  if(camZoomTgt>fit) camZoomTgt=fit;
   camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS+0.08*(_threatZoomS>1.4?1:0));
+  if(camZoom>fit) camZoom=fit;
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
 function _worldZoomBegin(){
@@ -328,7 +364,8 @@ function _syncGameCamera(){
   const L=window.MV_LIFT;
   const lookWant=(L&&L.inside)?(L.dir||0)*-58*(0.35+0.65*Math.min(1,L.zoom||0)):0;
   _liftLook+=(lookWant-_liftLook)*((L&&L.inside)?0.045:0.07);
-  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook+_camLookY);
+  let tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook+_camLookY);
+  if(!ed&&_playerCount!==2){ const f=_containOutline(tx,ty,p); tx=f.x; ty=f.y; }
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;
@@ -339,6 +376,7 @@ function _syncGameCamera(){
     camX+=(tx-camX)*lx;
     camY+=(ty-camY)*ly;
   }
+  if(!ed&&_playerCount!==2){ const f=_containOutline(camX,camY,p); camX=f.x; camY=f.y; }
 }
 
 // ── Overlap / hitbox helpers ──────────────────────────────────
