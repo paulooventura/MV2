@@ -342,6 +342,26 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   // rim light (the key art's coloured edge light) and a shadowed bottom
   ctx.fillStyle=isVenture?'rgba(255,70,80,0.5)':'rgba(150,100,255,0.5)'; ctx.fillRect(facing?x+bw-1.5:x,top,1.5,y+bh-top);
   ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(x+1,y+bh-1.5,bw-2,1.5);
+  // sports heat: the back-bottom corner runs cold purple to a bright orange tip
+  const heat=!status&&p&&p._sportHeat||0;
+  if(heat>0.03){
+    const tipX=facing?x+bw:x, tipY=y+bh, rad=12+heat*30;
+    const hg=ctx.createRadialGradient(tipX,tipY,0.6,tipX,tipY,rad);
+    const o=Math.min(1,0.4+heat*0.6);
+    hg.addColorStop(0,`rgba(255,${160+Math.round(70*heat)},${36+Math.round(50*heat)},${(0.82*o).toFixed(3)})`);
+    hg.addColorStop(0.1,`rgba(255,${80+Math.round(40*heat)},16,${(0.55*o).toFixed(3)})`);
+    hg.addColorStop(0.34,`rgba(168,48,220,${(0.48*o).toFixed(3)})`);
+    hg.addColorStop(0.68,`rgba(96,28,168,${(0.26*o).toFixed(3)})`);
+    hg.addColorStop(1,'rgba(70,16,120,0)');
+    ctx.save();
+    ctx.beginPath();
+    const backW=bw*0.5, boxH=y+bh-top;
+    ctx.rect(facing?x+bw-backW:x, top+boxH*0.28, backW, boxH*0.72+2);
+    ctx.clip();
+    ctx.fillStyle=hg;
+    ctx.fillRect(tipX-rad, tipY-rad, rad*2, rad*2);
+    ctx.restore();
+  }
   // the Knowl tank in the back: glass, glowing green liquid (10% air at full HP), bubbles
   const maxHp=status?(status.mhp||1):(p.maxHp||PLAYER_MAX_HP);
   const hp=status?(status.hp||0):(p.hp||0);
@@ -2665,9 +2685,33 @@ function drawFX(){
   if(p.smoke){
     for(const sm of p.smoke){
       const t=sm.life/sm.maxLife;
-      ctx.globalAlpha=t*(sm.hot?0.9:0.55);
-      ctx.fillStyle=sm.col||`rgba(200,200,220,${t*0.6})`;
-      ctx.beginPath();ctx.arc(sx(sm.x),sy(sm.y),sm.r*((sm.hot?2.1:1.5)-t*0.4),0,Math.PI*2);ctx.fill();
+      if(sm.ex){
+        const wob=Math.sin((sm.life||0)*0.33+(sm.spin||0))*sm.r*0.18;
+        const px=sx(sm.x+wob), py=sy(sm.y);
+        const sc=sm.r*(0.65+(1-t)*1.55);
+        const lobes=sm.lobes||[[0,0,1],[-0.35,-0.15,0.7],[0.3,0.12,0.55]];
+        ctx.save();
+        ctx.translate(px,py);
+        ctx.rotate((sm.spin||0)+(1-t)*0.5);
+        ctx.globalAlpha=t*0.42;
+        ctx.fillStyle='#2a1c16';
+        for(const lobe of lobes){
+          ctx.beginPath();
+          ctx.ellipse(lobe[0]*sc, lobe[1]*sc, sc*lobe[2]*1.15, sc*lobe[2]*0.68, lobe[0]*0.6, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha=t*0.72;
+        ctx.fillStyle='#100c0a';
+        ctx.beginPath(); ctx.ellipse(-sc*0.08, sc*0.06, sc*0.42, sc*0.28, 0.35, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha=t*0.28;
+        ctx.fillStyle='#4a342c';
+        ctx.beginPath(); ctx.ellipse(sc*0.32, -sc*0.22, sc*0.22, sc*0.12, -0.4, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else{
+        ctx.globalAlpha=t*(sm.hot?0.9:0.55);
+        ctx.fillStyle=sm.col||`rgba(200,200,220,${t*0.6})`;
+        ctx.beginPath();ctx.arc(sx(sm.x),sy(sm.y),sm.r*((sm.hot?2.1:1.5)-t*0.4),0,Math.PI*2);ctx.fill();
+      }
     }
     ctx.globalAlpha=1;
   }

@@ -73,8 +73,13 @@
     const br=a.createOscillator(), brG=a.createGain(); br.frequency.value=0.55; brG.gain.value=0.3; br.connect(brG); brG.connect(puAM.gain);
     const ru=a.createOscillator(), ruG=a.createGain(); ru.type='triangle'; ru.frequency.value=24; ruG.gain.value=0.35; ru.connect(ruG); ruG.connect(puAM.gain);
     pu1.connect(puLP); pu2.connect(puLP); puLP.connect(puAM); puAM.connect(puG); puG.connect(out);
-    for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru]) o.start(); tn.start();
-    return {a,core,out,roomG,dryG,pres,sheen,tight,pan,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puLP,puG,ru,ruG,br};
+    // a gasoline edge: a quiet square an octave up, opened only while sports is on
+    const bite=a.createOscillator(); bite.type='square'; bite.frequency.value=90;
+    const biteLP=a.createBiquadFilter(); biteLP.type='lowpass'; biteLP.frequency.value=980; biteLP.Q.value=0.6;
+    const biteG=a.createGain(); biteG.gain.value=0;
+    bite.connect(biteLP); biteLP.connect(biteG); biteG.connect(out);
+    for(const o of [t1,t2,e1,e2,pu1,pu2,br,ru,bite]) o.start(); tn.start();
+    return {a,core,out,roomG,dryG,pres,sheen,tight,pan,coreG,tbp,tg,t1,t2,tnbp,tng,e1,e2,ebp,eg,NB,pu1,pu2,puLP,puG,ru,ruG,br,bite,biteG};
   }
   function bang(k){ if(N) N.core.port.postMessage({bang:k}); }
   function blowOff(){                                // pssh-tu-tu-tu
@@ -114,12 +119,60 @@
       pop((big?1:0.7)*(1-i/n*0.4), at);
     }
   }
-  function sportBurst(){
+  // the back-bottom corner of the cabinet, opposite the way he is facing
+  function tailOf(){
+    const right=p.fc!==false;
+    const back=right?-1:1;
+    const cx=p.x+(typeof SW!=='undefined'?SW:64)/2;
+    const bw=typeof BODY_W==='number'?BODY_W:52;
+    const bh=typeof BODY_H==='number'?BODY_H:42;
+    const feet=p.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+    const stand=typeof STAND_H==='number'?STAND_H:70;
+    const wr=typeof WHEEL_R==='number'?WHEEL_R:20;
+    const top=feet-stand-wr+10;
+    return {x:cx+back*(bw*0.5-3), y:top+bh-4, back};
+  }
+  function exhaustPuff(heat){
     if(typeof p==='undefined'||!p) return;
     if(!p.smoke) p.smoke=[];
-    const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+34;
-    for(let i=0;i<12;i++) p.smoke.push({x:hx+(Math.random()-0.5)*22,y:hy,vx:(Math.random()-0.5)*1.6,vy:-1.6-Math.random()*2.4,life:40,maxLife:52,r:9+Math.random()*8,col:Math.random()<0.4?'#f4f0e8':'#5a5a62',hot:1});
-    if(typeof PFXS!=='undefined') for(let i=0;i<12;i++) PFXS.push({x:hx+(Math.random()-0.5)*26,y:hy-10,vx:(Math.random()-0.5)*11,vy:-2-Math.random()*8,life:14,maxLife:14,r:2.8,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
+    if(p.smoke.length>56) return;
+    const t=tailOf(), h=Math.max(0,Math.min(1,heat||0));
+    const lobes=[];
+    const n=3+(Math.random()*2|0);
+    for(let i=0;i<n;i++) lobes.push([(Math.random()-0.5)*0.95,(Math.random()-0.5)*0.7,0.42+Math.random()*0.55]);
+    p.smoke.push({
+      x:t.x+(Math.random()-0.5)*5, y:t.y+(Math.random()-0.5)*3,
+      vx:t.back*(0.85+Math.random()*1.2+h*1.5), vy:-0.22-Math.random()*(0.4+h*0.55),
+      life:30+(h*20|0)+(Math.random()*12|0), maxLife:56,
+      r:4.2+Math.random()*3.2+h*3.5, ex:1, hot:h, spin:Math.random()*Math.PI, lobes
+    });
+  }
+  function cornerSparks(n, heat){
+    if(typeof PFXS==='undefined'||typeof p==='undefined'||!p) return;
+    const t=tailOf(), hot=Math.max(0.25,heat||0);
+    for(let i=0;i<n;i++){
+      const col=Math.random()<0.3?'#ffe08a':(Math.random()<0.55?'#ff6a18':'#ff3810');
+      PFXS.push({x:t.x+(Math.random()-0.5)*7,y:t.y+(Math.random()-0.5)*5,vx:t.back*(2.2+Math.random()*7)+(Math.random()-0.5)*2.4,vy:-1.2-Math.random()*(2.4+hot*4),life:9+(Math.random()*8|0),maxLife:18,r:1.05+Math.random()*1.35,col});
+    }
+  }
+  function sportBurst(){
+    for(let i=0;i<8;i++) exhaustPuff(0.85);
+    cornerSparks(14, 1);
+  }
+  // a short throttle stab: the note jumps, then sits, like a blip of the pedal
+  function bark(){
+    if(!N) return;
+    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain(), f=a.createBiquadFilter();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(62,t);
+    o.frequency.exponentialRampToValueAtTime(240,t+0.07);
+    o.frequency.exponentialRampToValueAtTime(96,t+0.22);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.26,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+    f.type='lowpass'; f.frequency.setValueAtTime(1600,t); f.frequency.exponentialRampToValueAtTime(700,t+0.22);
+    o.connect(f); f.connect(g); g.connect(N.out);
+    o.start(t); o.stop(t+0.3);
   }
   function ignite(){
     sportBurst();
@@ -165,6 +218,16 @@
     if(sport&&!S.sportOn) ignite();
     if(!sport&&S.sportOn) engineOff();
     S.sportOn=!!sport;
+    // a tap of forward or back, not a hold: the exhaust spits and the motor barks
+    const pressed=!!dir&&dir!==(S._dir||0);
+    S._dir=dir||0;
+    if(sport&&pressed){
+      bark(); pop(0.62,0.015); crackle(2+(Math.random()*2|0), true);
+      S.blip=Math.max(S.blip||0, 8);
+      cornerSparks(8, 0.75); exhaustPuff(0.7); exhaustPuff(0.45);
+    }
+    const ax=Math.abs((p.vx||0)-(S._vx0||0));
+    S._vx0=p.vx||0;
     if(dir){ if(!S.on) pop(0.45,0.02); S.on=true; S.idle=0; } else if(grounded&&spd<0.06){ if(++S.idle>=180) S.on=false; } else S.idle=0;
     const burn=(p._burnout||0)>0;
     let thr=dir?(sprint?1:0.7):0; if(burn) thr=1;
@@ -241,20 +304,24 @@
       S._tiger=!!sprinting;
       try{ N.pu1.type=sprinting?'sawtooth':'sine'; N.pu2.type=sprinting?'sawtooth':'triangle'; }catch(e){}
     }
+    const rush=Math.min(1, ax/0.7);
+    const heatWant=sport?Math.min(1, Math.max(express, rush*0.92, sprint?0.14:0.05)):0;
+    S.heat=(S.heat||0)+(heatWant-(S.heat||0))*(heatWant>(S.heat||0)?0.22:0.045);
+    p._sportHeat=S.heat;
     if(sprinting){
-      // Turbo: a tiger, not a cat. Chest saw, a slow roar pulse, rasp in the 300s.
-      // The whistle sits an octave down so it rushes instead of meowing.
-      const tw=160+S.boost*640;
-      set(N.pu1.frequency,28+16*express,0.08); set(N.pu2.frequency,42+20*express,0.08);
-      set(N.ru.frequency,3.2+2.2*express,0.12); set(N.ruG.gain,0.85,0.1); set(N.br.frequency,0.9,0.2);
-      set(N.puLP.frequency,180+160*express,0.1);
-      set(N.puG.gain,(0.42+0.38*express)*(0.8+0.2*(1-r)),0.08);
-      set(N.tbp.Q,2.2,0.1);
-      set(N.t1.frequency,tw,0.06); set(N.t2.frequency,tw*0.5,0.06); set(N.tbp.frequency,tw,0.06);
-      set(N.tg.gain,0.018*S.boost*sportMix,0.08);
-      set(N.tnbp.frequency,220+S.boost*480,0.08); set(N.tng.gain,(0.07+0.09*express)*Math.max(0.35,S.boost),0.08);
-      if(N.pres){ set(N.pres.frequency,380+420*express,0.1); set(N.pres.gain,2+5*express,0.1); }
-      if(N.tight) set(N.tight.gain,8+6*express,0.12);
+      // A sports car, not a whistle. Chest saw, gasoline square, rush of exhaust.
+      const tw=150+S.boost*720;
+      set(N.pu1.frequency,32+22*express,0.06); set(N.pu2.frequency,48+28*express,0.06);
+      set(N.ru.frequency,4.4+3.4*express,0.1); set(N.ruG.gain,1.05,0.08); set(N.br.frequency,1.15,0.16);
+      set(N.puLP.frequency,240+280*express,0.08);
+      set(N.puG.gain,(0.58+0.48*express)*(0.85+0.15*(1-r)),0.06);
+      set(N.tbp.Q,1.7,0.1);
+      set(N.t1.frequency,tw,0.05); set(N.t2.frequency,tw*0.5,0.05); set(N.tbp.frequency,tw,0.05);
+      set(N.tg.gain,0.028*S.boost*Math.max(0.35,sportMix),0.06);
+      set(N.tnbp.frequency,280+S.boost*640,0.06); set(N.tng.gain,(0.11+0.16*express)*Math.max(0.4,S.boost),0.06);
+      if(N.bite){ set(N.bite.frequency,48+70*express+S.rpm/220,0.04); set(N.biteG.gain,(0.05+0.09*express)*Math.max(0.4,sportMix),0.05); }
+      if(N.pres){ set(N.pres.frequency,420+520*express,0.08); set(N.pres.gain,4+7*express,0.08); }
+      if(N.tight) set(N.tight.gain,10+7*express,0.1);
     }else{
       const tw=1400+S.boost*5600;
       set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05);
@@ -266,21 +333,20 @@
       set(N.tg.gain,0,0.08); set(N.tnbp.frequency,1800,0.1); set(N.tng.gain,0,0.08);
       if(N.pres){ set(N.pres.frequency,2600,0.2); set(N.pres.gain,0,0.15); }
       if(N.tight) set(N.tight.gain,-3,0.2);
+      if(N.biteG) set(N.biteG.gain,0,0.08);
     }
-    if(sport&&typeof p!=='undefined'&&p&&(fr%2===0)){
-      if(!p.smoke) p.smoke=[];
-      const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+34;
-      if(p.smoke.length<48) p.smoke.push({x:hx+(Math.random()-0.5)*18,y:hy,vx:-(p.vx||0)*0.05+(Math.random()-0.5)*0.9,vy:-1.2-Math.random()*2,life:30+(Math.random()*14|0),maxLife:46,r:8+Math.random()*7,col:Math.random()<0.35?'#f2efe8':'#6a6a72',hot:1});
-      if(typeof PFXS!=='undefined') PFXS.push({x:hx+(Math.random()-0.5)*20,y:hy-8,vx:(Math.random()-0.5)*9,vy:-2-Math.random()*6,life:12,maxLife:12,r:2.4,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
+    if(sport&&(fr%2===0)){
+      exhaustPuff(Math.max(0.2,S.heat||0));
+      if((S.heat||0)>0.42&&fr%4===0) cornerSparks(2, S.heat);
     }
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
-    set(N.dryG.gain,sportMix*1.15,sprinting?0.08:0.25);
-    set(N.roomG.gain,sprinting?(0.32+0.2*(1-express)):0.7,0.18);
-    if(N.sheen) set(N.sheen.gain,sprinting?(-6+2*express):-10,0.14);
-    if(N_muffle) set(N_muffle.frequency,sprinting?(220+4200*express):95,sprinting?0.12:0.08);
+    set(N.dryG.gain,sportMix*1.5,sprinting?0.06:0.25);
+    set(N.roomG.gain,sprinting?(0.28+0.16*(1-express)):0.7,0.18);
+    if(N.sheen) set(N.sheen.gain,sprinting?(-1+5*express):-10,0.12);
+    if(N_muffle) set(N_muffle.frequency,sprinting?(360+6400*express):95,sprinting?0.1:0.08);
     const duck=(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.ending))?0.63:1;
-    const lvl=S.on?(sprinting?(0.05+0.11*express):(0.09)):0;
+    const lvl=S.on?(sprinting?(0.08+0.16*express):(0.09)):0;
     set(N.out.gain,lvl*sv()*ev()*duck,S.on?0.08:0.45);
     if(N.pan&&window.MV_SPATIAL&&typeof MV_SPATIAL.screenPan==='function'){
       const px=(p.x||0)+(typeof SW==='number'?SW*0.5:32);
