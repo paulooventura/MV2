@@ -438,7 +438,7 @@ function _optRowCount(){ return _optManualRow()+1; }
 let _optHoldN=0;
 function _optNudgeBar(row,inc){
   const step=inc?0.05:-0.05;
-  if(row===0){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+step)); _saveOpts(); _applyBgmVolumes(); }
+  if(row===0){ OPT.musicVol=Math.max(0,Math.min(1,OPT.musicVol+step)); _saveOpts(); _applyBgmVolumes(); try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.applyVol) MV_BETA_AUDIO.applyVol(); }catch(e){} }
   else if(row===1){ OPT.sfxVol=Math.max(0,Math.min(1,OPT.sfxVol+step)); _saveOpts(); }
   else if(row===2){ OPT.engineVol=Math.max(0,Math.min(1,(OPT.engineVol==null?0.8:OPT.engineVol)+step)); _saveOpts(); }
 }

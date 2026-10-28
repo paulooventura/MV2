@@ -132,6 +132,7 @@
     octaved=false; window._mvOctave=false;
     a._baseVol=volume; a.playbackRate=1;
     a.volume=vol()*volume;
+    a.muted=vol()<=0;
     current=name; wantPlay=name;
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
     try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
@@ -172,6 +173,8 @@
       return;
     }
     if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
+    if(vol()<=0){ a.volume=0; a.muted=true; return; }
+    a.muted=false;
     const presence=1+0.2*Math.max(0,1-f);
     a.volume=Math.min(1,Math.max(0.05,vol()*(a._baseVol||1)*presence));
   }
@@ -436,11 +439,24 @@
       try{ h.g.gain.setTargetAtTime(0.0001,t,0.06); h.o.stop(t+0.22); h.o2.stop(t+0.22); }catch(e){}
     }
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
+  function applyVol(){
+    const v=vol();
+    for(const k in els){
+      const a=els[k]; if(!a) continue;
+      a.muted=v<=0;
+      a.volume=v<=0?0:v*(a._baseVol==null?1:a._baseVol);
+    }
+    for(const k in routed){
+      const r=routed[k]; if(!r||!r.g) continue;
+      if(v<=0){ if(r._hold==null) r._hold=r.g.gain.value||1; r.g.gain.value=0; }
+      else if(r._hold!=null){ r.g.gain.value=r._hold; r._hold=null; }
+    }
+  }
   function recure(){
     if(!current) return;
     const next=pathOf(current), prev=els[current];
     if(prev&&prev._path===next) return;
     play(current,{restart:true});
   }
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
 })();

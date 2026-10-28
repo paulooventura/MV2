@@ -143,7 +143,7 @@ function _pickBgmPath(type,except){
   return _pickGameMusic(except);
 }
 function _bgmVolFor(type){
-  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   return type==='story'?mv*0.85:type==='game'?mv:mv;
 }
 function _bgmPathFor(type){
@@ -505,9 +505,9 @@ function updateGameBgm(){
   if(window._mvOctave||window._mvVinyl||window._mvVinylSpin) return;
   if(_gameState!=='game')return;
   const f=Math.max(0.3,_healFrac);
-  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   const presence=1+0.2*Math.max(0,1-f);   // hurt leans the theme forward, it does not quiet it
-  const heard=Math.min(1,Math.max(0.05,mv*presence));
+  const heard=mv<=0?0:Math.min(1,Math.max(0.05,mv*presence));
   if(_gameAudioEl){
     _gameAudioEl.volume=heard;
     _gameAudioEl.playbackRate=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
@@ -518,7 +518,7 @@ function updateGameBgm(){
   if(_gameSrc)_gameSrc.playbackRate.value=window.MV_CONSOLE&&MV_CONSOLE.hurtRate?MV_CONSOLE.hurtRate():Math.max(0.5,f);
 }
 function _applyBgmVolumes(){
-  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   if(_openingAudioEl&&!_openingAudioEl.paused) _openingAudioEl.volume=mv;
   if(_storyAudioEl&&!_storyAudioEl.paused) _storyAudioEl.volume=mv*0.55;
   if(_gameAudioEl&&!_gameAudioEl.paused) _gameAudioEl.volume=mv*0.75;
@@ -527,7 +527,7 @@ function _applyBgmVolumes(){
 }
 function _switchMusicMode(){
   if(!_audioUnlocked||!_activeBgmType) return;
-  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   const vol=_activeBgmType==='story'?mv*0.55:_activeBgmType==='game'?mv*0.75:mv;
   _stopBGM(_activeBgmType);
   _playBGM(_activeBgmType,vol);
@@ -571,7 +571,7 @@ function _releaseBgmVisible(){
   _bgmHeldHidden=false;
   if(_bgmAC&&_bgmAC.state==='suspended') _bgmAC.resume().catch(()=>{});
   if(!_audioUnlocked||!_activeBgmType) return;
-  const mv=Math.max(0,Math.min(1,OPT.musicVol||0.75));
+  const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   const vol=_activeBgmType==='story'?mv*0.55:_activeBgmType==='game'?mv*0.75:mv;
   _playBGM(_activeBgmType,vol);
 }
