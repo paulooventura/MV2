@@ -462,7 +462,24 @@
   // Clear when the grid ray from MIND's shoulder reaches the target before any
   // solid cell. `own` = the target's own cell (a cube is itself solid).
   function shoulder(){ return {x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.45}; }
+  function chamberAt(x,y){
+    let hit=null, area=1e18;
+    for(const rm of B.rooms||[]){
+      if(x<rm.x||x>=rm.x+rm.w||y<rm.y||y>=rm.y+rm.h) continue;
+      const a=rm.w*rm.h; if(a<area){ hit=rm; area=a; }
+    }
+    return hit;
+  }
+  // Outdoors counts as one chamber. A house and the shaft under it do not.
+  function sameChamber(tx,ty){
+    if(!p) return true;
+    const there=chamberAt(tx,ty);
+    const o=shoulder();
+    const here=chamberAt(o.x,o.y)||chamberAt(p.x+SW/2,p.y+FEET_OFF-10)||chamberAt(p.x+SW/2,p.y+24);
+    return here===there;
+  }
   function losClear(tx,ty,ownC,ownR){
+    if(!sameChamber(tx,ty)) return false;
     if(typeof gridRayHit!=='function'||!p) return true;
     const o=shoulder();
     const hit=gridRayHit(o.x,o.y,tx,ty);
@@ -764,13 +781,11 @@
       else if(ax.dc){ along=(cx-o.x)*ax.dc; perp=cy-tip.y; pdr=Math.sign(perp); perp=Math.abs(perp); }
       else { along=(cy-o.y)*ax.dr; perp=cx-tip.x; pdc=Math.sign(perp); perp=Math.abs(perp); }
       if(along<-T*0.3||along>RANGE||perp>EDGE) continue;
-      const inShaft=shaftSees(bw);
-      const straight=perp<=BAND||inShaft;
+      const straight=perp<=BAND;
       if(!straight&&along<T*0.4) continue;                       // right above / below him: not in the cone
-      if(!losClear(cx,cy,bw.homeCol,bw.homeRow)&&!inShaft) continue;
+      if(!losClear(cx,cy,bw.homeCol,bw.homeRow)) continue;       // a wall, or another room
       let dc=straight?ax.dc:(ax.dc||pdc), dr=straight?ax.dr:(ax.dr||pdr);
-      if(inShaft){ dc=ax.dc; dr=ax.dr; }                         // down the hole, not sideways into the lip
-      hits.push({bw,along,dc,dr,straight:straight||inShaft});
+      hits.push({bw,along,dc,dr,straight});
     }
     // Paulo (Oct 22): the blocks he's STANDING on, aimed straight down, always count — the
     // cone used to skip the block right under the wheel, so on a trapdoor the edges went
@@ -1115,7 +1130,7 @@
       if(sign>0&&bw.only==='pull') continue;
       if(sign<0&&bw.only==='push') continue;
       const f=hit(bw.x+T/2,bw.y+T/2,weightOf('cube',bw));
-      if(!f){ bw._fvx=(bw._fvx||0)*0.7; bw._fvy=(bw._fvy||0)*0.7; continue; }
+      if(!f||!losClear(bw.x+T/2,bw.y+T/2,bw.homeCol,bw.homeRow)){ bw._fvx=(bw._fvx||0)*0.7; bw._fvy=(bw._fvy||0)*0.7; continue; }
       const m=weightOf('cube',bw);
       if(bw._fly){ bw.vx=(bw.vx||0)+f.ax*1.35; bw.vy=(bw.vy||0)+f.ay*1.35; continue; }
       if(busy(bw)||f.s<0.07+0.035*m){ bw.shakeX=(bw.shakeX||0)+f.ax*5; continue; }
@@ -1129,7 +1144,7 @@
     for(const c2 of (typeof CRATES!=='undefined'?CRATES:[])){
       if(!c2) continue;
       const f=hit(c2.x+c2.w/2,c2.y+c2.h/2,3.2);
-      if(!f||f.s<0.12) continue;
+      if(!f||f.s<0.12||!losClear(c2.x+c2.w/2,c2.y+c2.h/2)) continue;
       c2.vx=(c2.vx||0)*0.9+f.ax*2.1;
       c2.vy=(c2.vy||0)*0.9+f.ay*2.1;
       c2.og=false;
@@ -1728,12 +1743,13 @@
         B.gateAsk=null; B.gateCd=70;
         if(p){ p.vx=0; p.x+=(p.fc?-22:22); }
       }
-    }else if(B.open&&B.gate&&p&&!B.trans&&!(B.gateCd>0)){
+    }else if(B.open&&B.gate&&p&&!B.trans&&!B.results&&!(B.gateCd>0)){
       const h=playerCoreHB(p), g=B.gate;
       if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
         const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
-        if(!B.cleared) B.gateAsk={kind:'results'};
-        else if(nx&&B.arriveCd<=0) B.gateAsk={kind:'go', nx, dir:'forward'};
+        // first clear just goes — the question is only for walking back into a world already left
+        if(!B.cleared){ B.cleared=true; openResults(); }
+        else if(nx&&B.arriveCd<=0) travel(nx,'forward');
       }
     }
     // the arch MIND came in through leads back to the stage before

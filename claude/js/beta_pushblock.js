@@ -77,6 +77,7 @@
     return {x:p.x+SW/2, y:p.y+FEET_OFF-50};
   }
   function losClear(x0,y0,x1,y1){
+    if(B.losClear&&!B.losClear(x1,y1)) return false;
     const d=Math.hypot(x1-x0,y1-y0), n=Math.ceil(d/10);
     for(let i=1;i<n-1;i++){ const t=i/n, c=Math.floor((x0+(x1-x0)*t)/T), r=Math.floor((y0+(y1-y0)*t)/T);
       if(typeof gridSolid==='function'&&gridSolid(c,r)&&!(B.cubeAt&&B.cubeAt(c,r))) return false; }

@@ -95,6 +95,13 @@ function gridSolid(c,r){
   return t===MV_GRID_SOLID||t===MV_GRID_DESTRUCT;
 }
 
+// A cell you can stand on has open air above it. The side of a wall does not.
+function _gridExposedTop(c,r){
+  if(r<=0) return true;
+  const up=gridCell(c,r-1);
+  return up!==MV_GRID_SOLID&&up!==MV_GRID_DESTRUCT;
+}
+
 function gridIsSlope(c,r){
   const t=gridCell(c,r);
   return t===MV_GRID_SLOPE_L||t===MV_GRID_SLOPE_R;
@@ -780,7 +787,7 @@ function gridColumnSurface(col, contactX, feetY, maxUp){
       y=gridSlopeY(col,r,contactX);
       const s=gridSlopeAt(col,r);
       a=s?s.angle:0;
-    }else if(gridSolid(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
+    }else if(gridSolid(col,r) && _gridExposedTop(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
       y=r*t;
     }else continue;
     if(y==null||y>feetY+0.5||y<feetY-maxUp) continue;
@@ -802,7 +809,7 @@ function gridColumnStandNear(col, contactX, feetY, band){
       y=gridSlopeY(col,r,contactX);
       const s=gridSlopeAt(col,r);
       a=s?s.angle:0;
-    }else if(gridSolid(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
+    }else if(gridSolid(col,r) && _gridExposedTop(col,r) && !_gridTopBuried(col,r) && !_gridIsRampFill(col,r,contactX,feetY)){
       y=r*t;
     }else continue;
     if(y==null||Math.abs(y-feetY)>band) continue;
@@ -911,6 +918,7 @@ function gridBestFloor(body, prevFeet){
       const type=gridCell(c,row);
       if(type===MV_GRID_SOLID||type===MV_GRID_DESTRUCT||type===MV_GRID_ONEWAY){
         if(type===MV_GRID_ONEWAY&&typeof _mvDropThru!=='undefined'&&_mvDropThru>0) continue;
+        if(type!==MV_GRID_ONEWAY&&!_gridExposedTop(c,row)) continue;
         if(_gridIsRampFill(c,row,sx,feet)) continue;
         const top=row*t;
         if(prevFeet<=top+0.001 && feet>=top-0.5){
