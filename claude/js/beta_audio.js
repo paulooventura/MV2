@@ -114,6 +114,7 @@
     }
   }
   function play(name,{restart=false,volume=1}={}){
+    duoEnd();
     if(!TRACKS[name]) name='stage';
     const a=el(name);
     try{ document.querySelectorAll('audio').forEach(n=>{ if(n!==a) n.pause(); }); }catch(e){}
@@ -166,6 +167,17 @@
     if(vol()<=0){ a.volume=0; a.muted=true; return; }
     a.muted=false;
     const presence=1+0.2*Math.max(0,1-f);
+    if(a._mix!=null){
+      for(const k in els){
+        const b=els[k]; if(!b||b._mix==null) continue;
+        if(!window._mvVinylSpin&&Math.abs((b.playbackRate||1)-r)>0.004) b.playbackRate=r;
+        const mb=b._baseVol==null?1:b._baseVol;
+        const g=vol()*mb*(b._mixRouted?1:b._mix)*presence;
+        b.volume=Math.min(1,Math.max(0,g));
+        b.muted=b.volume<=0.001;
+      }
+      return;
+    }
     a.volume=Math.min(1,Math.max(0.05,vol()*(a._baseVol||1)*presence));
   }
   // Positional music (Paulo, Oct 22: "level 1.2's music source is the D enemy…"): a track can be
@@ -188,6 +200,7 @@
   }
   function unplace(name){ const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000}); }
   function stopAll(){
+    duoEnd();
     if(current&&els[current]){ lastName=current; lastRate=els[current].playbackRate||lastRate; }
     for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null;
   }
@@ -218,7 +231,43 @@
     }catch(e){}
   }
   // browsers only allow sound after a click / key: retry then
-  const kick=()=>{ if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay); };
+  let duoOn=false;
+  // Two scores at once. amt 0 is only `under`, 1 is only `over`. Equal-power
+  // so the middle of a crossfade does not dip. Neither track is paused at a
+  // threshold — the quiet one just sits at zero.
+  function duo(under, over, amt){
+    duoOn=true;
+    amt=Math.max(0,Math.min(1,amt));
+    const u=Math.cos(amt*Math.PI/2), o=Math.sin(amt*Math.PI/2);
+    const au=el(under), ao=el(over);
+    au._mix=u; ao._mix=o;
+    const v=vol(), ctx=ac(), t=ctx?ctx.currentTime:0;
+    for(const pair of [[under,au],[over,ao]]){
+      const name=pair[0], a=pair[1], m=a._mix||0;
+      const base=a._baseVol==null?1:a._baseVol;
+      const r=routed[name];
+      a._mixRouted=!!(r&&r.g);
+      const presence=1+0.2*Math.max(0,1-(typeof _healFrac!=='undefined'?_healFrac:1));
+      if(r&&r.g&&ctx) r.g.gain.setTargetAtTime(m, t, 0.18);
+      a.volume=Math.max(0, Math.min(1, v*base*presence*(r&&r.g?1:m)));
+      a.muted=v<=0||(r&&r.g?m<=0.001:a.volume<=0.001);
+      if(a.paused&&v>0&&m>0.02){ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    }
+    current=amt>=0.5?over:under; wantPlay=current;
+  }
+  function duoEnd(){
+    if(!duoOn) return;
+    duoOn=false;
+    for(const k in els) if(els[k]) els[k]._mix=null;
+  }
+  const kick=()=>{
+    if(duoOn){
+      if(vol()<=0) return;
+      for(const k in els){ const a=els[k]; if(a&&a._mix>0.02&&a.paused){ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); } }
+      return;
+    }
+    if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay);
+  };
   window.addEventListener('keydown',kick); window.addEventListener('pointerdown',kick);
 
   function ac(){ try{ return typeof ga==='function'?ga():null; }catch(e){ return null; } }
@@ -434,7 +483,8 @@
     for(const k in els){
       const a=els[k]; if(!a) continue;
       a.muted=v<=0;
-      a.volume=v<=0?0:v*(a._baseVol==null?1:a._baseVol);
+      const m=a._mix!=null?a._mix:1;
+      a.volume=v<=0?0:v*(a._baseVol==null?1:a._baseVol)*m;
     }
     for(const k in routed){
       const r=routed[k]; if(!r||!r.g) continue;
@@ -459,11 +509,11 @@
     const base=stage?(stage._baseVol==null?1:stage._baseVol):1;
     if(t<0.02||!stage){
       if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
-      if(stage&&stage._liftDuck){ stage.volume=v*base; stage.muted=v<=0; stage._liftDuck=false; }
+      if(stage&&stage._liftDuck){ const m=stage._mix!=null?stage._mix:1; stage.volume=v*base*m; stage.muted=v<=0; stage._liftDuck=false; }
       return;
     }
     stage._liftDuck=true;
-    stage.volume=v*base*(1-t);
+    stage.volume=v*base*(1-t)*(stage._mix!=null?stage._mix:1);
     stage.muted=v<=0;
     const down=pull<0;
     const path=down?GORE_TRACK:INK_1GO;
@@ -485,5 +535,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, liftMix, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
 })();

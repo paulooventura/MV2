@@ -137,7 +137,7 @@ const CAM_LOOK_X=8;
 const CAM_LOOK_SMOOTH=0.16;
 let camX=0, camY=0;
 let _rcamX=0, _rcamY=0;
-let _camLookX=0;
+let _camLookX=0, _camLookY=0, _upHold=0;
 let camZoom, camZoomTgt;
 
 function _initCamZoom(){
@@ -177,7 +177,7 @@ function _snapCameraToPlayer(pl){
   const t=_cameraFollowTarget(pl);
   camX=camClampX(t.x);
   camY=camClampY(t.y);
-  _camLookX=0;
+  _camLookX=0; _camLookY=0; _upHold=0;
   _camSettle=1;
   _snapRenderCam();
 }
@@ -310,13 +310,25 @@ function _syncGameCamera(){
   if(!isFinite(p.y)) p.y=_spawnY;
   const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X*(1+1.1*_sportZoomS);
   _camLookX+= (lookTgt-_camLookX)*CAM_LOOK_SMOOTH;
+  // Hold up past a short aim, and the frame eases upward so the space
+  // above MIND comes into view. A tap does not move it.
+  const ed=typeof _mapEdActive!=='undefined'&&_mapEdActive;
+  const upHeld=!ed&&typeof isUp==='function'&&isUp();
+  if(upHeld) _upHold++; else _upHold=0;
+  let upTgt=0;
+  if(_upHold>28){
+    const u=Math.min(1,(_upHold-28)/80);
+    const s=u*u*(3-2*u);
+    upTgt=-camViewH()*0.32*s;
+  }
+  _camLookY+=(upTgt-_camLookY)*(_upHold>28?0.02:0.04);
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
   const L=window.MV_LIFT;
   const lookWant=(L&&L.inside)?(L.dir||0)*-58*(0.35+0.65*Math.min(1,L.zoom||0)):0;
   _liftLook+=(lookWant-_liftLook)*((L&&L.inside)?0.045:0.07);
-  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook);
+  const tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook+_camLookY);
   if(_camSettle>0){
     camX=tx; camY=ty;
     _camSettle--;

@@ -5,8 +5,11 @@
 //   loads. The music follows it. Once it's shut down, the level music stops,
 //   and the slow smooth track starts; its source is the exit gate. D is not
 //   the speaker. Level 1.1 stays on the living-room gramophone (beta_ambience).
-//   Level 1.3's music source is the Heptagon. The boss theme plays only while
-//   it is on screen or just off it. When we eliminate the boss, that very frame freezes
+//   Level 1.3's music source is the Heptagon. Distance to its centre crossfades
+//   the boss theme over the stage score — full up close, the old song far
+//   away, and a smooth ramp between, with no on/off cut. The Heptagon's
+//   lines wait until MIND is standing in the middle of the bowl under it.
+//   When we eliminate the boss, that very frame freezes
 //   the whole scene and zooms in to our character for a second while a glorious
 //   song plays; after a couple of seconds the game unfreezes."
 //
@@ -21,6 +24,7 @@
   const T=32, A=()=>window.MV_BETA_AUDIO;
   const on=()=>B.on&&typeof _gameState!=='undefined'&&_gameState==='game';
   let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null;
+  let bowl=null, mixS=0;
 
   // ── the sources ──
   const ctr=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
@@ -30,6 +34,44 @@
     const vh=typeof camViewH==='function'?camViewH():(typeof H==='number'?H:768);
     const vx=typeof camX==='number'?camX:0, vy=typeof camY==='number'?camY:0, m=200;
     return boss.x+boss.w>vx-m&&boss.x<vx+vw+m&&boss.y+boss.h>vy-m&&boss.y<vy+vh+m;
+  }
+  // The flat of the stone bowl under the heptagon: the run of floor directly
+  // below its home. The lines play only in a circle at the middle of that floor.
+  function bowlSpot(boss){
+    if(bowl) return bowl;
+    const hx=boss.homeX!=null?boss.homeX:boss.x+boss.w/2;
+    const hy=boss.homeY!=null?boss.homeY:boss.y+boss.h/2;
+    if(typeof gridWorldSolid!=='function') return {x:hx, y:hy+520, r:160};
+    let y=hy, limit=hy+1600;
+    while(y<limit&&!gridWorldSolid(hx,y)) y+=8;
+    if(y>=limit) return {x:hx, y:hy+520, r:160};
+    const row=Math.floor(y/T);
+    const solid=c=>gridWorldSolid(c*T+T*0.5, row*T+T*0.5);
+    const open=c=>!gridWorldSolid(c*T+T*0.5, (row-1)*T+T*0.5);
+    let c=Math.floor(hx/T), L=c, R=c;
+    while(L>1&&solid(L-1)&&open(L-1)) L--;
+    while(R<400&&solid(R+1)&&open(R+1)) R++;
+    bowl={x:(L+R+1)*T*0.5, y:row*T, r:160};
+    return bowl;
+  }
+  // 0 far (stage score only) → 1 on top of the boss (theme at full).
+  // Standing on the bowl is roughly 400–600px under a floating heptagon,
+  // so full volume includes that spot. The ramp is long on purpose.
+  function bossMix(boss){
+    const ox=p.x+SW/2, oy=p.y+FEET_OFF-40;
+    const d=Math.hypot((boss.x+boss.w/2)-ox, (boss.y+boss.h/2)-oy);
+    const NEAR=640, FAR=1400;
+    let t=d<=NEAR?1:d>=FAR?0:(FAR-d)/(FAR-NEAR);
+    t=t*t*(3-2*t);
+    mixS+=(t-mixS)*0.04;
+    if(mixS<0.003) mixS=0;
+    if(mixS>0.997) mixS=1;
+    return mixS;
+  }
+  function onBowl(boss){
+    const spot=bowlSpot(boss);
+    const feet=p.y+FEET_OFF, cx=p.x+SW/2;
+    return Math.hypot(cx-spot.x, feet-spot.y)<spot.r;
   }
   // 1.2: the alive triangle whose top is highest when the triangles first exist.
   // y grows downward, so the highest top is the smallest e.y. Locked to that
@@ -56,11 +98,14 @@
     }
     if(sid==='1.3'){
       const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
-      if(B.bossDown||!boss||!boss.alive) return {track:'calm', at:gatePos()};
+      if(B.bossDown||!boss||!boss.alive){ B.bossMeet=false; mixS=0; return {track:'calm', at:gatePos()}; }
       const see=bossClose(boss);
       B.bossOn=see;
+      B.bossMeet=onBowl(boss);
       if(see&&!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,4); }
-      return {track:see?'boss':stageMusic, at:ctr(boss)};
+      const amt=bossMix(boss);
+      B.bossMix=amt;
+      return {blend:{under:stageMusic||'stage2', over:'boss', amt}, at:ctr(boss)};
     }
     return null;
   }
@@ -76,9 +121,17 @@
   }
   function direct(){
     if(!on()||!p||!A()) return;
-    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; if(placed&&A().unplace) A().unplace(placed); placed=null; }
+    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; bowl=null; mixS=0; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
     if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze) return;       // item window, dialog, results, and the boss moment play their own
-    const want=pick(); if(!want||!want.track) return;
+    const want=pick(); if(!want) return;
+    if(want.blend&&A().duo){
+      B.music=want.blend.amt>=0.5?want.blend.over:want.blend.under;
+      A().duo(want.blend.under, want.blend.over, want.blend.amt);
+      lastTrack=B.music;
+      return;
+    }
+    if(A().duoEnd) A().duoEnd();
+    if(!want.track) return;
     B.music=want.track;
     if(A().current()!==want.track){ A().play(want.track,{restart:want.track!==lastTrack}); lastTrack=want.track; }
     if(want.at){ if(placed&&placed!==want.track&&A().unplace) A().unplace(placed); placed=want.track; A().place(want.track,hear(want.at)); }

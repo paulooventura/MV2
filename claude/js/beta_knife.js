@@ -543,8 +543,8 @@
       sharedTick(); sibJackTick(); knifeFeel(); freeTick(); marksTick();
       const bs=boss();
       if(B.stageId==='1.3'&&bs){
-        if(B.bossOn&&!wasBossOn&&!introSeen&&bs.alive&&!B.freeze){ introSeen=true; intro={t:0,line:0,ch:0,hold:0,out:0}; }
-        wasBossOn=!!B.bossOn;
+        if(B.bossMeet&&!introSeen&&bs.alive&&!B.freeze){ introSeen=true; intro={t:0,line:0,ch:0,hold:0,out:0}; }
+        wasBossOn=!!B.bossMeet;
         if(bs.alive) bossLive=true;
         else if(bossLive){ bossLive=false; finishPending=true; }
       }
