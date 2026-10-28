@@ -1,165 +1,269 @@
 // ============================================================
 //  beta_lift.js — Awdjoo 1.3 elevators
 //
-//  The floor you enter 1.3 on is Equilibrium. Walk into a cab,
-//  or punch the button beside the shaft, and it locks as a
-//  closed chamber: back and ceiling shut, the outside blurs
-//  and dims, and the view eases toward the way you chose.
-//  Up pulls the whole game toward Ink & Vinyl. Down pulls it
-//  toward Gore. Every later ride moves you further from that
-//  first floor, or back toward it.
+//  The two residential belts keep their routine: the left
+//  column runs down, the right column runs up. They stop
+//  only when the button left of the door on that floor is
+//  punched. The closest cab on that column comes and waits,
+//  doors open. Step in and the doors close. Punch the
+//  button in the ceiling, then press up or down: the car
+//  goes one floor and the doors open again. Walk away and
+//  that cab goes back to its routine.
+//
+//  The floor you enter on is Equilibrium. Up is one step
+//  toward Ink & Vinyl (the 2nd floor, from the lobby).
+//  Down is one step toward Gore. From the lobby, down
+//  goes to the 6th floor, because every floor of 1.3 is
+//  above the street. Full Ink & Vinyl is 33 ups. Full
+//  Gore is 33 downs. One ride is one step, not the whole look.
 // ============================================================
 (function(){
   'use strict';
   const B=window.MV_BETA; if(!B) return;
-  const T=32, CAB=4*T-6;
+  const T=32, CAB=4*T-6, SPAN=33;
+  // Six stops. The street is the floor level. The other five are above it.
+  const LEVELS=[
+    {n:1, name:'FLOOR LEVEL', row:64},
+    {n:2, name:'2ND FLOOR', row:56},
+    {n:3, name:'3RD FLOOR', row:46},
+    {n:4, name:'4TH FLOOR', row:36},
+    {n:5, name:'5TH FLOOR', row:26},
+    {n:6, name:'6TH FLOOR', row:14}
+  ];
   const S={
     floors:0, pull:0, inside:false, zoom:0, dir:0,
-    eqY:null, stage:null, cab:null, near:false
+    stage:null, cab:null, near:false, ask:false, sealed:false, laid:false
   };
   window.MV_LIFT=S;
+  const yCache=new Map();
 
   function live(){ return !!(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&p&&typeof _gameState!=='undefined'&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)); }
   function feet(){ return p.y+(typeof FEET_OFF==='number'?FEET_OFF:48); }
   function cx(){ return p.x+(typeof SW==='number'?SW:40)/2; }
-
-  function landings(m){
-    if(m._lands) return m._lands;
-    if(typeof gridSolid!=='function'||typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.tile) return [];
-    const t=MV_GRID.tile, c0=Math.floor(m.x/t), cw=Math.max(1,Math.round(m.w/t));
-    const ys=[];
-    for(let r=2;r<MV_GRID.rows-1;r++){
-      if(gridSolid(c0,r-1)||gridSolid(Math.min(MV_GRID.cols-1,c0+cw-1),r-1)) continue;
-      const left=c0>0&&gridSolid(c0-1,r)&&!gridSolid(c0-1,r-1);
-      const right=c0+cw<MV_GRID.cols&&gridSolid(c0+cw,r)&&!gridSolid(c0+cw,r-1);
-      if(left||right) ys.push(r*t);
-    }
-    if(S.eqY!=null){
-      let near=false;
-      for(const y of ys) if(Math.abs(y-S.eqY)<T*1.5) near=true;
-      if(!near) ys.push(S.eqY);
-    }
-    ys.sort((a,b)=>a-b);
-    m._lands=ys;
-    return ys;
-  }
-  function nextStop(m, up){
-    const ys=landings(m), y=m.y;
-    let best=null;
-    if(up){ for(const q of ys) if(q<y-T*0.6&&(best==null||q>best)) best=q; }
-    else { for(const q of ys) if(q>y+T*0.6&&(best==null||q<best)) best=q; }
-    if(best!=null) return best;
-    const step=T*4, raw=y+(up?-step:step);
-    const lo=Math.min(m.ya,m.yb)+8, hi=Math.max(m.ya,m.yb)-8;
-    const c=Math.max(lo,Math.min(hi,raw));
-    return Math.abs(c-y)<T?null:c;
-  }
-  function floorIndex(m){
-    if(S.eqY==null) return 0;
-    return Math.round((S.eqY-m.y)/(T*3));
-  }
-  function holdColumn(cab){
-    for(const q of B.platforms) if(q.vert&&q!==cab&&Math.abs(q.x-cab.x)<4) q.hold=true;
-  }
-  function carry(m,y){
-    const list=[p];
-    if(typeof p2!=='undefined'&&p2) list.push(p2);
-    for(const a of list){
-      if(!a) continue;
-      const ax=a.x+(typeof SW==='number'?SW:40)/2;
-      if(ax<m.x-10||ax>m.x+m.w+10) continue;
-      a.y=y-(typeof FEET_OFF==='number'?FEET_OFF:48);
-      a.vy=0; a.og=true;
-    }
-  }
-  function ridingCab(){
-    const m=B.ridePlat;
-    if(!m||!m.vert||m.hidden) return null;
-    const x=cx();
-    if(x<m.x-6||x>m.x+m.w+6) return null;
-    return m;
-  }
-  function nearestShaft(){
-    let best=null, bd=1e9;
-    const x=cx();
-    const seen=new Set();
-    for(const m of B.platforms){
-      if(!m.vert) continue;
-      const k=m.x|0; if(seen.has(k)) continue; seen.add(k);
-      const d=Math.abs(x-(m.x+m.w/2));
-      if(d<bd){ bd=d; best=m; }
-    }
-    return best&&bd<110?best:null;
-  }
-  function callCab(col){
-    const f=feet();
-    let best=null, bd=1e9;
-    for(const m of B.platforms){
-      if(!m.vert||m.hidden||Math.abs(m.x-col.x)>4) continue;
-      const d=Math.abs(m.y-f);
-      if(d<bd){ bd=d; best=m; }
-    }
-    if(!best) return;
-    for(const m of B.platforms) if(m.vert&&Math.abs(m.x-col.x)<4){ m.hold=true; if(m!==best){ m.locked=false; m.lockY=null; } }
-    best.hold=false; best.locked=true; best.lockY=f; best.y=f; best.called=240; best.dy=0;
-    try{ sfx('land'); }catch(e){}
-  }
-  function choose(m, up){
-    const dest=nextStop(m, up);
-    if(dest==null) return;
-    m.y=dest; m.lockY=dest; m.locked=true; m.called=0; m.dy=0;
-    carry(m, dest);
-    S.dir=up?1:-1;
-    S.zoom=Math.max(S.zoom,0.15);
-    S.floors=floorIndex(m);
-    try{ sfx(up?'jump':'land'); }catch(e){}
-    try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.recure) MV_BETA_AUDIO.recure(); }catch(e){}
-  }
   function upEdge(){ return typeof Kj!=='undefined'&&(Kj['ArrowUp']||Kj['KeyW']); }
   function downEdge(){ return typeof Kj!=='undefined'&&(Kj['ArrowDown']||Kj['KeyS']); }
   function punchEdge(){
     if(typeof _bindJ==='function') return _bindJ('punch');
     return typeof Kj!=='undefined'&&!!Kj['KeyF'];
   }
+  function onCab(m){ return !!(m&&B.ridePlat===m); }
+
+  function columns(){
+    const map=new Map();
+    for(const m of B.platforms||[]){
+      if(!m.vert||!m.loop||m.x>=23*T) continue;
+      const k=m.x|0;
+      if(m._homeDir==null) m._homeDir=m.dir||1;
+      if(!map.has(k)) map.set(k,[]);
+      map.get(k).push(m);
+    }
+    return map;
+  }
+  function surfaceY(colX, row){
+    const key=colX+'|'+row;
+    if(yCache.has(key)) return yCache.get(key);
+    let y=row*T, c=Math.round(colX/T);
+    if(typeof gridSolid==='function'){
+      let r=row;
+      if(gridSolid(c,r)){
+        while(r>2&&gridSolid(c,r-1)) r--;
+        y=r*T;
+      }
+    }
+    yCache.set(key,y);
+    return y;
+  }
+  function floorIndex(colX, y){
+    let best=0, bd=1e9;
+    LEVELS.forEach((fl,i)=>{
+      const d=Math.abs(surfaceY(colX, fl.row)-y);
+      if(d<bd){ bd=d; best=i; }
+    });
+    return best;
+  }
+  function destIndex(i, up){
+    if(up) return i<LEVELS.length-1?i+1:null;
+    if(i<=0) return LEVELS.length-1;
+    return i-1;
+  }
+  function layLedges(){
+    if(S.laid||typeof gridSet!=='function'||typeof gridCell!=='function'||typeof MV_GRID_AIR==='undefined'||typeof MV_GRID_ONEWAY==='undefined') return;
+    if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready) return;
+    const spots=[[8,6],[19,17]];
+    for(const fl of LEVELS){
+      if(fl.n===1) continue;
+      for(const pair of spots){
+        for(let k=0;k<2;k++){
+          const c=pair[1]+k;
+          if(gridCell(c, fl.row)===MV_GRID_AIR) gridSet(c, fl.row, MV_GRID_ONEWAY);
+        }
+      }
+    }
+    S.laid=true;
+  }
+  function resume(m){
+    m.phase='run'; m._lift=null; m.destY=null; m.lockY=null; m.locked=false;
+    m._used=false; m.doorT=0;
+    if(m._homeDir!=null) m.dir=m._homeDir;
+  }
+  function nearestButton(){
+    const x=cx(), y=feet();
+    let best=null, bd=42;
+    for(const [col,cabs] of columns()){
+      for(const fl of LEVELS){
+        const sy=surfaceY(col, fl.row);
+        const bx=col-22;
+        if(Math.abs(x-bx)>36||Math.abs(y-sy)>36) continue;
+        const d=Math.abs(x-bx)+Math.abs(y-sy)*0.25;
+        if(d<bd){ bd=d; best={col, fl, y:sy, cabs}; }
+      }
+    }
+    return best;
+  }
+  function closestCab(cabs, y){
+    let best=null, bd=1e9;
+    for(const m of cabs){
+      if(m.phase&&m.phase!=='run') continue;
+      const d=Math.abs(m.y-y);
+      if(d<bd){ bd=d; best=m; }
+    }
+    if(best) return best;
+    for(const m of cabs){
+      const d=Math.abs(m.y-y);
+      if(d<bd){ bd=d; best=m; }
+    }
+    return best;
+  }
+  function callCab(btn){
+    const m=closestCab(btn.cabs, btn.y);
+    if(!m) return;
+    if(m._homeDir==null) m._homeDir=m.dir||1;
+    m.phase='summon'; m.destY=btn.y; m._lift='go'; m._used=false; m._arrive=false; m.doorT=0;
+    try{ sfx('land'); }catch(e){}
+  }
+  function go(m, up){
+    const i=floorIndex(m.x, m.y);
+    const n=destIndex(i, up);
+    if(n==null) return;
+    const fl=LEVELS[n];
+    m.phase='go'; m.destY=surfaceY(m.x, fl.row); m._lift='go'; m._used=true;
+    S.ask=false; S.dir=up?1:-1; S.vibe=(S.vibe||0)+(up?1:-1);
+    S.vibe=Math.max(-SPAN, Math.min(SPAN, S.vibe));
+    try{ sfx(up?'jump':'land'); }catch(e){}
+  }
+  function arrive(m){
+    m.phase='open'; m._lift='hold'; m.lockY=m.y; m.destY=m.y; m.doorT=0; m._arrive=true;
+    S.ask=false;
+    try{ sfx('land'); }catch(e){}
+  }
 
   S.afterPlatforms=function(){
     if(!B.platforms) return;
-    for(const m of B.platforms) m.hold=false;
     const id=B.stageId;
-    if(id!==S.stage){ S.stage=id; S.eqY=null; S.floors=0; S.pull=0; S.dir=0; S.zoom=0; S.cab=null; S.inside=false; }
+    if(id!==S.stage){
+      S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0;
+      S.cab=null; S.inside=false; S.ask=false; S.sealed=false; S.laid=false; S.near=false;
+      yCache.clear();
+      for(const m of B.platforms){ m.phase=null; m._lift=null; m.door=0; m._used=false; }
+    }
     if(!live()){
-      S.inside=false; S.cab=null; S.near=false;
+      S.inside=false; S.cab=null; S.near=false; S.ask=false; S.sealed=false;
       S.pull+=(0-S.pull)*0.08; S.zoom+=(0-S.zoom)*0.08; S.dir+=(0-S.dir)*0.08;
+      try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.liftMix) MV_BETA_AUDIO.liftMix(); }catch(e){}
       return;
     }
-    if(S.eqY==null) S.eqY=feet();
-    const cab=ridingCab();
-    if(cab){
-      S.cab=cab; S.inside=true; S.near=false;
-      cab.locked=true; cab.lockY=cab.y; cab.called=0;
-      holdColumn(cab);
-      S.floors=floorIndex(cab);
-      if(upEdge()) choose(cab,true);
-      else if(downEdge()) choose(cab,false);
-    }else{
-      S.cab=null; S.inside=false;
-      const shaft=nearestShaft();
-      S.near=!!shaft;
-      if(shaft&&punchEdge()) callCab(shaft);
-      for(const m of B.platforms){
-        if(!m.vert) continue;
-        if(m.called>0){ m.called--; if(m.called<=0){ m.locked=false; m.lockY=null; } }
-        else if(m.locked){ m.locked=false; m.lockY=null; }
+    layLedges();
+    let sealed=null, hold=null, tookPunch=false;
+    for(const [,cabs] of columns()){
+      for(const m of cabs){
+        const tgt=(m.phase==='shut'||m.phase==='go')?1:0;
+        m.door=(m.door||0)+(tgt-(m.door||0))*0.2;
+        if(m.phase==='summon'||m.phase==='go'){
+          const riding=m.phase==='go';
+          m._lift='go';
+          if(m.destY!=null&&Math.abs(m.y-m.destY)<2) arrive(m);
+          else if(riding&&onCab(m)) sealed=m;
+        }else if(m.phase==='open'){
+          m._lift='hold'; m.lockY=m.y;
+          if(m._arrive){
+            if(!onCab(m)) resume(m);
+            else{ hold=m; if(punchEdge()){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; tookPunch=true; } }
+          }else if(onCab(m)){ m.phase='shut'; m._used=true; S.ask=false; }
+          else if(Math.abs(cx()-(m.x+m.w/2))>160) resume(m);
+        }else if(m.phase==='shut'){
+          m._lift='hold'; m.lockY=m.y; m._used=true;
+          if(onCab(m)) sealed=m;
+          else resume(m);
+        }else if(m._lift){
+          resume(m);
+        }
       }
-      for(const m of B.platforms) if(m.vert&&m.locked) holdColumn(m);
     }
-    const tgt=Math.max(-1,Math.min(1,S.floors/5));
+    S.cab=sealed; S.sealed=!!sealed; S.inside=!!sealed; S.hold=hold;
+    if(sealed){
+      const left=sealed.x+6, right=sealed.x+sealed.w-6-(typeof SW==='number'?SW:40);
+      if(p.x<left) p.x=left;
+      if(p.x>right) p.x=right;
+      p.y=sealed.y-(typeof FEET_OFF==='number'?FEET_OFF:48);
+      p.vy=0; p.og=true;
+      S.near=false;
+      if(sealed.phase==='shut'){
+        if(punchEdge()) S.ask=!S.ask;
+        else if(S.ask&&upEdge()) go(sealed,true);
+        else if(S.ask&&downEdge()) go(sealed,false);
+      }
+    }else if(!tookPunch){
+      S.ask=false;
+      const btn=nearestButton();
+      S.near=!!btn;
+      if(btn&&punchEdge()) callCab(btn);
+    }else S.near=false;
+    S.floors=S.vibe||0;
+    const tgt=Math.max(-1,Math.min(1,S.floors/SPAN));
     S.pull+=(tgt-S.pull)*0.04;
-    const zT=S.inside?(Math.abs(S.dir)>0.2?1:0.45):0;
+    const zT=S.sealed?0.55:0;
     S.zoom+=(zT-S.zoom)*0.05;
-    if(!S.inside) S.dir+=(0-S.dir)*0.06;
-    try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.recure) MV_BETA_AUDIO.recure(); }catch(e){}
+    if(!S.sealed) S.dir+=(0-S.dir)*0.06;
+    try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.liftMix) MV_BETA_AUDIO.liftMix(); }catch(e){}
   };
+
+  function drawStops(){
+    if(!live()||typeof sx!=='function') return;
+    for(const [col] of columns()){
+      for(const fl of LEVELS){
+        const y=surfaceY(col, fl.row);
+        if(fl.n!==1){
+          ctx.fillStyle='#6a6258';
+          ctx.fillRect(sx(col-T*2),sy(y),sw(T*2),sw(8));
+          ctx.fillStyle='#c8b49a';
+          ctx.fillRect(sx(col-T*2),sy(y),sw(T*2),sw(3));
+        }
+        const bx=col-22, by=y-30;
+        ctx.fillStyle='#3a342c';
+        ctx.fillRect(sx(bx-8),sy(by-8),sw(16),sw(16));
+        ctx.fillStyle='#ffcf7a';
+        ctx.beginPath(); ctx.arc(sx(bx),sy(by),sw(5),0,Math.PI*2); ctx.fill();
+      }
+    }
+    const shown=S.cab||S.hold;
+    if(shown){
+      ctx.fillStyle=(S.ask||S.hold)?'#ffe08a':'#c8a060';
+      ctx.fillRect(sx(shown.x+shown.w/2-10),sy(shown.y-CAB+10),sw(20),sw(8));
+    }
+  }
+  function hookStops(){
+    const prev=B.drawWorldExtras;
+    if(typeof prev!=='function'){ setTimeout(hookStops,40); return; }
+    if(prev._liftStops) return;
+    const wrapped=function(){
+      const r=prev.apply(this,arguments);
+      try{ drawStops(); }catch(e){}
+      return r;
+    };
+    wrapped._liftStops=true;
+    B.drawWorldExtras=wrapped;
+  }
+  hookStops();
 
   const buf=document.createElement('canvas'), bg=buf.getContext('2d');
   function screenCab(m){
@@ -167,17 +271,17 @@
     return {x:sx(m.x)*z, y:sy(m.y-CAB)*z, w:Math.max(12,sw(m.w)*z), h:Math.max(12,sw(CAB)*z)};
   }
   function veil(){
-    if(!S.inside||!S.cab||typeof ctx==='undefined'||typeof sx!=='function') return;
+    if(!S.sealed||!S.cab||typeof ctx==='undefined'||typeof sx!=='function') return;
     const cv=ctx.canvas;
     if(buf.width!==cv.width||buf.height!==cv.height){ buf.width=cv.width; buf.height=cv.height; }
     bg.drawImage(cv,0,0);
     const cab=screenCab(S.cab);
-    const blur=5+4*Math.min(1,S.zoom||0);
+    const blur=4+3*Math.min(1,S.zoom||0);
     ctx.save();
     try{ ctx.filter='blur('+blur.toFixed(1)+'px)'; }catch(e){}
     ctx.drawImage(buf,0,0);
     ctx.filter='none';
-    ctx.fillStyle='rgba(4,2,8,0.58)';
+    ctx.fillStyle='rgba(4,2,8,0.45)';
     ctx.fillRect(0,0,cv.width,cv.height);
     const pad=6;
     const x=Math.max(0,cab.x-pad), y=Math.max(0,cab.y-pad);
@@ -187,12 +291,21 @@
   }
   function prompt(){
     if(typeof drawTextC!=='function'||typeof W!=='number') return;
-    if(S.inside){
-      const n=S.floors|0;
-      const line=n===0?'EQUILIBRIUM':(n>0?n+' ABOVE EQUILIBRIUM':(-n)+' BELOW EQUILIBRIUM');
-      drawTextC(line,W/2,64,n<0?'#ffc0b8':'#f4efe6',2);
-      drawTextC('UP   ·   INK & VINYL',W/2,96,'#f4efe6',2);
-      drawTextC('DOWN   ·   GORE',W/2,124,'#ffb0a8',2);
+    if(S.sealed&&S.cab){
+      const fl=LEVELS[floorIndex(S.cab.x, S.cab.y)];
+      drawTextC(fl?fl.name:'',W/2,64,'#f4efe6',2);
+      if(S.ask){
+        drawTextC('UP',W/2,96,'#f4efe6',2);
+        drawTextC('DOWN',W/2,124,'#ffb0a8',2);
+      }else{
+        const y=typeof uiActLabel==='function'?uiActLabel('punch'):'Y';
+        drawTextC(y+'   CHOOSE A FLOOR',W/2,100,'#f4efe6',2);
+      }
+    }else if(S.hold){
+      const fl=LEVELS[floorIndex(S.hold.x, S.hold.y)];
+      drawTextC(fl?fl.name:'',W/2,64,'#f4efe6',2);
+      const y=typeof uiActLabel==='function'?uiActLabel('punch'):'Y';
+      drawTextC(y+'   NEXT FLOOR',W/2,96,'#f4efe6',2);
     }else if(S.near){
       const y=typeof uiActLabel==='function'?uiActLabel('punch'):'Y';
       drawTextC(y+'   CALL THE CAR',W/2,64,'#f4efe6',2);

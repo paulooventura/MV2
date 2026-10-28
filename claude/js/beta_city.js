@@ -159,9 +159,15 @@
         // the cab: a lit box with a frame, open doors (you step in and out of it)
         const g=ctx.createLinearGradient(0,y-cabH,0,y); g.addColorStop(0,'rgba(255,220,160,0.20)'); g.addColorStop(1,'rgba(255,200,140,0.08)');
         ctx.fillStyle=g; ctx.fillRect(x,y-cabH,w,cabH);
-        if(m.locked){
-          ctx.fillStyle='rgba(8,6,10,0.9)'; ctx.fillRect(x+sw(3),y-cabH+sw(10),w-sw(6),cabH-sw(14));
-          ctx.fillStyle='#120e12'; ctx.fillRect(x,y-cabH,w,sw(12));
+        const door=Math.max(0,Math.min(1,m.door||0));
+        if(door>0.02){
+          const pw=Math.max(sw(2),(w*0.5)*door);
+          ctx.fillStyle='#8e96a2';
+          ctx.fillRect(x,y-cabH+sw(6),pw,cabH-sw(10));
+          ctx.fillRect(x+w-pw,y-cabH+sw(6),pw,cabH-sw(10));
+          ctx.fillStyle='#d5dbe4';
+          ctx.fillRect(x+pw-sw(2),y-cabH+sw(6),sw(2),cabH-sw(10));
+          ctx.fillRect(x+w-pw,y-cabH+sw(6),sw(2),cabH-sw(10));
         }
         ctx.fillStyle='#4a4048'; ctx.fillRect(x,y-cabH,w,sw(6)); ctx.fillRect(x,y-cabH,sw(3),cabH); ctx.fillRect(x+w-sw(3),y-cabH,sw(3),cabH);
         ctx.fillStyle='#ffe0a0'; ctx.fillRect(x+w/2-sw(5),y-cabH+sw(6),sw(10),sw(2));                        // the ceiling light

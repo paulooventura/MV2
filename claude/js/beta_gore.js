@@ -7,20 +7,25 @@
   'use strict';
   const drops=[], stains=[], glass=[];
   let stage=null, burstN=0, burstT=0, splashN=0;
-  function gore(){
+  function rideGore(){
     const L=window.MV_LIFT;
-    if(L&&L.pull>0.08) return false;
-    if(L&&L.pull<-0.62) return true;
-    return !!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
+    return L?Math.max(0,Math.min(1,-(L.pull||0))):0;
   }
-  function liftGore(){
+  function rideInk(){
     const L=window.MV_LIFT;
-    if(!L||L.pull>-0.04||L.pull>0.12) return 0;
-    return Math.max(0,Math.min(1,-L.pull));
+    return L?Math.max(0,Math.min(1,L.pull||0)):0;
   }
+  // Full gore is 33 floors down. A chosen GORE filter fades as the ride climbs.
+  function goreAmt(){
+    const base=(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')?1:0;
+    return Math.max(0,Math.min(1,Math.max(base*(1-rideInk()), rideGore())));
+  }
+  function gore(){ return goreAmt()>0.04; }
   function playing(){ return gore()&&typeof _gameState!=='undefined'&&_gameState==='game'; }
   function spray(x,y,n,bias){
     if(!playing()||!isFinite(x)||!isFinite(y)) return;
+    const scale=goreAmt();
+    if(scale<0.98) n=Math.max(n>1?1:n, Math.round(n*scale));
     const base=bias==null?-Math.PI/2:bias;
     for(let i=0;i<n;i++){
       const a=base+(Math.random()-0.5)*2.4;
@@ -96,10 +101,12 @@
     const id=window.MV_BETA&&MV_BETA.stageId;
     if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; burstN=0; splashN=0; }
     if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; } return; }
-    if(splashN>=90) screenBurst(4);
+    const deep=goreAmt()>=0.55;
+    if(deep&&splashN>=90) screenBurst(4);
     if(splashN>0){ splashSfx(splashN); splashN=0; }
     if(burstT>0) burstT--; else burstN=0;
-    if(burstN>=3){ screenBurst(burstN); burstN=0; burstT=0; }
+    if(deep&&burstN>=3){ screenBurst(burstN); burstN=0; burstT=0; }
+    else if(!deep){ burstN=0; burstT=0; }
     if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%36===0&&Math.abs(p.vx||0)>0.4){
       const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-8;
       spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
@@ -153,7 +160,7 @@
       ctx.restore();
     }
   }
-  function metal(name){
+  function metal(name, amt){
     try{
       const a=typeof ga==='function'?ga():null; if(!a) return;
       const t=a.currentTime, sv=Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1));
@@ -162,7 +169,8 @@
       freqs.forEach((f,i)=>{
         const o=a.createOscillator(), g=a.createGain();
         o.type=i%2?'triangle':'square'; o.frequency.value=f;
-        g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime((hit?0.05:0.025)*sv,t+0.008);
+        const loud=Math.max(0.15,Math.min(1,amt==null?1:amt));
+        g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime((hit?0.05:0.025)*sv*loud,t+0.008);
         g.gain.exponentialRampToValueAtTime(0.0001,t+(hit?0.22:0.45));
         o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+0.5);
       });
@@ -183,7 +191,8 @@
     const origSfx=window.sfx;
     const wrapped=function(t){
       const r=origSfx.apply(this,arguments);
-      if(gore()&&typeof _gameState!=='undefined'&&_gameState==='game'&&/hit|punch|land|stomp|hurt|shut|enemy|jump/.test(t||'')) metal(t);
+      const gAmt=goreAmt();
+      if(gAmt>0.12&&typeof _gameState!=='undefined'&&_gameState==='game'&&/hit|punch|land|stomp|hurt|shut|enemy|jump/.test(t||'')) metal(t,gAmt);
       return r;
     };
     wrapped._goreMetal=true; window.sfx=wrapped;
@@ -300,10 +309,8 @@ void main(){
     glState=1; return true;
   }
   function grade(){
-    const L=window.MV_LIFT;
-    if(L&&L.pull>0.08){ if(oc.style.display!=='none') oc.style.display='none'; return; }
-    const amt=gore()?1:liftGore();
-    if(!cv||amt<0.04||!initGL()){
+    const amt=goreAmt();
+    if(!cv||amt<0.015||!initGL()){
       if(oc.style.display!=='none') oc.style.display='none';
       return;
     }

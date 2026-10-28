@@ -31,16 +31,6 @@
   function pathOf(name){
     const base=TRACKS[name]||TRACKS.stage;
     try{
-      const L=window.MV_LIFT;
-      if(L&&L.pull<=-0.18){
-        const music=window.MV_BETA&&MV_BETA.music;
-        const later=name==='stage2'||name==='boss'||((name==='item'||name==='results'||name==='calm')&&(music==='stage2'||music==='boss'||current==='stage2'||current==='boss'));
-        return later?GORE_TRACK_2:GORE_TRACK;
-      }
-      if(L&&L.pull>=0.18){
-        if(name==='item'||name==='results'||name==='calm') return INK_STORI;
-        return INK_1GO;
-      }
       if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
         const music=window.MV_BETA&&MV_BETA.music;
         const later=name==='stage2'||name==='boss'||((name==='item'||name==='results'||name==='calm')&&(music==='stage2'||music==='boss'||current==='stage2'||current==='boss'));
@@ -458,5 +448,42 @@
     if(prev&&prev._path===next) return;
     play(current,{restart:true});
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
+  // The elevator ride fades the stage score toward Gore or Ink & Vinyl.
+  // Full replacement is pull ±1, which is 33 floors off equilibrium.
+  let liftBed=null, liftKind='';
+  function liftMix(){
+    const L=window.MV_LIFT, pull=L?L.pull||0:0;
+    const v=vol();
+    const stage=current&&els[current];
+    const t=Math.max(0,Math.min(1,Math.abs(pull)));
+    const base=stage?(stage._baseVol==null?1:stage._baseVol):1;
+    if(t<0.02||!stage){
+      if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
+      if(stage&&stage._liftDuck){ stage.volume=v*base; stage.muted=v<=0; stage._liftDuck=false; }
+      return;
+    }
+    stage._liftDuck=true;
+    stage.volume=v*base*(1-t);
+    stage.muted=v<=0;
+    const down=pull<0;
+    const path=down?GORE_TRACK:INK_1GO;
+    if(stage._path===path){
+      stage.volume=v*base;
+      stage.muted=v<=0;
+      if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
+      return;
+    }
+    if(!liftBed){ liftBed=new Audio(); liftBed.loop=true; liftBed.preload='auto'; }
+    if(liftKind!==(down?'gore':'ink')){
+      liftKind=down?'gore':'ink';
+      liftBed.src=encodeURI(path);
+      try{ liftBed.load(); }catch(e){}
+    }
+    if(liftBed.paused&&v>0){
+      const pr=liftBed.play(); if(pr&&pr.catch) pr.catch(()=>{});
+    }
+    liftBed.volume=v*t;
+    liftBed.muted=v<=0;
+  }
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, liftMix, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
 })();

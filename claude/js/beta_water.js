@@ -306,6 +306,22 @@
     for(const m of B.platforms){
       if(m.vert){
         const y0=m.y;
+        // A called or boarded cab is steered by beta_lift. The rest keep their loop.
+        if(m._lift==='hold'||m._lift==='go'){
+          if(m._lift==='hold'&&m.lockY!=null) m.y=m.lockY;
+          else if(m._lift==='go'&&m.destY!=null){
+            const dy=m.destY-m.y;
+            if(Math.abs(dy)<=m.spd+0.25) m.y=m.destY;
+            else{ m.dir=dy>0?1:-1; m.y+=m.dir*m.spd; }
+          }
+          m.dx=0; m.wrapped=false; m.dy=m.y-y0; m.hidden=false;
+          if(m.clipT==null&&typeof gridSolid==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID){
+            const t=MV_GRID.tile, c=Math.floor((m.x+m.w/2)/t); let r0=Math.floor((m.ya+m.yb)/2/t), r1=r0;
+            while(r0>0&&!gridSolid(c,r0-1)) r0--; while(r1<MV_GRID.rows-1&&!gridSolid(c,r1+1)) r1++;
+            m.clipT=r0*t; m.clipB=(r1+1)*t;
+          }
+          continue;
+        }
         if(m.locked&&m.lockY!=null) m.y=m.lockY;
         else if(!m.hold) m.y+=m.spd*m.dir;
         m.dx=0; m.wrapped=false;

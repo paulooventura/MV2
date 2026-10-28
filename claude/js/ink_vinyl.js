@@ -33,12 +33,14 @@
   window.MV_INK_API=INK;
   // live game: Options → CONSOLE → D · INK & VINYL (MV_CONSOLE.mode 'ink'); lab H forces it on
   const forced=!!window.MV_INK;
-  function liftInk(){ const L=window.MV_LIFT; return (L&&L.pull>0.08)?Math.min(1,L.pull):0; }
-  function active(){
-    const L=window.MV_LIFT;
-    if(L&&L.pull<-0.08) return false;
-    return forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink')||liftInk()>0;
+  function rideUp(){ const L=window.MV_LIFT; return L?Math.max(0,Math.min(1,L.pull||0)):0; }
+  function rideDown(){ const L=window.MV_LIFT; return L?Math.max(0,Math.min(1,-(L.pull||0))):0; }
+  // Full Ink & Vinyl is 33 floors up. A chosen ink filter fades as the ride drops.
+  function inkAmt(){
+    const base=(forced||(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'))?1:0;
+    return Math.max(0,Math.min(1,Math.max(base*(1-rideDown()), rideUp())));
   }
+  function active(){ return inkAmt()>0.02; }
   function enabled(){ return INK.on&&active(); }
   INK.active=active; INK.enabled=enabled;
 
@@ -222,9 +224,7 @@
       if(A&&A.bed&&A.bed.g.gain.value) A.bed.g.gain.value=0;
       return;
     }
-    const L=window.MV_LIFT, pull=L?L.pull:0;
-    const baseInk=forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
-    const amt=pull<=-0.08?0:(baseInk?1:Math.min(1,Math.max(0,pull)));
+    const amt=inkAmt();
     oc.style.opacity=amt.toFixed(3);
     if(oc.style.display==='none') oc.style.display='';
     if(amt>0.12){ try{ bed(); }catch(e){} }
@@ -269,9 +269,7 @@
   };
   const sub=s=>{
     if(typeof s!=='string') return s;
-    const L=window.MV_LIFT, pull=L?L.pull:0;
-    const base=forced||!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
-    if(pull<-0.08||!(base||pull>0.75)) return s;
+    if(inkAmt()<0.85) return s;
     const r=WORDS[s]; return r!==undefined?r:s;
   };
   for(const name of ['drawText','textW']){
