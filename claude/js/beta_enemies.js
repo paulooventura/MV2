@@ -820,6 +820,7 @@
     const floorY=(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.ready?MV_GRID.rows*T:(typeof WH!=='undefined'?WH:4000));
     for(const e of ENEMS){
       if(!isFinite(e.x)||!isFinite(e.y)) continue;
+      if(e._blown){ if(e._spawnFx>0) e._spawnFx--; continue; }
       if(!e._spawnAt) e._spawnAt={x:e.x, y:e.y, mn:e.mn, mx:e.mx, dir:e.dir, hp:e.mhp||e.hp};
       if(e._pitT>0){
         if(--e._pitT>0) continue;

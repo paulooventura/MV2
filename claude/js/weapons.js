@@ -940,7 +940,21 @@ function updateEnemyShots(){
     // XLR/MAG deflect
     const _sc=cpt();
     const _sdx=s.x-_sc.x, _sdy=s.y-_sc.y, _sdist=Math.hypot(_sdx,_sdy)||1;
-    if(p.xlrOn&&ITEM===2&&_sdist<260){
+    const _wind=s.type==='laser'&&window.MV_BETA&&MV_BETA.xlrWind&&MV_BETA.xlrWind();
+    if(_wind){
+      const dx=s.x-_wind.x, dy=s.y-_wind.y, dist=Math.hypot(dx,dy)||1;
+      if(dist<=_wind.reach){
+        const px=dx/dist, py=dy/dist;
+        if(px*_wind.ax+py*_wind.ay>0.08){
+          const near=1-dist/_wind.reach;
+          const f=(0.1+1.05*_wind.pow)*(0.22+0.78*near);
+          s.vx+=px*f*1.15+_wind.ax*f*0.85;
+          s.vy+=py*f*1.15+_wind.ay*f*0.85;
+          s.deflected=true;
+          const _spd=Math.hypot(s.vx,s.vy); if(_spd>9){s.vx=s.vx/_spd*9;s.vy=s.vy/_spd*9;}
+        }
+      }
+    }else if(p.xlrOn&&ITEM===2&&s.type!=='laser'&&_sdist<260){
       const _f=Math.min(1,(p.xlrHeld||0)/120)*0.8+0.3;
       const _aimA=Math.atan2(p.aimDY,p.aimDX);
       s.vx+=(_sdx/_sdist)*_f*1.2+Math.cos(_aimA)*_f*0.8;

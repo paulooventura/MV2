@@ -66,6 +66,58 @@
   }
 
   // ── E: the eye ────────────────────────────────────────────────
+  // The XLR blow steers a laser the way it steers a shot: away from the jack,
+  // along the aim. A full bar catches the beam from far out. A low bar only
+  // bends a beam that passes close to the tip, and only a little.
+  function xlrWind(){
+    if(!p||!p.xlrOn||(typeof ITEM!=='undefined'&&ITEM!==2)||typeof connectorTipWorld!=='function') return null;
+    const tip=connectorTipWorld(2);
+    if(!tip||!isFinite(tip.x)) return null;
+    const pow=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+    const a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1));
+    return {x:tip.x,y:tip.y,ax:Math.cos(a),ay:Math.sin(a),pow,reach:28+pow*268};
+  }
+  B.xlrWind=xlrWind;
+  function bendEyeBeam(e,c){
+    const b=e.beam; if(!b||e._blown) return;
+    const w=xlrWind(); if(!w){ b.kink=null; return; }
+    const L=b.len||0; let kink=null;
+    const skip=Math.max(e.w,e.h)*0.62;
+    for(let t=skip;t<=L;t+=10){
+      const x=c.x+b.ux*t, y=c.y+b.uy*t;
+      const dx=x-w.x, dy=y-w.y, dist=Math.hypot(dx,dy)||1;
+      if(dist>w.reach) continue;
+      const px=dx/dist, py=dy/dist;
+      if(px*w.ax+py*w.ay<0.08) continue;
+      kink={t,x,y,dist,px,py}; break;
+    }
+    if(!kink){ b.kink=null; return; }
+    const near=1-kink.dist/w.reach;
+    const turn=(0.12+0.88*w.pow)*(0.28+0.72*near);
+    let qx=kink.px*1.15+w.ax*0.85, qy=kink.py*1.15+w.ay*0.85;
+    const ql=Math.hypot(qx,qy)||1; qx/=ql; qy/=ql;
+    let nx=b.ux*(1-turn)+qx*turn, ny=b.uy*(1-turn)+qy*turn;
+    const nl=Math.hypot(nx,ny)||1; nx/=nl; ny/=nl;
+    const rest=rayEnd(kink.x,kink.y,nx,ny,760);
+    b.kink={x:kink.x,y:kink.y,ux:nx,uy:ny,len:rest};
+    const back=nx*(c.x-kink.x)+ny*(c.y-kink.y);
+    if(back<48) return;
+    const n=Math.max(1,Math.ceil(rest/12));
+    for(let i=1;i<=n;i++){
+      const px=kink.x+nx*rest*i/n, py=kink.y+ny*rest*i/n;
+      if(px>e.x+6&&px<e.x+e.w-6&&py>e.y+6&&py<e.y+e.h-6){ blowEye(e,w); return; }
+    }
+  }
+  function blowEye(e,w){
+    if(e._blown) return;
+    e._blown=true; e.beam=null; e.st='fall'; e._downed=true; e._permOff=true; e._stayDown=true; e._downs=3;
+    const kick=12+8*w.pow;
+    e.vx=w.ax*kick; e.vy=w.ay*kick-4.5;
+    const c={x:e.x+e.w/2,y:e.y+e.h/2};
+    burst(c.x,c.y,28,['#fff','#ffd0a0','#ff4020','#ff2020'],7);
+    B.shake=Math.max(B.shake||0,8);
+    S('enemy_shut',0.45); S('laser',0.4);
+  }
   function eyeTick(e){
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
     const sees=d<480&&clearLine(c.x,c.y,P.x,P.y);
@@ -79,9 +131,15 @@
       if(e.stT>=32){ e.st='fire'; e.stT=0; e.beam={ux:e.look.x,uy:e.look.y}; S('laser',0.7); }
     }else if(e.st==='fire'){
       e.stT++; const b=e.beam, L=rayEnd(c.x,c.y,b.ux,b.uy,760); b.len=L;
-      if(segDist(P.x,P.y,c.x,c.y,c.x+b.ux*L,c.y+b.uy*L)<26){
+      bendEyeBeam(e,c);
+      if(e._blown) return;
+      const hit=b.kink
+        ? (segDist(P.x,P.y,c.x,c.y,b.kink.x,b.kink.y)<26||segDist(P.x,P.y,b.kink.x,b.kink.y,b.kink.x+b.kink.ux*b.kink.len,b.kink.y+b.kink.uy*b.kink.len)<26)
+        : segDist(P.x,P.y,c.x,c.y,c.x+b.ux*L,c.y+b.uy*L)<26;
+      if(hit){
         const barely=Math.max(1,(p.maxHp||100)-4);
-        hurtMind(b.ux*6,-4,barely);
+        const kx=b.kink?b.kink.ux:b.ux, ky=b.kink?b.kink.uy:b.uy;
+        hurtMind(kx*6,-4,barely);
       }
       if(e.stT>=16){
         e.st='turned'; e.stT=0; e.beam=null;
@@ -94,7 +152,7 @@
       if(e.stT>150){ e.st='hover'; e.cd=40; }
     }else if(e.st==='fall'||e._downed){
       e.vy=Math.min((e.vy||0)+0.45,11); e.vx*=0.86;
-      if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else { e.vy=0; e.y=Math.round(e.y); e.st='down'; e._downed=true; }
+      if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else { e.vy=0; e.y=Math.round(e.y); e.st='down'; e._downed=true; if(e._blown){ e.alive=false; e.hp=0; e._permOff=true; e._stayDown=true; e._downs=3; } }
       if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
       return;
     }
@@ -109,10 +167,13 @@
   function drawEye(e){
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.55), off=!e.alive;
     ctx.save();
-    if(e.beam&&e.alive){                                           // the beam
-      const L=e.beam.len||600, ex=cx+e.beam.ux*sw(L), ey=cy+e.beam.uy*sw(L), k=1-e.stT/14;
+    if(e.beam&&e.alive){                                           // the beam, kinked where the XLR catches it
+      const L=e.beam.len||600, k=1-e.stT/14, kn=e.beam.kink;
+      const x1=kn?sx(kn.x):cx+e.beam.ux*sw(L), y1=kn?sy(kn.y):cy+e.beam.uy*sw(L);
+      const x2=kn?sx(kn.x+kn.ux*kn.len):x1, y2=kn?sy(kn.y+kn.uy*kn.len):y1;
       ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
-      ctx.strokeStyle='rgba(255,60,60,'+(0.5*k)+')'; ctx.lineWidth=sw(14); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.strokeStyle='rgba(255,60,60,'+(0.5*k)+')'; ctx.lineWidth=sw(14);
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke();
       ctx.strokeStyle='rgba(255,220,220,'+k+')'; ctx.lineWidth=sw(4); ctx.stroke();
       ctx.globalCompositeOperation='source-over';
     }else if(e.st==='aim'&&e.alive){                               // the sight line
