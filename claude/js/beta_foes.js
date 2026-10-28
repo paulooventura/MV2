@@ -53,8 +53,8 @@
     return e;
   }
   B.mkAiEnemy=function(ai,cx,feet,opts){
-    if(ai==='eye'){ const e=base('eye',cx,feet,opts,78,114,30); e.st='hover'; e.stT=0; e.cd=50; e.look={x:-1,y:0}; e._downed=false; return e; }
-    if(ai==='cube'){ const e=base('cube',cx,feet,opts,108,108,90); e._iso=true; e.st='sleep'; e.cd=0; e.spin=0; e.zaps=[]; e.elecT=0; return e; }
+    if(ai==='eye'){ const e=base('eye',cx,feet,opts,110,114,30); e.st='hover'; e.stT=0; e.cd=50; e.look={x:-1,y:0}; e._downed=false; return e; }
+    if(ai==='cube'){ const e=base('cube',cx,feet,opts,122,122,90); e._iso=true; e.st='sleep'; e.cd=0; e.spin=0; e.zaps=[]; e.elecT=0; return e; }
     return _mk.apply(this,arguments);
   };
   function mkBoss(cx,cy){
