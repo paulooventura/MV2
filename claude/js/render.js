@@ -1018,11 +1018,14 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     const gy = p.fistSY;
     if(!p._hitDone){
       const _wx=p.fistWX,_wy=p.fistWY,_wr=12;
+      if(window.MV_LIFT&&typeof MV_LIFT.fist==='function'&&MV_LIFT.fist(_wx,_wy,_wr)){
+        p._hitDone=true;
+      }
       const _charged=(p.pCharge||0)>HP.loadF;
       let _hit=false, _hitKind='';
 
       // Down, on the ground: the fist lands on the omniblock under the wheel, or on the floor.
-      if(_downPunch){
+      if(_downPunch&&!p._hitDone){
         const _cx=p.x+SW/2, _feet=p.y+FEET_OFF;
         let _stood=null;
         for(const bw of BWALLS){
@@ -1070,11 +1073,11 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       }
 
       // Item boxes first (beta_crates.js): wood breaks, the loose item gets knocked around
-      if(!_hit&&typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
+      if(!p._hitDone&&!_hit&&typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
         p._hitDone=true;_hit=true;_hitKind='crate';p._pRecoil=8;
       }
       // Breakable walls
-      if(!_hit) for(const bw of BWALLS){
+      if(!p._hitDone&&!_hit) for(const bw of BWALLS){
         if(bw.hp<=0)continue;
         if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
           // Paulo (Oct 21): no punching through a wall into the block behind it
@@ -1106,8 +1109,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           break;
         }
       }
-      // Solid walls â€” blocked, recoil back
-      if(!_hit){
+      // Solid walls — blocked, recoil back
+      if(!p._hitDone&&!_hit){
         for(const pl of allP()){
           if(pl.tp!=='solid')continue;
           if(_wx+_wr>pl.x&&_wx-_wr<pl.x+pl.w&&_wy+_wr>pl.y&&_wy-_wr<pl.y+pl.h){
@@ -1118,8 +1121,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           }
         }
       }
-      // Crates â€” knocked back
-      if(!_hit){
+      // Crates — knocked back
+      if(!p._hitDone&&!_hit){
         for(const c of CRATES){
           if(_wx+_wr>c.x&&_wx-_wr<c.x+c.w&&_wy+_wr>c.y&&_wy-_wr<c.y+c.h){
             p._hitDone=true;_hit=true;_hitKind='crate';
@@ -1130,8 +1133,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           }
         }
       }
-      // Enemies â€” core body hitbox only
-      for(const e of ENEMS){
+      // Enemies — core body hitbox only
+      if(!p._hitDone)       if(!p._hitDone) for(const e of ENEMS){
         if(!_enemyPunchable(e)) continue;
         const eh=_enemyItemHB(e);
         if(eh.w<=0||eh.h<=0) continue;
@@ -2662,9 +2665,9 @@ function drawFX(){
   if(p.smoke){
     for(const sm of p.smoke){
       const t=sm.life/sm.maxLife;
-      ctx.globalAlpha=t*0.55;
-      ctx.fillStyle=`rgba(200,200,220,${t*0.6})`;
-      ctx.beginPath();ctx.arc(sx(sm.x),sy(sm.y),sm.r*(1.5-t*0.5),0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=t*(sm.hot?0.9:0.55);
+      ctx.fillStyle=sm.col||`rgba(200,200,220,${t*0.6})`;
+      ctx.beginPath();ctx.arc(sx(sm.x),sy(sm.y),sm.r*((sm.hot?2.1:1.5)-t*0.4),0,Math.PI*2);ctx.fill();
     }
     ctx.globalAlpha=1;
   }

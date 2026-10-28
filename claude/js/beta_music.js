@@ -73,17 +73,21 @@
     const feet=p.y+FEET_OFF, cx=p.x+SW/2;
     return Math.hypot(cx-spot.x, feet-spot.y)<spot.r;
   }
-  // 1.2: the alive triangle whose top is highest when the triangles first exist.
-  // y grows downward, so the highest top is the smallest e.y. Locked to that
-  // one enemy afterwards — it can roam, and a later triangle must not take over.
+  // 1.2: the triangle on the center house roof. Height wins, and among
+  // the high ones the one nearest the middle of the pack is the roof.
+  // Locked after the first sighting. Shutting that one down is calm from the gate.
   function triOnStage(){
-    const list=(typeof ENEMS!=='undefined'?ENEMS:[]);
+    const list=(typeof ENEMS!=='undefined'?ENEMS:[]).filter(e=>e&&e._ai==='tri');
     if(triSpeaker&&list.indexOf(triSpeaker)>=0) return triSpeaker;
-    let best=null;
-    for(let i=0;i<list.length;i++){
-      const e=list[i];
-      if(!e||e._ai!=='tri'||!e.alive) continue;
-      if(!best||e.y<best.y||(e.y===best.y&&e.x<best.x)) best=e;
+    if(!list.length) return null;
+    let minX=1e9, maxX=-1e9;
+    for(const e of list){ if(e.x<minX) minX=e.x; if(e.x>maxX) maxX=e.x; }
+    const mid=(minX+maxX)*0.5;
+    let best=null, score=1e9;
+    for(const e of list){
+      if(!e.alive) continue;
+      const s=e.y+Math.abs(e.x-mid)*0.2;
+      if(s<score){ score=s; best=e; }
     }
     if(best) triSpeaker=best;
     return best?triSpeaker:null;

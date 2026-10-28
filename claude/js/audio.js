@@ -84,6 +84,7 @@ const INK_1GO='assets/bgm/kiyoki-senritsu-1go.mp3';
 const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
 const GORE_TRACK='assets/bgm/chaos-theory.mp3';
 const SNES_TRACK='assets/bgm/snes-awdjoo.mp3';
+const SNES_TRACK_2='assets/bgm/snes-awdjoo-2.mp3';
 const GENESIS_TRACK='assets/bgm/genesis-awdjoo.mp3';
 function _filterMode(){
   try{
@@ -99,8 +100,9 @@ function _filterMode(){
   }catch(e){}
   return 'ink';
 }
-// Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. SNES and Genesis
-// each have their own Awdjoo theme. POSH keeps the OST.
+// Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. SNES has two themes:
+// the first on 1.1 and the title, the second (清き旋律 stori) on the
+// story screen and from 1.2 on. Genesis keeps its own theme. POSH keeps the OST.
 function _inkSound(){ return _filterMode()==='ink'; }
 function _goreSound(){ return _filterMode()==='gore'; }
 function _snesSound(){ return _filterMode()==='snes'; }
@@ -108,13 +110,13 @@ function _genesisSound(){ return _filterMode()==='md'; }
 function _filterScore(type){
   if(_goreSound()) return GORE_TRACK;
   if(_inkSound()) return type==='story'?INK_STORI:INK_1GO;
-  if(_snesSound()) return SNES_TRACK;
+  if(_snesSound()) return type==='story'?SNES_TRACK_2:SNES_TRACK;
   if(_genesisSound()) return GENESIS_TRACK;
   return null;
 }
 function _isFilterTrack(path){
   if(!path) return false;
-  return path===GORE_TRACK||path===INK_1GO||path===INK_STORI||path===SNES_TRACK||path===GENESIS_TRACK
+  return path===GORE_TRACK||path===INK_1GO||path===INK_STORI||path===SNES_TRACK||path===SNES_TRACK_2||path===GENESIS_TRACK
     ||/chaos-theory|kiyoki-senritsu|snes-awdjoo|genesis-awdjoo/.test(String(path));
 }
 window.MV_INK_SOUND=_inkSound;

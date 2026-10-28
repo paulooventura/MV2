@@ -1060,8 +1060,46 @@ function updateHook(){
     // back, up and down don't pay the cord out or wind it in.
     const rl0=h.rl;
     if(ITEM===1){
-      if(isUp()) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
-      if(isDn()) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+      const up=isUp(), dn=isDn();
+      if(up&&!h._upWas) h._upT=0;
+      if(dn&&!h._dnWas) h._dnT=0;
+      const TAP=8;
+      if(up){
+        h._upT=(h._upT||0)+1;
+        if(h._upT>TAP) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
+      }else if(h._upWas&&(h._upT||0)>0&&h._upT<=TAP){
+        h.rl=CMAX;
+      }
+      if(dn){
+        h._dnT=(h._dnT||0)+1;
+        if(h._dnT>TAP) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
+      }else if(h._dnWas&&(h._dnT||0)>0&&h._dnT<=TAP){
+        const end=ropePlayerEndWorld();
+        h.rl=Math.max(ROPE_RL_MIN,Math.hypot(h.ax-end.x,h.ay-end.y));
+      }
+      h._upWas=!!up; h._dnWas=!!dn;
+    }else{ h._upWas=false; h._dnWas=false; }
+    const dropped=rl0-h.rl;
+    const adx=(p.aimDX||0)-(h._ax0||0), ady=(p.aimDY||0)-(h._ay0||0);
+    const arm=Math.min(1,Math.hypot(adx,ady)*6);
+    h._ax0=p.aimDX||0; h._ay0=p.aimDY||0;
+    if(dropped>0.5){
+      const kick=Math.min(16,dropped*(0.12+arm*0.9));
+      const end=ropePlayerEndWorld();
+      const dx=end.x-h.ax, dy=end.y-h.ay, d=Math.hypot(dx,dy)||1;
+      let body=h.tgt||null;
+      if(!body&&h.plat&&h.plat.vx!=null) body=h.plat;
+      if(!body&&typeof BWALLS!=='undefined'){
+        for(const b of BWALLS){
+          if(!b||(b.hp!=null&&b.hp<=0)) continue;
+          if(h.ax>=b.x-10&&h.ax<=b.x+(b.w||32)+10&&h.ay>=b.y-10&&h.ay<=b.y+(b.h||32)+10){ body=b; break; }
+        }
+      }
+      if(body){
+        body.vx=(body.vx||0)+(dx/d)*kick;
+        body.vy=(body.vy||0)+(dy/d)*kick*0.65;
+        if(body._itemForceF!=null) body._itemForceF=Math.max(body._itemForceF||0,6+kick);
+      }
     }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);

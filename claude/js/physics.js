@@ -137,7 +137,7 @@ const CAM_LOOK_X=8;
 const CAM_LOOK_SMOOTH=0.16;
 let camX=0, camY=0;
 let _rcamX=0, _rcamY=0;
-let _camLookX=0, _camLookY=0, _upHold=0;
+let _camLookX=0, _camLookY=0, _extX=0, _extY=0, _lookHold=0, _lookKey='';
 let camZoom, camZoomTgt;
 
 function _initCamZoom(){
@@ -177,7 +177,7 @@ function _snapCameraToPlayer(pl){
   const t=_cameraFollowTarget(pl);
   camX=camClampX(t.x);
   camY=camClampY(t.y);
-  _camLookX=0; _camLookY=0; _upHold=0;
+  _camLookX=0; _camLookY=0; _extX=0; _extY=0; _lookHold=0; _lookKey='';
   _camSettle=1;
   _snapRenderCam();
 }
@@ -346,25 +346,41 @@ function _syncGameCamera(){
   if(!isFinite(p.y)) p.y=_spawnY;
   const lookTgt=(_playerCount===2&&p2)?0:(p.vx||0)*CAM_LOOK_X*(1+1.1*_sportZoomS);
   _camLookX+= (lookTgt-_camLookX)*CAM_LOOK_SMOOTH;
-  // Hold up past a short aim, and the frame eases upward so the space
-  // above MIND comes into view. A tap does not move it.
+  // Hold any of the eight directions for almost two seconds and that
+  // side of the view eases out. A tap does not move it. The outline
+  // contain below still keeps the hat, brim, and wheel in frame.
   const ed=typeof _mapEdActive!=='undefined'&&_mapEdActive;
-  const upHeld=!ed&&typeof isUp==='function'&&isUp();
-  if(upHeld) _upHold++; else _upHold=0;
-  let upTgt=0;
-  if(_upHold>28){
-    const u=Math.min(1,(_upHold-28)/80);
-    const s=u*u*(3-2*u);
-    upTgt=-camViewH()*0.32*s;
+  let lx=0, ly=0, key='';
+  if(!ed&&_playerCount!==2){
+    let x=0, y=0;
+    if(typeof isRt==='function'&&isRt()) x++;
+    if(typeof isLf==='function'&&isLf()) x--;
+    if(typeof isDn==='function'&&isDn()) y++;
+    if(typeof isUp==='function'&&isUp()) y--;
+    if(x||y){
+      const n=Math.hypot(x,y)||1;
+      lx=x/n; ly=y/n;
+      key=(x>0?1:x<0?-1:0)+':'+(y>0?1:y<0?-1:0);
+    }
   }
-  _camLookY+=(upTgt-_camLookY)*(_upHold>28?0.02:0.04);
+  if(key&&key===_lookKey) _lookHold++; else { _lookHold=key?1:0; _lookKey=key; }
+  let exT=0, eyT=0;
+  if(_lookHold>108&&key){
+    const u=Math.min(1,(_lookHold-108)/80);
+    const s=u*u*(3-2*u);
+    exT=lx*camViewW()*0.28*s;
+    eyT=ly*camViewH()*0.32*s;
+  }
+  const lookEase=_lookHold>108?0.02:0.04;
+  _extX+=(exT-_extX)*lookEase;
+  _extY+=(eyT-_extY)*lookEase;
   const t=(_playerCount===2&&p2&&isFinite(p2.x)&&isFinite(p2.y))
     ?_cameraFollowTargetCoop()
     :_cameraFollowTarget(p);
   const L=window.MV_LIFT;
   const lookWant=(L&&L.inside)?(L.dir||0)*-58*(0.35+0.65*Math.min(1,L.zoom||0)):0;
   _liftLook+=(lookWant-_liftLook)*((L&&L.inside)?0.045:0.07);
-  let tx=camClampX(t.x+_camLookX+_threatLookX), ty=camClampY(t.y+_threatLookY+_liftLook+_camLookY);
+  let tx=camClampX(t.x+_camLookX+_threatLookX+_extX), ty=camClampY(t.y+_threatLookY+_liftLook+_extY);
   if(!ed&&_playerCount!==2){ const f=_containOutline(tx,ty,p); tx=f.x; ty=f.y; }
   if(_camSettle>0){
     camX=tx; camY=ty;
@@ -3107,7 +3123,7 @@ function applyPlayerHit(knockX,knockY,dmg=PLAYER_HIT_DMG){
   _playerHitKnock(knockX,knockY,dmg);
   p.flashF=Math.max(p.flashF,12);
   if(p.hp>0){
-    try{sfx('player_hit',_hitSfxPitch(p.hp,p.maxHp));}catch(e){}
+    try{sfx('player_hit',_hitSfxPitch(p.hp,p.maxHp)); _hitThud(_hitSfxPitch(p.hp,p.maxHp));}catch(e){}
   }
   if(p.hp<=0){
     if(_battleTestMode){_battleTestDeaths++;_syncBattleHud();}
@@ -3336,6 +3352,25 @@ function _knowlTreeBoostMul(pl){
 }
 function _nearKnowlTree(pl){ return _knowlTreeBoostMul(pl)>1; }
 
+// The vocal sample is the voice. This is the hit itself, and it always plays
+// beside that sample (a sample used to swallow the synth).
+function _hitThud(pitch){
+  try{
+    if(typeof OPT!=='undefined'&&OPT.sfxVol===0) return;
+    const a=typeof ga==='function'?ga():null; if(!a) return;
+    const t=a.currentTime, k=Math.max(0.7,Math.min(1.4,pitch||1));
+    const vol=Math.max(0,Math.min(1,(OPT&&OPT.sfxVol!=null)?OPT.sfxVol:1));
+    const o=a.createOscillator(), g=a.createGain();
+    o.type='square';
+    o.frequency.setValueAtTime(160*k,t);
+    o.frequency.exponentialRampToValueAtTime(48*k,t+0.07);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.16*vol,t+0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+0.1);
+  }catch(e){}
+}
 // ── Enemy damage ──────────────────────────────────────────────
 function _damageEnemy(e,dmg,fromX,fromY,kbScale){
   if(!e) return false;
@@ -3377,6 +3412,7 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     return true;
   }
   sfx('hit_enemy',powerPitch);
+  _hitThud(powerPitch);
   return false;
 }
 

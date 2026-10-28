@@ -24,6 +24,7 @@
   const GORE_TRACK='assets/bgm/chaos-theory.mp3';
   const GORE_TRACK_2='assets/bgm/chaos-theory-2.mp3';
   const SNES_TRACK='assets/bgm/snes-awdjoo.mp3';
+  const SNES_TRACK_2='assets/bgm/snes-awdjoo-2.mp3';
   const GENESIS_TRACK='assets/bgm/genesis-awdjoo.mp3';
   const els={};
   let current=null, wantPlay=null, ensureN=0, held=null;
@@ -40,7 +41,7 @@
         if(name==='item'||name==='results'||name==='calm') return INK_STORI;
         return INK_1GO;
       }
-      if(window.MV_SNES_SOUND&&MV_SNES_SOUND()) return SNES_TRACK;
+      if(window.MV_SNES_SOUND&&MV_SNES_SOUND()) return name==='stage'?SNES_TRACK:SNES_TRACK_2;
       if(window.MV_GENESIS_SOUND&&MV_GENESIS_SOUND()) return GENESIS_TRACK;
     }catch(e){}
     return base;
@@ -60,8 +61,8 @@
   }
   // Dialog (Laitu and anyone else who sets B.talking): stori, then the stage track resumes where it left off.
   function talk(on){
-    const ink=!!(window.MV_INK_SOUND&&MV_INK_SOUND());
-    if(!ink){ held=null; return; }   // GORE stays on Chaos Theory; other filters keep the stage track
+    const swap=!!((window.MV_INK_SOUND&&MV_INK_SOUND())||(window.MV_SNES_SOUND&&MV_SNES_SOUND()));
+    if(!swap){ held=null; return; }   // GORE stays on Chaos Theory; Genesis keeps its stage track
     if(on){
       if(held||(window.MV_BETA&&MV_BETA.popup)) return;
       const from=current&&current!=='item'?current:((window.MV_BETA&&MV_BETA.music)||'stage');

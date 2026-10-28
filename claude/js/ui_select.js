@@ -156,6 +156,21 @@
     drawTextC(bt,bx+bw/2,by+7,sel?'#0a0410':'#9aa0a8',2);
     ctx.restore();
     if(sel&&fr%3===0) spark(x+Math.random()*w, y+h-20-Math.random()*h*0.6, H0.col);
+    if(sel){
+      const beam=(fr%80)/80, L=16;
+      ctx.save();
+      ctx.strokeStyle=H0.col; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(x,y+L); ctx.lineTo(x,y); ctx.lineTo(x+L,y);
+      ctx.moveTo(x+w-L,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+L);
+      ctx.moveTo(x,y+h-L); ctx.lineTo(x,y+h); ctx.lineTo(x+L,y+h);
+      ctx.moveTo(x+w-L,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h-L);
+      ctx.stroke();
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle='rgba('+(H0.glow||'180,255,210')+',0.45)';
+      ctx.fillRect(x+10, y+4+beam*(h-10), w-20, 3);
+      ctx.restore();
+    }
     return {x,y,w,h};
   }
   function phoneHeroRow(key,sel,box){

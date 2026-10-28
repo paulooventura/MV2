@@ -114,6 +114,39 @@
       pop((big?1:0.7)*(1-i/n*0.4), at);
     }
   }
+  function sportBurst(){
+    if(typeof p==='undefined'||!p) return;
+    if(!p.smoke) p.smoke=[];
+    const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+34;
+    for(let i=0;i<12;i++) p.smoke.push({x:hx+(Math.random()-0.5)*22,y:hy,vx:(Math.random()-0.5)*1.6,vy:-1.6-Math.random()*2.4,life:40,maxLife:52,r:9+Math.random()*8,col:Math.random()<0.4?'#f4f0e8':'#5a5a62',hot:1});
+    if(typeof PFXS!=='undefined') for(let i=0;i<12;i++) PFXS.push({x:hx+(Math.random()-0.5)*26,y:hy-10,vx:(Math.random()-0.5)*11,vy:-2-Math.random()*8,life:14,maxLife:14,r:2.8,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
+  }
+  function ignite(){
+    sportBurst();
+    if(!N) return;
+    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(38,t);
+    o.frequency.exponentialRampToValueAtTime(120,t+0.32);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.34,t+0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.48);
+    o.connect(g); g.connect(N.out);
+    o.start(t); o.stop(t+0.5);
+    pop(0.85,0.04);
+  }
+  function engineOff(){
+    if(!N) return;
+    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(96,t);
+    o.frequency.exponentialRampToValueAtTime(26,t+0.7);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.26,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.78);
+    o.connect(g); g.connect(N.out);
+    o.start(t); o.stop(t+0.82);
+  }
 
   function tick(){
     const a=ac(); if(!a||a.state!=='running') return;
@@ -127,7 +160,11 @@
     const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
     const spd=Math.max(0,Math.abs(p.vx||0)/top);
     const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
-    const sprint=typeof isSprintHeld==='function'&&isSprintHeld()&&dir;
+    const sport=typeof isSprintHeld==='function'&&isSprintHeld();
+    const sprint=sport&&dir;
+    if(sport&&!S.sportOn) ignite();
+    if(!sport&&S.sportOn) engineOff();
+    S.sportOn=!!sport;
     if(dir){ if(!S.on) pop(0.45,0.02); S.on=true; S.idle=0; } else if(grounded&&spd<0.06){ if(++S.idle>=180) S.on=false; } else S.idle=0;
     const burn=(p._burnout||0)>0;
     let thr=dir?(sprint?1:0.7):0; if(burn) thr=1;
@@ -207,7 +244,7 @@
     if(sprinting){
       // Turbo: a tiger, not a cat. Chest saw, a slow roar pulse, rasp in the 300s.
       // The whistle sits an octave down so it rushes instead of meowing.
-      const tw=520+S.boost*1400;
+      const tw=160+S.boost*640;
       set(N.pu1.frequency,28+16*express,0.08); set(N.pu2.frequency,42+20*express,0.08);
       set(N.ru.frequency,3.2+2.2*express,0.12); set(N.ruG.gain,0.85,0.1); set(N.br.frequency,0.9,0.2);
       set(N.puLP.frequency,180+160*express,0.1);
@@ -218,11 +255,6 @@
       set(N.tnbp.frequency,220+S.boost*480,0.08); set(N.tng.gain,(0.07+0.09*express)*Math.max(0.35,S.boost),0.08);
       if(N.pres){ set(N.pres.frequency,380+420*express,0.1); set(N.pres.gain,2+5*express,0.1); }
       if(N.tight) set(N.tight.gain,8+6*express,0.12);
-      if(typeof p!=='undefined'&&p&&(fr%2===0)){
-        const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+(typeof FEET_OFF!=='undefined'?FEET_OFF:90)-6;
-        if(p.smoke&&p.smoke.length<40) p.smoke.push({x:hx+(Math.random()-0.5)*14,y:hy,vx:-(p.vx||0)*0.04+(Math.random()-0.5),vy:-0.6-Math.random()*1.6,life:18+(Math.random()*12|0),maxLife:32,r:4+Math.random()*5,col:Math.random()<0.3?'#d8d4cc':'#5c5c64'});
-        if(typeof PFXS!=='undefined'&&Math.random()<0.65) PFXS.push({x:hx+(Math.random()-0.5)*16,y:hy,vx:(Math.random()-0.5)*7,vy:-1-Math.random()*5,life:9,maxLife:9,r:1.6,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
-      }
     }else{
       const tw=1400+S.boost*5600;
       set(N.pu1.frequency,Math.min(90,fire/2),0.05); set(N.pu2.frequency,Math.min(100,fire),0.05);
@@ -234,6 +266,12 @@
       set(N.tg.gain,0,0.08); set(N.tnbp.frequency,1800,0.1); set(N.tng.gain,0,0.08);
       if(N.pres){ set(N.pres.frequency,2600,0.2); set(N.pres.gain,0,0.15); }
       if(N.tight) set(N.tight.gain,-3,0.2);
+    }
+    if(sport&&typeof p!=='undefined'&&p&&(fr%2===0)){
+      if(!p.smoke) p.smoke=[];
+      const hx=p.x+(typeof SW!=='undefined'?SW:64)/2, hy=p.y+34;
+      if(p.smoke.length<48) p.smoke.push({x:hx+(Math.random()-0.5)*18,y:hy,vx:-(p.vx||0)*0.05+(Math.random()-0.5)*0.9,vy:-1.2-Math.random()*2,life:30+(Math.random()*14|0),maxLife:46,r:8+Math.random()*7,col:Math.random()<0.35?'#f2efe8':'#6a6a72',hot:1});
+      if(typeof PFXS!=='undefined') PFXS.push({x:hx+(Math.random()-0.5)*20,y:hy-8,vx:(Math.random()-0.5)*9,vy:-2-Math.random()*6,life:12,maxLife:12,r:2.4,col:Math.random()<0.5?'#ffe7a0':'#ff6a18'});
     }
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);
