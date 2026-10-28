@@ -66,47 +66,57 @@
   }
 
   // ── E: the eye ────────────────────────────────────────────────
-  // The XLR blow steers a laser the way it steers a shot: away from the jack,
-  // along the aim. A full bar catches the beam from far out. A low bar only
-  // bends a beam that passes close to the tip, and only a little.
+  // The XLR blow steers the laser the way it steers a shot: away from the jack,
+  // along the aim. A full bar starts that turn far from the tip. A low bar only
+  // catches a beam that passes close to the tip, and turns it less.
+  // The turn uses the closest the beam comes to the tip. (The first point inside
+  // the reach is always the rim, so using that made every bend look straight.)
   function xlrWind(){
     if(!p||!p.xlrOn||(typeof ITEM!=='undefined'&&ITEM!==2)||typeof connectorTipWorld!=='function') return null;
     const tip=connectorTipWorld(2);
     if(!tip||!isFinite(tip.x)) return null;
     const pow=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
-    const a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1));
-    return {x:tip.x,y:tip.y,ax:Math.cos(a),ay:Math.sin(a),pow,reach:28+pow*268};
+    const ax=p.aimDX||(p.fc?1:-1), ay=p.aimDY||0, al=Math.hypot(ax,ay)||1;
+    return {x:tip.x,y:tip.y,ax:ax/al,ay:ay/al,pow,reach:40+pow*320};
   }
   B.xlrWind=xlrWind;
-  function bendEyeBeam(e,c){
-    const b=e.beam; if(!b||e._blown) return;
-    const w=xlrWind(); if(!w){ b.kink=null; return; }
-    const L=b.len||0; let kink=null;
-    const skip=Math.max(e.w,e.h)*0.62;
-    for(let t=skip;t<=L;t+=10){
-      const x=c.x+b.ux*t, y=c.y+b.uy*t;
-      const dx=x-w.x, dy=y-w.y, dist=Math.hypot(dx,dy)||1;
+  function catchBeam(ox,oy,ux,uy,len,skip){
+    const w=xlrWind(); if(!w) return null;
+    let entry=null, best=null, bestD=1e9;
+    for(let t=skip;t<=len;t+=8){
+      const x=ox+ux*t, y=oy+uy*t;
+      const dx=x-w.x, dy=y-w.y, dist=Math.hypot(dx,dy);
       if(dist>w.reach) continue;
-      const px=dx/dist, py=dy/dist;
-      if(px*w.ax+py*w.ay<0.08) continue;
-      kink={t,x,y,dist,px,py}; break;
+      const d=dist||1, px=dx/d, py=dy/d;
+      if(px*w.ax+py*w.ay<0.02) continue;
+      if(!entry) entry={x,y};
+      if(dist<bestD){ bestD=dist; best={px,py,dist}; }
     }
-    if(!kink){ b.kink=null; return; }
-    const near=1-kink.dist/w.reach;
-    const turn=(0.12+0.88*w.pow)*(0.28+0.72*near);
-    let qx=kink.px*1.15+w.ax*0.85, qy=kink.py*1.15+w.ay*0.85;
+    if(!entry||!best) return null;
+    const near=1-Math.min(1,best.dist/w.reach);
+    const turn=Math.min(1,(0.22+0.78*w.pow)*(0.45+0.55*near));
+    let qx,qy;
+    if(best.dist<10){ qx=w.ax; qy=w.ay; }
+    else { qx=best.px*1.15+w.ax*0.85; qy=best.py*1.15+w.ay*0.85; }
     const ql=Math.hypot(qx,qy)||1; qx/=ql; qy/=ql;
-    let nx=b.ux*(1-turn)+qx*turn, ny=b.uy*(1-turn)+qy*turn;
+    let nx=ux*(1-turn)+qx*turn, ny=uy*(1-turn)+qy*turn;
     const nl=Math.hypot(nx,ny)||1; nx/=nl; ny/=nl;
-    const rest=rayEnd(kink.x,kink.y,nx,ny,760);
-    b.kink={x:kink.x,y:kink.y,ux:nx,uy:ny,len:rest};
-    const back=nx*(c.x-kink.x)+ny*(c.y-kink.y);
-    if(back<48) return;
-    const n=Math.max(1,Math.ceil(rest/12));
+    const rest=rayEnd(entry.x,entry.y,nx,ny,760);
+    return {x:entry.x,y:entry.y,ux:nx,uy:ny,len:rest,w};
+  }
+  function bendEyeBeam(e,c,ux,uy,len,blow){
+    if(e._blown){ e.bend=null; return null; }
+    const k=catchBeam(c.x,c.y,ux,uy,len,Math.max(e.w,e.h)*0.62);
+    e.bend=k;
+    if(!k||!blow) return k;
+    const back=k.ux*(c.x-k.x)+k.uy*(c.y-k.y);
+    if(back<36) return k;
+    const n=Math.max(1,Math.ceil(k.len/12));
     for(let i=1;i<=n;i++){
-      const px=kink.x+nx*rest*i/n, py=kink.y+ny*rest*i/n;
-      if(px>e.x+6&&px<e.x+e.w-6&&py>e.y+6&&py<e.y+e.h-6){ blowEye(e,w); return; }
+      const px=k.x+k.ux*k.len*i/n, py=k.y+k.uy*k.len*i/n;
+      if(px>e.x+6&&px<e.x+e.w-6&&py>e.y+6&&py<e.y+e.h-6){ blowEye(e,k.w); return k; }
     }
+    return k;
   }
   function blowEye(e,w){
     if(e._blown) return;
@@ -128,10 +138,12 @@
       if(sees&&e.cd<=0){ e.st='aim'; e.stT=0; S('chargeReady',1.6); }
     }else if(e.st==='aim'){
       e.stT++; e.look={x:dx/d,y:dy/d};
+      const L=rayEnd(c.x,c.y,e.look.x,e.look.y,760);
+      bendEyeBeam(e,c,e.look.x,e.look.y,L,false);
       if(e.stT>=32){ e.st='fire'; e.stT=0; e.beam={ux:e.look.x,uy:e.look.y}; S('laser',0.7); }
     }else if(e.st==='fire'){
       e.stT++; const b=e.beam, L=rayEnd(c.x,c.y,b.ux,b.uy,760); b.len=L;
-      bendEyeBeam(e,c);
+      b.kink=bendEyeBeam(e,c,b.ux,b.uy,L,true);
       if(e._blown) return;
       const hit=b.kink
         ? (segDist(P.x,P.y,c.x,c.y,b.kink.x,b.kink.y)<26||segDist(P.x,P.y,b.kink.x,b.kink.y,b.kink.x+b.kink.ux*b.kink.len,b.kink.y+b.kink.uy*b.kink.len)<26)
@@ -141,8 +153,9 @@
         const kx=b.kink?b.kink.ux:b.ux, ky=b.kink?b.kink.uy:b.uy;
         hurtMind(kx*6,-4,barely);
       }
-      if(e.stT>=16){
-        e.st='turned'; e.stT=0; e.beam=null;
+      // a caught beam stays up long enough to steer; an uncaught one is still a flash
+      if(e.stT>=(b.kink?48:16)){
+        e.st='turned'; e.stT=0; e.beam=null; e.bend=null;
         const fx=-(b.ux>0.2?1:b.ux<-0.2?-1:(dx>0?1:-1));
         e.look={x:fx,y:0};
       }
@@ -168,7 +181,7 @@
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.55), off=!e.alive;
     ctx.save();
     if(e.beam&&e.alive){                                           // the beam, kinked where the XLR catches it
-      const L=e.beam.len||600, k=1-e.stT/14, kn=e.beam.kink;
+      const L=e.beam.len||600, kn=e.beam.kink, life=kn?48:16, k=Math.max(0.2,Math.min(1,(life-e.stT)/8));
       const x1=kn?sx(kn.x):cx+e.beam.ux*sw(L), y1=kn?sy(kn.y):cy+e.beam.uy*sw(L);
       const x2=kn?sx(kn.x+kn.ux*kn.len):x1, y2=kn?sy(kn.y+kn.uy*kn.len):y1;
       ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
@@ -176,10 +189,12 @@
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke();
       ctx.strokeStyle='rgba(255,220,220,'+k+')'; ctx.lineWidth=sw(4); ctx.stroke();
       ctx.globalCompositeOperation='source-over';
-    }else if(e.st==='aim'&&e.alive){                               // the sight line
-      const L=rayEnd(e.x+e.w/2,e.y+e.h/2,e.look.x,e.look.y,760);
-      ctx.strokeStyle='rgba(255,80,80,'+(0.2+0.5*e.stT/32)+')'; ctx.lineWidth=1; ctx.setLineDash([6,6]);
-      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+e.look.x*sw(L),cy+e.look.y*sw(L)); ctx.stroke(); ctx.setLineDash([]);
+    }else if(e.st==='aim'&&e.alive){                               // the sight line, bent by the XLR
+      const L=rayEnd(e.x+e.w/2,e.y+e.h/2,e.look.x,e.look.y,760), kn=e.bend;
+      const x1=kn?sx(kn.x):cx+e.look.x*sw(L), y1=kn?sy(kn.y):cy+e.look.y*sw(L);
+      const x2=kn?sx(kn.x+kn.ux*kn.len):x1, y2=kn?sy(kn.y+kn.uy*kn.len):y1;
+      ctx.strokeStyle='rgba(255,'+(kn?160:80)+',80,'+(kn?0.95:(0.2+0.5*e.stT/32))+')'; ctx.lineWidth=kn?sw(4):1; ctx.setLineDash(kn?[]:[6,6]);
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.translate(cx,cy+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
     if(off||e.st==='down') ctx.rotate(0.7);
