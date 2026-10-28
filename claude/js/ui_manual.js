@@ -229,7 +229,7 @@
     (x,y,w,h)=>{
       ribbon('THE FOUR JACKS',x+30,y+30,320,BLUE);
       const sheet=img('boxes','assets/items/mv2-item-boxes-standard-enhanced.png');
-      const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Down reels in, up gives slack. Hold to creep. Tap down pulls taut, tap up pays the cord all the way out.'],['XLR','A blast that throws blocks and enemies — and you, the other way.'],['MEG','The magnet. Locks to the floor when you aim down. Grab, carry, let go to throw.']];
+      const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Tap up pays out all the slack. Tap down pulls it taut to the jack tip. A lighter catch comes to you. Hold up after that and it lets go with a snap.'],['XLR','A blast that throws blocks and enemies — and you, the other way.'],['MEG','The magnet. Locks to the floor when you aim down. Grab, carry, let go to throw.']];
       T.forEach(([n,t],i)=>{ const by=y+92+i*142; framed(sheet,x+24,by,112,104,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+152,by+4,30,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+152,by+42,w-188,22,28); });
       starburst(x+w-58,y+48,34,'PWR');
     },

@@ -923,6 +923,7 @@
   }
   B.weightOf=weightOf;
   function bodyMass(pl){ return pl&&pl.hero==='venture'?7.6:WEIGHT.mindTotal; }
+  B.bodyMass=bodyMass;
 
   // ── Thrown cubes: real flight until they come to rest, then they snap into a cell
   function solidPx(x,y){
@@ -2175,7 +2176,7 @@
   // Controls named the SNES way (keyboard key in brackets): A jump · B item select · X run/use item · Y punch
   const ITEM_INFO=[
     {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
-    {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE THE HOOK. IT BITES WALLS,','BLOCKS AND ENEMIES. DOWN REELS IN, UP GIVES SLACK.','HOLD TO CREEP. TAP DOWN PULLS TAUT, TAP UP','PAYS THE CORD ALL THE WAY OUT. A JUMPS OFF.']},
+    {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE. TAP UP PAYS OUT ALL THE SLACK.','TAP DOWN MAKES IT TAUT, JACK TIP TO THE LATCH.','A LIGHTER CATCH IS PULLED TO THE JACK. HOLD THAT','SLACK 1.5S, OR TAP UP AGAIN, AND IT SNAPS FREE.']},
     {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
     {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY ONE THING: A BLOCK,','AN ENEMY OR A KNOWL. AIM DOWN AND IT LOCKS TO','THE FLOOR. THE GRIP WEAKENS AS POWER DRAINS.','SWING THE ARM AND LET GO TO THROW.']}
   ];

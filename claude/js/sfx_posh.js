@@ -244,6 +244,7 @@
       tone(a,{f:26,f1:62,glide:1.15,dt:0,d:1.15,at:1.08,v:0.18});
     },
     ropeSnap(a){ tone(a,{f:640,f1:110,d:0.32,v:0.13,type:'triangle'}); hiss(a,{type:'highpass',f:2500,d:0.06,v:0.12}); },
+    hook_off(a){ hiss(a,{type:'highpass',f:2400,d:0.04,v:0.22}); tone(a,{f:780,f1:120,d:0.06,v:0.16,type:'square'}); },
     ropeBreak(a){ R.ropeSnap(a); tone(a,{f:180,f1:70,d:0.2,v:0.1}); },
     ropeSlack(a){ hiss(a,{f:600,f1:300,q:1,d:0.18,v:0.05}); },
     crank(a){ for(let k=0;k<4;k++) hiss(a,{f:2600,q:5,dt:k*0.035,d:0.025,v:0.08}); },

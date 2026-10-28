@@ -742,6 +742,7 @@ function sfx(t){
     case'run_click':o(148,92,.04,.12,0,'square'); o(74,70,.05,.08,0,'triangle'); break;
     case'ping':o(1100,1100,.06,.09);break;
     case'ropeSnap':o(300,820,.05,.13);break;
+    case'hook_off':nz(.03,.32,false,0.85);o(860,160,.045,.16,0,'square');o(380,90,.05,.09,0,'triangle');break;
     case'ropeBreak':o(150,60,.1,.16);nz(.08,.14);break;
     case'crank':o(180,140,.03,.06);break;
     case'ropeSlack':o(180,90,.1,.07);break;

@@ -870,12 +870,66 @@ function ropePlayerEndWorld(){
 }
 // Voluntary let-go: keep the swing's speed and the current aim (a new throw
 // should go where MIND is pointing, not back at the old latch).
-function _detachPlayerRope(h){
+function _detachPlayerRope(h, how){
   if(!h||h.st==='idle') return false;
+  const ax=h.ax, ay=h.ay;
   h.st='idle'; h.ox=NaN; h.oy=NaN; h.tgt=null; h.plat=null;
   h._tight=false; h._slack=false; h._path=null; h._tension=0;
   h.pivots=null; h.vr=null; h._cord=null; h._cube=null; h._cubeChecked=false;
-  try{ sfx('ropeSlack'); }catch(e){}
+  h._paid=false; h._slackHold=0; h._upWas=false; h._dnWas=false;
+  try{
+    if(how==='snap') sfxAt({x:ax,y:ay},'hook_off');
+    else sfx('ropeSlack');
+  }catch(e){}
+  return true;
+}
+function _jackTip(){
+  if(typeof computeConnectorArmPose==='function'){
+    const pose=computeConnectorArmPose(p);
+    if(pose&&pose.worldNose&&isFinite(pose.worldNose.x)) return {x:pose.worldNose.x,y:pose.worldNose.y};
+    if(pose&&isFinite(pose.noseX)) return {x:pose.noseX,y:pose.noseY};
+  }
+  return ropePlayerEndWorld();
+}
+function _cordSpan(h){
+  const t=_jackTip();
+  return Math.max(ROPE_RL_MIN, Math.hypot(h.ax-t.x, h.ay-t.y));
+}
+function _ropeCatch(h){
+  if(h.tgt) return {body:h.tgt, kind:'enemy'};
+  if(typeof BWALLS!=='undefined'){
+    for(const b of BWALLS){
+      if(!b||(b.hp!=null&&b.hp<=0)) continue;
+      if(h.ax>=b.x-8&&h.ax<=b.x+(b.w||32)+8&&h.ay>=b.y-8&&h.ay<=b.y+(b.h||32)+8) return {body:b, kind:'cube'};
+    }
+  }
+  return null;
+}
+function _ourMass(){
+  const B=window.MV_BETA;
+  if(B&&typeof B.bodyMass==='function') return B.bodyMass(p);
+  return p&&p.hero==='venture'?7.6:9.5;
+}
+function _catchLighter(c){
+  if(!c||!c.body) return false;
+  const B=window.MV_BETA;
+  if(!B||typeof B.weightOf!=='function') return false;
+  return B.weightOf(c.kind, c.body)<_ourMass();
+}
+// Haul a lighter catch toward the RCA jack tip. The cord stays the straight
+// length from that tip to the latch, so the pull is along that pixel line.
+function _haulCatch(h, c, dist){
+  if(!_catchLighter(c)||!(dist>0)) return false;
+  const tip=_jackTip(), b=c.body;
+  let dx=tip.x-h.ax, dy=tip.y-h.ay, d=Math.hypot(dx,dy)||1;
+  const step=Math.min(dist, Math.max(0, d-ROPE_RL_MIN));
+  if(step<=0.2) return false;
+  dx/=d; dy/=d;
+  b.x=(b.x||0)+dx*step; b.y=(b.y||0)+dy*step;
+  b.vx=(b.vx||0)+dx*Math.min(8,step*0.45);
+  b.vy=(b.vy||0)+dy*Math.min(8,step*0.45);
+  h.ax+=dx*step; h.ay+=dy*step;
+  if(b._itemForceF!=null) b._itemForceF=Math.max(b._itemForceF||0, 8);
   return true;
 }
 
@@ -1016,6 +1070,7 @@ function updateHook(){
       h.tgt=best.enemy?best.tgt:null;
       h.plat=best.plat||null;
       h.st='on';
+      h._paid=false; h._slackHold=0; h._upWas=false; h._dnWas=false;
       if(best.enemy&&best.tgt){ _damageEnemy(best.tgt,ENM_DMG.hook,h.ex,h.ey); _markEnemyItemForce(best.tgt,10); }
       if(p.vy>0) p.vy*=0.2;
       sfx('hook_latch');
@@ -1059,48 +1114,37 @@ function updateHook(){
     // reel in / give slack only while the RCA is in hand. Plugged into the
     // back, up and down don't pay the cord out or wind it in.
     const rl0=h.rl;
+    const adx=(p.aimDX||0)-(h._ax0||0), ady=(p.aimDY||0)-(h._ay0||0);
+    const arm=Math.min(1, Math.hypot(adx,ady)*6);
+    h._ax0=p.aimDX||0; h._ay0=p.aimDY||0;
     if(ITEM===1){
       const up=isUp(), dn=isDn();
-      if(up&&!h._upWas) h._upT=0;
-      if(dn&&!h._dnWas) h._dnT=0;
-      const TAP=8;
-      if(up){
-        h._upT=(h._upT||0)+1;
-        if(h._upT>TAP) h.rl=Math.min(CMAX,h.rl+ROPE_REEL_OUT);
-      }else if(h._upWas&&(h._upT||0)>0&&h._upT<=TAP){
-        h.rl=CMAX;
+      const caught=_ropeCatch(h), light=_catchLighter(caught);
+      if(up&&!h._upWas){
+        if(h._paid){ _detachPlayerRope(h,'snap'); return; }
+        h.rl=CMAX; h._paid=true; h._slackHold=0;
       }
+      if(dn&&!h._dnWas){
+        h._paid=false; h._slackHold=0; h._dnT=0;
+        h.rl=_cordSpan(h);
+        if(light) _haulCatch(h, caught, 16*(0.5+arm));
+        h.rl=_cordSpan(h);
+      }
+      if(up){
+        h._slackHold=(h._slackHold||0)+1;
+        if(h._paid&&h._slackHold>=90){ _detachPlayerRope(h,'snap'); return; }
+      }else h._slackHold=0;
       if(dn){
         h._dnT=(h._dnT||0)+1;
-        if(h._dnT>TAP) h.rl=Math.max(ROPE_RL_MIN,h.rl-ROPE_REEL_IN);
-      }else if(h._dnWas&&(h._dnT||0)>0&&h._dnT<=TAP){
-        const end=ropePlayerEndWorld();
-        h.rl=Math.max(ROPE_RL_MIN,Math.hypot(h.ax-end.x,h.ay-end.y));
-      }
-      h._upWas=!!up; h._dnWas=!!dn;
-    }else{ h._upWas=false; h._dnWas=false; }
-    const dropped=rl0-h.rl;
-    const adx=(p.aimDX||0)-(h._ax0||0), ady=(p.aimDY||0)-(h._ay0||0);
-    const arm=Math.min(1,Math.hypot(adx,ady)*6);
-    h._ax0=p.aimDX||0; h._ay0=p.aimDY||0;
-    if(dropped>0.5){
-      const kick=Math.min(16,dropped*(0.12+arm*0.9));
-      const end=ropePlayerEndWorld();
-      const dx=end.x-h.ax, dy=end.y-h.ay, d=Math.hypot(dx,dy)||1;
-      let body=h.tgt||null;
-      if(!body&&h.plat&&h.plat.vx!=null) body=h.plat;
-      if(!body&&typeof BWALLS!=='undefined'){
-        for(const b of BWALLS){
-          if(!b||(b.hp!=null&&b.hp<=0)) continue;
-          if(h.ax>=b.x-10&&h.ax<=b.x+(b.w||32)+10&&h.ay>=b.y-10&&h.ay<=b.y+(b.h||32)+10){ body=b; break; }
+        h._paid=false;
+        if(h._dnT>8){
+          const step=ROPE_REEL_IN*2.6*(0.65+arm*0.7);
+          if(light&&_haulCatch(h, caught, step)) h.rl=_cordSpan(h);
+          else h.rl=Math.max(ROPE_RL_MIN, h.rl-step);
         }
       }
-      if(body){
-        body.vx=(body.vx||0)+(dx/d)*kick;
-        body.vy=(body.vy||0)+(dy/d)*kick*0.65;
-        if(body._itemForceF!=null) body._itemForceF=Math.max(body._itemForceF||0,6+kick);
-      }
-    }
+      h._upWas=!!up; h._dnWas=!!dn;
+    }else{ h._upWas=false; h._dnWas=false; h._slackHold=0; }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
     if(h._reel){ h._reelT=(h._reelT||0)+1; const every=h._reel<0?4:6; if(h._reelT%every===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
