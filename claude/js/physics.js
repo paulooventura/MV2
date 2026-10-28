@@ -198,35 +198,39 @@ function sw(v){ return MV2_VISUAL?Math.max(1,Math.round(v)):Math.max(1,Math.floo
 // The world is drawn scaled by camZoom (main.js draw: _worldZoomBegin/_worldZoomEnd);
 // the HUD is not. Never below 1, so the full-screen layers always cover the screen.
 const CAM_ZOOM_STILL=1.2, CAM_ZOOM_FAST=1.0, CAM_ZOOM_SPD=12, CAM_ZOOM_EASE=0.03;
-const CAM_THREAT_ZOOM=0.09;   // a little closer once a threat is in the frame — present, not a smash
+const CAM_FIGHT_MAX=4.8;      // close-up: the two sprites fill about two thirds of the frame
 let _camSpdS=0, _zoomSaved=false, _threatZoomS=0, _threatLookX=0, _threatLookY=0, _sportZoomS=0, _sportBlur=0, _liftLook=0;
-// Same sense as the battle eye: nearby threats lean the frame in, and a mutual
-// notice (they have seen MIND) pulls a small zoom onto him and that zone.
+// Close to an enemy, the lens pushes in until that pair fills about two
+// thirds of the frame. The rest stays the room, so the hit reads up close.
 function _readThreatCam(){
-  const none={z:0,x:0,y:0};
+  const none={zoom:1,x:0,y:0};
   if(!p||typeof ENEMS==='undefined') return none;
-  const ox=p.x+SW/2, oy=p.y+FEET_OFF-34;
-  let presence=0, focus=0, bx=0, by=0, bw=0;
+  const ox=p.x+SW/2, oy=p.y+FEET_OFF-SH*0.42;
+  let best=null;
   for(const e of ENEMS){
     if(!e||e.alive===false||e._aiCompanion) continue;
-    const ex=e.x+(e.w||32)*0.5, ey=e.y+(e.h!=null?e.h*0.4:20);
+    const ew=e.w||40, eh=e.h||56;
+    const ex=e.x+ew*0.5, ey=e.y+(e.h!=null?e.h*0.42:eh*0.4);
     const dx=ex-ox, dy=ey-oy, d=Math.hypot(dx,dy)||1;
-    if(d>540) continue;
-    const prox=1-d/540, prox2=prox*prox;
-    presence+=prox2*((e.mind||e._betaEnemy||e._ai)?1.15:0.65);
-    if(e.hitF>0||(e.shotCd!=null&&e.shotCd<28)) presence+=0.25*prox;
-    if(!e.aware||d>460) continue;
-    const w=prox2*(e.hitF>0?1.35:1);
-    focus+=w; bx+=dx*w; by+=dy*w; bw+=w;
+    if(d>500) continue;
+    if(!best||d<best.d) best={dx,dy,d,ew,eh};
   }
-  const near=Math.max(0,Math.min(1,presence/1.5));
-  const locked=Math.max(0,Math.min(1,focus/0.85));
-  const z=Math.max(0,Math.min(1,near*0.4+locked*0.75));
-  if(bw<0.04) return {z,x:0,y:0};
+  if(!best) return none;
+  const CLOSE=120, FAR=440;
+  let t=best.d<=CLOSE?1:best.d>=FAR?0:(FAR-best.d)/(FAR-CLOSE);
+  t=t*t*(3-2*t);
+  if(t<0.015) return none;
+  const spanW=Math.abs(best.dx)+SW*0.55+best.ew*0.55;
+  const spanH=Math.abs(best.dy)+SH*0.85+best.eh*0.7;
+  const zW=(W*(2/3))/Math.max(88,spanW);
+  const zH=(H*(2/3))/Math.max(110,spanH);
+  const close=Math.max(1.35,Math.min(CAM_FIGHT_MAX,Math.min(zW,zH)));
+  const zoom=1+(close-1)*t;
+  const vw=camViewW(), vh=camViewH();
   return {
-    z,
-    x:Math.max(-72,Math.min(72,(bx/bw)*0.26)),
-    y:Math.max(-44,Math.min(44,(by/bw)*0.2))
+    zoom,
+    x:Math.max(-vw*0.38,Math.min(vw*0.38,best.dx*0.5))*t,
+    y:Math.max(-vh*0.28,Math.min(vh*0.28,best.dy*0.42))*t
   };
 }
 function _updateCamZoom(){
@@ -243,10 +247,11 @@ function _updateCamZoom(){
   _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?(0.05+0.12*_sportZoomS):(0.02+0.05*_sportZoomS));
   const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
   const th=_readThreatCam();
-  _threatZoomS+=(th.z-_threatZoomS)*0.04;
-  _threatLookX+=(th.x-_threatLookX)*0.035;
-  _threatLookY+=(th.y-_threatLookY)*0.035;
-  const base=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e+CAM_THREAT_ZOOM*_threatZoomS;
+  const fightIn=th.zoom>_threatZoomS;
+  _threatZoomS+=(th.zoom-_threatZoomS)*(fightIn?0.09:0.045);
+  _threatLookX+=(th.x-_threatLookX)*0.1;
+  _threatLookY+=(th.y-_threatLookY)*0.1;
+  const base=CAM_ZOOM_STILL+(CAM_ZOOM_FAST-CAM_ZOOM_STILL)*e;
   // Sports mode swings the lens much harder: tight while the wheel is just
   // biting, and a long pull-back once the speed is really there.
   const sportTgt=1.48+(1.0-1.48)*e;
@@ -255,7 +260,8 @@ function _updateCamZoom(){
     const zin=1.24+0.18*Math.min(1,MV_LIFT.zoom||0);
     if(zin>camZoomTgt) camZoomTgt=Math.min(1.5,zin);
   }
-  camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS);
+  if(_threatZoomS>camZoomTgt) camZoomTgt=Math.min(CAM_FIGHT_MAX,_threatZoomS);
+  camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS+0.08*(_threatZoomS>1.4?1:0));
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;
 }
 function _worldZoomBegin(){
