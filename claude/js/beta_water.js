@@ -346,12 +346,41 @@
       if(m.x>=m.b){ m.x=m.b; m.dir=-1; } else if(m.x<=m.a){ m.x=m.a; m.dir=1; }
       m.dx=m.x-x0; m.dy=0;
     }
-    // riding: carried along (and up / down) with it; a belt platform that wraps leaves you behind
+    // riding: a rising belt scoops you. A clear shaft carries you off the top of its
+    // course and back in at the bottom (and the other way going down), the way
+    // Donkey Kong barrels wrap, but vertical. A ceiling in the way sandwiches you.
     const m0=B.ridePlat;
-    if(m0&&m0.vert&&!m0.wrapped&&!m0.hidden&&p&&Math.abs(p.y+FEET_OFF-(m0.y-m0.dy))<=6&&p.x+SW/2>=m0.x-8&&p.x+SW/2<=m0.x+m0.w+8&&(p.vy||0)>=-0.01){
-      // carried, unless the roof is at his head (rising) or the floor under his wheel (sinking): he stays, the cab goes on
-      const ny=m0.y-FEET_OFF, hx=p.x+SW/2, blocked=typeof gridWorldSolid==='function'&&(m0.dy<0?(gridWorldSolid(hx-14,ny+8)||gridWorldSolid(hx+14,ny+8)):gridWorldSolid(hx,ny+FEET_OFF-2));
-      if(!blocked) p.y=ny; else m0._shed=8;
+    const overX=q=>p&&p.x+8<q.x+q.w+10&&p.x+SW-8>q.x-10;
+    if(m0&&m0.vert&&p&&overX(m0)&&(m0.wrapped||(!m0.hidden&&Math.abs(p.y+FEET_OFF-(m0.y-(m0.dy||0)))<=12&&(p.vy||0)>=-0.4))){
+      if(m0.wrapped){
+        p.y=m0.y-FEET_OFF; p.vy=0; p.og=true;
+      }else{
+        const ny=m0.y-FEET_OFF, hx=p.x+SW/2, rising=(m0.dy||0)<0;
+        const solidAt=y=>typeof gridWorldSolid==='function'&&(gridWorldSolid(hx-12,y)||gridWorldSolid(hx+12,y)||gridWorldSolid(hx,y));
+        const head=ny+8, crushed=rising&&solidAt(head);
+        const sink=!rising&&typeof gridWorldSolid==='function'&&gridWorldSolid(hx,ny+FEET_OFF-2);
+        if(crushed){
+          let u=head;
+          while(u<m0.y-6&&solidAt(u)) u+=2;
+          const gap=m0.y-u;
+          p.y=Math.max(ny, u-10); p.vy=0; p.og=true;
+          const now=typeof fr==='number'?fr:0;
+          if(gap<42){ if(typeof applyPlayerHit==='function') applyPlayerHit(0,1,p.maxHp||100); }
+          else if((m0._sq||0)<=now){ m0._sq=now+14; if(typeof applyPlayerHit==='function') applyPlayerHit(0,0.6,18); }
+        }else if(sink) m0._shed=8;
+        else{ p.y=ny; p.vy=Math.min(p.vy||0,0); p.og=true; }
+      }
+    }
+    for(const q of B.platforms){
+      if(!q.vert||q.hidden||q.wrapped||q._lift==='hold'||!p) continue;
+      if(B.ridePlat===q) continue;
+      const feet=p.y+FEET_OFF;
+      if(!overX(q)||(p.vy||0)<-1.4) continue;
+      if(q.dir<0){
+        const prev=q.y-(q.dy||0);
+        if(!(prev>=feet-8&&q.y<=feet+6)) continue;
+      }else if(!(p.og||Math.abs(p.vy||0)<1.2)||Math.abs(q.y-feet)>7) continue;
+      p.y=q.y-FEET_OFF; p.vy=0; p.og=true; B.ridePlat=q;
     }
     const m=ridingPlat(p);
     if(m&&m._shed>0){ m._shed--; B.ridePlat=null; } else if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;

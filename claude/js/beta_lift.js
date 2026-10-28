@@ -2,12 +2,13 @@
 //  beta_lift.js — Awdjoo 1.3 elevators
 //
 //  The two residential belts keep their routine: the left
-//  column runs down, the right column runs up. They stop
-//  only when the button left of the door on that floor is
-//  punched. The closest cab on that column comes and waits,
-//  doors open. Step in. Up or down on the stick, d-pad, or
-//  keys sends the car one floor, then the doors open again.
-//  Walk away and that cab goes back to its routine.
+//  column runs down, the right column runs up. Punch the
+//  button and the cab in front stops at that floor and waits
+//  with the doors open. Step in, the doors close, up or down
+//  sends that car one floor with you on it, then the doors
+//  open. Walk away and the column goes back to its loop.
+//  A moving cab still picks you up. A clear run wraps you
+//  with it, top to bottom. A ceiling sandwiches you.
 //
 //  The floor you enter on is Equilibrium. Up is one step
 //  toward Ink & Vinyl (the 2nd floor, from the lobby).
@@ -110,7 +111,7 @@
   }
   function resume(m){
     m.phase='run'; m._lift=null; m.destY=null; m.lockY=null; m.locked=false;
-    m._used=false; m.doorT=0;
+    m._used=false; m._called=false; m.doorT=0;
     if(m._homeDir!=null) m.dir=m._homeDir;
   }
   function nearestButton(){
@@ -174,7 +175,12 @@
     const m=closestCab(btn.cabs, btn.y);
     if(!m) return;
     if(m._homeDir==null) m._homeDir=m.dir||1;
-    m.phase='summon'; m.destY=btn.y; m._lift='go'; m._used=false; m._arrive=false; m.doorT=0;
+    // stop flush with the floor they are standing on, not a guessed row
+    let y=btn.y;
+    const fy=feet();
+    if(Math.abs(fy-btn.y)<56) y=fy;
+    y=Math.max(m.ya+4, Math.min(m.yb-4, y));
+    m.phase='summon'; m.destY=y; m._lift='go'; m._used=false; m._arrive=false; m._called=true; m.doorT=0;
     ding();
   }
   function go(m, up){
@@ -222,11 +228,18 @@
           else if(riding&&onCab(m)) sealed=m;
         }else if(m.phase==='open'){
           m._lift='hold'; m.lockY=m.y;
-          if(m._arrive){
-            if(!onCab(m)) resume(m);
-            else{ hold=m; if(punchEdge()){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; tookPunch=true; } }
-          }else if(onCab(m)){ m.phase='shut'; m._used=true; S.ask=true; }
-          else if(Math.abs(cx()-(m.x+m.w/2))>160) resume(m);
+          if(onCab(m)){
+            if(m._called){
+              // they stepped into a car that was waiting: doors close, then up or down
+              m._called=false; m.phase='shut'; m._arrive=false; m._used=true; S.ask=true;
+            }else{
+              hold=m;
+              if(punchEdge()){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; tookPunch=true; }
+            }
+          }else if(m._called){
+            // a called car stays at this floor until they board or walk off
+            if(Math.abs(cx()-(m.x+m.w/2))>220) resume(m);
+          }else resume(m);
         }else if(m.phase==='shut'){
           m._lift='hold'; m.lockY=m.y; m._used=true;
           if(onCab(m)) sealed=m;
