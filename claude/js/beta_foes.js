@@ -197,7 +197,7 @@
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.translate(cx,cy+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
-    if(off||e.st==='down') ctx.rotate(0.7);
+    ctx.rotate((e.ang||0)+(off||e.st==='down'?0.7:0));
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#5a3a3a':'#e04848'); g.addColorStop(1,off?'#2a1a1a':'#7a1018');
@@ -217,7 +217,7 @@
     e._fx=false;
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
     if(e.cd>0) e.cd--;
-    e.spin+=e.st==='zap'?0.08:0.008;
+    e.spin+=e.st==='zap'?0.08:(e.og?0:0.008);
     e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
     if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy=0;
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
@@ -246,7 +246,7 @@
   function drawCube(e){
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56), awake=e.st==='hunt'&&e.alive;
     const a=e.alive?(awake?0.55:0.22):0.35;                        // nearly invisible while it sleeps
-    ctx.save(); ctx.translate(cx,cy); ctx.rotate(e.spin);
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(e.og?(e.ang||0):((e.spin||0)+(e.ang||0)));
     // a hexagon outline with the cube's inner edges (the sheet's drawing)
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
     ctx.beginPath(); pts.forEach((q,i)=>ctx[i?'lineTo':'moveTo'](q[0],q[1])); ctx.closePath();

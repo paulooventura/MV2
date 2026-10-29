@@ -359,7 +359,9 @@ function _horizBodyGap(pl,e){
 function _actorsOverlap(pl,e){
   if(!pl||!_enemyBodyPresent(e)) return false;
   const ph=actorSeparationHB(pl), eh=_enemySeparationHB(e);
-  return ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h);
+  if(!ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h)) return false;
+  if(window.MV_BETA&&MV_BETA.shapeBlocks) return MV_BETA.shapeBlocks(e,ph.x,ph.y,ph.w,ph.h);
+  return true;
 }
 function _bodySepMomentum(actor,axis){
   if(!actor) return 0.05;
@@ -465,7 +467,10 @@ function _checkPlayerEnemyBodyDamage(pl){
     if(!e.alive||e.mind) continue;
     const ph=playerCoreHB(pl);
     const eh=_enemyItemHB(e);
-    if(ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h)) applyPlayerHitFromEnemy(e);
+    if(ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h)){
+      if(window.MV_BETA&&MV_BETA.shapeBlocks&&!MV_BETA.shapeBlocks(e,ph.x,ph.y,ph.w,ph.h)) continue;
+      applyPlayerHitFromEnemy(e);
+    }
   }
 }
 function _resolveMindEnemiesSeparation(){

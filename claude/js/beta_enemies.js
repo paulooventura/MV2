@@ -390,6 +390,69 @@
     }
   }
 
+  // Flat faces rest on an edge. Gravity loads the corners: inside the
+  // balance point the weight settles the face down, past it the body
+  // tips onto the next face and hops forward. Circles are not in this.
+  function polyN(e){
+    if(!e) return 0;
+    if(e._foe==='eye'||e._ai==='eye') return 5;
+    if(e._foe==='cube'||e._ai==='cube') return 6;
+    if(e._foe==='boss'||e._ai==='boss') return 7;
+    if(e._ai==='tri') return 3;
+    if(e._ai==='square'||e.type==='square') return 4;
+    return 0;
+  }
+  function polyVerts(e){
+    const n=polyN(e); if(!n) return null;
+    const cx=e.x+e.w/2, cy=e.y+e.h/2, R=Math.min(e.w,e.h)*0.5;
+    const ang=(e._foe==='boss'?(e.rot||0):(e.ang||0));
+    const start=(n===4)?(ang+Math.PI/4):(ang-Math.PI/2);
+    const v=[];
+    for(let i=0;i<n;i++){
+      const a=start+i*Math.PI*2/n;
+      v.push([cx+Math.cos(a)*R, cy+Math.sin(a)*R]);
+    }
+    return v;
+  }
+  function pointInPoly(x,y,v){
+    let inn=false;
+    for(let i=0,j=v.length-1;i<v.length;j=i++){
+      const xi=v[i][0], yi=v[i][1], xj=v[j][0], yj=v[j][1];
+      if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/((yj-yi)||1e-6)+xi)) inn=!inn;
+    }
+    return inn;
+  }
+  B.shapeBlocks=function(e,x,y,w,h){
+    const v=polyVerts(e); if(!v) return true;
+    const pts=[[x,y],[x+w,y],[x,y+h],[x+w,y+h],[x+w*0.5,y+h*0.5]];
+    for(const q of pts) if(pointInPoly(q[0],q[1],v)) return true;
+    for(const q of v) if(q[0]>=x&&q[0]<=x+w&&q[1]>=y&&q[1]<=y+h) return true;
+    return false;
+  };
+  function faceStumble(e){
+    const n=polyN(e); if(!n) return;
+    if(e.tumble||ropeOf(e)) return;
+    if(e._foe==='boss'&&e.awake) return;
+    if(e._foe==='eye'&&(e.st==='aim'||e.st==='fire')) return;
+    const step=Math.PI*2/n, R=Math.min(e.w,e.h)*0.46;
+    const rest=(n===4||n%2===1)?0:step*0.5;
+    const boss=e._foe==='boss';
+    let ang=boss?(e.rot||0):(e.ang||0);
+    let d=ang-rest; d-=step*Math.round(d/step);
+    const grounded=!!(e.og||floorUnder(e.x,e.w,e.y+e.h+3));
+    let w=e._w||0;
+    const prev=e._d||0;
+    w+=-Math.sin(d*(Math.PI/step))*(grounded?0.006:0.003);
+    if(Math.abs(e.vx||0)>0.2) w+=Math.sign(e.vx)*(grounded?0.01:0.005);
+    w*=grounded?0.86:0.9;
+    if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3&&grounded){
+      const nx=e.x+Math.sign(prev)*2*R*Math.sin(step/2)*0.45;
+      if(boxFree(nx,e.y,e.w,e.h)) e.x=nx;
+    }
+    ang+=w;
+    e._w=w; e._d=d;
+    if(boss) e.rot=ang; else e.ang=ang;
+  }
   // ── movement ────────────────────────────────────────────────────
   function startTumble(e,dir,dropOn){
     const step=e.w;                                          // one side length
@@ -809,6 +872,7 @@
       think(e);
     }
     ropeTick();
+    for(const e of ENEMS){ if(e&&e.alive&&!e._betaHeld) faceStumble(e); }
     for(const e of ENEMS){ if(!e._ai||!e.alive) continue; applyShove(e); if(!e._iso) shortIfWet(e); liftOut(e); }
     fragTick();
     for(let i=B.pushFx.length-1;i>=0;i--){ if(++B.pushFx[i].t>22) B.pushFx.splice(i,1); }

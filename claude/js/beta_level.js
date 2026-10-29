@@ -962,7 +962,18 @@
           bw.vy=(bw.vy>3)?-bw.vy*0.25:0; if(!(bw._tossT>0)) bw.vx*=0.78;
         }else bw.y=ny;
       }
-      bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.6:0.98);
+      bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.45:0.98);
+      if(ground&&!bw._magStuck){
+        const step=Math.PI/2;
+        let d=(bw.rot||0); d-=step*Math.round(d/step);
+        let w=bw._faceW||0;
+        const prev=bw._d||0;
+        w+=-Math.sin(d*(Math.PI/step))*0.006;
+        if(Math.abs(bw.vx||0)>0.35) w+=Math.sign(bw.vx)*0.01;
+        w*=0.86;
+        if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3) bw.x+=Math.sign(prev)*T*0.35;
+        bw.rot+=w; bw._faceW=w; bw._d=d;
+      }
       // a thrown cube hits by its momentum (weight × speed)
       const sp=Math.hypot(bw.vx,bw.vy), mom=sp*weightOf('cube',bw);
       if(sp>4) for(const e of ENEMS){
