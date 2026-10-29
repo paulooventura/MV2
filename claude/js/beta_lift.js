@@ -1,12 +1,9 @@
 // ============================================================
 //  beta_lift.js — Awdjoo 1.3 elevators
 //
-//  The two residential belts keep their routine: the left
-//  column runs down, the right column runs up. Punch the
-//  button and the cab in front stops at that floor and waits
-//  with the doors open. Step in, the doors close, up or down
-//  sends that car one floor with you on it, then the doors
-//  open. Walk away and the column goes back to its loop.
+//  The cars in one shaft are tied: they stop together and travel
+//  the same distance. Inside, the level music drops out and the
+//  HQ bed plays until the doors are open again.
 //  A moving cab still picks you up. A clear run wraps you
 //  with it, top to bottom. A ceiling sandwiches you.
 //
@@ -111,7 +108,7 @@
   }
   function resume(m){
     m.phase='run'; m._lift=null; m.destY=null; m.lockY=null; m.locked=false;
-    m._used=false; m._called=false; m.doorT=0;
+    m._used=false; m._called=false; m.doorT=0; m._linkLeft=null; m._flash=0;
     if(m._homeDir!=null) m.dir=m._homeDir;
   }
   function nearestButton(){
@@ -141,20 +138,45 @@
     }
     return out;
   }
-  function ding(){
-    if((S._bell||0)>(typeof fr==='number'?fr:0)) return;
-    S._bell=(typeof fr==='number'?fr:0)+18;
+  function tone(a,t,f0,f1,peak,dur,type){
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type||'sine';
+    o.frequency.setValueAtTime(f0,t);
+    if(f1) o.frequency.exponentialRampToValueAtTime(Math.max(40,f1),t+dur*0.7);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(peak,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+  function pressSfx(){
+    S.press=16;
+    S._bell=(typeof fr==='number'?fr:0)+12;
     try{
       const a=typeof ga==='function'?ga():null; if(!a){ sfx('land'); return; }
-      const t=a.currentTime, o=a.createOscillator(), g=a.createGain();
-      o.type='sine';
-      o.frequency.setValueAtTime(740,t);
-      o.frequency.exponentialRampToValueAtTime(1480,t+0.09);
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(0.22,t+0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+0.42);
-      o.connect(g); g.connect(a.destination);
-      o.start(t); o.stop(t+0.45);
+      const t=a.currentTime;
+      tone(a,t,180,70,0.16,0.09,'triangle');
+      tone(a,t+0.04,659,659,0.16,0.22,'sine');
+      tone(a,t+0.16,880,880,0.12,0.28,'sine');
+    }catch(e){}
+  }
+  function arriveChime(){
+    if((S._arriveBell||0)>(typeof fr==='number'?fr:0)) return;
+    S._arriveBell=(typeof fr==='number'?fr:0)+24;
+    S.arrive=28;
+    try{
+      const a=typeof ga==='function'?ga():null; if(!a){ sfx('land'); return; }
+      const t=a.currentTime;
+      tone(a,t,90,48,0.2,0.16,'triangle');
+      tone(a,t+0.08,523,523,0.18,0.34,'sine');
+      tone(a,t+0.26,784,784,0.16,0.46,'sine');
+    }catch(e){}
+  }
+  function travelSfx(){
+    try{
+      const a=typeof ga==='function'?ga():null; if(!a) return;
+      const t=a.currentTime;
+      tone(a,t,70,140,0.1,0.35,'sawtooth');
     }catch(e){}
   }
   function closestCab(cabs, y){
@@ -171,32 +193,58 @@
     }
     return best;
   }
+  function columnOf(m){
+    for(const [,cabs] of columns()) if(cabs.indexOf(m)>=0) return cabs;
+    return m?[m]:[];
+  }
+  function shiftColumn(cabs, delta, phase){
+    for(const c of cabs){
+      if(c._homeDir==null) c._homeDir=c.dir||1;
+      c._linkLeft=delta; c._lift='go'; c.phase=phase; c.doorT=0; c._arrive=false;
+    }
+  }
+  function resumeColumn(m){
+    for(const c of columnOf(m)) resume(c);
+  }
+  function holdCab(m, open){
+    m._linkLeft=0; m._lift='hold'; m.lockY=m.y; m.destY=m.y;
+    if(open){
+      m.phase='open'; m.doorT=0; m._arrive=true; m._flash=26;
+      arriveChime();
+    }else{
+      m.phase='park'; m._arrive=false;
+    }
+  }
   function callCab(btn){
     const m=closestCab(btn.cabs, btn.y);
     if(!m) return;
-    if(m._homeDir==null) m._homeDir=m.dir||1;
-    // stop flush with the floor they are standing on, not a guessed row
     let y=btn.y;
     const fy=feet();
     if(Math.abs(fy-btn.y)<56) y=fy;
     y=Math.max(m.ya+4, Math.min(m.yb-4, y));
-    m.phase='summon'; m.destY=y; m._lift='go'; m._used=false; m._arrive=false; m._called=true; m.doorT=0;
-    ding();
+    const delta=y-m.y;
+    for(const c of btn.cabs) c._called=c===m;
+    shiftColumn(btn.cabs, delta, 'summon');
+    pressSfx();
   }
   function go(m, up){
     const i=floorIndex(m.x, m.y);
     const n=destIndex(i, up);
     if(n==null) return;
     const fl=LEVELS[n];
-    m.phase='go'; m.destY=surfaceY(m.x, fl.row); m._lift='go'; m._used=true;
+    const delta=surfaceY(m.x, fl.row)-m.y;
+    shiftColumn(columnOf(m), delta, 'go');
+    for(const c of columnOf(m)) c._used=true;
     S.ask=false; S.dir=up?1:-1; S.vibe=(S.vibe||0)+(up?1:-1);
     S.vibe=Math.max(-SPAN, Math.min(SPAN, S.vibe));
-    try{ sfx(up?'jump':'land'); }catch(e){}
+    travelSfx();
   }
-  function arrive(m){
-    m.phase='open'; m._lift='hold'; m.lockY=m.y; m.destY=m.y; m.doorT=0; m._arrive=true;
-    S.ask=false;
-    try{ sfx('land'); }catch(e){}
+  function aboard(m){
+    if(onCab(m)) return true;
+    if(!m||!p) return false;
+    const x=cx();
+    if(x<m.x-10||x>m.x+m.w+10) return false;
+    return Math.abs(feet()-m.y)<16;
   }
 
   S.afterPlatforms=function(){
@@ -220,32 +268,37 @@
     for(const [,cabs] of columns()){
       for(const m of cabs){
         const tgt=(m.phase==='shut'||m.phase==='go')?1:0;
-        m.door=(m.door||0)+(tgt-(m.door||0))*0.2;
+        m.door=(m.door||0)+(tgt-(m.door||0))*(m.phase==='open'?0.08:0.16);
+        if(m._flash>0) m._flash--;
         if(m.phase==='summon'||m.phase==='go'){
-          const riding=m.phase==='go';
           m._lift='go';
-          if(m.destY!=null&&Math.abs(m.y-m.destY)<2) arrive(m);
-          else if(riding&&onCab(m)) sealed=m;
+          if(m._linkLeft!=null&&Math.abs(m._linkLeft)<0.4){
+            if(m.phase==='go'&&aboard(m)) holdCab(m,true);
+            else if(m.phase==='summon'&&m._called) holdCab(m,true);
+            else holdCab(m,false);
+          }else if(m.phase==='go'&&aboard(m)) sealed=m;
+        }else if(m.phase==='park'){
+          m._lift='hold'; m.lockY=m.y;
         }else if(m.phase==='open'){
           m._lift='hold'; m.lockY=m.y;
-          if(onCab(m)){
+          const opening=(m.door||0)>0.1;
+          if(aboard(m)){
+            if(opening&&m._used) sealed=m;
             if(m._called){
-              // they stepped into a car that was waiting: doors close, then up or down
               m._called=false; m.phase='shut'; m._arrive=false; m._used=true; S.ask=true;
-            }else{
+            }else if(!opening){
               hold=m;
-              if(punchEdge()){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; tookPunch=true; }
+              if(punchEdge()){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; tookPunch=true; pressSfx(); }
             }
           }else if(m._called){
-            // a called car stays at this floor until they board or walk off
-            if(Math.abs(cx()-(m.x+m.w/2))>220) resume(m);
-          }else resume(m);
+            if(Math.abs(cx()-(m.x+m.w/2))>220) resumeColumn(m);
+          }else resumeColumn(m);
         }else if(m.phase==='shut'){
           m._lift='hold'; m.lockY=m.y; m._used=true;
-          if(onCab(m)) sealed=m;
-          else resume(m);
+          if(aboard(m)) sealed=m;
+          else resumeColumn(m);
         }else if(m._lift){
-          resume(m);
+          resumeColumn(m);
         }
       }
     }
@@ -263,8 +316,10 @@
       S.near=!!btn;
       if(btn&&punchEdge()) callCab(btn);
     }else S.near=false;
+    if((S.press||0)>0) S.press--;
     const car=sealed||hold;
-    if(car&&(car.phase==='shut'||car.phase==='open')&&ch){
+    const doorsReady=!car||car.phase==='shut'||(car.phase==='open'&&(car.door||0)<0.15);
+    if(car&&doorsReady&&ch){
       car._arrive=false;
       S.ask=true;
       go(car, ch>0);
@@ -272,8 +327,8 @@
     S.floors=S.vibe||0;
     const tgt=Math.max(-1,Math.min(1,S.floors/SPAN));
     S.pull+=(tgt-S.pull)*0.04;
-    const zT=S.sealed?0.55:0;
-    S.zoom+=(zT-S.zoom)*0.05;
+    const zT=S.sealed?1:0;
+    S.zoom+=(zT-S.zoom)*(S.sealed?0.1:0.06);
     if(!S.sealed) S.dir+=(0-S.dir)*0.06;
     try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.liftMix) MV_BETA_AUDIO.liftMix(); }catch(e){}
   };
@@ -284,7 +339,7 @@
     if(m){
       const bx=m.x+m.w*0.5, by=m.y-CAB+18;
       if(Math.hypot(wx-bx,wy-by)<=(wr||12)+16){
-        ding();
+        pressSfx();
         if(m.phase==='open'){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; }
         return true;
       }
@@ -296,19 +351,34 @@
     return false;
   };
 
-  function drawPad(x,y){
-    const pulse=0.55+0.45*Math.sin((typeof fr==='number'?fr:0)*0.18);
+  function drawPad(x,y,lit){
+    const frn=typeof fr==='number'?fr:0;
+    const press=Math.max(0,S.press||0)/16;
+    const sink=press>0.45?(1-(press-0.45)/0.55):press/0.45;
+    const breathe=0.55+0.45*Math.sin(frn*0.12);
+    const arrive=Math.max(0,(S.arrive||0)/28);
+    const hot=lit||arrive>0.02;
+    const px=sx(x), py=sy(y+sink*5);
     ctx.save();
-    ctx.globalCompositeOperation='lighter';
-    ctx.fillStyle='rgba(255,186,70,'+(0.25+0.28*pulse)+')';
-    ctx.beginPath(); ctx.arc(sx(x),sy(y),sw(26+8*pulse),0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#1a1614';
+    ctx.fillRect(sx(x)-sw(16),sy(y)-sw(20),sw(32),sw(40));
+    ctx.strokeStyle=hot?'#ffd27a':'#6a5a48';
+    ctx.lineWidth=Math.max(1,sw(2));
+    ctx.strokeRect(sx(x)-sw(16),sy(y)-sw(20),sw(32),sw(40));
+    ctx.fillStyle='#3a322c';
+    ctx.beginPath(); ctx.arc(px,py,sw(13),0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=hot?('#ffb43a'):('#c9842a');
+    ctx.globalAlpha=0.85+0.15*breathe;
+    ctx.beginPath(); ctx.arc(px,py,sw(9-sink*2),0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(255,246,210,'+(0.35+0.4*breathe*(hot?1:0.4))+')';
+    ctx.beginPath(); ctx.arc(px-sw(2.5),py-sw(3),sw(3),0,Math.PI*2); ctx.fill();
+    if(hot||press>0){
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle='rgba(255,190,80,'+(0.18+0.35*Math.max(press,arrive,breathe*0.4))+')';
+      ctx.beginPath(); ctx.arc(sx(x),sy(y),sw(22+10*Math.max(press,arrive)),0,Math.PI*2); ctx.fill();
+    }
     ctx.restore();
-    ctx.fillStyle='#2a241c';
-    ctx.beginPath(); ctx.arc(sx(x),sy(y),sw(16),0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#ffd27a';
-    ctx.beginPath(); ctx.arc(sx(x),sy(y),sw(11),0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff6d0';
-    ctx.beginPath(); ctx.arc(sx(x)-sw(3),sy(y)-sw(3),sw(3.5),0,Math.PI*2); ctx.fill();
   }
   function drawStops(){
     if(!live()||typeof sx!=='function') return;
@@ -319,10 +389,21 @@
         ctx.fillStyle='#c8b49a';
         ctx.fillRect(sx(b.col-T*2),sy(b.y),sw(T*2),sw(3));
       }
-      drawPad(b.x,b.by);
+      const here=b.cabs.some(m=>m._called&&(m.phase==='open'||m.phase==='summon')&&Math.abs(m.y-b.y)<28);
+      drawPad(b.x,b.by,here);
     }
     const shown=S.cab||S.hold;
-    if(shown) drawPad(shown.x+shown.w/2, shown.y-CAB+18);
+    if(shown) drawPad(shown.x+shown.w/2, shown.y-CAB+18, true);
+    if((S.arrive||0)>0){
+      S.arrive--;
+      const k=S.arrive/28;
+      for(const [,cabs] of columns()) for(const m of cabs) if((m._flash||0)>0){
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        ctx.strokeStyle='rgba(255,220,150,'+(0.65*k)+')'; ctx.lineWidth=Math.max(2,sw(3));
+        ctx.strokeRect(sx(m.x)-sw(4),sy(m.y-(4*T-6))-sw(4),sw(m.w+8),sw(4*T-6+8));
+        ctx.restore();
+      }
+    }
   }
   function hookStops(){
     const prev=B.drawWorldExtras;
@@ -354,7 +435,7 @@
     try{ ctx.filter='blur('+blur.toFixed(1)+'px)'; }catch(e){}
     ctx.drawImage(buf,0,0);
     ctx.filter='none';
-    ctx.fillStyle='rgba(4,2,8,0.45)';
+    ctx.fillStyle='rgba(4,2,8,0.62)';
     ctx.fillRect(0,0,cv.width,cv.height);
     const pad=6;
     const x=Math.max(0,cab.x-pad), y=Math.max(0,cab.y-pad);

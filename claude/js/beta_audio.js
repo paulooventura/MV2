@@ -499,15 +499,77 @@
     if(prev&&prev._path===next) return;
     play(current,{restart:true});
   }
-  // The elevator ride fades the stage score toward Gore or Ink & Vinyl.
-  // Full replacement is pull ±1, which is 33 floors off equilibrium.
+  // Outside the car, a long ride still leans the score toward Gore or Ink & Vinyl.
+  // Inside the car the stage is almost silent and the HQ bed plays instead.
   let liftBed=null, liftKind='';
+  let cab=null;
+  const CAB_PROG=[[53,[57,60,64,67]],[50,[57,60,64,65]],[58,[57,62,65,69]],[55,[57,60,62,65]]];
+  function cabNote(a,bus,m,t,len,vel){
+    const f=440*Math.pow(2,(m-69)/12);
+    const o=a.createOscillator(), g=a.createGain();
+    o.type='sine'; o.frequency.value=f;
+    o.connect(g); g.connect(bus);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(0.07*vel,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+len);
+    o.start(t); o.stop(t+len+0.02);
+  }
+  function cabBass(a,bus,m,t,len){
+    const o=a.createOscillator(), g=a.createGain();
+    o.type='triangle'; o.frequency.value=440*Math.pow(2,(m-12)/12);
+    o.connect(g); g.connect(bus);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(0.12,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+len);
+    o.start(t); o.stop(t+len+0.02);
+  }
+  function schedCab(){
+    if(!cab||!cab.on) return;
+    const a=cab.a;
+    if(cab.next<a.currentTime) cab.next=a.currentTime+0.05;
+    const spb=60/96/2;
+    while(cab.next<a.currentTime+0.35){
+      const t=cab.next, s=cab.step%16, ch=CAB_PROG[cab.bar%CAB_PROG.length];
+      if(s===0||s===10) cabNote(a,cab.bus,36,t,0.12,0.8);
+      if(s===0) cabBass(a,cab.bus,ch[0],t,spb*4);
+      if(s===0||s===8) ch[1].forEach((n,i)=>cabNote(a,cab.bus,n,t+i*0.012,spb*3,s===0?0.9:0.55));
+      cab.next+=spb; cab.step++; if(cab.step%16===0) cab.bar++;
+    }
+  }
+  function cabin(on){
+    const a=typeof ga==='function'?ga():null; if(!a) return;
+    if(!cab){
+      const bus=a.createGain(); bus.gain.value=0; bus.connect(a.destination);
+      cab={a,bus,on:false,timer:null,next:0,step:0,bar:0};
+    }
+    const v=vol();
+    if(on){
+      cab.on=true;
+      cab.bus.gain.setTargetAtTime(0.2*v, a.currentTime, 0.45);
+      if(!cab.timer){ cab.next=a.currentTime+0.08; cab.timer=setInterval(schedCab, 70); }
+    }else if(cab.on||cab.timer){
+      cab.on=false;
+      cab.bus.gain.setTargetAtTime(0, a.currentTime, 0.35);
+      if(cab.timer){ clearInterval(cab.timer); cab.timer=null; }
+    }
+  }
   function liftMix(){
-    const L=window.MV_LIFT, pull=L?L.pull||0:0;
+    const L=window.MV_LIFT, pull=L?L.pull||0:0, inside=!!(L&&L.inside);
     const v=vol();
     const stage=current&&els[current];
-    const t=Math.max(0,Math.min(1,Math.abs(pull)));
     const base=stage?(stage._baseVol==null?1:stage._baseVol):1;
+    if(inside){
+      if(stage){
+        stage._liftDuck=true;
+        stage.volume=v*base*0.04*(stage._mix!=null?stage._mix:1);
+        stage.muted=v<=0;
+      }
+      if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
+      cabin(true);
+      return;
+    }
+    cabin(false);
+    const t=Math.max(0,Math.min(1,Math.abs(pull)));
     if(t<0.02||!stage){
       if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
       if(stage&&stage._liftDuck){ const m=stage._mix!=null?stage._mix:1; stage.volume=v*base*m; stage.muted=v<=0; stage._liftDuck=false; }

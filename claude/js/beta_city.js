@@ -170,7 +170,14 @@
           ctx.fillRect(x+w-pw,y-cabH+sw(6),sw(2),cabH-sw(10));
         }
         ctx.fillStyle='#4a4048'; ctx.fillRect(x,y-cabH,w,sw(6)); ctx.fillRect(x,y-cabH,sw(3),cabH); ctx.fillRect(x+w-sw(3),y-cabH,sw(3),cabH);
-        ctx.fillStyle='#ffe0a0'; ctx.fillRect(x+w/2-sw(5),y-cabH+sw(6),sw(10),sw(2));                        // the ceiling light
+        const flash=Math.max(0,m._flash||0)/26;
+        ctx.fillStyle=flash>0.05?'#fff6d8':'#ffe0a0'; ctx.fillRect(x+w/2-sw(5),y-cabH+sw(6),sw(10),sw(2));
+        if(flash>0.02){
+          ctx.save(); ctx.globalCompositeOperation='lighter';
+          ctx.fillStyle='rgba(255,214,140,'+(0.35*flash)+')';
+          ctx.fillRect(x+sw(4),y-cabH+sw(8),w-sw(8),cabH-sw(16));
+          ctx.restore();
+        }
         ctx.fillStyle=m.loop?(m.dir>0?'#ff7060':'#60ff90'):'#c070ff'; ctx.fillRect(x+w-sw(10),y-cabH+sw(10),sw(4),sw(4));   // ▲ / ▼ lamp
         ctx.fillStyle='#2a2428'; ctx.fillRect(x-sw(2),y,w+sw(4),sw(10)); ctx.fillStyle='#8a7a6a'; ctx.fillRect(x-sw(2),y,w+sw(4),sw(3));   // the floor
       }else{

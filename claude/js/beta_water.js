@@ -313,13 +313,25 @@
         const y0=m.y;
         // A called or boarded cab is steered by beta_lift. The rest keep their loop.
         if(m._lift==='hold'||m._lift==='go'){
+          m.wrapped=false;
           if(m._lift==='hold'&&m.lockY!=null) m.y=m.lockY;
-          else if(m._lift==='go'&&m.destY!=null){
+          else if(m._lift==='go'&&m._linkLeft!=null){
+            const left=m._linkLeft, step=Math.min(m.spd, Math.abs(left)), dir=left>0?1:-1;
+            m.y+=dir*step; m._linkLeft=left-dir*step; m.dir=dir;
+            if(m.loop){
+              const span=m.yb-m.ya;
+              if(span>8){
+                if(m.y>m.yb){ m.y-=span; m.wrapped=true; }
+                else if(m.y<m.ya){ m.y+=span; m.wrapped=true; }
+              }
+            }
+            if(Math.abs(m._linkLeft)<0.35) m._linkLeft=0;
+          }else if(m._lift==='go'&&m.destY!=null){
             const dy=m.destY-m.y;
             if(Math.abs(dy)<=m.spd+0.25) m.y=m.destY;
             else{ m.dir=dy>0?1:-1; m.y+=m.dir*m.spd; }
           }
-          m.dx=0; m.wrapped=false; m.dy=m.y-y0; m.hidden=false;
+          m.dx=0; m.dy=m.wrapped?0:m.y-y0; m.hidden=false;
           if(m.clipT==null&&typeof gridSolid==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID){
             const t=MV_GRID.tile, c=Math.floor((m.x+m.w/2)/t); let r0=Math.floor((m.ya+m.yb)/2/t), r1=r0;
             while(r0>0&&!gridSolid(c,r0-1)) r0--; while(r1<MV_GRID.rows-1&&!gridSolid(c,r1+1)) r1++;
