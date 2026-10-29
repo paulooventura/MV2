@@ -279,6 +279,11 @@
       } }
     return null;
   }
+  B.waterSurface=function(x,y){
+    if(!F.ready) return null;
+    const s=surfaceNear(x,y);
+    return s&&isFinite(s.top)?s.top:null;
+  };
   // how much of MIND is under water (0..1), and is that water live?
   function mindDepth(){
     if(!F.ready) return {f:0,live:false};

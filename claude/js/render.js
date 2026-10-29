@@ -2685,7 +2685,16 @@ function drawFX(){
   if(p.smoke){
     for(const sm of p.smoke){
       const t=sm.life/sm.maxLife;
-      if(sm.ex){
+      if(sm.bub){
+        const px=sx(sm.x), py=sy(sm.y), r=Math.max(2.5,sw(sm.r));
+        ctx.save(); ctx.translate(px,py); ctx.rotate(Math.sin(sm.wob||0)*0.12);
+        ctx.fillStyle='rgba(16,10,8,0.88)';
+        ctx.beginPath(); ctx.ellipse(0,0,r*0.9,r*1.08,0,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='rgba(48,32,26,0.95)'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.stroke();
+        ctx.fillStyle='rgba(92,70,58,0.7)';
+        ctx.beginPath(); ctx.arc(-r*0.28,-r*0.34,Math.max(1,r*0.22),0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }else if(sm.ex){
         const wob=Math.sin((sm.life||0)*0.33+(sm.spin||0))*sm.r*0.18;
         const px=sx(sm.x+wob), py=sy(sm.y);
         const sc=sm.r*(0.65+(1-t)*1.55);

@@ -1086,7 +1086,37 @@ function update(){
     if(_playerOnGround(p)&&Math.abs(p.vx)>0.05){if(!p._prevVx)p._prevVx=0;const dirChange=Math.sign(p.vx)!==Math.sign(p._prevVx)&&Math.abs(p._prevVx)>1.5;const braking=Math.abs(p.vx)<Math.abs(p._prevVx)-1.2&&Math.abs(p._prevVx)>2;if(dirChange||braking){for(let i=0;i<5;i++){const ang=Math.PI+Math.random()*Math.PI;p.smoke.push({x:p.x+SW/2+(Math.random()-0.5)*8,y:p.y+FEET_OFF-4,vx:(Math.random()-0.5)*1.8+(dirChange?-Math.sign(p._prevVx)*1.5:0),vy:-Math.random()*1.2-0.4,life:22+Math.floor(Math.random()*12),maxLife:34,r:3+Math.random()*4});}}}
     p._prevVx=p.vx;
     if(!p.smoke)p.smoke=[];
-    for(let i=p.smoke.length-1;i>=0;i--){const sm=p.smoke[i];sm.x+=sm.vx;sm.y+=sm.vy;sm.vx*=0.88;sm.vy+=0.05;sm.life--;if(sm.life<=0)p.smoke.splice(i,1);}
+    for(let i=p.smoke.length-1;i>=0;i--){
+      const sm=p.smoke[i];
+      if(sm.bub){
+        sm.age=(sm.age||0)+1; sm.wob=(sm.wob||0)+0.16;
+        sm.vy=Math.max(-2.2,(sm.vy||-0.7)-0.028);
+        sm.x+=(sm.vx||0)+Math.sin(sm.wob)*0.42; sm.vx*=0.97;
+        const ny=sm.y+sm.vy;
+        if(typeof gridWorldSolid==='function'&&gridWorldSolid(sm.x,ny)) sm.x+=Math.sin(sm.wob)*0.9;
+        else sm.y=ny;
+        const B=window.MV_BETA, wet=!!(B&&B.inWater&&B.inWater(sm.x,sm.y));
+        const surf=B&&B.waterSurface?B.waterSurface(sm.x,sm.y):null;
+        const popped=!wet||(surf!=null&&sm.y<=surf+3)||sm.age>420;
+        if(popped){
+          sm.bub=0; sm.ex=1; sm.rise=1;
+          if(surf!=null) sm.y=Math.min(sm.y,surf-2);
+          sm.vx=(Math.random()-0.5)*0.5; sm.vy=-0.4-Math.random()*0.55;
+          sm.life=32+(Math.random()*18|0); sm.maxLife=sm.life;
+          sm.r=sm.r*1.1+1.6; sm.spin=Math.random()*Math.PI;
+          if(!sm.lobes){ sm.lobes=[]; const n=3+(Math.random()*2|0); for(let k=0;k<n;k++) sm.lobes.push([(Math.random()-0.5)*0.95,(Math.random()-0.5)*0.7,0.42+Math.random()*0.55]); }
+        }
+        continue;
+      }
+      if(sm.rise){
+        sm.x+=sm.vx; sm.vx*=0.99; sm.vy=Math.min(sm.vy|| -0.3,-0.16); sm.y+=sm.vy;
+        if(sm.r<22) sm.r+=0.07;
+        if(typeof gridWorldSolid==='function'&&gridWorldSolid(sm.x,sm.y-2)){ sm.vy=0; sm.life-=2; }
+        sm.life--; if(sm.life<=0) p.smoke.splice(i,1);
+        continue;
+      }
+      sm.x+=sm.vx;sm.y+=sm.vy;sm.vx*=0.88;sm.vy+=0.05;sm.life--;if(sm.life<=0)p.smoke.splice(i,1);
+    }
     if(window.MV_BETA&&MV_BETA.on&&MV_BETA.parkInput) MV_BETA.parkInput();   // magnet: DOWN + JUMP lets go of the surface (after the pad is read)
     // Paulo: on a platform (not a solid block), DOWN + JUMP drops through it
     if(_mvDropThru>0) _mvDropThru--;

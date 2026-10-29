@@ -135,8 +135,19 @@
   function exhaustPuff(heat){
     if(typeof p==='undefined'||!p) return;
     if(!p.smoke) p.smoke=[];
-    if(p.smoke.length>56) return;
     const t=tailOf(), h=Math.max(0,Math.min(1,heat||0));
+    const wet=!!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(t.x,t.y));
+    if(p.smoke.length>(wet?84:56)) return;
+    if(wet){
+      // sports exhaust under water: a dark bubble, not a puff. It rises on its own.
+      p.smoke.push({
+        x:t.x+(Math.random()-0.5)*6, y:t.y+(Math.random()-0.5)*4,
+        vx:t.back*(0.12+Math.random()*0.28), vy:-0.55-Math.random()*0.35-h*0.25,
+        life:1, maxLife:1, age:0,
+        r:4.4+Math.random()*2.6+h*2.2, bub:1, hot:h, wob:Math.random()*6.28
+      });
+      return;
+    }
     const lobes=[];
     const n=3+(Math.random()*2|0);
     for(let i=0;i<n;i++) lobes.push([(Math.random()-0.5)*0.95,(Math.random()-0.5)*0.7,0.42+Math.random()*0.55]);
