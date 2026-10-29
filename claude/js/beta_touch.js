@@ -15,18 +15,37 @@
   const touches=new Map();          // identifier -> {x,y,r}
   let held=new Set();
 
-  function reach(b,t){
-    const r=b.getBoundingClientRect(); if(!r.width) return false;
-    const R=r.width/2, cx=r.left+R, cy=r.top+r.height/2;
-    return Math.hypot(t.x-cx,t.y-cy)<=R*1.45+Math.min(14,t.r*0.5);   // a thumb's pad, not a pin point
+  function buttons(){
+    const out=[];
+    for(const id in MAP){
+      const b=document.getElementById(id); if(!b) continue;
+      const r=b.getBoundingClientRect(); if(!r.width) continue;
+      out.push({id, cx:r.left+r.width/2, cy:r.top+r.height/2, R:r.width/2});
+    }
+    return out;
   }
   function refresh(){
     const now=new Set();
-    for(const id in MAP){
-      const b=document.getElementById(id); if(!b) continue;
-      for(const t of touches.values()) if(reach(b,t)){ now.add(id); break; }
+    const btns=buttons();
+    for(const t of touches.values()){
+      const near=[];
+      for(const b of btns){
+        const d=Math.hypot(t.x-b.cx,t.y-b.cy);
+        if(d<=b.R*1.2+Math.min(12,t.r*0.4)) near.push({id:b.id,d});
+      }
+      near.sort((a,b)=>a.d-b.d);
+      if(!near.length) continue;
+      now.add(near[0].id);
+      // one thumb between X (run / item) and A (jump) holds both. It does not also press B or Y.
+      if(near[1]&&near[1].d<near[0].d+22){
+        const pair=near[0].id+near[1].id;
+        if(pair==='bQbSp'||pair==='bSpbQ') now.add(near[1].id);
+      }
     }
-    for(const id of now) if(!held.has(id)) for(const c of MAP[id]){ if(!K[c]) Kj[c]=true; K[c]=true; }
+    for(const id of now){
+      const fresh=!held.has(id);
+      for(const c of MAP[id]){ if(fresh&&!K[c]) Kj[c]=true; K[c]=true; }
+    }
     for(const id of held) if(!now.has(id)) for(const c of MAP[id]) K[c]=false;
     for(const id in MAP){ const b=document.getElementById(id); if(b) b.classList.toggle('held',now.has(id)); }
     held=now;

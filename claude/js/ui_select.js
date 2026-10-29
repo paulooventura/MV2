@@ -90,7 +90,7 @@
   }
 
   // ── step 2: the heroes ──
-  function heroCard(key,cx,sel,k,box){
+  function heroCard(key,cx,sel,k,box,topName){
     const H0=HERO[key], im=IMG[key];
     const sc=0.9+0.1*k;
     let w,h,x,y,sk;
@@ -140,8 +140,8 @@
     ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?H0.col:'rgba(120,130,140,0.6)'; cardPath(x,y,w,h,sk); ctx.stroke();
     ctx.shadowBlur=0; ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.7)'; cardPath(x+5,y+5,w-10,h-10,sk*0.95); ctx.stroke();
     ctx.restore();
-    // name + role + tag
-    const ny=h<200?y+Math.max(8,h-86):y+h-112;
+    // name + role + tag. On a phone the face buttons cover the bottom, so the name sits high.
+    const ny=topName?y+16:(h<200?y+Math.max(8,h-86):y+h-112);
     ctx.save(); if(!sel) ctx.globalAlpha=0.55;
     uiLogo(H0.name,cx,ny,sel?50:40,{col:H0.col,sweep:200});
     drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200?2:3);
@@ -149,7 +149,7 @@
     ctx.restore();
     // badge: LEAD / ALLY (or P1 in local co-op)
     const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
-    const bt=sel?lead:ally, bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=y-16;
+    const bt=sel?lead:ally, bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-16;
     ctx.save(); ctx.translate(bx+bw/2,by+15); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+15));
     ctx.fillStyle='#020a04'; uiRound(bx+2,by+3,bw,30,4); ctx.fill();
     ctx.fillStyle=sel?H0.col:'#2a3036'; uiRound(bx,by,bw,30,4); ctx.fill();
@@ -209,24 +209,29 @@
     });
   }
   function drawPhoneHeroes(){
-    const L=uiLayout(), sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
-    const top=title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS':(sib?'BROTHER RIDES WITH YOU':'BROTHER STAYS HOME'));
+    const L=uiLayout();
+    const top=Math.max(10,(L.inset&&L.inset.t)||0)+6;
     const showSwitches=_playerCount!==2&&window.MV_SIBLING;
-    const switchH=showSwitches?48:0;
     const yHint=hintY();
-    const ySw=yHint-28-switchH;
-    const gap=12;
-    const span=Math.max(120, ySw-top-8);
-    const rh=Math.floor((span-gap)/2);
+    const bottom=Math.min(H-12, yHint-(showSwitches?8:0));
+    const x0=Math.max(12,(L.inset&&L.inset.l)||0);
+    const x1=W-Math.max(12,(L.inset&&L.inset.r)||0);
+    const gap=16;
+    const full=Math.max(280, x1-x0);
+    const mSel=_heroChoice==='mind';
+    const leadW=Math.round(full*0.62), sideW=full-leadW-gap;
+    const h=Math.max(220, bottom-top- (showSwitches?52:0));
+    const leadKey=mSel?'mind':'venture', sideKey=mSel?'venture':'mind';
+    const leadBox={x:mSel?x0:x0+sideW+gap, y:top, w:leadW, h};
+    const sideBox={x:mSel?x0+leadW+gap:x0, y:top+10, w:sideW, h:h-10};
     heroRects=[];
-    ['mind','venture'].forEach((k,i)=>{
-      const box={x:L.panelX, y:top+i*(rh+gap), w:L.panelW, h:rh};
-      heroRects.push(Object.assign({k}, phoneHeroRow(k, k===_heroChoice, box)));
-    });
+    heroRects.push(Object.assign({k:sideKey}, heroCard(sideKey, sideBox.x+sideBox.w/2, false, 0.2, sideBox, true)));
+    heroRects.push(Object.assign({k:leadKey}, heroCard(leadKey, leadBox.x+leadBox.w/2, true, 1, leadBox, true)));
+    drawTextC('CHOOSE YOUR LEAD', W/2, top+4, '#f2ffe8', 2);
     if(showSwitches){
       sibRects=[];
-      const y=heroRects[1].y+heroRects[1].h+16;
-      phonePills('BROTHER',[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH',col:'#ffb86a'}],!!MV_SIBLING.on,L.panelX,y,L.panelW,1,selRow===1);
+      const y=top+h+8;
+      phonePills('BROTHER',[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH',col:'#ffb86a'}],!!MV_SIBLING.on,x0,y,full,1,selRow===1);
     }
     hints();
   }

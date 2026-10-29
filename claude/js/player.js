@@ -53,13 +53,23 @@ function _initTouchButtons(){
   if(cv) cv.addEventListener('click',()=>{ cv.focus(); _unlockAudio(); });
   // Face buttons, Xbox layout: A jump · B item select · X run + use item · Y punch.
   const _padPairs=[['bSp',['Space']],['bE',['KeyE']],['bQ',['KeyQ','Sprint_t']],['bF',['KeyF']]];
+  let _faceTouchAt=0;
   _padPairs.forEach(([id,codes])=>{
     const b=document.getElementById(id);
     if(!b) return;
-    const on=e=>{ for(const code of codes){ if(!K[code]) Kj[code]=true; K[code]=true; } if(typeof _phoneEnterPlay==='function') _phoneEnterPlay(); e.preventDefault(); e.stopPropagation(); };
-    const off=()=>{ for(const code of codes) K[code]=false; };
+    const on=e=>{
+      if(e.type==='mousedown'&&performance.now()-_faceTouchAt<900) return;
+      for(const code of codes){ if(!K[code]) Kj[code]=true; K[code]=true; }
+      if(typeof _phoneEnterPlay==='function') _phoneEnterPlay();
+      e.preventDefault(); e.stopPropagation();
+    };
+    const off=e=>{
+      if(e&&String(e.type||'').indexOf('mouse')===0&&performance.now()-_faceTouchAt<900) return;
+      if(window.MV_TOUCH&&MV_TOUCH.held&&MV_TOUCH.held.indexOf(id)>=0) return;
+      for(const code of codes) K[code]=false;
+    };
     b.addEventListener('mousedown',on);
-    b.addEventListener('touchstart',on,{passive:false});
+    b.addEventListener('touchstart',e=>{ _faceTouchAt=performance.now(); on(e); },{passive:false});
     ['mouseup','mouseleave','touchend','touchcancel'].forEach(v=>b.addEventListener(v,off));
   });
   _initDpadEightWay();

@@ -24,7 +24,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='344';</script>
+<script>window.MV_BUILD='345';</script>
 <script>
 (function(){
   if(location.protocol==='file:') return;
@@ -109,12 +109,11 @@ html.phone-play .desk{display:none;}
 html.phone-play .ph{display:inline;}
 html.phone-play.land #gameWrap{
   position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
-  display:flex;align-items:center;justify-content:center;
+  display:block;background:#04020a;
 }
 html.phone-play.land canvas{
-  width:min(100vw,calc(100dvh * 1024 / 768));
-  height:min(100dvh,calc(100vw * 768 / 1024));
-  max-width:100%;max-height:100%;border:none;
+  position:absolute;inset:0;width:100%;height:100%;
+  max-width:none;max-height:none;border:none;
 }
 html.phone-play.land #touchHud{
   position:fixed;inset:0;z-index:30;display:block!important;pointer-events:none;
@@ -294,18 +293,18 @@ window.onerror=function(msg,src,line,col,err){
 };
 </script>
 <script src="js/save.js?v=278"></script>
-<script src="js/core.js?v=216"></script>
+<script src="js/core.js?v=345"></script>
 <script src="js/audio.js?v=336"></script>
 <script src="js/sound16.js?v=308"></script>
 <script src="js/sfx_posh.js?v=336"></script>
 <script src="js/enemies.js?v=344"></script>
 <script src="js/collision_grid.js?v=330"></script>
   <script src="js/physics.js?v=335"></script>
-  <script src="js/player.js?v=336"></script>
-<script src="js/beta_touch.js?v=181"></script>
+  <script src="js/player.js?v=345"></script>
+<script src="js/beta_touch.js?v=345"></script>
   <script src="js/weapons.js?v=340"></script>
 <script src="js/ui.js?v=329"></script>
-<script src="js/ui_select.js?v=335"></script>
+<script src="js/ui_select.js?v=345"></script>
   <script src="js/render.js?v=342"></script>
 <script src="js/editor.js?v=t170"></script>
 <script src="js/map_edit.js?v=t134"></script>
@@ -313,7 +312,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/awdjoo_level.js?v=139"></script>
 <script src="js/healthwatch.js?v=1"></script>
 <script src="js/awdjoo_map.js?v=106"></script>
-<script src="js/main.js?v=342"></script>
+<script src="js/main.js?v=345"></script>
 <script src="js/crt_room.js?v=248"></script>
 <script src="js/item_lab.js?v=157"></script>
 <script src="js/physics_lab.js?v=157"></script>
@@ -327,7 +326,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/beta_ambience.js?v=280"></script>
 <script src="js/beta_decor.js?v=293"></script>
 <script src="js/beta_sky.js?v=322"></script>
-<script src="js/beta_level.js?v=344"></script>
+<script src="js/beta_level.js?v=345"></script>
 <script src="js/beta_feel.js?v=327"></script>
 <script src="js/beta_water.js?v=343"></script>
 <script src="js/beta_weather.js?v=279"></script>

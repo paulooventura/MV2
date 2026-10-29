@@ -11,7 +11,29 @@ if (!cv || typeof cv.getContext !== 'function') {
 }
 const ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');
-const W = 1024, H = 768;
+// Phone landscape is wider than 4:3. Height stays 768; width follows the
+// screen so the picture fills it and the side bars go away. Desktop stays 1024.
+let W = 1024, H = 768;
+function _fitPhoneFrame(){
+  let phone=false;
+  try{ phone=document.documentElement.classList.contains('phone-play')||!!window._phonePlay; }catch(e){}
+  const iw=window.innerWidth||1024;
+  const ih=window.innerHeight||768;
+  let nw=1024, nh=768;
+  if(phone&&iw>ih+24){
+    nh=768;
+    nw=Math.round(nh*(iw/Math.max(1,ih)));
+    nw=Math.max(1024, Math.min(1792, nw));
+  }
+  if(cv.width===nw&&cv.height===nh&&W===nw&&H===nh) return;
+  W=nw; H=nh;
+  cv.width=W; cv.height=H;
+  ctx.imageSmoothingEnabled=true;
+}
+_fitPhoneFrame();
+addEventListener('resize',_fitPhoneFrame);
+addEventListener('orientationchange',()=>setTimeout(_fitPhoneFrame,60));
+if(window.visualViewport) visualViewport.addEventListener('resize',_fitPhoneFrame);
 const SMS_SCALE = 1;
 
 if (!CanvasRenderingContext2D.prototype.roundRect) {

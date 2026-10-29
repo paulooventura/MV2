@@ -838,6 +838,7 @@ function _updateBattleEye(pl){
   pl._eyeSlant=(pl._eyeSlant||0)+(slantT-(pl._eyeSlant||0))*0.14;
 }
 function update(){
+  if(window.MV_TOUCH&&MV_TOUCH.refresh) MV_TOUCH.refresh();
   readGamepad();
   if(typeof _driveMenusFromPads==='function') _driveMenusFromPads();
   if(_gameState==='game'&&Kj['Escape']&&typeof _togglePause==='function') _togglePause();

@@ -611,7 +611,9 @@
     // pushes them down the hole (Paulo, Oct 22: no more launching off the trapdoor and getting stuck)
     if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease&&!blastCandidates().length){
       const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
-      B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};   // an almost empty bar barely lifts him B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45)); p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
+      B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};
+      B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45));
+      p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
     }
     B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
     if(B._xlrTapped){ B.chX=0; B.downCubeHeld=false; }
