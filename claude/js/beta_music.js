@@ -24,7 +24,7 @@
   const T=32, A=()=>window.MV_BETA_AUDIO;
   const on=()=>B.on&&typeof _gameState!=='undefined'&&_gameState==='game';
   let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null;
-  let bowl=null, mixS=0;
+  let bowl=null, mixS=0, brake=null, handed=false;
 
   // ── the sources ──
   const ctr=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
@@ -97,8 +97,10 @@
     if(sid==='1.2'){
       const tri=triOnStage();
       if(!tri) return null;                                          // not spawned yet — leave the track alone
-      if(tri.alive) return {track:stageMusic, at:ctr(tri)};          // follows that triangle
-      return {track:'calm', at:gatePos()};                           // shut down: calm from the exit gate
+      // A knockdown refills and stands back up. Only the one that stays down
+      // hands the song off — swapping tracks on every fall was the on/off.
+      if(tri._permOff||tri._shorted) return {track:'calm', at:gatePos(), handoff:true};
+      return {track:stageMusic, at:ctr(tri)};
     }
     if(sid==='1.3'){
       const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
@@ -117,15 +119,17 @@
   function solidAt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
   function hear(at){
     const ox=p.x+SW/2, oy=p.y+FEET_OFF-50, dx=at.x-ox, dy=at.y-oy, d=Math.hypot(dx,dy);
-    const near=Math.max(0,1-d/1500);
+    const near=Math.max(0,1-d/1800);
     let rock=0; const n=Math.min(40,Math.ceil(d/T));
     for(let i=1;i<n;i++){ if(solidAt(ox+dx*i/n,oy+dy*i/n)) rock++; }
-    const occ=Math.min(1,rock/10);
-    return {gain:(0.22+0.78*near*near)*(1-0.35*occ), pan:Math.max(-0.85,Math.min(0.85,dx*(p.fc?1:-1)/650)), lp:Math.max(700,(2500+15500*near)*(1-0.85*occ))};
+    const occ=Math.min(1,rock/12);
+    // Loudest on the source, still clearly on across the stage. A floor under
+    // about half was reading as the song switching off inside the house.
+    return {gain:0.62+0.38*near*near*(1-0.4*occ), pan:Math.max(-0.85,Math.min(0.85,dx*(p.fc?1:-1)/650)), lp:Math.max(1600,(4200+14000*near)*(1-0.5*occ))};
   }
   function direct(){
     if(!on()||!p||!A()) return;
-    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; bowl=null; mixS=0; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
+    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; bowl=null; mixS=0; brake=null; handed=false; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
     if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze) return;       // item window, dialog, results, and the boss moment play their own
     const want=pick(); if(!want) return;
     if(want.blend&&A().duo){
@@ -136,6 +140,29 @@
     }
     if(A().duoEnd) A().duoEnd();
     if(!want.track) return;
+    if(want.handoff){
+      B.music='calm';
+      if(!handed){
+        if(!brake){
+          const cur=A().current();
+          if(cur&&cur!=='calm'&&A().vinylBrake){ brake={from:cur, t:0, dur:100}; A().vinylBrake(1); }
+          else brake={from:null, t:100, dur:100};
+        }
+        if(brake.t<brake.dur){
+          brake.t++;
+          if(A().vinylBrake) A().vinylBrake(Math.max(0,1-brake.t/brake.dur));
+          const tri=triOnStage();
+          if(brake.from&&tri&&A().place){ placed=brake.from; A().place(brake.from, hear(ctr(tri))); }
+          return;
+        }
+        if(A().vinylHalt) A().vinylHalt();
+        A().play('calm',{restart:true});
+        handed=true; lastTrack='calm'; brake=null;
+      }
+      if(want.at&&A().place){ if(placed&&placed!=='calm'&&A().unplace) A().unplace(placed); placed='calm'; A().place('calm', hear(want.at)); }
+      return;
+    }
+    if(handed||brake){ handed=false; brake=null; if(A().vinylClear) A().vinylClear(); }
     B.music=want.track;
     if(A().current()!==want.track){ A().play(want.track,{restart:want.track!==lastTrack}); lastTrack=want.track; }
     if(want.at){ if(placed&&placed!==want.track&&A().unplace) A().unplace(placed); placed=want.track; A().place(want.track,hear(want.at)); }

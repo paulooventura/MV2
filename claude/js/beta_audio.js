@@ -59,22 +59,24 @@
     try{ a.load(); }catch(e){}
     return a;
   }
-  // Dialog (Laitu and anyone else who sets B.talking): stori, then the stage track resumes where it left off.
+  // A dialog, an item card, or the stage-clear screen used to stop the
+  // song and start another one. That pause-and-play is the stutter. The
+  // track that is already going stays put; it just sits a little quieter.
+  const beds=new Set();
+  let bedVol=null;
+  function bed(key,on){
+    if(on) beds.add(key); else beds.delete(key);
+    const a=current&&els[current]; if(!a) return;
+    if(bedVol==null) bedVol=a._baseVol==null?1:a._baseVol;
+    const down=beds.size>0;
+    a.volume=Math.max(0,Math.min(1,vol()*bedVol*(down?0.72:1)));
+    a.muted=vol()<=0;
+    if(!down) bedVol=null;
+    if(a.paused&&vol()>0){ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+  }
+  // Dialog (Laitu and anyone else who sets B.talking): the stage track keeps its place.
   function talk(on){
-    const swap=!!((window.MV_INK_SOUND&&MV_INK_SOUND())||(window.MV_SNES_SOUND&&MV_SNES_SOUND()));
-    if(!swap){ held=null; return; }   // GORE stays on Chaos Theory; Genesis keeps its stage track
-    if(on){
-      if(held||(window.MV_BETA&&MV_BETA.popup)) return;
-      const from=current&&current!=='item'?current:((window.MV_BETA&&MV_BETA.music)||'stage');
-      const a=els[from];
-      held={from, at:a?a.currentTime:0};
-      play('item');
-    }else if(held){
-      const h=held; held=null;
-      if(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.ending)) return;
-      play(h.from);
-      try{ if(els[h.from]) els[h.from].currentTime=h.at; }catch(e){}
-    }
+    bed('talk',!!on);
   }
   let octaved=false, lastName=null, lastRate=1, vinylFrom=null;
   function vinylBrake(fracLeft){
@@ -93,6 +95,20 @@
     if(a&&!a.paused) a.playbackRate=Math.max(0.08, vinylFrom||a.playbackRate||0.2);
     vinylFrom=null;
     window._mvVinylSpin=1;
+  }
+  // The record has wound down. Pause it and clear the brake so the next track
+  // starts at pitch, instead of the player spinning the dead one back up.
+  function vinylHalt(){
+    window._mvVinyl=false; window._mvVinylSpin=0;
+    const a=current&&els[current];
+    if(a){ try{ a.pause(); }catch(e){} a.playbackRate=1; }
+    vinylFrom=null; current=null; wantPlay=null;
+  }
+  function vinylClear(){
+    window._mvVinyl=false; window._mvVinylSpin=0;
+    const a=current&&els[current];
+    if(a&&!a.paused&&vinylFrom!=null) a.playbackRate=vinylFrom;
+    vinylFrom=null;
   }
   function vinylToOctave(){
     const from=vinylFrom||lastRate||1;
@@ -114,27 +130,32 @@
       }
     }
   }
-  function play(name,{restart=false,volume=1}={}){
+  function play(name,opts){
+    opts=opts||{};
+    const restart=!!opts.restart, hasVol=opts.volume!=null, volume=hasVol?opts.volume:1;
+    if(!restart&&current===name&&els[name]&&!els[name].paused&&els[name]._path===pathOf(name)){
+      if(hasVol){
+        const a=els[name];
+        a._baseVol=volume;
+        a.volume=Math.max(0,Math.min(1,vol()*volume));
+        a.muted=vol()<=0;
+      }
+      return;
+    }
     duoEnd();
     if(!TRACKS[name]) name='stage';
     const a=el(name);
-    try{ document.querySelectorAll('audio').forEach(n=>{ if(n!==a) n.pause(); }); }catch(e){}
-    if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
+    for(const k in els) if(k!==name&&els[k]&&els[k]!==a) try{ els[k].pause(); }catch(e){}
     if(restart) try{ a.currentTime=0; }catch(e){}
     octaved=false; window._mvOctave=false;
-    a._baseVol=volume; a.playbackRate=1;
+    a._baseVol=volume;
     a.volume=vol()*volume;
     a.muted=vol()<=0;
     current=name; wantPlay=name;
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
     try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
     const pr=a.play();
-    const started=()=>{
-      for(const k in els) if(k!==name) try{ els[k].pause(); }catch(e){}
-      if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){}
-    };
-    if(pr&&pr.then) pr.then(started).catch(()=>{ wantPlay=name; });
-    else started();
+    if(pr&&pr.then) pr.then(()=>{}).catch(()=>{ wantPlay=name; });
   }
   // the stage track is asked for after a level fetch, past the click that
   // unlocked sound — keep trying until the browser actually lets it play
@@ -147,7 +168,7 @@
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
     try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
     const pr=a.play();
-    if(pr&&pr.then) pr.then(()=>{ if(typeof _stopAllBgm==='function') try{ _stopAllBgm(); }catch(e){} }).catch(()=>{});
+    if(pr&&pr.catch) pr.catch(()=>{});
   }
   // A hit slows the theme. It does not duck it: while MIND is hurt the
   // track sits a little further forward (about 14% at the deepest dip),
@@ -165,6 +186,7 @@
       return;
     }
     if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
+    if(beds.size||a._placed) return;
     if(vol()<=0){ a.volume=0; a.muted=true; return; }
     a.muted=false;
     const presence=1+0.2*Math.max(0,1-f);
@@ -185,6 +207,7 @@
   // routed through Web Audio — low-pass (rock in between), stereo pan (MIND's ears), gain
   // (distance). place(name,{gain,pan,lp}) eases it there; unplace(name) puts it back to plain.
   const routed={};
+  const smoothed={};
   function route(name){
     if(routed[name]!==undefined) return routed[name];
     const a=ac(); if(!a||!els[name]) return null;
@@ -193,15 +216,45 @@
       routed[name]={lp,pan,g}; }catch(e){ routed[name]=null; }
     return routed[name];
   }
+  function onPhone(){
+    try{ return document.documentElement.classList.contains('phone-play')||!!window._phonePlay; }catch(e){ return false; }
+  }
+  // One eased value per frame. Scheduling a new ramp 60 times a second piles
+  // up on a phone and the song drops out. On a phone the track stays on the
+  // audio element itself, so a Web Audio blip cannot mute it.
   function place(name,{gain=1,pan=0,lp=20000}={}){
     if(!els[name]) el(name);
-    const r=route(name), a=ac(); if(!r||!a) return;
-    const t=a.currentTime;
-    r.g.gain.setTargetAtTime(gain,t,0.12); r.pan.pan.setTargetAtTime(Math.max(-1,Math.min(1,pan)),t,0.12); r.lp.frequency.setTargetAtTime(lp,t,0.15);
+    const ael=els[name];
+    let s=smoothed[name];
+    if(!s) s=smoothed[name]={g:gain,p:pan,lp:lp};
+    s.g+=(gain-s.g)*0.06; s.p+=(pan-s.p)*0.08; s.lp+=(lp-s.lp)*0.06;
+    ael._placed=true;
+    const base=ael._baseVol==null?1:ael._baseVol;
+    const ctx=ac();
+    if(ctx&&ctx.state==='suspended'){ const pr=ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    const phone=onPhone();
+    const r=phone?null:route(name);
+    if(!r||!ctx){
+      const g=Math.max(0.55,Math.min(1,s.g));
+      ael.volume=Math.max(0,Math.min(1,vol()*base*g));
+      ael.muted=vol()<=0;
+      if(ael.paused&&vol()>0){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+      return;
+    }
+    ael.volume=Math.min(1,base);
+    ael.muted=vol()<=0;
+    r.g.gain.value=Math.max(0.0001,s.g*vol());
+    r.pan.pan.value=Math.max(-1,Math.min(1,s.p));
+    r.lp.frequency.value=Math.max(80,s.lp);
+    if(ael.paused&&vol()>0){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
   }
-  function unplace(name){ const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000}); }
+  function unplace(name){
+    const ael=els[name]; if(ael) ael._placed=false;
+    const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000});
+  }
   function stopAll(){
     duoEnd();
+    beds.clear(); bedVol=null;
     if(current&&els[current]){ lastName=current; lastRate=els[current].playbackRate||lastRate; }
     for(const k in els) try{ els[k].pause(); }catch(e){} current=null; wantPlay=null;
   }
@@ -267,7 +320,11 @@
       for(const k in els){ const a=els[k]; if(a&&a._mix>0.02&&a.paused){ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); } }
       return;
     }
-    if(wantPlay&&els[wantPlay]&&els[wantPlay].paused) play(wantPlay);
+    if(wantPlay&&els[wantPlay]&&els[wantPlay].paused){
+      const a=els[wantPlay];
+      const pr=a.play();
+      if(pr&&pr.catch) pr.catch(()=>{});
+    }
   };
   window.addEventListener('keydown',kick); window.addEventListener('pointerdown',kick);
 
@@ -598,5 +655,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
 })();

@@ -930,7 +930,15 @@ function _catchLighter(c){
 // length from that tip to the latch, so the pull is along that pixel line.
 function _haulCatch(h, c, dist){
   if(!_catchLighter(c)||!(dist>0)) return false;
-  const tip=_jackTip(), b=c.body;
+  const b=c.body;
+  if(c.kind==='cube'){
+    if(b.only==='laser'||b.stay) return false;
+    if(window.MV_BETA&&MV_BETA.freeHungCube) MV_BETA.freeHungCube(b);
+    b._hookHung=true;
+    b._reelIn=(b._reelIn||0)+dist;
+    return true;
+  }
+  const tip=_jackTip();
   let dx=tip.x-h.ax, dy=tip.y-h.ay, d=Math.hypot(dx,dy)||1;
   const step=Math.min(dist, Math.max(0, d-ROPE_RL_MIN));
   if(step<=0.2) return false;

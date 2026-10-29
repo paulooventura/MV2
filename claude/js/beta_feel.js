@@ -294,22 +294,100 @@
 
   // ── RCA hook rides along with the cube it bit; lets go when the cube breaks
   function hookOff(h){
+    dropHung(h);
     if(typeof _releaseHookAim==='function') _releaseHookAim(h.ax,h.ay);
     h.st='idle'; h.ox=NaN; h.oy=NaN; h.tgt=null; h.plat=null; h._tight=false; h._slack=false;
     h._path=null; h._tension=0; h.pivots=null; h.vr=null; h._cube=null; h._cubeChecked=false;
   }
+  function dropHung(h){
+    const bw=h&&h._cube;
+    if(!bw||!bw._hookHung) return;
+    bw._hookHung=false; bw._fly=true; bw._reelIn=0;
+    if(B.flying&&B.flying.indexOf(bw)<0) B.flying.push(bw);
+  }
+  function biteOf(bw,h){
+    const lx=(h._cdx||T/2)-T/2, ly=(h._cdy||T/2)-T/2;
+    const c=Math.cos(bw.rot||0), s=Math.sin(bw.rot||0);
+    return {x:bw.x+T/2+lx*c-ly*s, y:bw.y+T/2+lx*s+ly*c, lx, ly};
+  }
+  function keepBite(bw,h,pt){
+    const now=biteOf(bw,h);
+    bw.x+=pt.x-now.x; bw.y+=pt.y-now.y;
+  }
+  function hungSolid(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
+  function hangCube(h,bw){
+    const mass=Math.max(0.5,B.weightOf?B.weightOf('cube',bw):3);
+    const pm=B.bodyMass?B.bodyMass(p):9.5;
+    const hand=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x+32,y:p.y+40};
+    const g=(typeof GRAV!=='undefined'?GRAV:0.52);
+    if(h._hangLen==null){
+      const b0=biteOf(bw,h);
+      h._hangLen=Math.hypot(hand.x-b0.x, hand.y-b0.y);
+    }
+    if(bw._reelIn){
+      const minL=typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28;
+      h._hangLen=Math.max(minL, h._hangLen-bw._reelIn*(pm/(pm+mass)));
+      bw._reelIn=0;
+    }
+    bw.vy=Math.min(14,(bw.vy||0)+g*(0.65+0.35*Math.min(2,mass/5)));
+    bw.vx=(bw.vx||0)*0.994;
+    if(B.inWater&&B.inWater(bw.x+T/2,bw.y+T/2)){ bw.vy=Math.min(bw.vy-g*0.65,1.4); bw.vx*=0.93; }
+    const ox=bw.x, oy=bw.y;
+    bw.x+=bw.vx; bw.y+=bw.vy;
+    const hit=()=>{
+      const c=Math.cos(bw.rot||0), s=Math.sin(bw.rot||0), cx=bw.x+T/2, cy=bw.y+T/2, hs=T*0.46;
+      for(const q of [[-hs,-hs],[hs,-hs],[hs,hs],[-hs,hs]]){
+        if(hungSolid(cx+q[0]*c-q[1]*s, cy+q[0]*s+q[1]*c)) return true;
+      }
+      return false;
+    };
+    if(hit()){
+      bw.x=ox; bw.vx=(bw.vx||0)*-0.25;
+      if(hit()){ bw.y=oy; bw.vy=(bw.vy||0)>1?-bw.vy*0.2:0; bw.vx*=0.6; }
+      else bw.vy=(bw.vy||0)>1?-bw.vy*0.15:0;
+      bw._spin=(bw._spin||0)*0.4;
+    }
+    let bite=biteOf(bw,h);
+    let dx=bite.x-hand.x, dy=bite.y-hand.y, d=Math.hypot(dx,dy)||1;
+    if(d>h._hangLen){
+      const excess=d-h._hangLen, ux=dx/d, uy=dy/d;
+      const shareB=pm/(pm+mass), shareP=mass/(pm+mass);
+      bw.x-=ux*excess*shareB; bw.y-=uy*excess*shareB;
+      const out=(bw.vx||0)*ux+(bw.vy||0)*uy;
+      if(out>0){ bw.vx-=ux*out; bw.vy-=uy*out; }
+      p.x-=ux*excess*shareP; p.y-=uy*excess*shareP;
+      p.vx=(p.vx||0)-ux*excess*shareP*0.28;
+      p.vy=(p.vy||0)-uy*excess*shareP*0.28;
+      bite=biteOf(bw,h);
+    }
+    const cx=bw.x+T/2, cy=bw.y+T/2;
+    const cur=Math.atan2(cy-bite.y, cx-bite.x);
+    let dAng=Math.PI/2-cur; while(dAng>Math.PI) dAng-=Math.PI*2; while(dAng<-Math.PI) dAng+=Math.PI*2;
+    const inertia=Math.max(0.4, mass/3);
+    bw._spin=(bw._spin||0)+dAng*0.05/inertia;
+    bw._spin*=0.88;
+    const held=biteOf(bw,h);
+    bw.rot=(bw.rot||0)+bw._spin;
+    keepBite(bw,h,held);
+    const at=biteOf(bw,h);
+    h.ax=at.x; h.ay=at.y; h.ex=at.x; h.ey=at.y;
+    if(h._path&&h._path[0]){ h._path[0].x=at.x; h._path[0].y=at.y; }
+    h.rl=Math.max(typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28, Math.hypot(at.x-hand.x, at.y-hand.y));
+  }
   function hookTick(){
     const h=p.hook; if(!h) return;
-    if(h.st!=='on'){ h._cube=null; h._cubeChecked=false; return; }
-    if(h.tgt) return;                                   // enemies: the game already follows them
+    if(h.st!=='on'){ dropHung(h); h._cube=null; h._cubeChecked=false; h._hangLen=null; return; }
+    if(h.tgt) return;
     if(!h._cubeChecked){
       h._cubeChecked=true;
       const px=h.ax-(h.nx||0)*4, py=h.ay-(h.ny||0)*4;
       for(const bw of B.cubes()) if(px>=bw.x-1&&px<=bw.x+T+1&&py>=bw.y-1&&py<=bw.y+T+1){ h._cube=bw; h._cdx=h.ax-bw.x; h._cdy=h.ay-bw.y; break; }
+      if(!h._cube) for(const bw of BWALLS) if(bw.cube&&bw.hp>0&&(bw._fly||bw._hookHung)&&px>=bw.x-1&&px<=bw.x+T+1&&py>=bw.y-1&&py<=bw.y+T+1){ h._cube=bw; h._cdx=h.ax-bw.x; h._cdy=h.ay-bw.y; break; }
       if(!h._cube) for(const bw of BWALLS) if(bw.cube&&bw.hp>0&&bw.only==='laser'&&px>=bw.x&&px<=bw.x+T&&py>=bw.y&&py<=bw.y+T){ h._cube=bw; h._cdx=h.ax-bw.x; h._cdy=h.ay-bw.y; }
     }
     const bw=h._cube; if(!bw) return;
-    if(bw.hp<=0){ hookOff(h); try{ sfx('ropeBreak'); }catch(e){} return; }
+    if(bw.hp<=0){ bw._hookHung=false; hookOff(h); try{ sfx('ropeBreak'); }catch(e){} return; }
+    if(bw._hookHung){ hangCube(h,bw); return; }
     const nx=bw.x+(bw._ox||0)+h._cdx, ny=bw.y+(bw._oy||0)+h._cdy;
     if(Math.abs(nx-h.ax)>0.01||Math.abs(ny-h.ay)>0.01){ h.ax=nx; h.ay=ny; h.ex=nx; h.ey=ny; if(h._path&&h._path[0]){ h._path[0].x=nx; h._path[0].y=ny; } }
   }

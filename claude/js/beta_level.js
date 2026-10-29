@@ -945,10 +945,21 @@
     bw.homeCol=bw.homeRow=bw.homeX=bw.homeY=null;
     B.flying.push(bw);
   }
+  // A cube the rope has pulled off its cell. flyTick leaves it alone; the
+  // rope in beta_feel.js hangs it by its weight.
+  B.freeHungCube=function(bw){
+    if(!bw||bw._hookHung) return;
+    if(bw.only==='laser'||bw.stay) return;
+    if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol,bw.homeRow);
+    bw.homeCol=bw.homeRow=bw.homeX=bw.homeY=null;
+    bw._hookHung=true; bw._fly=true; bw._carried=false; bw._ox=bw._oy=0;
+    if(B.flying.indexOf(bw)<0) B.flying.push(bw);
+  };
   function flyTick(){
     for(let i=B.flying.length-1;i>=0;i--){
       const bw=B.flying[i];
-      if(bw.hp<=0){ B.flying.splice(i,1); continue; }
+    if(bw.hp<=0){ B.flying.splice(i,1); continue; }
+      if(bw._hookHung) continue;
       if(bw._tossT>0) bw._tossT--;
       bw.vy=Math.min(bw.vy+GRAV,15); bw.vx*=0.995;
       if(B.inWater&&B.inWater(bw.x+T/2,bw.y+T/2)){ bw.vy=Math.min(bw.vy-GRAV*0.7,2.2); bw.vx*=0.93; bw.spin=(bw.spin||0)*0.9; }
@@ -2201,13 +2212,13 @@
     if(B.popupSeen[i]) return;
     B.popupSeen[i]=true;
     B.popup={item:i, t:0};
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('item',{restart:true,volume:0.8});
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('popup',true);
   }
   function closePopup(){
     B.popup=null;
     for(const k in K) delete K[k];
     if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
-    if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play(B.music);
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('popup',false);
   }
   function drawPopup(){
     const P=B.popup, a=Math.min(1,P.t/12);
@@ -2265,8 +2276,8 @@
     return {rows,total,ach,rank,best,frames:st.frames};
   }
   function openResults(){
-    B.results={t:0, sc:score(), music:false};
-    if(window.MV_BETA_AUDIO){ MV_BETA_AUDIO.stopAll(); const ms=MV_BETA_AUDIO.fanfare(); B.results.musicAt=Math.round((ms||3000)/1000*60); }
+    B.results={t:0, sc:score(), music:true};
+    if(window.MV_BETA_AUDIO){ if(MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('results',true); MV_BETA_AUDIO.fanfare(); }
   }
   function drawResults(){
     const R=B.results, a=Math.min(1,R.t/20), sc=R.sc;
@@ -2334,9 +2345,10 @@
   }
   function resultsNext(){
     const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('results',false);
     B.results=null;
     if(nx) travel(nx,'forward');
-    else if(window.MV_STORY_STAGES){ saveStage(); B.ending={t:0}; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.7}); }
+    else if(window.MV_STORY_STAGES){ saveStage(); B.ending={t:0}; if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed){ MV_BETA_AUDIO.bed('results',false); MV_BETA_AUDIO.bed('ending',true); } }
     else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
   }
   // ── Lives + continues (Paulo, Oct 20): the game starts with 3 lives and 3
@@ -2400,7 +2412,6 @@
     if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
       B.results.t++;
-      if(!B.results.music&&B.results.t>=B.results.musicAt){ B.results.music=true; if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.play('results',{restart:true,volume:0.6}); }
       if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();
       return;
     }
@@ -2441,7 +2452,11 @@
   };
   const _origPlayBGM=window._playBGM;
   window._playBGM=function(type){
-    if(B.on&&type==='game'&&window.MV_BETA_AUDIO){ MV_BETA_AUDIO.play(B.popup?'item':B.music); return; }
+    if(B.on&&type==='game'&&window.MV_BETA_AUDIO){
+      if(B.popup||B.results||B.ending||B.talking) return;
+      MV_BETA_AUDIO.play(B.music);
+      return;
+    }
     return _origPlayBGM.apply(this, arguments);
   };
   const _origPlayerHit=window.applyPlayerHit;
