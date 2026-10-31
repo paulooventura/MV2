@@ -42,7 +42,9 @@
   function rideChoice(){
     const u=typeof isUp==='function'&&isUp();
     const d=typeof isDn==='function'&&isDn();
-    const ue=!!u&&!rideChoice.u, de=!!d&&!rideChoice.d;
+    // a quick key tap can go down and up between two frames: the one-frame flag still catches it
+    const tu=typeof _bindJ==='function'&&_bindJ('up'), td=typeof _bindJ==='function'&&_bindJ('down');
+    const ue=(!!u&&!rideChoice.u)||!!tu, de=(!!d&&!rideChoice.d)||!!td;
     rideChoice.u=!!u; rideChoice.d=!!d;
     if(ue===de) return 0;
     return ue?1:-1;
@@ -305,8 +307,9 @@
     S.cab=sealed; S.sealed=!!sealed; S.inside=!!sealed; S.hold=hold;
     if(sealed){
       const left=sealed.x+6, right=sealed.x+sealed.w-6-(typeof SW==='number'?SW:40);
-      if(p.x<left) p.x=left;
-      if(p.x>right) p.x=right;
+      // against a cab wall, the push doesn't build speed (or he shoots out when the doors open)
+      if(p.x<left){ p.x=left; if(p.vx<0) p.vx=0; }
+      if(p.x>right){ p.x=right; if(p.vx>0) p.vx=0; }
       p.y=sealed.y-(typeof FEET_OFF==='number'?FEET_OFF:48);
       p.vy=0; p.og=true;
       S.near=false;

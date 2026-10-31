@@ -202,6 +202,13 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 349 — 1.3 elevators carry MIND (Oct 31, Claude)
+- **The car left without him from the street.** `_stabilizePlayerCollision` (physics.js) snaps a grounded MIND to the nearest floor or ramp near his wheel (down ≤ 40 px, up ≤ 16). As the car rose off the street it dropped him back onto the street every frame. In the left shaft the street stop also overlaps the foot of the ramp (col 10, rows 61–63), so the snap could lift him off the car and leave him "on a slope", and slope physics rolled him out when the doors opened. `beta_water.js` now wraps it: shut in a car (`MV_LIFT.sealed`) the snap is skipped and the slope flags cleared; on any other vertical platform it may push him up, never down off it.
+- **Enemy lassos** (`beta_enemies.js`) can't be thrown at, or keep holding, MIND while he's in a car (`MV_LIFT.sealed||hold`); a rope through the car was pulling him out at the top.
+- `beta_lift.js`: a keyboard tap shorter than a frame now counts as UP/DOWN (`_bindJ` edge too); pushing against a car wall no longer builds speed that shoots him out when the doors open.
+- QA: `node scripts/probe-lift.mjs` rides both shafts street → 6th → street, MIND pressed to the car's right wall (54 checks; `MV_CHROME` = a Chromium path if Playwright's own isn't installed).
+- Not changed (Paulo's call): DOWN from the street goes to the 6th by travelling **up** the shaft (~9 s); the floors left of the shafts are 2-tile ledges onto open air on the 6th.
+
 ### Build 310 — the kiritsuke's feel + the 1.3 boss finish (Oct 26, Jack / T112)
 - New `js/beta_knife.js` (after `beta_music.js` on index + play-1-3), hooks only (no edits to `beta_foes.js`). `MV_KNIFE.state()` for tests.
 - **A+B drop:** jump + item-select within 6 frames drops the selected jack (TRS/RCA/XLR/MAG) in front of MIND; the drop wins over the hop / switch. Touch it to take it back. The knife never drops. Items left lying when the stage changes are given back.

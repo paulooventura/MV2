@@ -307,6 +307,24 @@
     if(on()&&pl===p&&ridingPlat(pl)) return true;
     return _origGrounded.apply(this, arguments);
   };
+  // The grid's ground snap moves a grounded MIND onto the nearest floor or ramp near his
+  // wheel (down up to 40 px, up up to 16). Riding a cab off a floor (the street stops of
+  // 1.3's elevators), it dropped him back onto the street each frame and the car left
+  // without him; passing the foot of the ramp in the left shaft, it lifted him off the car.
+  // Shut inside an elevator car, the lift owns his height: the snap doesn't move him.
+  // On any other vertical platform it may push him up out of rock, never down off it.
+  const _origStab=window._stabilizePlayerCollision;
+  if(typeof _origStab==='function') window._stabilizePlayerCollision=function(pl){
+    const L=window.MV_LIFT;
+    const flat=()=>{ pl.og=true; pl._onSlope=false; pl._slopeAngle=0; pl._groundSeg=null; if(pl.vy>0) pl.vy=0; };
+    // a ramp snap also leaves him "on a slope", and slope physics then rolls him out of the car
+    if(on()&&pl===p&&L&&L.sealed&&L.cab){ flat(); return; }
+    const m=on()&&pl===p&&B.ridePlat&&B.ridePlat.vert&&!B.ridePlat.hidden?B.ridePlat:null;
+    const y0=pl?pl.y:0;
+    const r=_origStab.apply(this, arguments);
+    if(m&&Math.abs(y0+FEET_OFF-m.y)<=4&&pl.y>y0+0.5){ pl.y=y0; flat(); }
+    return r;
+  };
   function platformTick(){
     for(const m of B.platforms){
       if(m.vert){

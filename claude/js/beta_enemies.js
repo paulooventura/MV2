@@ -365,6 +365,7 @@
         continue;
       }
       // holding MIND
+      if(window.MV_LIFT&&(MV_LIFT.sealed||MV_LIFT.hold)){ releaseRope(e); e.ropeCd=200; continue; }   // shut in an elevator car: the rope can't reach in
       const mx=p.x+SW/2, my=p.y+FEET_OFF*0.6;
       r.x=mx; r.y=my;
       if(--r.decide<=0){
@@ -724,7 +725,7 @@
     if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<Math.max(2*T,e.h*0.6)){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
     // rope (square + triangle)
     // rope him from range (it can't be dodged by just standing back), then reel
-    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<ROPE_R+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)){
+    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<ROPE_R+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)&&!(window.MV_LIFT&&(MV_LIFT.sealed||MV_LIFT.hold))){
       throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
     }
     if(e.travCd>0) e.travCd--;
