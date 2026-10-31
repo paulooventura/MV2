@@ -22,13 +22,13 @@ The sheet, left to right (square coordinates are read off the photo, x right, y 
   - THE ELEVATOR (purple, x 18-19.2): one long lift from the top of the map
     down into the pool. Enemy E floats at its top.
   - THE POOL under it: Enemy F sleeps in the water; a crystal on the slope that
-    climbs out of it; rungs up to the ledge at the arena's edge.
+    climbs out of it; electro-block columns hold the water in, left and right.
   - THE SECRET AREA hidden in the rock right of the elevator: the save-state
     item S and an Isolator — through a climb on the rock's face and a plug of
     omni blocks.
   - THE ARENA: open air over a stone bowl. The heptagon boss floats over it.
     Beat it and the bowl's floor gives way into the knife's chamber (K); the
-    knife cuts the vine wall on its right, out to the exit arch.
+    knife is the reward; the exit arch is down past it on the right.
 Re-run after edits:  python3 scripts/build-awdjoo-1-3.py
 """
 import json, os, sys
@@ -124,8 +124,12 @@ poly([(38, 13), (40, 11), (41, 9), (43, 9), (43, 11), (45, 11), (47, 13), (51, 1
 rect(42, 48, 15, 39, AIR)                               # the secret area (the high-tech vault)
 rect(41, 41, 24, 40, SOLID)                             # its left wall: the only way in is the door at the bottom right
 rect(49, 49, 36, 40, AIR)                               # its SECRET ENTRANCE at the tower's bottom right, off the rung shaft
-rect(50, 51, 34, 55, AIR)                               # the rung shaft: from the slope top up through the pool's ceiling, past the door
-rect(52, 52, 44, ROWS - 1, SOLID)                       # the pool's right wall: holds the water, and is the drop's left side
+rect(50, 51, 34, 46, AIR)                               # the shaft up the tower's bottom right, past the vault's hidden door
+rect(50, 52, 47, 49, SOLID)                             # the ledge over the pool's right end (the pool's ceiling runs on to the drop)
+rect(50, 51, 50, 55, AIR)                               # Paulo (Oct 31): the pool's right end is an ELECTRO-BLOCK column (boxes below),
+                                                        # open on the drop side — like the left one, the TRS lets the water out
+rect(52, 52, 50, 55, AIR)
+rect(52, 52, 56, ROWS - 1, SOLID)                       # under the slope's top: the drop's left side
 # THE ARENA (Paulo's sheet, bottom right): open air over the stone bowl. Left of the bowl a narrow
 # drop runs straight down off the map; right of it, the way down to the exit.
 rect(53, 94, 2, 59, AIR)                                # the arena's open air (the bowl is cut back in below)
@@ -152,7 +156,6 @@ def rungs(c0, c1, r0, r1):
     for r in range(r0, r1 + 1, 2):
         for c in range(c0, c1 + 1):
             if g[r][c] == AIR: put(c, r, ONEWAY); skin[r][c] = SK_WOOD
-rungs(50, 51, 35, 55)                                   # slope top -> up through the pool's ceiling -> the vault's hidden door (rows 36-40)
 # the towers' skins (solid = facade, air = interior); the street, the pit and the arena keep their own
 for r in range(ROWS):
     for c in range(COLS):
@@ -172,7 +175,7 @@ paint(0, 33, 54, 54, SK_BRICK)                              # the sidewalk
 # ── Entities ──────────────────────────────────────────────────────
 ent('MindSpawn', 4, 55, 1, 3)
 ent('Decor', 3, 54, 2, 4, kind='arrival')               # the arch MIND comes through
-ent('Gate', 91, 69, 3, 5, crystals=5, seeds=10, boss=1) # the exit arch, bottom right, past the vines
+ent('Gate', 91, 69, 3, 5, crystals=5, seeds=10, boss=1) # the exit arch, bottom right
 ent('Isolator', 46, 27)                                 # in the secret area
 ent('SaveState', 43, 16)                                # S: the save-state item, top of the secret area
 ent('Knife', 71, 73)                                    # K: the gaucho knife in its chamber
@@ -180,7 +183,7 @@ ent('Knife', 71, 73)                                    # K: the gaucho knife in
 ent('Crystal', 4, 12)                                   # the top-left nook
 ent('Crystal', 36, 3)                                   # top of the elevator column
 ent('Crystal', 42, 60)                                  # on the slope, under the water
-ent('Crystal', 50, 45)                                  # in the rung shaft, over the water
+ent('Crystal', 51, 46)                                  # on the ledge over the pool's right end
 ent('Crystal', 45, 38)                                  # bottom of the secret area
 # the 10 seeds (snap=1: sits on the ground under it)
 for c, r, snap in [(26, 15, 1), (34, 5, 0), (51, 12, 1), (33, 28, 1), (28, 42, 1), (26, 53, 1),
@@ -197,13 +200,13 @@ ent('MovingPlatform', 12, 30, 6, 1, axis='y', a=28, b=39, speed=9)      # purple
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=61, speed=12)      # the long elevator, down to the pool's floor
 ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=12, speed=9)        # the little lift at the arena's top-left
 # water: the pool and the run under the rock
-ent('Water', 33, 47, 19, 16)                           # surface in the channel; fills the basin under the vault
+ent('Water', 33, 47, 17, 16)                           # surface in the channel; fills the basin under the vault
 # boxes: the plug into the secret area (omni), the bowl's seal (falls when the boss is beaten),
 # the vine wall (only the knife cuts it)
 def boxes(kind, cells, **f):
     for c, r in cells: ent('Box', c, r, kind=kind, **f)
 boxes('laser', [(c, r) for c in (31, 32) for r in range(44, 54)], plug='flood')   # the electro wall holding the pool
-boxes('vine', [(c, r) for c in (88, 89) for r in range(66, 74)])   # the vines between the shaft and the exit (the knife cuts them)
+boxes('laser', [(c, r) for c in (50, 51) for r in range(50, 56)], plug='flood')   # the right electro column holding the pool
 # enemies
 ent('Enemy', 15, 53, ai='circle', range=1)
 ent('Enemy', 21, 53, ai='circle', range=1)
@@ -214,7 +217,7 @@ ent('Enemy', 29, 28, ai='mirror', range=4)              # D
 ent('Enemy', 33, 28, ai='mirror', range=4)              # D
 ent('Enemy', 40, 7, ai='eye', range=6)                  # E: the fast floating pentagon
 ent('Enemy', 38, 56, ai='cube', range=6)                # F: the transparent cube, asleep in the water
-ent('Boss', 70, 53, 3, 3, kind='heptagon', xmin=63, xmax=80)   # the heptagon: rests on the bowl's floor, floats when MIND is near
+ent('Boss', 70, 52, 3, 3, kind='heptagon', xmin=63, xmax=80)   # the heptagon: rests on the bowl's floor, floats when MIND is near
 # background
 ent('Decor', 93, 70, kind='lamp')
 ent('Decor', 42, 15, 8, 26, kind='vault', door=1)        # hides the vault until MIND has gone in through its door (the last column)

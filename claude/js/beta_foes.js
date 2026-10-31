@@ -196,8 +196,8 @@
       ctx.strokeStyle='rgba(255,'+(kn?160:80)+',80,'+(kn?0.95:(0.2+0.5*e.stT/32))+')'; ctx.lineWidth=kn?sw(4):1; ctx.setLineDash(kn?[]:[6,6]);
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
-    ctx.translate(cx,cy+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
-    ctx.rotate((e.ang||0)+(off||e.st==='down'?0.7:0));
+    ctx.translate(cx,cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
+    ctx.rotate(e.ang||0);                                          // down, it lies on a face (the notches, beta_enemies.js)
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#5a3a3a':'#e04848'); g.addColorStop(1,off?'#2a1a1a':'#7a1018');
@@ -221,6 +221,8 @@
     e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
     if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy=0;
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
+    e.og=!boxFree(e.x,e.y+2,e.w,e.h);                              // on the floor: it lies on a face — its float-spin hands over to the notches
+    if(e.og&&e.st!=='zap'){ e.ang=(e.ang||0)+(e.spin||0); e.spin=0; }
     const close=d<260;
     if(!close){ e.st='sleep'; e.beams=null; return; }
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
@@ -246,7 +248,7 @@
   function drawCube(e){
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56), awake=e.st==='hunt'&&e.alive;
     const a=e.alive?(awake?0.55:0.22):0.35;                        // nearly invisible while it sleeps
-    ctx.save(); ctx.translate(cx,cy); ctx.rotate(e.og?(e.ang||0):((e.spin||0)+(e.ang||0)));
+    ctx.save(); ctx.translate(cx,cy-sw(e._lift||0)); ctx.rotate((e.spin||0)+(e.ang||0));
     // a hexagon outline with the cube's inner edges (the sheet's drawing)
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
     ctx.beginPath(); pts.forEach((q,i)=>ctx[i?'lineTo':'moveTo'](q[0],q[1])); ctx.closePath();
@@ -278,7 +280,7 @@
     const restY=e.homeY+150, tx=e.awake?Math.max(e.xMin!=null?e.xMin:58*T,Math.min(e.xMax!=null?e.xMax:78*T,P.x)):e.homeX, ty=e.awake?e.homeY-30+Math.sin(fr*0.025)*40:restY;
     e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006;
     e.x+=e.vx; e.y+=e.vy;
-    e.rot+=e.awake?(hard?0.02:0.01):0.002;
+    if(e.awake) e.rot+=hard?0.02:0.01;                   // asleep in the bowl it lies still on a face
     if(!e.awake){ e.beams=null; return; }
     // contact
     if(d<70) hurtMind(Math.sign(dx)*8,-6,16);
@@ -323,7 +325,7 @@
     },1300);
   }
   function drawBoss(e){
-    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(56), off=!e.alive;
+    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2)-sw(e._lift||0), R=sw(56), off=!e.alive;
     ctx.save();
     // beams / telegraphs
     if(e.beams&&!off){
@@ -368,7 +370,7 @@
   setInterval(()=>{ try{ if(hitCd>0) hitCd--; if(!B.on) return; for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(e&&e._boss&&!e.alive) bossDefeat(e); } }catch(er){} },16);
 
   // ── entities: the boss, the knife, the save-state ─────────────
-  const _onEnt=B.onEntities;
+  const _onEnt=B.onEntities;   // (the boss's resting tilt settles by the notches)
   B.onEntities=function(ents,Fd,cell){
     if(_onEnt) _onEnt.apply(this,arguments);
     B.bossDown=false; B.bossOn=false; B.knifePickup=null; B.savePt=null;

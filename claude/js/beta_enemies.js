@@ -429,29 +429,67 @@
     for(const q of v) if(q[0]>=x&&q[0]<=x+w&&q[1]>=y&&q[1]<=y+h) return true;
     return false;
   };
-  function faceStumble(e){
-    const n=polyN(e); if(!n) return;
-    if(e.tumble||ropeOf(e)) return;
-    if(e._foe==='boss'&&e.awake) return;
-    if(e._foe==='eye'&&(e.st==='aim'||e.st==='fire')) return;
-    const step=Math.PI*2/n, R=Math.min(e.w,e.h)*0.46;
-    const rest=(n===4||n%2===1)?0:step*0.5;
+  // ── the notches (Paulo, Oct 31) ─────────────────────────────────
+  // B, C, E, F and the heptagon are the most basic shapes (3, 4, 5, 6, 7 sides;
+  // A is the circle and simply rolls), and they move like rigid ones. On the
+  // ground a body stands on a FACE. Tilt it and it stands on a corner — a notch:
+  // its centre swings round that corner, up and to the side, and gravity pulls
+  // it back down onto the face it came from or over onto the next one. To walk,
+  // B and C heave up and forward round their leading notch until the centre is
+  // over it, then fall onto the next face (a knock, a little rock back). A shove
+  // along the floor tips them the same way instead of sliding them. In the air
+  // there is no corner to turn on: the spin just dies away.
+  const NOTCH_G=GRAV*0.8;                                    // the enemies' gravity
+  function notchShape(e){
+    const n=polyN(e); if(!n) return null;
+    if(e._ai==='tri'&&!e._foe) return {n, R:e.h*2/3, cOff:e.h/6};          // equilateral: turns round its centroid
+    if((e._ai==='square'||e.type==='square')&&!e._foe) return {n, R:e.w*Math.SQRT1_2, cOff:0};
+    const R=e._foe==='boss'?56:e._foe==='cube'?e.w*0.56:e._foe==='eye'?e.w*0.55:Math.min(e.w,e.h)*0.5;
+    return {n, R, cOff:0};
+  }
+  B.notchShape=notchShape;
+  function notchK(sh){ return NOTCH_G/(1.5*sh.R); }          // gravity round a corner: g·R·sinφ / I(corner), I ≈ 1.5·m·R²
+  function notchTick(e){
+    const sh=notchShape(e); if(!sh) return;
     const boss=e._foe==='boss';
+    const free=ropeOf(e)||(e._thrownF||0)>0||(boss&&e.awake)||(e._foe==='eye'&&(e.st==='aim'||e.st==='fire'));
+    if(free){ e._w=0; e._lift=0; return; }                   // on a rope / flying / the boss afloat: their own spin
+    const n=sh.n, step=Math.PI*2/n, h=step/2, R=sh.R, kG=notchK(sh);
+    const rest=(n===4||n%2===1)?0:h;
     let ang=boss?(e.rot||0):(e.ang||0);
-    let d=ang-rest; d-=step*Math.round(d/step);
-    const grounded=!!(e.og||floorUnder(e.x,e.w,e.y+e.h+3));
+    let d=ang-rest; d-=step*Math.round(d/step); if(d<=-h) d+=step;
     let w=e._w||0;
-    const prev=e._d||0;
-    w+=-Math.sin(d*(Math.PI/step))*(grounded?0.006:0.003);
-    if(Math.abs(e.vx||0)>0.2) w+=Math.sign(e.vx)*(grounded?0.01:0.005);
-    w*=grounded?0.86:0.9;
-    if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3&&grounded){
-      const nx=e.x+Math.sign(prev)*2*R*Math.sin(step/2)*0.45;
-      if(boxFree(nx,e.y,e.w,e.h)) e.x=nx;
+    const grounded=!!(e.og||floorUnder(e.x,e.w,e.y+e.h+3));
+    if(!grounded){                                           // airborne / afloat: the spin dies away, it eases face-down
+      w=w*0.96-d*0.0025;
+      e._lift=0; e._w=w;
+      if(boss) e.rot=ang+w; else e.ang=ang+w;
+      return;
     }
-    ang+=w;
-    e._w=w; e._d=d;
-    if(boss) e.rot=ang; else e.ang=ang;
+    if(!e.tumble&&Math.abs(e.vx||0)>0.3&&(!e._ai||e._ai!=='circle')){   // a shove along the floor tips it over its notch
+      w+=(e.vx||0)*0.35/R; e.vx*=0.7;
+    }
+    if(e._heave){ w+=e._heave; e._heave=0; }                  // B / C walking: up and forward round the leading corner
+    if(Math.abs(d)>1e-5) w-=Math.sign(d)*kG*Math.sin(h-Math.abs(d));   // gravity, round whichever corner it's on
+    w*=0.995;
+    let nd=d+w, wrap=0;
+    if(nd>h){ nd-=step; wrap=1; } else if(nd<=-h){ nd+=step; wrap=-1; }
+    let knock=0;
+    if(!wrap&&d!==0&&nd!==0&&Math.sign(nd)!==Math.sign(d)){   // the face comes down flat: a knock, a little rock back
+      knock=Math.abs(w); nd=0; w=-w*0.28; if(Math.abs(w)<0.006) w=0;
+    }
+    if(!wrap&&d===0&&Math.abs(w)<1e-4){ w=0; nd=0; }
+    // the centre's path round the corner: out to the side as it rises (and on by one side length per face)
+    const off=x=>Math.sign(x)*R*(Math.sin(h)-Math.sin(h-Math.abs(x)));
+    let dx=off(nd)-off(d)+wrap*2*R*Math.sin(h);
+    if(dx&&(!boxFree(e.x+dx,e.y,e.w,e.h)||enemyIn(e,e.x+dx,e.y,e.w,e.h))){ nd=d; w=-w*0.3; dx=0; wrap=0; }   // a wall in the way: it falls back
+    if(dx){ e.x+=dx; if(e._plat) e._platOff=e.x-e._plat.x; if(boss&&e.homeX!=null&&!e.awake) e.homeX+=dx; }
+    e._lift=R*(Math.cos(h-Math.abs(nd))-Math.cos(h));
+    if(wrap) e._flips=(e._flips||0)+wrap;
+    if(knock>0.02&&!e.tumble){ try{ if(onScreen(e)) sfxAt(e,'tumble'); }catch(_e){} }
+    e._w=w; e._knock=knock;
+    const na=ang+(nd-d)+wrap*step;
+    if(boss) e.rot=na; else e.ang=na;
   }
   // ── movement ────────────────────────────────────────────────────
   function startTumble(e,dir,dropOn){
@@ -518,22 +556,22 @@
     const r=ropeOf(e); r.dest=dest; r.anchor=an; e.travCd=(DIFF()===3?90:DIFF()===2?150:220)+Math.random()*80|0;
     return true;
   }
+  // B / C take a step: a heave up and forward round the leading notch (a bit more than
+  // gravity holds them back with) until the centre is over the corner — then gravity
+  // drops them onto the next face (notchTick does the turning, the knock and the rock)
   function tumbleTick(e){
     const tb=e.tumble; tb.t++;
-    const k=Math.min(1,tb.t/tb.dur);
-    const turn=(e._ai==='tri'?Math.PI*2/3:Math.PI/2)*k;
-    e.ang=tb.dir*turn;
-    if(tb.baseY==null){ tb.baseY=e.y; tb.baseX=e.x; }
-    const half=Math.hypot(e.w,e.h)*0.5, rest=e.h*0.5;
-    const lift=Math.max(0,(half-rest)*Math.sin(Math.PI*k));
-    e.y=tb.baseY-lift;
-    e.x=tb.baseX+(tb.nx-tb.baseX)*k+tb.dir*(e.w*0.5)*(1-Math.cos(turn))*0.5;
-    if(k>=1){
-      e.x=tb.nx; e.y=tb.baseY; e.ang=0; e.tumble=null;
+    const sh=notchShape(e); if(!sh){ e.tumble=null; return; }
+    if(tb.f0==null) tb.f0=e._flips||0;
+    const over=(e._flips||0)!==tb.f0, h=Math.PI/sh.n;
+    if(!over&&tb.t<70) e._heave=tb.dir*notchK(sh)*Math.sin(h)*(e._ai==='tri'?2.0:2.2);
+    const grounded=floorUnder(e.x,e.w,e.y+e.h+3)||platUnder(e.x,e.w,e.y+e.h+3);
+    if(over&&!grounded){ e.tumble=null; e.og=false; e.vy=0; e._falling=true; e._plat=null; return; }   // stepped off onto MIND
+    const settled=over&&Math.abs(e._w||0)<0.004&&Math.abs(e._lift||0)<0.6;
+    if(settled||tb.t>110||(!over&&tb.t>=70&&Math.abs(e._lift||0)<0.6)){
+      e.tumble=null;
       if(e._plat){ const pl=e._plat; if(e.x+e.w-6>pl.x&&e.x+6<pl.x+pl.w) e._platOff=e.x-pl.x; else e._plat=null; }
-      try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfxAt(e,'tumble'); }catch(_e){}
-      if(tb.drop>2){ e.og=false; e.vy=0; e._falling=true; e._plat=null; }
-      else land(e,1.5);
+      if(over){ try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.creak(0.2); if(onScreen(e)) sfxAt(e,'tumble'); }catch(_e){} land(e,1.5); }
     }
   }
   // Enemy A rolls: a steady roll along its floor, faster toward MIND; it turns
@@ -853,11 +891,11 @@
     if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx;
     else{ if(Math.abs(e.vx)>4){ land(e,Math.abs(e.vx)*0.8); if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(Math.abs(e.vx)),e.x+e.w/2+Math.sign(e.vx)*e.w/2,e.y+e.h/2,0.2); } e.vx=-(e.vx||0)*0.3; }
     const feet=e.y+e.h+e.vy;
-    if(e.vy>=0&&floorUnder(e.x,e.w,feet)){ e.y=floorSnap(e,feet); if(!toss&&e.vy>3) land(e,e.vy); e.vy=0; e.og=true; if(!toss) e.vx*=0.75; e.baseY=e.y; if(!toss&&Math.abs(e.vx)<0.6){ e._thrownF=0; e.ang=0; } }
+    if(e.vy>=0&&floorUnder(e.x,e.w,feet)){ e.y=floorSnap(e,feet); if(!toss&&e.vy>3) land(e,e.vy); e.vy=0; e.og=true; if(!toss) e.vx*=0.75; e.baseY=e.y; if(!toss&&Math.abs(e.vx)<0.6){ e._thrownF=0; if(!notchShape(e)) e.ang=0; } }
     else if(e.vy<0&&!boxFree(e.x,e.y+e.vy,e.w,e.h)) e.vy=0;
     else{ e.y+=e.vy; e.og=false; }
     if(!e.og&&e._ai!=='circle') e.ang=(e.ang||0)+(e.vx||0)*0.035; else if(e._ai==='circle') e.roll=(e.roll||0)+(e.vx||0)/(e.w/2);
-    if(e._thrownF<=1) e.ang=0;
+    if(e._thrownF<=1&&!notchShape(e)) e.ang=0;
   }
   B.enemyAITick=function(){
     if(!p) return;
@@ -865,14 +903,14 @@
       if(!e._ai) continue;
       e._pdx=e._px!=null?e.x-e._px:0; e._px=e.x;              // how far it moved (carries MIND standing on it)
       e.mn=-1e7; e.mx=1e7; e._reCenter=false;                 // reboots right where it went down
-      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
+      if(!e.alive){ e.heat*=0.9; e.fuse=0; e.tumble=null; if(e._ai==='circle') e.ang=0; if(ropeOf(e)) releaseRope(e); deadTick(e); if(!e._iso) shortIfWet(e); liftOut(e); continue; }
       if(e._betaHeld){ e.tumble=null; e.ang=0; e.og=false; e.baseY=e.y; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); continue; }
       if((e._thrownF||0)>0){ e.tumble=null; if(ropeOf(e)&&ropeOf(e).kind!=='mind') releaseRope(e); flight(e); continue; }
       if(e._foe){ if(B.foeTick) B.foeTick(e); continue; }       // 1.3's E, F and the heptagon (beta_foes.js)
       think(e);
     }
     ropeTick();
-    for(const e of ENEMS){ if(e&&e.alive&&!e._betaHeld) faceStumble(e); }
+    for(const e of ENEMS){ if(e&&!e._betaHeld) notchTick(e); }
     for(const e of ENEMS){ if(!e._ai||!e.alive) continue; applyShove(e); if(!e._iso) shortIfWet(e); liftOut(e); }
     fragTick();
     for(let i=B.pushFx.length-1;i>=0;i--){ if(++B.pushFx[i].t>22) B.pushFx.splice(i,1); }
@@ -945,9 +983,8 @@
     if(e.hitF>0&&!off&&(e.hitF&2)) ctx.globalAlpha=0.6;
     const lw=Math.max(3,s*0.08);
     // rotation for tipping / tumbling: round the bottom corner it goes over
-    const tb=e.tumble, piv=tb?{x:sx(e.x+(tb.dir>0?e.w:0)), y:sy(e.y+e.h)}:null;
-    if(piv){ ctx.translate(piv.x,piv.y); ctx.rotate(e.ang); ctx.translate(-piv.x,-piv.y); }
-    else if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
+    const piv=null, nsh=notchShape(e);
+    if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
       const bx=sx(e.x+e.w/2), by=sy(e.y+e.h);
       const dy=e.gDy||0, sinkClear=dy>0.5&&!solidAt(e.x+e.w/2, e.y+e.h+Math.min(dy,8)-1);
       if(sinkClear) ctx.translate(0,sw(dy));
@@ -956,7 +993,8 @@
     }
     ctx.translate(cx,cy);
     if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
-    else if(!piv&&e.ang) ctx.rotate(e.ang);                   // swinging on its rope
+    else if(nsh){ ctx.translate(0,sw(nsh.cOff-(e._lift||0))); ctx.rotate(e.ang||0); ctx.translate(0,-sw(nsh.cOff)); }   // on a notch, swinging, tumbling
+    else if(e.ang) ctx.rotate(e.ang);
     ctx.fillStyle=fill; ctx.strokeStyle=off?'#2a2830':INK_D; ctx.lineWidth=lw+2; ctx.lineJoin='round';
     const shape=()=>{ ctx.beginPath();
       if(e._ai==='circle') ctx.arc(0,0,s/2,0,Math.PI*2);

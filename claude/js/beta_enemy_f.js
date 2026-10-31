@@ -42,7 +42,7 @@
   const core=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
   const heroC=()=>({x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5});
   const radius=e=>e.w*0.56;                           // beta_foes draws the hexagon at 0.56 × w
-  function notchPos(e,i){ const c=core(e), a=(e.spin||0)-Math.PI/2+i*Math.PI/3, R=radius(e); return {x:c.x+Math.cos(a)*R, y:c.y+Math.sin(a)*R}; }
+  function notchPos(e,i){ const c=core(e), a=(e.spin||0)+(e.ang||0)-Math.PI/2+i*Math.PI/3, R=radius(e); return {x:c.x+Math.cos(a)*R, y:c.y+Math.sin(a)*R}; }
   function phaseOf(e){ const t=e.fT%CYCLE; return t<PULL_END?'pull':t<CHARGE_END?'charge':t<PUSH_END?'push':'rest'; }
 
   // ── the maker: every water cube is Paulo's F now ─────────────────
@@ -241,7 +241,7 @@
 
   // ── drawing: beta_foes draws the glass hexagon; the notches and the core go on top ──
   function drawOver(e){
-    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(radius(e)), ph=e.fPh, t=e.fT%CYCLE;
+    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2)-sw(e._lift||0), R=sw(radius(e)), ph=e.fPh, t=e.fT%CYCLE;
     const awake=ph!=='sleep', a=awake?1:0.35;
     ctx.save(); ctx.translate(cx,cy);
     // the core
@@ -263,7 +263,7 @@
     }
     ctx.globalCompositeOperation='source-over';
     // the 6 notch points, on the corners (they turn with the body)
-    ctx.rotate(e.spin||0);
+    ctx.rotate((e.spin||0)+(e.ang||0));
     for(let i=0;i<NOTCHES;i++){
       const an=-Math.PI/2+i*Math.PI/3, x=Math.cos(an)*R, y=Math.sin(an)*R, s=Math.max(3,sw(7));
       ctx.save(); ctx.translate(x,y); ctx.rotate(an);
@@ -284,7 +284,7 @@
     const k=e.fColT/COLLAPSE_FR, cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(radius(e));
     ctx.save(); ctx.translate(cx,cy);
     for(let i=0;i<NOTCHES;i++){
-      const an=(e.spin||0)-Math.PI/2+i*Math.PI/3, an2=an+Math.PI/3, out=R*(0.2+1.4*k);
+      const an=(e.spin||0)+(e.ang||0)-Math.PI/2+i*Math.PI/3, an2=an+Math.PI/3, out=R*(0.2+1.4*k);
       const ox=Math.cos(an+Math.PI/6)*out, oy=Math.sin(an+Math.PI/6)*out+sw(30)*k*k, s=R*(1-k*0.6);
       ctx.fillStyle='rgba(190,230,255,'+(0.3*(1-k))+')'; ctx.strokeStyle='rgba(235,248,255,'+(0.9*(1-k))+')'; ctx.lineWidth=1.5;
       ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+Math.cos(an)*s*0.5,oy+Math.sin(an)*s*0.5); ctx.lineTo(ox+Math.cos(an2)*s*0.5,oy+Math.sin(an2)*s*0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
