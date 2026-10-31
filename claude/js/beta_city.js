@@ -241,7 +241,7 @@
     if(B.stageId!=='1.3') return;
     board(23.4,1.5,5,8,'#ff5ab4','rgba(255,90,180,0.10)',[['AWDJOO','#ff9ad0',2],['MALL','#ffd0e8',1],['24/7','#6ef4ff',1]]);
     board(40,1,8,4.5,'#6ef4ff','rgba(110,244,255,0.10)',[['MV LABS','#bff8ff',2],['MIND · VENTURE','#6ef4ff',1]]);
-    const x0=23*T, x1=91*T, span=x1-x0;
+    const x0=23*T, x1=95*T, span=x1-x0;
     for(const c of cars){ const t=((fr*c.s+c.o)%span+span)%span, x=c.s>0?x0+t:x1-t, y=c.y*T;
       const X=sx(x), Y=sy(y), d=c.s>0?1:-1;
       ctx.fillStyle='rgba(255,255,255,0.10)'; ctx.fillRect(X-d*sw(60),Y+sw(3),d*sw(60),sw(2));                      // light trail

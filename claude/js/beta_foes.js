@@ -275,7 +275,7 @@
     if((near||B.bossOn)&&!e.awake){ e.awake=true; B.shake=Math.max(B.shake||0,4); }
     if(!near&&!B.bossOn&&d>980&&e.awake) e.awake=false;
     // FLOATS WHEN THE HERO IS NEAR — otherwise it settles into its bowl
-    const restY=e.homeY+150, tx=e.awake?Math.max(58*T,Math.min(78*T,P.x)):e.homeX, ty=e.awake?e.homeY-30+Math.sin(fr*0.025)*40:restY;
+    const restY=e.homeY+150, tx=e.awake?Math.max(e.xMin!=null?e.xMin:58*T,Math.min(e.xMax!=null?e.xMax:78*T,P.x)):e.homeX, ty=e.awake?e.homeY-30+Math.sin(fr*0.025)*40:restY;
     e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006;
     e.x+=e.vx; e.y+=e.vy;
     e.rot+=e.awake?(hard?0.02:0.01):0.002;
@@ -374,7 +374,7 @@
     B.bossDown=false; B.bossOn=false; B.knifePickup=null; B.savePt=null;
     for(const e of ents){
       const id=e.__identifier, g=cell(e), cx=(g.c+g.w/2)*T, cy=(g.r+g.h/2)*T;
-      if(id==='Boss') ENEMS.push(mkBoss(cx,cy));
+      if(id==='Boss'){ const bs=mkBoss(cx,cy), x0=Fd(e,'xmin'), x1=Fd(e,'xmax'); if(x0!=null) bs.xMin=x0*T; if(x1!=null) bs.xMax=x1*T; ENEMS.push(bs); }   // the stretch of bowl it follows MIND across
       else if(id==='Knife') B.knifePickup={x:cx, y:(g.r+1)*T, got:_itemUnlocked(4)};
       else if(id==='SaveState') B.savePt={x:cx, y:(g.r+1)*T, used:false};
     }
