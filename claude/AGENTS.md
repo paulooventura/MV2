@@ -202,6 +202,13 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 350 — Meg, Savrah's timeline, the knife's sum, RCA suction tip (Oct 31, Claude)
+- Paulo's lore notes: MAG is **MEG** in every player-facing string (ui.js, beta_knife.js, editor.js). RCA tip (`_drawRopeMagnetTip`, render.js) = a spinning suction-cup wheel (8 cups; stops spinning, glows when latched).
+- **Savrah** (`drawSavrah`, beta_foes.js): the save point is a floppy disc with blue hair, a flute and a carpet; walking up says "AH, IT'S SO GOOD TO SEE YOU!" and calls `B.timelinePush()`.
+- **Timeline** (beta_story.js): each of the 5 slots keeps up to `TL_MAX=28` saved states (oldest dropped). Slot picker: Left/Right (A/D) step through states, **C** copy slot, **V** paste (clone a slot to keep a different timeline). Pad users cannot copy/paste yet.
+- **Kiritsuke charge** = `B.knifePower()`: collected crystals + seeds over `B.need.crystals+B.need.seeds`, floored at `KNIFE_FLOOR=0.5`; HUD shows KNIFE POWER while charging. In co-op only MIND's player holds the knife (`knifeMine()`, `window.MV_COOP_ON` hook; co-op itself still lives in build 168).
+- Open: tune `KNIFE_FLOOR`; RCA hauling pull blocks from far away not separately probed.
+
 ### Build 349 — 1.3 elevators carry MIND (Oct 31, Claude)
 - **The car left without him from the street.** `_stabilizePlayerCollision` (physics.js) snaps a grounded MIND to the nearest floor or ramp near his wheel (down ≤ 40 px, up ≤ 16). As the car rose off the street it dropped him back onto the street every frame. In the left shaft the street stop also overlaps the foot of the ramp (col 10, rows 61–63), so the snap could lift him off the car and leave him "on a slope", and slope physics rolled him out when the doors opened. `beta_water.js` now wraps it: shut in a car (`MV_LIFT.sealed`) the snap is skipped and the slope flags cleared; on any other vertical platform it may push him up, never down off it.
 - **Enemy lassos** (`beta_enemies.js`) can't be thrown at, or keep holding, MIND while he's in a car (`MV_LIFT.sealed||hold`); a rope through the car was pulling him out at the top.

@@ -27,15 +27,25 @@
     while(s.length<N) s.push(null);
     return s.slice(0,N);
   }
-  function writeSlots(s){ try{ localStorage.setItem(KEY,JSON.stringify(s)); }catch(e){} }
-  function savepoint(){
-    if(B.storySlot==null||!B.stageId) return;
-    const s=slots();
-    s[B.storySlot]={stageId:B.stageId, mask:_unlockedMask|0, progress:B.progress|0, saves:JSON.parse(JSON.stringify(B.saves||{})),
+  let lastWriteOk=true;
+  function writeSlots(s){ try{ localStorage.setItem(KEY,JSON.stringify(s)); lastWriteOk=true; }catch(e){ lastWriteOk=false; } }
+  const TL_MAX=28;                                           // Paulo (Oct 31): each file keeps 28 timeline states, then the oldest are lost
+  function snapshot(){
+    return {stageId:B.stageId, mask:_unlockedMask|0, progress:B.progress|0, saves:JSON.parse(JSON.stringify(B.saves||{})),
       popupSeen:Object.assign({},B.popupSeen||{}), isoOwned:!!B.isoOwned, t:Date.now(),
       hero:(typeof _heroChoice!=='undefined'?_heroChoice:'mind'), intro:true};   // intro: this run has had its story + hero pick
-    writeSlots(s);
   }
+  function savepoint(push){
+    if(B.storySlot==null||!B.stageId) return;
+    const s=slots(), prev=s[B.storySlot], tl=(prev&&Array.isArray(prev.timeline))?prev.timeline.slice():[];
+    const now=snapshot();
+    if(push){ tl.push(JSON.parse(JSON.stringify(now))); while(tl.length>TL_MAX) tl.shift(); }
+    now.timeline=tl; s[B.storySlot]=now;
+    writeSlots(s);
+    if(push&&!lastWriteOk){ while(tl.length>1&&!lastWriteOk){ tl.shift(); writeSlots(s); } }   // storage full: lose the oldest first
+  }
+  // Savrah (the floppy who keeps the save) calls this: the moment goes into this file's timeline
+  B.timelinePush=function(){ try{ savepoint(true); }catch(e){ console.warn('timeline',e); } };
   B.storySlots=slots;
 
   // a save every time a stage has finished loading in story mode (start, each stage passed)
@@ -122,15 +132,16 @@
   // ── the slot screen on the title ─────────────────────────────────
   let pick=null;                                             // {idx, t, erase}
   const ROWS=N+1;                                            // 5 slots + BACK
-  function open(){ pick={idx:Math.max(0,B.storySlot!=null?B.storySlot:0), t:0, erase:-1, kw:!!K['KeyW'], ks:!!K['KeyS'], kf:!!K['KeyF']}; try{ sfx('menu'); }catch(e){} }
+  function open(){ pick={idx:Math.max(0,B.storySlot!=null?B.storySlot:0), t:0, erase:-1, ti:-1, over:-1, kw:!!K['KeyW'], ks:!!K['KeyS'], kf:!!K['KeyF'], ka:!!K['KeyA'], kd:!!K['KeyD']}; try{ sfx('menu'); }catch(e){} }
   function close(){ pick=null; }
   function choose(){
     if(!pick) return;
-    const i=pick.idx;
+    const i=pick.idx; const pick_ti=(pick.ti==null?-1:pick.ti);
     try{ sfx('confirm'); }catch(e){}
     if(i>=N){ close(); window.MV_TIMELINE_BACK_TO_STORY(); return; }   // BACK: to the title
     const s=slots()[i]; close();
     B.storySlot=i; B.pendingSave=s||null;
+    if(s&&pick_ti>=0&&Array.isArray(s.timeline)&&s.timeline.length){ const st=s.timeline[s.timeline.length-1-pick_ti]; if(st) B.pendingSave=Object.assign({},st,{timeline:s.timeline}); }   // a quantum leap to an earlier state
     if(!s){ _storyNew(); return; }                           // a new file: the storyline first, then the select
     if(s.hero&&typeof _heroChoice!=='undefined') _heroChoice=s.hero;   // a saved file: the select (on its hero), no storyline
     _gameState='select'; if(typeof _selectStep!=='undefined') _selectStep=0; if(typeof _playModeIdx!=='undefined') _playModeIdx=window.MV_SIBLING&&!MV_SIBLING.on?0:1;
@@ -141,7 +152,28 @@
     if(pick.erase===pick.idx){ s[pick.idx]=null; writeSlots(s); if(B.storySlot===pick.idx) B.storySlot=null; pick.erase=-1; try{ sfx('omniblock_chip'); }catch(e){} }
     else { pick.erase=pick.idx; try{ sfx('menu'); }catch(e){} }
   }
-  const move=d=>{ pick.idx=(pick.idx+d+ROWS)%ROWS; pick.erase=-1; try{ sfx('menu'); }catch(e){} };
+  const move=d=>{ pick.idx=(pick.idx+d+ROWS)%ROWS; pick.erase=-1; pick.ti=-1; pick.over=-1; try{ sfx('menu'); }catch(e){} };
+  // Left / Right walk through a file's timeline states (newest at -1 = the latest save, then Savrah's saves back in time)
+  function stepState(d){
+    if(!pick||pick.idx>=N) return;
+    const s=slots()[pick.idx]; if(!s) return;
+    const n=Array.isArray(s.timeline)?s.timeline.length:0;
+    pick.ti=Math.max(-1,Math.min(n-1,(pick.ti==null?-1:pick.ti)+d)); pick.erase=-1; try{ sfx('menu'); }catch(e){}
+  }
+  // Paulo (Oct 31): copy a file into another to branch a timeline (C copies, V pastes; pasting over a used file asks twice)
+  let clip=null;
+  function copyKey(){
+    if(!pick||pick.idx>=N) return;
+    const s=slots()[pick.idx]; if(!s){ return; }
+    clip=JSON.parse(JSON.stringify(s)); pick.msg='COPIED FILE '+(pick.idx+1); pick.msgT=90; try{ sfx('confirm'); }catch(e){}
+  }
+  function pasteKey(){
+    if(!pick||pick.idx>=N||!clip) return;
+    const S=slots();
+    if(S[pick.idx]&&pick.over!==pick.idx){ pick.over=pick.idx; pick.msg='V AGAIN TO REPLACE FILE '+(pick.idx+1); pick.msgT=120; try{ sfx('menu'); }catch(e){} return; }
+    S[pick.idx]=JSON.parse(JSON.stringify(clip)); writeSlots(S); pick.over=-1; pick.ti=-1;
+    pick.msg='PASTED INTO FILE '+(pick.idx+1); pick.msgT=90; try{ sfx('confirm'); }catch(e){}
+  }
 
   const _story=window.startStoryMode;
   function _storyNew(){ return _story.apply(window,[]); }
@@ -164,11 +196,15 @@
     else if(c==='ArrowDown'||c==='KeyS') move(1);
     else if(c==='Enter'||c==='Space'||c==='NumpadEnter'||c==='KeyQ') choose();
     else if(c==='KeyF'||c==='Delete') eraseKey();
+    else if(c==='ArrowLeft'||c==='KeyA') stepState(1);
+    else if(c==='ArrowRight'||c==='KeyD') stepState(-1);
+    else if(c==='KeyC') copyKey();
+    else if(c==='KeyV') pasteKey();
     else if(c==='Escape'||c==='Backspace'||c==='KeyE'){ close(); MV_TIMELINE_BACK_TO_STORY(); }
     else used=false;
     if(used){ e.preventDefault(); e.stopImmediatePropagation(); }
   },true);
-  function geom(){ const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,inset:{t:0}}; const w=L.panelW, rh=62, h=108+ROWS*rh, x=L.panelX, y=Math.max(12+(L.inset.t||0), Math.round((H-h)/2)); return {x,y,w,h,rh}; }
+  function geom(){ const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,inset:{t:0}}; const w=L.panelW, rh=74, h=108+ROWS*rh, x=L.panelX, y=Math.max(12+(L.inset.t||0), Math.round((H-h)/2)); return {x,y,w,h,rh}; }
   const rowY=(g,i)=>g.y+84+i*g.rh;
   document.addEventListener('click',e=>{
     if(!pick||_gameState!=='timeline') return;
@@ -183,6 +219,11 @@
     if(w&&!pick.kw) move(-1);
     if(s&&!pick.ks) move(1);
     if(f&&!pick.kf) eraseKey();
+    const a=!!K['KeyA'], d=!!K['KeyD'];
+    if(a&&!pick.ka) stepState(1);
+    if(d&&!pick.kd) stepState(-1);
+    pick.ka=a; pick.kd=d;
+    if(pick.msgT>0) pick.msgT--;
     pick.kw=w; pick.ks=s; pick.kf=f;
     if(Kj['Escape']){ delete Kj['Escape']; close(); MV_TIMELINE_BACK_TO_STORY(); return; }
     if(Kj['Space']||Kj['Enter']){ delete Kj['Space']; delete Kj['Enter']; if(pick.t>8) choose(); }   // pad A
@@ -223,12 +264,19 @@
       if(s){
         drawText((NAMES[s.stageId]||('STAGE '+s.stageId))+'  '+ago(s.t||Date.now()),X+150,y-8,sel?'#ffffff':'#d8ffc8',2);
         drawText(pick.erase===i?'PRESS Y AGAIN TO ERASE':summary(s),X,y+20,pick.erase===i?'#ff6a7a':'#7dffcf',2);
+        const tl=Array.isArray(s.timeline)?s.timeline:[], n=tl.length;
+        if(sel||n){
+          let line=n+(n===1?' TIMELINE STATE':' TIMELINE STATES');
+          if(sel&&n){ const ti=pick.ti==null?-1:pick.ti; line=(ti<0?'LATEST SAVE':'STATE '+(ti+1)+' OF '+n+'  '+ago(tl[n-1-ti].t))+'     < >  CHOOSE A MOMENT'; }
+          drawText(line,X,y+42,sel?'#ffe39a':'#8fd78a',1);
+        }
       }else{
         drawText('EMPTY',X+150,y-8,sel?'#ffffff':'#d8ffc8',2);
         drawText('START A NEW STORY HERE',X,y+20,sel?'#d8ffc8':'#8fd78a',2);
       }
     }
     drawTextC(window.uiMenuHint?uiMenuHint('select'):'A PLAY    B BACK',W/2,g.y+g.h-32,'#d8ffc8',3);
+    drawTextC(pick.msgT>0&&pick.msg?pick.msg:'C COPY   V PASTE   Y ERASE   28 STATES PER FILE',W/2,g.y+g.h-12,pick.msgT>0?'#ffe39a':'#7dffcf',1);
     ctx.restore();
   }
 })();

@@ -2404,6 +2404,14 @@ function _drawRopeMagnetTip(x,y,ang,latched,glow){
   g.addColorStop(0,'#f4f2fa'); g.addColorStop(0.35,'#a8a6b8'); g.addColorStop(1,'#3a3846');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
   ctx.strokeStyle='#18161e'; ctx.lineWidth=1.2; ctx.stroke();
+  // Paulo (Oct 31): the tip is a micro omnidirectional suction-cup ball. In 2D it reads as a small
+  // wheel: a ring of tiny cups around the rim that turns while the hook flies and sits still once it holds.
+  const spin=latched?0:fr*0.07, cups=8;
+  for(let k=0;k<cups;k++){
+    const a=spin+k*Math.PI*2/cups, cx=Math.cos(a)*r*0.72, cy=Math.sin(a)*r*0.72, cr=Math.max(1.1,r*0.2);
+    ctx.fillStyle='#14121a'; ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.fill();         // the cup's hollow
+    ctx.strokeStyle=latched?glow:'#d8d6e4'; ctx.lineWidth=0.9; ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.stroke();   // its lip
+  }
   ctx.restore();
 }
 // The jack end (Paulo, Oct 21): no spool showing — the cord just comes out of the

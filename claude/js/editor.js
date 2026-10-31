@@ -226,7 +226,7 @@ function edClearCells(){
 const ED_ENTS_KEY='mv2.editor.ents.';
 const ED_LIVE={
   enemy:{label:'ENEMY', kinds:['circle','square','tri','eye','mirror'], names:['A CIRCLE','C SQUARE','B TRI','EYE','D MIRROR']},
-  crate:{label:'CRATE', kinds:['TRS','RCA','XLR','MAG'], names:['TRS','RCA','XLR','MAG']},
+  crate:{label:'CRATE', kinds:['TRS','RCA','XLR','MAG'], names:['TRS','RCA','XLR','MEG']},
   knowl:{label:'KNOWL', kinds:['seed','crystal'], names:['SEED','CRYSTAL']},
   bwall:{label:'BWALL', kinds:['omni','push','pull','laser'], names:['OMNI','PUSH','PULL','CAGE']},
 };

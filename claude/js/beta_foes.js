@@ -392,15 +392,17 @@
     }
     const s=B.savePt;
     if(s&&Math.abs(P.x-s.x)<40&&Math.abs(P.y-(s.y-20))<70){
-      if(!s.near){ s.near=true; s.used=true;
+      if(!s.near){ s.near=true; s.used=true; s.say=200;
         _spawnX=s.x-SW/2; _spawnY=s.y-FEET_OFF; B.safe={x:_spawnX,y:_spawnY};
         try{ if(B.saveStage) B.saveStage(); }catch(er){}
+        try{ if(B.timelinePush) B.timelinePush(); }catch(er){}
         burst(s.x,s.y-24,20,['#60d0ff','#ffffff'],3); S('chargeReady',1.2);
-        if(typeof uiShowToast==='function') uiShowToast('STATE SAVED - YOU COME BACK HERE');
+        if(typeof uiShowToast==='function') uiShowToast('SAVRAH SAVED THIS MOMENT TO YOUR TIMELINE');
       }
     }else if(s) s.near=false;
+    if(s&&s.say>0) s.say--;
   }
-  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE.','TAP X (Q): SLASH UP, TAP AGAIN: DOWN.','HOLD X: IT HEATS UP AND PULLS THINGS IN.','LET GO: A WIDE SLASH, AIMED. HOLD 9 S','FOR THE HOTTEST, LONGEST, HARDEST ONE.']};
+  if(B.ITEM_INFO) B.ITEM_INFO[5]={name:'THE GAUCHO KNIFE', lines:['A COPPER-CORE DAMASCUS KIRITSUKE. IT IS MIND\'S ALONE.','TAP X (Q): SLASH UP, TAP AGAIN: DOWN.','HOLD X: IT HEATS UP AND PULLS THINGS IN.','LET GO: A WIDE SLASH. ITS POWER IS THE SUM OF','EVERY SEED AND CRYSTAL YOU COLLECTED HERE.']};
 
   // ── the knife (Paulo, Oct 22) ─────────────────────────────────
   // Held like a knife, not a jack: at rest the arm hangs down and BACK (facing east: toward
@@ -421,6 +423,17 @@
   const REST=2.36, WALK_ARM=1.95, WALK_KN=0.79, BACK=2.64, SWEEP=2.99;
   let knifeHit=false, motes=[];
   const heatOf=t=>Math.min(1,t/MAXH), fullOf=t=>Math.max(0,Math.min(1,(t-CHARGE)/(MAXH-CHARGE)));
+  // Paulo (Oct 31): the charged slash is the SUM of every Knowl seed and crystal collected in this stage.
+  // Hold time still builds the heat; the sum sets how much of the slash you get (reach, damage, the boss's
+  // share). Nothing collected = KNIFE_FLOOR of a full slash, everything collected = all of it. (Tunable.)
+  const KNIFE_FLOOR=0.5;
+  function knifeSum(){ try{ const n=B.counts?B.counts():{crystals:0,seeds:0}, need=B.need?((B.need.crystals|0)+(B.need.seeds|0)):0;
+    const got=(n.crystals|0)+(n.seeds|0); return {got, need:Math.max(need,got,1)}; }catch(e){ return {got:0,need:1}; } }
+  B.knifePower=()=>{ const k=knifeSum(); return KNIFE_FLOOR+(1-KNIFE_FLOOR)*Math.min(1,k.got/k.need); };
+  B.knifeSum=knifeSum;
+  // Paulo (Oct 31): the kiritsuke is Mind's. In co-op (two people playing) whoever picked Mind keeps it; the
+  // co-op page sets window.MV_COOP_ON, and then Venture's player never draws it. One player: unchanged.
+  const knifeMine=()=>!(window.MV_COOP_ON&&p&&p.hero!=='mind');
   B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeHeat=()=>holdT>0?heatOf(holdT):0; B.knifeBig=()=>big; B.knifePose=()=>({armE,knE,swing:swing&&swing.up,comboT});
   const dirOf=()=>p.fc?1:-1;
   // dull red → orange → yellow → bright yellow-white
@@ -458,7 +471,7 @@
   // held, then let go: one wide sweep out along the aimed direction, from just behind MIND
   // out to ~5.5 tiles; walls still block it (line of sight from the chest)
   function bigSlash(aE,t){
-    const f=fullOf(t), h=heatOf(t), Rr=BIG_R+(BIG_R_MAX-BIG_R)*f, Hh=BIG_H+(BIG_H_MAX-BIG_H)*f;
+    const f=fullOf(t)*B.knifePower(), h=heatOf(t), Rr=BIG_R+(BIG_R_MAX-BIG_R)*f, Hh=BIG_H+(BIG_H_MAX-BIG_H)*f;
     const dmg=Math.round(BIG_DMG+(BIG_DMG_MAX-BIG_DMG)*f), kb=2.2+4.5*h, push=4+16*h;
     const ang=toW(aE), ux=Math.cos(ang), uy=Math.sin(ang), cx=p.x+SW/2, cy=p.y+FEET_OFF-58;
     big={x:cx,y:cy,ang,aE,t:0,R:Rr,H:Hh,heat:h}; swing=null; comboT=0; nextUp=true; slashCd=28; motes=[];
@@ -537,6 +550,7 @@
   }
   function knifeTick(){
     if(!on()) return;
+    if(!knifeMine()){ holdT=0; charged=false; return; }
     poseOn=ITEM===4&&!(p.hook&&p.hook.st!=='idle');
     if(slashCd>0) slashCd--; if(big){ big.drawn=false; if(++big.t>22) big=null; }
     const btn=ITEM===4&&typeof _bindDown==='function'&&_bindDown('swap')&&!(typeof _runItemQuiet==='function'&&_runItemQuiet(p));   // (not while sprinting)
@@ -729,6 +743,39 @@
     return _dmg.apply(this,arguments);
   };
   // drawn in the world (with the sibling's overlay pass): the knife on its stone, the save point
+  // Savrah (Paulo, Oct 31): a floppy disc, the classic save icon, with big blue hair and a big smile, floating on a
+  // carpet and playing a flute. Walk up and she says AH, IT'S SO GOOD TO SEE YOU! and the moment goes into your timeline.
+  function drawSavrah(s){
+    const x=sx(s.x), y=sy(s.y), t=fr*0.06, bob=Math.sin(t)*sw(3), by=y-sw(30)+bob, near=s.say>0, wt=B.wtext||((f,...a)=>f(...a));
+    // glow when she has just saved
+    if(near){ const g=ctx.createRadialGradient(x,by,2,x,by,sw(70)); g.addColorStop(0,'rgba(120,200,255,0.35)'); g.addColorStop(1,'rgba(120,200,255,0)'); ctx.fillStyle=g; ctx.fillRect(x-sw(70),by-sw(70),sw(140),sw(140)); }
+    // the carpet: deep red, gold edge and fringe, waving at the tips
+    ctx.fillStyle='#8a1f3a'; ctx.fillRect(x-sw(26),by+sw(14),sw(52),sw(7)); ctx.fillStyle='#e8b84a'; ctx.fillRect(x-sw(26),by+sw(14),sw(52),sw(2)); ctx.fillRect(x-sw(26),by+sw(19),sw(52),sw(2));
+    ctx.fillStyle='#4aa8d8'; for(let i=0;i<5;i++) ctx.fillRect(x-sw(20)+i*sw(10),by+sw(16),sw(4),sw(3));
+    ctx.fillStyle='#e8b84a'; for(let i=0;i<9;i++){ const w=Math.sin(t*2+i)*sw(1.2); ctx.fillRect(x-sw(25)+i*sw(6),by+sw(21),sw(2),sw(4)+w); }
+    // the hair: big blue strands behind and round the disc
+    ctx.fillStyle='#2a7bd8';
+    ctx.beginPath(); ctx.ellipse(x,by-sw(8),sw(20),sw(15),0,Math.PI,0); ctx.fill();
+    for(const sd of [-1,1]){ ctx.beginPath(); ctx.moveTo(x+sd*sw(13),by-sw(10)); ctx.quadraticCurveTo(x+sd*sw(24),by+sw(2)+Math.sin(t+sd)*sw(2),x+sd*sw(19),by+sw(15)); ctx.lineTo(x+sd*sw(13),by+sw(8)); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle='#5aa8f8'; ctx.beginPath(); ctx.ellipse(x-sw(6),by-sw(15),sw(6),sw(3),-0.5,0,Math.PI*2); ctx.fill();
+    // the floppy: dark blue body, cut corner, silver shutter, white label that is her face
+    ctx.fillStyle='#22407c'; ctx.fillRect(x-sw(13),by-sw(12),sw(26),sw(26)); ctx.fillStyle='#16306a'; ctx.fillRect(x+sw(9),by-sw(12),sw(4),sw(4));
+    ctx.fillStyle='#c8d2e0'; ctx.fillRect(x-sw(8),by-sw(12),sw(14),sw(8)); ctx.fillStyle='#6a7488'; ctx.fillRect(x+sw(1),by-sw(11),sw(3),sw(6));
+    ctx.fillStyle='#f4f8ff'; ctx.fillRect(x-sw(10),by-sw(1),sw(20),sw(14));
+    ctx.fillStyle='#1a2430'; ctx.fillRect(x-sw(6),by+sw(2),sw(3),sw(3)); ctx.fillRect(x+sw(3),by+sw(2),sw(3),sw(3));          // eyes
+    ctx.fillStyle='#ff9aa8'; ctx.fillRect(x-sw(9),by+sw(6),sw(3),sw(2)); ctx.fillRect(x+sw(6),by+sw(6),sw(3),sw(2));            // cheeks
+    ctx.strokeStyle='#1a2430'; ctx.lineWidth=Math.max(1,sw(1.6)); ctx.beginPath(); ctx.arc(x,by+sw(6),sw(5),0.15*Math.PI,0.85*Math.PI); ctx.stroke();   // the big smile
+    // the flute, held out to her right, with notes drifting up
+    ctx.save(); ctx.translate(x+sw(12),by+sw(8)); ctx.rotate(-0.35+Math.sin(t*1.5)*0.06);
+    ctx.fillStyle='#d8dce8'; ctx.fillRect(0,-sw(1.5),sw(30),sw(3)); ctx.fillStyle='#6a7488'; for(let i=0;i<4;i++) ctx.fillRect(sw(8)+i*sw(5),-sw(1.5),sw(2),sw(3)); ctx.restore();
+    for(let i=0;i<3;i++){ const u=((fr*0.02+i/3)%1), nx=x+sw(34)+Math.sin(u*6+i)*sw(5), ny=by-sw(2)-u*sw(34);
+      ctx.globalAlpha=1-u; ctx.fillStyle='#bfe6ff'; ctx.beginPath(); ctx.ellipse(nx,ny,sw(2.6),sw(2),-0.4,0,Math.PI*2); ctx.fill(); ctx.fillRect(nx+sw(2),ny-sw(7),sw(1.2),sw(7)); ctx.globalAlpha=1; }
+    // what she says
+    if(near){ const txt="AH, IT'S SO GOOD TO SEE YOU!", w=Math.min(W-20,Math.max(sw(190),txt.length*9+24)), bx=Math.max(10,Math.min(W-w-10,x-w/2)), bY=by-sw(66);
+      ctx.fillStyle='rgba(8,14,28,0.88)'; ctx.fillRect(bx,bY,w,26); ctx.strokeStyle='#7ac8ff'; ctx.lineWidth=1.5; ctx.strokeRect(bx,bY,w,26);
+      ctx.fillStyle='rgba(8,14,28,0.88)'; ctx.beginPath(); ctx.moveTo(x-6,bY+26); ctx.lineTo(x+6,bY+26); ctx.lineTo(x,bY+34); ctx.fill();
+      wt(drawTextC,txt,bx+w/2,bY+9,'#e8f4ff',1); }
+  }
   const _hud=window.drawLdtkLabHud;
   window.drawLdtkLabHud=function(){
     const r=_hud.apply(this,arguments);
@@ -740,12 +787,11 @@
         const g=ctx.createRadialGradient(x,y-sw(40),2,x,y-sw(40),sw(60)); g.addColorStop(0,'rgba(255,170,90,'+(0.3+0.1*Math.sin(fr*0.1))+')'); g.addColorStop(1,'rgba(255,170,90,0)'); ctx.fillStyle=g; ctx.fillRect(x-sw(60),y-sw(100),sw(120),sw(100));
         ctx.save(); ctx.translate(x,y-sw(14)); ctx.rotate(-Math.PI/2); drawKnife(0,0,sw(1.2)); ctx.restore(); }   // standing in the stone, blade up
       const s=B.savePt;
-      if(s){ const x=sx(s.x), y=sy(s.y), b=Math.sin(fr*0.08)*sw(3);
-        ctx.fillStyle='#24303c'; ctx.fillRect(x-sw(16),y-sw(10),sw(32),sw(10));
-        ctx.fillStyle=s.used?'#60d0ff':'#3a90c0'; ctx.fillRect(x-sw(12),y-sw(40)+b,sw(24),sw(24));   // a floppy: the save
-        ctx.fillStyle='#e8f4ff'; ctx.fillRect(x-sw(7),y-sw(40)+b,sw(14),sw(8)); ctx.fillStyle='#1a2430'; ctx.fillRect(x-sw(8),y-sw(26)+b,sw(16),sw(9));
-        drawTextC('S',x,y-sw(25)+b,'#e8f4ff',1); }
-    }catch(er){}
+      if(s) drawSavrah(s);
+      // the sum behind the charged slash, shown while it charges
+      if(ITEM===4&&B.knifeHeat&&B.knifeHeat()>0&&B.knifeSum){ const k=B.knifeSum(), pw=Math.round(B.knifePower()*100);
+        (B.wtext||((f,...a)=>f(...a)))(drawTextC,'KNIFE POWER '+pw+'%   '+k.got+' / '+k.need+' SEEDS + CRYSTALS',W/2,H-110,'#ffd080',1); }
+    }catch(er){ if(!B._hudWarn){ B._hudWarn=1; console.warn('foes hud',er); } }
     return r;
   };
   // the boss's energy bar, over the HUD while it's awake

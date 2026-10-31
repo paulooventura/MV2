@@ -164,7 +164,7 @@
       } else if(sh&&!carrier&&!(d._sibCd>0)&&ov(sh.x-4,sh.y-4,sh.w+8,sh.h+8+6,d.x,d.y,d.w,d.h)){
         d.got=true; sib._carry=d.item; sib._carryEnh=!!d.enhanced; carrier=sib;
         S('knowl_pickup'); burst(d.x+d.w/2,d.y+d.h/2,10,[ICOLS[d.item]||'#fff','#ffffff'],3);
-        if(typeof uiShowToast==='function') uiShowToast((sib.hero==='venture'?'VENTURE':'MIND')+' TOOK THE '+(['TRS','RCA','XLR','MAG'][d.item]||'JACK'));
+        if(typeof uiShowToast==='function') uiShowToast((sib.hero==='venture'?'VENTURE':'MIND')+' TOOK THE '+(['TRS','RCA','XLR','MEG'][d.item]||'JACK'));
       }
     }
     for(const d of shared) if(!d.got&&ITEM_DROPS.indexOf(d)<0) giveBack(d);   // the stage cleared its drops

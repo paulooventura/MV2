@@ -1113,7 +1113,7 @@ function drawTutorialChamber(){
   ctx.fillStyle=C.TEAL;ctx.fillRect(0,0,W,2);ctx.fillRect(0,H-2,W,2);
   drawTextC('TUTORIAL CHAMBER',W/2,16,C.TEAL_L,3);
   drawTextC('Training rooms for every mechanic are on the way.',W/2,H/2-36,C.MINT,2);
-  drawTextC('TRS, XLR, MAG, punch, hook, duck - step by step.',W/2,H/2-8,C.GREY,2);
+  drawTextC('TRS, XLR, MEG, punch, hook, duck - step by step.',W/2,H/2-8,C.GREY,2);
   drawTextC('Laitu will guide you through each chamber.',W/2,H/2+20,C.GREY,2);
   drawTextC('COMING SOON',W/2,H/2+56,C.YELLOW,3);
   drawTextC('ESC OR ENTER: BACK TO MENU',W/2,H-20,C.GREEN,2);
