@@ -50,6 +50,7 @@
   B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
   const KEEP=900, MIN_GAP=62, LOST=560;
+  const PERSONAL=72;   // Paulo (Oct 31): the brother must not crowd the lead: it keeps at least this far to the side when you're on the same level
   const NEAR_IN=110, NEAR_OUT=230, HOVER_MAX=90, LOST_T=360, FAR=1400, UP_MAX=15.5;
   const BANG_T=60, PUNCH_CD=24, PUNCH_R=84, PUNCH_R_WALL=100, ACT_HOLD={block:240, fight:180, pull:24};
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
@@ -61,7 +62,7 @@
     S.hero=p.hero==='venture'?'mind':'venture';
     S.x=p.x-(p.fc?1:-1)*MIN_GAP; S.y=p.y; S.fc=p.fc; S.og=true; S.hp=S.maxHp;
     S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=0;
-    S._pref=80+Math.random()*50; S._act=null; S._spot=null; S._bang=0; S._punchCd=0;
+    S._pref=96+Math.random()*50; S._act=null; S._spot=null; S._bang=0; S._punchCd=0;
     lastLevel=B.level; lastHero=p.hero;
     record(); reenter();
   }
@@ -334,8 +335,9 @@
       maxV=Math.min(MOVE_RUN,Math.max(4.5,Math.abs(p.vx||0)+1.8));    // a touch faster than you, to catch up
     }else{
       tx=spot.x;
-      if(spot.fb&&(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60))) tx=p.x+S._side*34;   // a wall there: tuck in closer
+      if(spot.fb&&(solid(tx+SW/2,p.y+FEET_OFF-30)||solid(tx+SW/2,p.y+FEET_OFF-60))) tx=p.x+S._side*PERSONAL;   // a wall there: tuck in, but not on top of you
       if(pm){ tx=p.x+S._side*70; const lo=pm.x-SW/2+6, hi=pm.x+pm.w-SW/2-6; tx=Math.max(lo,Math.min(hi,tx)); if(Math.abs(tx-p.x)<40) tx=p.x+(tx>=p.x?40:-40); tx=Math.max(lo,Math.min(hi,tx)); }
+      if(!pm&&!work&&Math.abs(dyP)<56&&Math.abs(tx-p.x)<PERSONAL){ tx=p.x+(Math.abs(S.x-p.x)>8?Math.sign(S.x-p.x):S._side)*PERSONAL; }   // personal space: never settle on top of you
       maxV=Math.max(work||S._threat?4.2:3,Math.abs(p.vx||0)+1.2);
     }
     S._flying=false;
@@ -552,7 +554,7 @@
   //    the danger, clear of your line of fire, and now and then a new one when you hang about ──
   function pickSpot(){
     const A=S._act, feet=p.y+FEET_OFF;
-    if(S._pref==null) S._pref=80+Math.random()*50;
+    if(S._pref==null) S._pref=96+Math.random()*50;
     if(A&&A.kind==='block'&&A.spot) return A.spot;
     const sp=S._spot, t=S._threat, still=Math.hypot(p.vx||0,p.vy||0)<0.6&&p.og;
     if(sp&&fr<sp.until&&Math.abs(p.x-sp.px)<90&&Math.abs(p.y-sp.py)<60&&(!!t)===sp.th&&(sp.fb||standOk(sp.x,sp.y))) return sp;
@@ -560,10 +562,10 @@
     const urgent=!!t&&(t.dP<160||(p.hp||0)<(p.maxHp||100)*0.5);
     const load=A&&A.kind==='pull'&&A.tgt?A.tgt.x+(A.tgt.w||32)/2:null;
     const wander=!t&&still&&sp&&fr>=sp.until;                                 // you're hanging about: it finds somewhere new to be
-    if(wander) S._pref=70+Math.random()*90;
+    if(wander) S._pref=90+Math.random()*90;
     let best=null, bs=-1e9;
     for(let k=-8;k<=8;k++){
-      if(k>-2&&k<2) continue;
+      if(k>-3&&k<3) continue;                                                   // never within PERSONAL of you
       const x=p.x+k*24; if(!inView(x,24)) continue;
       const fy=floorStep(x,feet); if(fy==null||deadly(x,fy-FEET_OFF)) continue;
       if(!walkable(p.x,feet,x,fy)) continue;
@@ -576,6 +578,7 @@
         if(dT<90) s-=90;                                                      // not in its face
       }else{
         if(side===S._side) s+=18;                                             // it likes your back, but that's not a rule
+        if(Math.abs(p.vx||0)>1.5&&side===Math.sign(p.vx)) s-=45;              // never out in front of you while you run
         if(using&&side===(p.fc?1:-1)&&Math.abs(fy-feet)<60) s-=60;            // out of your line of fire
         if(load!=null&&side===Math.sign(load-(p.x+SW/2))) s-=50;              // clear of the load you're hauling
         if(still) s+=(Math.random()-0.5)*24;                                  // it looks around on its own
@@ -583,7 +586,7 @@
       if(sp&&Math.abs(x-sp.x)<26) s+=wander?-30:14;
       if(s>bs){ bs=s; best={x, y:fy-FEET_OFF}; }
     }
-    if(!best) best={x:p.x+S._side*70, y:p.y, fb:true};
+    if(!best) best={x:p.x+S._side*(PERSONAL+8), y:p.y, fb:true};
     else if(!sp||Math.abs(best.x-sp.x)>30) stats.spots++;
     best.px=p.x; best.py=p.y; best.th=!!t; best.until=fr+(t?30:still?180+(Math.random()*180|0):45);
     return S._spot=best;
@@ -827,7 +830,7 @@
     // the old lead walks with you from here: fresh trail, no leftover plans or hovers
     trail.length=0; record();
     S._ti=null; S._plan=null; S._fly=false; S._flying=false; S._zip=null; S._trailMode=false; S._noProg=0; S._best=null; S._stuck=0; S._waiting=false;
-    S._side=null; S._shotCd=30; S._act=null; S._spot=null; S._bang=0; S._punchCd=0; S.pt=0; if(S._pref==null) S._pref=80+Math.random()*50;
+    S._side=null; S._shotCd=30; S._act=null; S._spot=null; S._bang=0; S._punchCd=0; S.pt=0; if(S._pref==null) S._pref=96+Math.random()*50;
     for(const b of [p,S]){ const c=centre(b), col=b.hero==='venture'?'#ff8a96':'#d8b4ff';
       for(let k=0;k<14;k++){ const a=k/14*Math.PI*2; PFXS.push({x:c.x,y:c.y,vx:Math.cos(a)*4,vy:Math.sin(a)*4,life:14,maxLife:14,r:2.4,col}); } }
     stats.swaps++;

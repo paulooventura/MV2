@@ -202,6 +202,9 @@ After completing substantive work in this repo, **commit and push to `main` with
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 351 — the brother doesn't crowd you (Oct 31, Claude)
+- `beta_sibling.js`: `PERSONAL=72` px. Its own spots start 72 px from you (preferred 96-146), it never stands out in front of you while you run, wall-tucks and fallbacks keep that gap, and a final guard in `follow()` pushes its target out of your space when you're on the same level. Probe: standing still it settles about 82 px beside you.
+
 ### Build 350 — Meg, Savrah's timeline, the knife's sum, RCA suction tip (Oct 31, Claude)
 - Paulo's lore notes: MAG is **MEG** in every player-facing string (ui.js, beta_knife.js, editor.js). RCA tip (`_drawRopeMagnetTip`, render.js) = a spinning suction-cup wheel (8 cups; stops spinning, glows when latched).
 - **Savrah** (`drawSavrah`, beta_foes.js): the save point is a floppy disc with blue hair, a flute and a carpet; walking up says "AH, IT'S SO GOOD TO SEE YOU!" and calls `B.timelinePush()`.
