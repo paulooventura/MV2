@@ -124,18 +124,18 @@ The sticky **A/B** bar at the top of both pages is the switcher (`js/ab-switch.j
 
 ---
 
-## Auto commit & deploy
+## Auto commit & push dev
 
-After completing substantive work in this repo, **commit and push to `main` without asking**.
+After completing substantive work in this repo, **commit and push to `dev` without asking**. Never push `main` (or a side branch nobody merges): the Test lab only shows `dev`.
 
-1. `git status` / `git diff` — stage only task-related files
-2. Concise commit message (why, not just what)
-3. `git add` → `git commit` → `git push origin main`
-4. Tell the user: commit hash, push OK, and that **GitHub Pages** (`https://paulooventura.github.io/MV2/`) deploys from `main` automatically
+1. `git switch dev`, then `git status` / `git diff` — stage only task-related files
+2. Concise commit message (why, not just what), e.g. "Build 352: ..."
+3. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
+4. Tell the user: commit hash, and "it's in the Test lab now" (quest screen → The Office → Test lab). The hourly Homebase Ship merges `dev` into `main`, runs the selftest, and takes it live (`https://mindandventure.pauloventura.org/` + itch).
 
 **Do not commit:** `.vs/`, `.cursor/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
 
-**Remote:** `https://github.com/paulooventura/MV2.git` · branch `main`
+**Remote:** `https://github.com/paulooventura/MV2.git` · work branch `dev` · live branch `main` (Homebase Ship only)
 
 ## 16-bit presentation (Oct 2026, all pages)
 

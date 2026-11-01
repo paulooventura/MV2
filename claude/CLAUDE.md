@@ -13,7 +13,7 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 - QA = `npm run selftest` (or `selftest:quick`). Do not ask for F12 pastes.
 - Do **not** open Simple Browser / extra play tabs on `:8765` (BGM stacks).
 - The look follows Paulo’s key art (`assets/ui/title-key.jpg`, Oct 22): black box, thick record on top with chrome-orb shoulders, clear bulb with a purple (Mind) / red (Venture) eye, Mind’s flat wide-brim hat, **Venture’s red backwards cap**, purple / red gloves, Knowl tank in the back.
-- After substantive game work: commit and push `main` (GitHub Pages).
+- After substantive game work: commit and push `dev` (the Test lab shows `dev`). Never push `main`; the hourly Homebase Ship takes `dev` live.
 
 ## First files to open for a typical ask
 

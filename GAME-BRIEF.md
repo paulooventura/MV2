@@ -159,8 +159,9 @@ Never replace Awdjoo until Wall says **promote**.
    tips). Enhanced (+) items get full-body green veins. Venture hat is **black
    like Mind**, back brim only. Mind stays purple; Venture’s accent is red in
    FX, not a red cap.
-7. **Commit + push `main`** after substantive game work. Pages deploys from
-   `main`. No force-push, no secrets, no `.vs/`.
+7. **Commit + push `dev`** after substantive game work (Test lab shows `dev`).
+   Never push `main`: the hourly Homebase Ship merges `dev` and takes it live.
+   No force-push, no secrets, no `.vs/`.
 
 ---
 
