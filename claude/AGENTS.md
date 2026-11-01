@@ -202,6 +202,11 @@ After completing substantive work in this repo, **commit and push to `dev` witho
 - **MIND vs enemy bodies share the push by weight** (beta_enemies `_applyBodySeparation` wrapper): A (2) is shoved right along, B (7) gives a bit more than half, C (19) mostly holds and MIND gives way; pinned against a wall, MIND takes it all. **No energy bars over enemies** (`drawEnemyBars` no longer called).
 - **Continue screen on the pad**: the beta update reads the gamepad while the screen is up; d-pad/stick move YES/NO, A or START picks, B answers NO.
 
+### Build 352 — GORE goes heavy metal: the look (Nov 1, Sumi, T141)
+- `gore_metal.js` (after `beta_gore.js`), all gated on `MV_CONSOLE.mode==='gore'` and off under `?selftest`/`ci=`: shader uniforms for the gore grade (`uMetal` duotone blood/bone + crushed blacks + grain, `uBeat` red vignette breathing on `MV_GORE_BEAT` or 132 BPM, `uSplit` RGB split on hits, `uFlash` red lightning at most once per 7 s and never with reduced motion), 3-frame hit-stop + shake on kills, gibs that bounce, stick and drip, embers, low fog, edge splatter on hits, blood moon + bats + bolts in `MV_SKY.draw`, kill callouts (BRUTAL / SHREDDED / \m/) + COMBO counter.
+- Metal Mania (SIL OFL, `assets/fonts/metalmania-400.woff2`) replaces `_uiFontSpec` in GORE, so every `drawText` label is metal. `beta_gore.js` grade() calls `MV_GORE_FX.paint()` before the upload. Check: `node scripts/gore-look-check.mjs`.
+- Not yet: mad faces, wall-smear pools, charring on hot props, candles / jack-o'-lanterns (need sprite + level hooks).
+
 ### Build 351 — the brother doesn't crowd you (Oct 31, Claude)
 - `beta_sibling.js`: `PERSONAL=72` px. Its own spots start 72 px from you (preferred 96-146), it never stands out in front of you while you run, wall-tucks and fallbacks keep that gap, and a final guard in `follow()` pushes its target out of your space when you're on the same level. Probe: standing still it settles about 82 px beside you.
 

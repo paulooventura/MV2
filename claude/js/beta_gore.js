@@ -243,6 +243,7 @@
     const VS='attribute vec2 p; varying vec2 uv; void main(){ uv=p*0.5+0.5; gl_Position=vec4(p,0.0,1.0); }';
     const FS=`precision mediump float;
 uniform sampler2D tex; uniform vec2 res; varying vec2 uv;
+uniform float uT; uniform float uBeat; uniform float uSplit; uniform float uFlash; uniform float uMetal;
 vec3 rgb2hsv(vec3 c){
   vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0);
   vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
@@ -261,6 +262,7 @@ float greenAmt(vec3 c){
 }
 void main(){
   vec3 c=texture2D(tex,uv).rgb;
+  if(uSplit>0.0){ vec2 so=vec2(uSplit/res.x,0.0); c.r=texture2D(tex,uv+so).r; c.b=texture2D(tex,uv-so).b; }
   vec3 k=rgb2hsv(c);
   float signedH=k.x>0.5?k.x-1.0:k.x;
   float h=fract(signedH*0.38);
@@ -283,6 +285,18 @@ void main(){
   glow+=greenAmt(texture2D(tex,uv-vec2(px.x,0.0)).rgb);
   glow*=(1.0-ink);
   o+=vec3(0.45,0.02,0.03)*glow*0.05;
+  // metal (gore_metal.js): crushed blacks, blood + bone duotone, red vignette on the beat, grain
+  if(uMetal>0.0){
+    float l=smoothstep(0.07,0.95,dot(o,vec3(0.299,0.587,0.114)));
+    vec3 duo=mix(mix(vec3(0.02,0.0,0.01),vec3(0.62,0.02,0.07),clamp(l*2.0,0.0,1.0)),vec3(0.95,0.9,0.82),clamp(l*2.0-1.0,0.0,1.0));
+    o=mix(o,duo,0.32*uMetal);
+    o*=0.75+0.25*smoothstep(0.0,0.12,l);
+    float d=length((uv-0.5)*vec2(res.x/res.y,1.0));
+    o=mix(o,vec3(0.22,0.0,0.02),smoothstep(0.45,1.05,d)*(0.55+0.35*uBeat)*uMetal);
+    float n=fract(sin(dot(uv*res+uT*61.0,vec2(12.9898,78.233)))*43758.5453);
+    o+=(n-0.5)*0.07*uMetal;
+    o+=vec3(0.5,0.02,0.04)*uFlash;
+  }
   gl_FragColor=vec4(min(o,1.0),1.0);
 }`;
     function sh(type,src){
@@ -305,6 +319,7 @@ void main(){
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
     U={tex:gl.getUniformLocation(prog,'tex'), res:gl.getUniformLocation(prog,'res')};
+    for(const n of ['uT','uBeat','uSplit','uFlash','uMetal']) U[n]=gl.getUniformLocation(prog,n);
     gl.uniform1i(U.tex,0);
     glState=1; return true;
   }
@@ -317,6 +332,11 @@ void main(){
     syncBox();
     oc.style.opacity=amt.toFixed(3);
     if(oc.style.display==='none') oc.style.display='';
+    const FX=window.MV_GORE_FX;
+    try{ if(FX) FX.paint(); }catch(e){}
+    const fu=(FX&&FX.uniforms())||{t:0,beat:0,split:0,flash:0,metal:0};
+    gl.uniform1f(U.uT,fu.t); gl.uniform1f(U.uBeat,fu.beat); gl.uniform1f(U.uSplit,fu.split);
+    gl.uniform1f(U.uFlash,fu.flash); gl.uniform1f(U.uMetal,fu.metal*amt);
     gl.viewport(0,0,oc.width,oc.height);
     gl.bindTexture(gl.TEXTURE_2D,tex);
     try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,cv); }catch(e){ return; }
