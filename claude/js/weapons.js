@@ -1261,7 +1261,17 @@ function updateCoopPlayer2(){
   else if(rt) p2.vx=Math.min(p2.vx+MOVE_ACCEL,ms);
   else{ const gf=p2.og?MOVE_STOP:AIR_DRIFT; p2.vx*=gf; if(p2.og&&Math.abs(p2.vx)<0.22)p2.vx=0; else if(Math.abs(p2.vx)<0.12)p2.vx=0; }
   if(lf)p2.fc=false; else if(rt)p2.fc=true;
-  if(Kj2['ArrowUp']&&p2.og){p2.vy=JI;p2.og=false;sfx('jump');}
+  const up2=!!K2['ArrowUp'];
+  if(p2.og||(p2.hook&&p2.hook.st==='on')){ p2._airJumps=0; p2._airBoost=0; }
+  if(Kj2['ArrowUp']&&p2.og){p2.vy=JI;p2.jf=JMH;p2._airBoost=0;p2.og=false;sfx('jump');}
+  else if(Kj2['ArrowUp']&&!(p2._airJumps>0)&&!(p2.hook&&p2.hook.st==='on')
+          &&!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(p2.x+SW/2,p2.y+FEET_OFF-30))){
+    p2._airJumps=1; p2._airBoost=1; p2._airStall=1;
+    p2.vy=Math.min(p2.vy,0); p2.jf=AIR_JUMP_HOLD;
+    p2._tireSqV=(p2._tireSqV||0)-4.6; p2.suspComp=Math.max(p2.suspComp||0,0.62);
+    p2._dblJumpFx=14; try{ sfx('double_jump'); }catch(e){}
+  }
+  if(p2._dblJumpFx>0) p2._dblJumpFx--;
   if(Kj2['Numpad3']) ITEM=(ITEM+1)%4;
   if(Kj2['Numpad1']){
     if(ITEM===0){withPlayerContext(p2,()=>fireItem(false));if(p2.shots&&p2.shots.length){p.shots.push(...p2.shots);p2.shots.length=0;}}
@@ -1300,7 +1310,10 @@ function updateCoopPlayer2(){
   }
   withPlayerContext(p2,()=>{ if(p2.hook&&p2.hook.st!=='idle') updateHook(); });
   if(p2.hook&&p2.hook.st==='on') return;
-  p2.vy=Math.min(p2.vy+GRAV,14);
+  const st2=!!p2._airStall; p2._airStall=0;
+  if(up2&&p2.jf>0&&!st2) jumpHoldKick(p2);
+  else if(!st2&&!up2){ p2.jf=0; p2._airBoost=0; }
+  if(!st2) p2.vy=Math.min(p2.vy+(up2&&p2.jf>0&&p2.vy<0?GRAV*0.38:GRAV),14);
   _movePlayerWithColl(p2,p2.vx,p2.vy);
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
   if(p2.y>WH+100){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.x=p.x+36;p2.y=p.y;}

@@ -1159,9 +1159,7 @@ function update(){
     const _holdJump=isJump()||(p._autoJump||0)>0;
     const _airStall=!!p._airStall; p._airStall=0;   // the tap frame: fall stays stopped, the climb waits for the hold
     if(_holdJump&&p.jf>0&&!_airStall){
-      const lift=p._airBoost?AIR_JUMP_LIFT:JHH, cap=p._airBoost?AIR_JUMP_CAP:JMX;
-      p.vy=Math.max(p.vy-lift,cap); p.jf--;
-      if(p._airBoost) p._dblJumpFx=Math.max(p._dblJumpFx||0,6);
+      jumpHoldKick(p);
       if(p._autoJump>0) p._autoJump--;
     }else if(!_airStall&&!isJump()){ p.jf=0; p._autoJump=0; p._airBoost=0; }
     if(p._magWorldStick) p.vy=0;

@@ -44,11 +44,20 @@ const WHEEL_UPHILL_DRAG=1.85;
 const WHEEL_UPHILL_RUN_RELIEF=0.48;
 // Air jump (Paulo, Oct 26): a tap only stalls the fall — the wheel recoils.
 // How long jump stays down is how high the woofer kicks.
-// Oct 27: the second jump was carrying too far. A full hold still climbs,
-// but less high and for less time than before, so you don't travel as far.
-const AIR_JUMP_LIFT=0.56;    // upward speed added each held frame after the tap
-const AIR_JUMP_HOLD=28;      // full-hold window (a ground jump holds JMH frames)
+// Oct 22: "holding it for a whole second catapult the player like a full jump would."
+// Oct 27: the second jump was carrying too far. So the kick tapers off across a
+// 1 s window: tap = fall stopped, ~0.5 s ≈ 2/3 height, 1 s = a full ground jump, never more.
+const AIR_JUMP_LIFT=0.56;    // kick on the first held frame after the tap
+const AIR_JUMP_HOLD=60;      // hold window in frames (60 = 1 s)
+const AIR_JUMP_TAPER=2;      // kick shrinks as (1 - held/HOLD)^TAPER
 const AIR_JUMP_CAP=-10.4;    // rise cap while that kick is held
+function airJumpLift(held){ const t=Math.min(1,Math.max(0,held/AIR_JUMP_HOLD)); return AIR_JUMP_LIFT*Math.pow(1-t,AIR_JUMP_TAPER); }
+// One held frame of a jump (ground or air) for any brother: P1, co-op P2.
+function jumpHoldKick(pl){
+  const lift=pl._airBoost?airJumpLift(AIR_JUMP_HOLD-pl.jf):JHH, cap=pl._airBoost?AIR_JUMP_CAP:JMX;
+  pl.vy=Math.max(pl.vy-lift,cap); pl.jf--;
+  if(pl._airBoost) pl._dblJumpFx=Math.max(pl._dblJumpFx||0,6);
+}
 // Rubber tire + fork (Paulo, Oct 22: tire rubber; then "a badass dirtbike tire/wheel kit, with suspension")
 const TIRE_LOAD_SQ=1.4;      // px the tire flattens under MIND's weight, standing
 const TIRE_MAX_SQ=7;         // px it can squash on a hard landing

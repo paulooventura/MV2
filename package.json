@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "selftest": "node scripts/run-selftest.mjs",
+    "selftest": "node scripts/jump-apex-test.mjs && node scripts/run-selftest.mjs",
+    "test:jump": "node scripts/jump-apex-test.mjs",
     "selftest:quick": "node scripts/run-selftest.mjs --quick",
     "selftest:watch": "node scripts/watch-selftest.mjs",
     "selftest:summary": "node scripts/print-report.mjs",
