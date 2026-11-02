@@ -153,19 +153,21 @@
       const s=i%4===0?2:1; ctx.fillRect(x-PXS*s,y,PXS*(2*s+1),PXS); ctx.fillRect(x,y-PXS*s,PXS,PXS*(2*s+1));
     }
     ctx.globalAlpha=1;
-    // the moon
-    if(th.moon){
+    // the moon (m.late: hung in front of the far ridge, behind the town, when the ridge fills the sky)
+    const moon=()=>{
       const m=th.moon, mx=W*m.x-cx*0.01, my=skyY+L.sky.height*PXS*m.y, R=m.r*PXS/1.5;
       const g=ctx.createRadialGradient(mx,my,R*0.6,mx,my,R*2.6); g.addColorStop(0,th.glow+'0.35)'); g.addColorStop(1,th.glow+'0)');
       ctx.fillStyle=g; ctx.fillRect(mx-R*2.6,my-R*2.6,R*5.2,R*5.2);
       ctx.fillStyle=m.edge; ctx.beginPath(); ctx.arc(mx,my,R,0,Math.PI*2); ctx.fill();
       ctx.fillStyle=m.col; ctx.beginPath(); ctx.arc(mx-PXS,my-PXS,R-PXS*2,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(120,100,180,0.35)'; for(const [ox,oy,rr] of [[-0.3,-0.2,0.18],[0.25,0.1,0.12],[-0.05,0.35,0.1],[0.35,-0.35,0.08]]){ ctx.beginPath(); ctx.arc(mx+ox*R,my+oy*R,rr*R,0,Math.PI*2); ctx.fill(); }
-    }
+      ctx.fillStyle=m.crater||'rgba(120,100,180,0.35)'; for(const [ox,oy,rr] of [[-0.3,-0.2,0.18],[0.25,0.1,0.12],[-0.05,0.35,0.1],[0.35,-0.35,0.08]]){ ctx.beginPath(); ctx.arc(mx+ox*R,my+oy*R,rr*R,0,Math.PI*2); ctx.fill(); }
+    };
+    if(th.moon&&!th.moon.late) moon();
     // horizon glow, then far mountains, then the town
     const hg=ctx.createLinearGradient(0,horizon-140,0,horizon+20); hg.addColorStop(0,th.glow+'0)'); hg.addColorStop(1,th.glow+'0.18)');
     ctx.fillStyle=hg; ctx.fillRect(0,horizon-140,W,160);
     tile(L.far,cx*0.12,horizon-L.far.height*PXS+40,PXS);
+    if(th.moon&&th.moon.late) moon();
     tile(L.town,cx*0.3,horizon-L.town.height*PXS+70,PXS);
     ctx.fillStyle=th.town; ctx.fillRect(0,horizon+70,W,Math.max(0,H-horizon-70));
     if(window.MV_WEATHER) try{ MV_WEATHER.sky(horizon); }catch(e){}            // clouds from the boiled-off water (beta_weather.js)

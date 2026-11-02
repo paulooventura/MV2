@@ -250,6 +250,7 @@
     rect(x+8,floor-34,42,24,'#120c0a');
     const breathe=0.38+0.12*Math.sin(fr*0.11)+0.06*Math.sin(fr*0.37);
     glow(x+29,floor-24,70,breathe,'rgba(255,130,50,');
+    if(window.MV_GORE_FX&&MV_GORE_FX.hot) MV_GORE_FX.hot(x+29,floor-24,80);
     for(let i=0;i<5;i++){
       const fx=x+12+i*8, h=12+8*Math.abs(Math.sin(fr*0.21+i*1.9))+4*Math.sin(fr*0.53+i);
       ctx.fillStyle=i%2?'#ffb040':'#ff7a20';
@@ -290,6 +291,7 @@
     const f=Math.sin(fr*0.4+x)*1.2;
     ctx.fillStyle='#ffcf6a'; ctx.beginPath(); ctx.ellipse(X(x+f*0.4),Y(floor-19),S(2.4),S(4+Math.abs(f)),0,0,Math.PI*2); ctx.fill();
     glow(x,floor-20,30,0.25+0.08*Math.sin(fr*0.3+x));
+    if(window.MV_GORE_FX&&MV_GORE_FX.hot) MV_GORE_FX.hot(x,floor-20,26);
   }
 
   function familyHome(rm){

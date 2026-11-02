@@ -35,6 +35,11 @@ const calm = load('', 'gore', true);
 const cu = calm.MV_GORE_FX.uniforms();
 ok(cu.flash === 0 && cu.beat === 0.4, 'reduced motion: no flash, steady vignette');
 ok(!/#fff(?:fff)?['"]/i.test(src), 'no white flashes in the metal look');
+ok(g.MV_GORE_FX.FLICKER_MAX_HZ < 3, 'candle / lantern flicker under 3 Hz (' + g.MV_GORE_FX.FLICKER_MAX_HZ.toFixed(2) + ' Hz)');
+ok(calm.MV_GORE_FX.flicker(1) === calm.MV_GORE_FX.flicker(4), 'reduced motion: lanterns hold steady');
+const s0 = g.MV_GORE_FX.state();
+ok(s0 && s0.pools === 0 && s0.props.length === 0, 'no pools or props before a stage');
+console.log('     (kills on screen: node scripts/gore-kill-shots.mjs, headless + muted)');
 
 console.log(fails ? `GORE look check: ${fails} failed` : 'GORE look check: all green');
 process.exit(fails ? 1 : 0);
