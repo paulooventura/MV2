@@ -1,6 +1,6 @@
 // ============================================================
-//  ui_select.js — the Story Mode select screens, in the key art's look
-//  (Paulo, Oct 22: "this UI looks terrible… give a fun/hype look/feel to
+//  ui_select.js â€” the Story Mode select screens, in the key art's look
+//  (Paulo, Oct 22: "this UI looks terribleâ€¦ give a fun/hype look/feel to
 //  the character selection")
 //
 //  Two steps, same handlers as before (ui.js): HOW DO YOU RIDE? (1P / 2P
@@ -17,8 +17,8 @@
   const IMG={}, FEATHER={};
   for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
   const HERO={
-    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
-    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
+    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  Â·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  Â·  ALL NERVE'},
   };
   const MODES=[
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},
@@ -32,8 +32,22 @@
   const sparks=[];
   const ease=(a,b,k)=>a+(b-a)*k;
 
+  // the backdrop and the light rays drift slowly: paint them every 3rd frame and blit that copy in
+  // between (rays use the spots asked for last frame; additive blends this big cost ~5-9 ms in Firefox)
+  let bgC=null, bgN=0, rayPrev=[], rayNext=[];
   function bg(){
-    // the stage sky (swirls, stars, ridge, town) — or a dark fallback
+    const cv=ctx.canvas;
+    if(bgC&&bgC.width===cv.width&&bgC.height===cv.height&&(bgN++%3)!==0){
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='copy'; ctx.drawImage(bgC,0,0); ctx.restore();
+      return;
+    }
+    bgPaint();
+    for(const r of rayPrev) raysNow(r[0],r[1],r[2],r[3]);
+    if(!bgC||bgC.width!==cv.width||bgC.height!==cv.height){ bgC=document.createElement('canvas'); bgC.width=cv.width; bgC.height=cv.height; bgN=1; }
+    const o=bgC.getContext('2d'); o.globalCompositeOperation='copy'; o.drawImage(cv,0,0);
+  }
+  function bgPaint(){
+    // the stage sky (swirls, stars, ridge, town) â€” or a dark fallback
     let ok=false;
     try{ if(window.MV_SKY){ ctx.save(); MV_SKY.draw({stageId:'1.1'}, H*0.9); ctx.restore(); ok=true; } }catch(e){}
     if(!ok){ ctx.fillStyle='#04140e'; ctx.fillRect(0,0,W,H); }
@@ -41,11 +55,24 @@
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   }
   // a tilted card: a parallelogram, skewed by `sk` px across its height
-  function cardPath(x,y,w,h,sk){ ctx.beginPath(); ctx.moveTo(x+sk,y); ctx.lineTo(x+w+sk,y); ctx.lineTo(x+w-sk,y+h); ctx.lineTo(x-sk,y+h); ctx.closePath(); }
-  function rays(cx,cy,rgb,a){
-    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.translate(cx,cy); ctx.rotate(fr*0.004);
-    for(let i=0;i<12;i++){ ctx.rotate(Math.PI/6); const g=ctx.createLinearGradient(0,0,0,-420); g.addColorStop(0,'rgba('+rgb+','+(0.16*a)+')'); g.addColorStop(1,'rgba('+rgb+',0)');
-      ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(-70,-420); ctx.lineTo(70,-420); ctx.lineTo(14,0); ctx.closePath(); ctx.fill(); }
+  function cardPath(x,y,w,h,sk,c=ctx){ c.beginPath(); c.moveTo(x+sk,y); c.lineTo(x+w+sk,y); c.lineTo(x+w-sk,y+h); c.lineTo(x-sk,y+h); c.closePath(); }
+  // light rays: twelve soft beams, baked once per colour, spun live (nearest-neighbour: a smoothed
+  // rotate of this size costs ~3x more in Firefox and looks the same on soft beams)
+  const RAYS={};
+  function raySprite(rgb){
+    if(RAYS[rgb]) return RAYS[rgb];
+    const c=document.createElement('canvas'); c.width=c.height=840; const o=c.getContext('2d');
+    o.translate(420,420);
+    const g=o.createLinearGradient(0,0,0,-420); g.addColorStop(0,'rgba('+rgb+',0.16)'); g.addColorStop(1,'rgba('+rgb+',0)');
+    o.fillStyle=g;
+    for(let i=0;i<12;i++){ o.rotate(Math.PI/6); o.beginPath(); o.moveTo(-14,0); o.lineTo(-70,-420); o.lineTo(70,-420); o.lineTo(14,0); o.closePath(); o.fill(); }
+    return (RAYS[rgb]=c);
+  }
+  function rays(cx,cy,rgb,a){ rayNext.push([cx,cy,rgb,a]); }
+  function raysNow(cx,cy,rgb,a){
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha*=Math.min(1,a); ctx.imageSmoothingEnabled=false;
+    ctx.translate(cx,cy); ctx.rotate(fr*0.004);
+    ctx.drawImage(raySprite(rgb),-420,-420);
     ctx.restore();
   }
   function keycap(x,y,label,text,col){
@@ -89,7 +116,53 @@
     ctx.restore();
   }
 
-  // ── step 2: the heroes ──
+  // â”€â”€ step 2: the heroes â”€â”€
+  // a hero's art with its card treatment baked in: 'blur' = the dark blurred fill, 'face' = the portrait
+  // feathered at the sides. Grey for the hero who isn't picked. Sized for a card `full` px tall.
+  function baked(key,sel,kind,full){
+    const ck=key+'|'+(sel?1:0)+'|'+kind+'|'+Math.round(full); let off=FEATHER[ck];
+    if(off) return off;
+    const im=IMG[key], ar=im.naturalHeight/im.naturalWidth;
+    const o=(off=document.createElement('canvas')).getContext('2d');
+    if(kind==='blur'){
+      const w=Math.ceil(full*0.8), h=Math.ceil(w*ar);
+      off.width=w; off.height=h;
+      o.filter=(sel?'':'grayscale(0.75) ')+'blur(6px) brightness(0.45)';
+      o.drawImage(im,0,0,w,h);
+    }else{
+      const ih=Math.ceil(full*0.98*1.04), iw=Math.ceil(ih/ar);
+      off.width=iw; off.height=ih; o.imageSmoothingEnabled=false;
+      if(!sel) o.filter='grayscale(0.75) brightness(0.5)';
+      o.drawImage(im,0,0,iw,ih); o.filter='none'; o.globalCompositeOperation='destination-in';
+      const fg=o.createLinearGradient(0,0,iw,0); fg.addColorStop(0,'rgba(0,0,0,0)'); fg.addColorStop(0.1,'#000'); fg.addColorStop(0.9,'#000'); fg.addColorStop(1,'rgba(0,0,0,0)'); o.fillStyle=fg; o.fillRect(0,0,iw,ih);
+    }
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
+  }
+  // the hero's colour washed up from the bottom (a name plate), lit in its colour when picked
+  function cardWash(c,H0,sel,x,y,w,h,sk){
+    const g=c.createLinearGradient(0,y+h*0.45,0,y+h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.55,'rgba(4,6,10,0.75)'); g.addColorStop(1,'rgba(4,6,10,0.96)');
+    c.fillStyle=g; c.fillRect(x-sk,y,w+2*sk,h);
+    if(sel){ c.globalCompositeOperation='overlay'; c.fillStyle='rgba('+H0.glow+',0.22)'; c.fillRect(x-sk,y,w+2*sk,h); c.globalCompositeOperation='source-over'; }
+  }
+  // the card face (deep colour, blurred art, feathered portrait, wash) cut to the tilted card shape
+  function cardArt(key,sel,w,h,sk,k){
+    const ck=key+'|'+(sel?1:0)+'|card|'+w+'x'+h+'|'+Math.round(sk)+'|'+k; let off=FEATHER[ck];
+    if(off) return off;
+    const H0=HERO[key], im=IMG[key], ar=im.naturalHeight/im.naturalWidth;
+    off=document.createElement('canvas'); off.width=Math.ceil(w+2*sk); off.height=Math.ceil(h);
+    const o=off.getContext('2d'), x=sk, y=0, cx=x+w/2;
+    o.imageSmoothingEnabled=false;
+    cardPath(x,y,w,h,sk,o); o.clip();
+    o.fillStyle=H0.deep; o.fillRect(x-sk,y,w+2*sk,h);
+    const cw2=w+2*sk, ch2=cw2*ar;
+    o.drawImage(baked(key,sel,'blur',h), cx-cw2/2, y-(ch2-h)*0.3, cw2, ch2);
+    const ih=h*0.98*(1+0.03*k), iw=ih/ar;
+    o.drawImage(baked(key,sel,'face',h), cx-iw/2, y+h*0.01, iw, ih);
+    cardWash(o,H0,sel,x,y,w,h,sk);
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
+  }
   function heroCard(key,cx,sel,k,box,topName){
     const H0=HERO[key], im=IMG[key];
     const sc=0.9+0.1*k;
@@ -99,43 +172,28 @@
     // drop shadow + light rays behind the lead
     if(k>0.05) rays(cx,y+h*0.42,H0.glow,k);
     ctx.save(); ctx.fillStyle='rgba(0,0,0,0.55)'; cardPath(x+8,y+10,w,h,sk); ctx.fill(); ctx.restore();
-    // the art
-    ctx.save(); cardPath(x,y,w,h,sk); ctx.clip();
-    ctx.fillStyle=H0.deep; ctx.fillRect(x-sk,y,w+2*sk,h);
+    // the art: the whole card face is baked once at its full size and scaled with the ease
     if(im.complete&&im.naturalWidth){
-      ctx.imageSmoothingEnabled=false;
-      if(!sel) ctx.filter='grayscale(0.75) brightness(0.5)';
-      // behind: the same art blown up, blurred and dark (fills the card); in front: the whole hero
-      const cw2=w+2*sk, ch2=cw2*im.naturalHeight/im.naturalWidth;
-      ctx.filter=(sel?'':'grayscale(0.75) ')+'blur(6px) brightness(0.45)';
-      ctx.drawImage(im, cx-cw2/2, y-(ch2-h)*0.3, cw2, ch2);
-      ctx.filter=sel?'none':'grayscale(0.75) brightness(0.5)';
-      const zoom=1+0.03*k+(sel?0.008*Math.sin(fr*0.05):0), ih=h*0.98*zoom, iw=ih*im.naturalWidth/im.naturalHeight;
-      // feather the portrait's sides into the blur
-      const ck=key+'|'+Math.round(iw); let off=FEATHER[ck];
-      if(!off){ off=document.createElement('canvas'); off.width=Math.ceil(iw); off.height=Math.ceil(ih); const o=off.getContext('2d'); o.imageSmoothingEnabled=false;
-        o.drawImage(im,0,0,iw,ih); o.globalCompositeOperation='destination-in';
-        const fg=o.createLinearGradient(0,0,iw,0); fg.addColorStop(0,'rgba(0,0,0,0)'); fg.addColorStop(0.1,'#000'); fg.addColorStop(0.9,'#000'); fg.addColorStop(1,'rgba(0,0,0,0)'); o.fillStyle=fg; o.fillRect(0,0,iw,ih);
-        if(Object.keys(FEATHER).length>40) for(const k2 in FEATHER) delete FEATHER[k2];
-        FEATHER[ck]=off; }
-      ctx.drawImage(off, cx-iw/2, y+h*0.01);
-      ctx.filter='none';
+      const fw=box?w:340, fh=box?h:480, fsk=box?sk:22;
+      ctx.save(); ctx.imageSmoothingEnabled=true;
+      ctx.drawImage(cardArt(key,sel,fw,fh,fsk,box?(sel?1:0.2):(sel?1:0)), x-sk, y, w+2*sk, h);
+      ctx.restore();
       if(sel&&eyeKey===key&&eyeT>0.04){
+        const ar=im.naturalHeight/im.naturalWidth, ih=h*0.98*(1+0.03*k), iw=ih/ar;
         const e=EYE[key], z=1+eyeT*3.4;
         const zw=iw*z, zh=ih*z;
         const ex=cx-iw/2+iw*e.u, ey=y+h*0.01+ih*e.v;
-        ctx.save(); ctx.globalAlpha=Math.min(1,eyeT*1.35);
+        ctx.save(); cardPath(x,y,w,h,sk); ctx.clip(); ctx.imageSmoothingEnabled=false; ctx.globalAlpha=Math.min(1,eyeT*1.35);
         ctx.beginPath(); ctx.arc(ex,ey,18+ (1-eyeT)*h*0.45,0,Math.PI*2); ctx.clip();
         ctx.drawImage(im, ex-zw*e.u, ey-zh*e.v, zw, zh);
         ctx.restore();
       }
+    }else{
+      ctx.save(); cardPath(x,y,w,h,sk); ctx.clip();
+      ctx.fillStyle=H0.deep; ctx.fillRect(x-sk,y,w+2*sk,h);
+      cardWash(ctx,H0,sel,x,y,w,h,sk);
+      ctx.restore();
     }
-    // the hero's colour washed up from the bottom + a name plate
-    const g=ctx.createLinearGradient(0,y+h*0.45,0,y+h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.55,'rgba(4,6,10,0.75)'); g.addColorStop(1,'rgba(4,6,10,0.96)');
-    ctx.fillStyle=g; ctx.fillRect(x-sk,y,w+2*sk,h);
-    if(sel){ ctx.globalCompositeOperation='overlay'; ctx.fillStyle='rgba('+H0.glow+',0.22)'; ctx.fillRect(x-sk,y,w+2*sk,h); ctx.globalCompositeOperation='source-over'; }
-    // scanlines + a light sweep on the lead
-    ctx.restore();
     ctx.save();
     ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?H0.col:'rgba(120,130,140,0.6)'; cardPath(x,y,w,h,sk); ctx.stroke();
     ctx.shadowBlur=0; ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.7)'; cardPath(x+5,y+5,w-10,h-10,sk*0.95); ctx.stroke();
@@ -253,7 +311,7 @@
     if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
     hints();
   }
-  // Paulo (Oct 22): on this screen, under the heroes, two switches —
+  // Paulo (Oct 22): on this screen, under the heroes, two switches â€”
   //   COMPANION: SOLO (the other sibling stays home as an NPC) / WITH SIBLING (it shadows you)
   //   FRIENDLY FIRE: OFF / ON (it can always be punched, blown, pulled and shoved; ON it also gets hurt)
   // ^ v moves between the hero row and the two switches, < > changes the focused one. Mouse / touch: tap.
@@ -300,7 +358,7 @@
     if(selRow===1) setCompanion(dx>0);
     try{ sfx('menu'); }catch(e2){}
   }
-  // Paulo (Oct 22): pick with the mouse / a finger — a tap on a card picks it, a tap on the picked
+  // Paulo (Oct 22): pick with the mouse / a finger â€” a tap on a card picks it, a tap on the picked
   // card goes on; the switches switch. A tap anywhere else does nothing.
   let modeRects=[], heroRects=[], lastTouch=0;
   const inR=(b,mx,my)=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h;
@@ -383,7 +441,7 @@
     if(e.code==='Escape'||e.code==='Backspace') selRow=0;
   },true);
 
-  // ── step 1: the mode ──
+  // â”€â”€ step 1: the mode â”€â”€
   function icon(kind,cx,cy,col,s){
     ctx.save(); ctx.translate(cx,cy); ctx.scale(s,s); ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=3;
     const bulb=(x)=>{ ctx.beginPath(); ctx.arc(x,-16,13,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#04140e'; ctx.beginPath(); ctx.ellipse(x,-15,7,5,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,-15,2.6,0,Math.PI*2); ctx.fill();
@@ -393,6 +451,20 @@
     else if(kind==='shadow'){ ctx.globalAlpha=0.45; bulb(-22); ctx.globalAlpha=1; ctx.fillStyle=col; bulb(14); }
     else { ctx.beginPath(); ctx.arc(0,-6,12,Math.PI,0); ctx.stroke(); ctx.fillRect(-16,-6,32,28); ctx.fillStyle='#04140e'; ctx.fillRect(-2,2,4,10); }
     ctx.restore();
+  }
+  // a mode card's body (drop shadow, glass, frame) baked at full size; drawn scaled with its ease.
+  // 4px margin so the frame's stroke isn't cut.
+  function modeBody(m,sel,w,h,sk){
+    const ck='mode|'+m.id+'|'+(sel?1:0)+'|'+w+'x'+h+'|'+sk; let off=FEATHER[ck];
+    if(off) return off;
+    off=document.createElement('canvas'); off.width=Math.ceil(w+2*sk+8+7); off.height=Math.ceil(h+8+9);
+    const o=off.getContext('2d'), x=sk+4, y=4;
+    o.fillStyle='rgba(0,0,0,0.5)'; cardPath(x+7,y+9,w,h,sk,o); o.fill();
+    const g=o.createLinearGradient(0,y,0,y+h); g.addColorStop(0,sel?'rgba(30,60,40,0.96)':'rgba(10,22,16,0.9)'); g.addColorStop(1,'rgba(3,10,6,0.96)');
+    o.fillStyle=g; cardPath(x,y,w,h,sk,o); o.fill();
+    o.lineWidth=sel?4:2; o.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk,o); o.stroke();
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
   }
   function drawModes(){
     const L=window.uiLayout?uiLayout():{oneCol:false,panelW:520,panelX:(1024-520)/2,pad:{b:0},inset:{t:0}};
@@ -420,10 +492,8 @@
       modeRects.push({i,x:x-sk,y,w:w+sk,h});
       const rgb=_uiRGB(m.col).join(',');
       if(sel&&!m.locked) rays(cx,y+h*0.4,rgb,k*0.8);
-      ctx.save(); ctx.fillStyle='rgba(0,0,0,0.5)'; cardPath(x+7,y+9,w,h,sk); ctx.fill();
-      const g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,sel?'rgba(30,60,40,0.96)':'rgba(10,22,16,0.9)'); g.addColorStop(1,'rgba(3,10,6,0.96)');
-      ctx.fillStyle=g; cardPath(x,y,w,h,sk); ctx.fill();
-      ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk); ctx.stroke(); ctx.restore();
+      const body=modeBody(m,sel,cw,ch,sk);
+      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(body, x-sk-4, y-4, body.width*sc, body.height*sc); ctx.restore();
       const short=h<150;
       icon(m.icon,cx,short?y+28:y+h*0.34,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),short?1: (sel?1.5:1.2));
       ctx.save(); if(!sel) ctx.globalAlpha=0.6;
@@ -471,10 +541,15 @@
     ask={sel:_playerCount===2?0:(window.MV_SIBLING&&MV_SIBLING.on?0:1)};
     return true;
   };
+  let lastDraw=0, lastStep=-1;
   window.drawSelect=function(){
+    const now=performance.now();
+    if(now-lastDraw>200||lastStep!==_selectStep){ rayPrev=[]; bgN=0; }   // fresh entry / step: no stale rays
+    lastDraw=now; lastStep=_selectStep;
     ctx.save(); ctx.imageSmoothingEnabled=false;
     bg();
     if(_selectStep===0) drawModes(); else drawHeroes();
+    rayPrev=rayNext; rayNext=[];
     drawAsk();
     if(typeof _drawUiToast==='function') _drawUiToast();
     ctx.restore(); ctx.imageSmoothingEnabled=true;

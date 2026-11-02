@@ -177,7 +177,34 @@ function textW(s,scl=2){
   if(w==null){ ctx.save(); ctx.font=_uiFontSpec(scl); w=Math.ceil(ctx.measureText(s).width+_uiPx(scl)*0.06); ctx.restore(); if(_uiTwCache.size>3000) _uiTwCache.clear(); _uiTwCache.set(key,w); }
   return w;
 }
+// Labels repeat every frame and each one is a stroke, a fill and a blurred glow (~1 ms in Firefox).
+// A label drawn twice is baked to a sprite and blitted after; scaled or rotated draws stay live.
+const _uiSpr=new Map(), _uiSprSeen=new Map();
+function _uiPlainXf(){ const m=ctx.getTransform(); return m.a===1&&m.d===1&&m.b===0&&m.c===0; }
+function _uiSprGet(key,bake){
+  let e=_uiSpr.get(key);
+  if(e){ _uiSpr.delete(key); _uiSpr.set(key,e); return e; }
+  const n=(_uiSprSeen.get(key)||0)+1;
+  if(n<2){ if(_uiSprSeen.size>2000) _uiSprSeen.clear(); _uiSprSeen.set(key,n); return null; }
+  _uiSprSeen.delete(key);
+  e=bake(); _uiSpr.set(key,e);
+  if(_uiSpr.size>320) _uiSpr.delete(_uiSpr.keys().next().value);
+  return e;
+}
+function _uiSprCanvas(w,h){ const c=document.createElement('canvas'); c.width=Math.max(1,Math.ceil(w)); c.height=Math.max(1,Math.ceil(h)); return c; }
 function _drawText16(s,x,y,col,scl){
+  if(_uiPlainXf()){
+    const e=_uiSprGet('t|'+scl+'|'+col+'|'+s,()=>{
+      const px=_uiPx(scl), P=Math.ceil(px*0.5)+12;
+      const c=_uiSprCanvas(textW(s,scl)+P*2+px, Math.ceil(px*1.2)+P*2), g=c.getContext('2d');
+      _drawText16On(g,s,P,P,col,scl);
+      return {c,ox:P,oy:P};
+    });
+    if(e){ ctx.drawImage(e.c,Math.round(x)-e.ox,Math.round(y)-e.oy); return; }
+  }
+  _drawText16On(ctx,s,x,y,col,scl);
+}
+function _drawText16On(ctx,s,x,y,col,scl){
   col=_uiCol(col);
   const rgb=_uiRGB(col), px=_uiPx(scl);
   const base=y+7*scl+(scl>=2?scl*0.6:1);       // the old font's glyphs sat 7 rows tall in an 8-row cell
@@ -268,11 +295,45 @@ function uiPill(x,y,w,h,opts={}){
 // letters in phosphor green (or opts.col), a dark pixel extrusion, a hard
 // outline, a wide glow and a slow scan of light across them.
 function uiLogo(text,cx,y,px,opts={}){
-  ctx.save();
-  const sz=Math.round(px*1.25);
-  ctx.font=sz+'px "MV Pixel", monospace';
+  const col=opts.col||'#b8f5a0', track=opts.track!=null?opts.track:px*0.04;
+  if(_uiFontReady&&_uiPlainXf()){
+    const e=_uiSprGet('l|'+px+'|'+col+'|'+track+'|'+text,()=>{
+      const P=Math.ceil(px*1.2)+8;
+      ctx.save(); ctx.font=Math.round(px*1.25)+'px "MV Pixel", monospace'; if(ctx.letterSpacing!==undefined) ctx.letterSpacing=track+'px';
+      const tw=ctx.measureText(text).width; ctx.restore();
+      const c=_uiSprCanvas(tw+P*2, px*1.3+P*2), g=c.getContext('2d');
+      const w=_uiLogoOn(g,text,P+tw/2,P,px,opts,false);
+      return {c,ox:P+tw/2,oy:P,w};
+    });
+    if(e){
+      const x0=Math.round(cx), y0=Math.round(y);
+      ctx.drawImage(e.c,x0-e.ox,y0-e.oy);
+      _uiLogoSweep(ctx,text,x0,y0,px,opts,e.w);
+      return e.w;
+    }
+  }
+  return _uiLogoOn(ctx,text,cx,y,px,opts,true);
+}
+function _uiLogoFont(ctx,px,opts){
+  ctx.font=Math.round(px*1.25)+'px "MV Pixel", monospace';
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
   if(ctx.letterSpacing!==undefined) ctx.letterSpacing=(opts.track!=null?opts.track:px*0.04)+'px';
+}
+// a slow scan of light across the letters
+function _uiLogoSweep(ctx,text,cx,y,px,opts,w){
+  const per=opts.sweep||240, t=((typeof fr!=='undefined'?fr:0)%per)/per;
+  if(t>=0.35) return;
+  const base=y+px*0.8, top=base-px*0.72;
+  const k=t/0.35, sx0=cx-w/2-px+k*(w+px*2);
+  const sg=ctx.createLinearGradient(sx0-px*0.5,0,sx0+px*0.5,0);
+  sg.addColorStop(0,'rgba(240,255,220,0)'); sg.addColorStop(0.5,'rgba(240,255,220,0.8)'); sg.addColorStop(1,'rgba(240,255,220,0)');
+  ctx.save(); _uiLogoFont(ctx,px,opts); ctx.beginPath(); ctx.rect(sx0-px*0.5,top-px*0.3,px,px*1.4); ctx.clip();
+  ctx.globalAlpha*=0.6*Math.sin(k*Math.PI); ctx.fillStyle=sg; ctx.fillText(text,cx,base); ctx.restore();
+}
+function _uiLogoOn(ctx,text,cx,y,px,opts,sweep){
+  ctx.save();
+  const sz=Math.round(px*1.25);
+  _uiLogoFont(ctx,px,opts);
   const base=y+px*0.8, top=base-px*0.72, bold=sz*0.012;
   const w=ctx.measureText(text).width;
   const col=opts.col||'#b8f5a0', rgb=_uiRGB(col)||[184,245,160];
@@ -291,16 +352,8 @@ function uiLogo(text,cx,y,px,opts={}){
   ctx.save(); ctx.globalCompositeOperation='source-atop'; ctx.fillStyle='rgba(0,30,0,0.22)';
   for(let yy=Math.floor(top-px*0.1);yy<base+px*0.1;yy+=3) ctx.fillRect(cx-w/2-px,yy,w+px*2,1);
   ctx.restore();
-  // a slow scan of light
-  const per=opts.sweep||240, t=((typeof fr!=='undefined'?fr:0)%per)/per;
-  if(t<0.35){
-    const k=t/0.35, sx0=cx-w/2-px+k*(w+px*2);
-    const sg=ctx.createLinearGradient(sx0-px*0.5,0,sx0+px*0.5,0);
-    sg.addColorStop(0,'rgba(240,255,220,0)'); sg.addColorStop(0.5,'rgba(240,255,220,0.8)'); sg.addColorStop(1,'rgba(240,255,220,0)');
-    ctx.save(); ctx.beginPath(); ctx.rect(sx0-px*0.5,top-px*0.3,px,px*1.4); ctx.clip();
-    ctx.globalAlpha=0.6*Math.sin(k*Math.PI); ctx.fillStyle=sg; ctx.fillText(text,cx,base); ctx.restore();
-  }
   ctx.restore();
+  if(sweep) _uiLogoSweep(ctx,text,cx,y,px,opts,w);
   return w;
 }
 // soft glowing star / sparkle

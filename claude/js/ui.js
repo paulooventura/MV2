@@ -284,10 +284,19 @@ function uiSafeInsets(){
   }catch(e){}
   return z;
 }
+// menus ask for the layout many times a frame; style + rect reads are reused for 250 ms per size
+let _uiLayoutMemo=null;
 function uiLayout(){
   const iw=window.innerWidth||W, ih=window.innerHeight||H;
   let phone=false;
   try{ phone=document.documentElement.classList.contains('phone-play')||!!window._phonePlay; }catch(e){}
+  const now=performance.now(), mk=iw+'|'+ih+'|'+W+'|'+H+'|'+phone;
+  if(_uiLayoutMemo&&_uiLayoutMemo.k===mk&&now-_uiLayoutMemo.t<250) return _uiLayoutMemo.v;
+  const v=_uiLayoutCompute(iw,ih,phone);
+  _uiLayoutMemo={k:mk,t:now,v};
+  return v;
+}
+function _uiLayoutCompute(iw,ih,phone){
   const shortSide=Math.min(iw,ih);
   let profile='desk';
   if(phone||shortSide<=540) profile='phone';
@@ -1044,12 +1053,21 @@ function _drawTitleMenuOverArt(map){
   });
   ctx.restore();
 }
+let _titleArtScaled=null;
 function drawTitle(){
   _titleT++;
   const map=_titleArtMap();
   if(map){
+    // the key art, high-quality scaled once per size (a scaled draw of it every frame cost ~4 ms in Firefox)
+    const tw=Math.round(map.im.naturalWidth*map.s), th=Math.round(map.im.naturalHeight*map.s);
+    let tc=_titleArtScaled;
+    if(!tc||tc._im!==map.im||tc.width!==tw||tc.height!==th){
+      tc=_titleArtScaled=document.createElement('canvas'); tc.width=Math.max(1,tw); tc.height=Math.max(1,th); tc._im=map.im;
+      const o=tc.getContext('2d'); o.imageSmoothingEnabled=true; if(o.imageSmoothingQuality) o.imageSmoothingQuality='high';
+      o.drawImage(map.im,0,0,tw,th);
+    }
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
-    ctx.drawImage(map.im,map.dx,map.dy,map.im.naturalWidth*map.s,map.im.naturalHeight*map.s);
+    ctx.drawImage(tc,Math.round(map.dx),Math.round(map.dy));
     _drawTitleMenuOverArt(map);
     if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }
     return;

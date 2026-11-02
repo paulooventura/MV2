@@ -114,14 +114,24 @@
     tex.brick=[0,1].map(texBrick); tex.roof=texRoof(false); tex.roofTop=texRoof(true); tex.wood=texWood(); tex.scales=texScales(false); tex.scalesTop=texScales(true); tex.ok=true;
   }
   function blit(img,c,r){ ctx.drawImage(img, X(c*T), Y(r*T), S(T)+1, S(T)+1); }
+  // dirt darkening with depth, baked into the tile (was a second full-tile fill on every deep block)
+  const _dirtDeep={};
+  function dirtDeep(v,depth){
+    const d=Math.min(13,depth), k=v*16+d; let c=_dirtDeep[k];
+    if(c) return c;
+    const src=tex.dirt[v]; c=document.createElement('canvas'); c.width=src.width; c.height=src.height;
+    const g=c.getContext('2d'); g.drawImage(src,0,0);
+    g.fillStyle='rgba(20,8,16,'+Math.min(0.45,d*0.035)+')'; g.fillRect(0,0,c.width,c.height);
+    return (_dirtDeep[k]=c);
+  }
 
   // ── Sky: dusk gradient, slow swirls, stars, drifting clouds, birds, far hills
   function sky(){
+    const horizon=Y((MV_BETA.horizonRow!=null?MV_BETA.horizonRow:MV_BETA.sky+13)*T);
+    if(window.MV_SKY&&MV_SKY.draw(MV_BETA,horizon)) return;          // build 217: the key-art sky (beta_sky.js); it paints the whole frame
     const g=ctx.createLinearGradient(0,Y(0),0,Y(30*T));
     g.addColorStop(0,P.skyTop); g.addColorStop(0.45,P.skyMid); g.addColorStop(0.85,P.skyLow); g.addColorStop(1,P.skyGlow);
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    const horizon=Y((MV_BETA.horizonRow!=null?MV_BETA.horizonRow:MV_BETA.sky+13)*T);
-    if(window.MV_SKY&&MV_SKY.draw(MV_BETA,horizon)) return;          // build 217: the key-art sky (beta_sky.js)
     // stars high up, twinkling
     const starH=(MV_BETA.sky+8)*T;
     for(let i=0;i<70;i++){
@@ -869,9 +879,8 @@
       if(s===2){ blit(tex.brick[r&1],c,r); continue; }
       if(s===3){ blit(tex.wood,c,r); continue; }
       if(s===6){ blit(top?tex.scalesTop:tex.scales,c,r); continue; }
-      blit(tex.dirt[(c*5+r*3)&7],c,r);
       const depth=r-(B.surfRow[c]||r);
-      if(depth>1){ ctx.fillStyle='rgba(20,8,16,'+Math.min(0.45,depth*0.035)+')'; ctx.fillRect(X(c*T),Y(r*T),S(T)+1,S(T)+1); }
+      blit(depth>1?dirtDeep((c*5+r*3)&7,depth):tex.dirt[(c*5+r*3)&7],c,r);
       if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
     }
     edges(B,cells,r0,r1,c0,c1);

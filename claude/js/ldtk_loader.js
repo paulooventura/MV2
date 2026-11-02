@@ -14,6 +14,7 @@ const LDTK_TO_WORLD = WORLD_TILE / LDTK_AUTHOR_TILE;
 
 let _ldtkLabMode = false;
 let _ldtkLevel = null;
+const _ldtkWarned = new Set();
 
 /**
  * Identity map: LDtk Collision IntGrid value → MV_GRID_* enum.
@@ -177,7 +178,7 @@ function parseLdtkLevel(levelJson, opts) {
     const id = ent.__identifier || ent.identifier || '';
     const fn = handlers[id];
     if (!fn) {
-      console.warn('LDtk: unmapped entity identifier', id);
+      if (!_ldtkWarned.has(id)) { _ldtkWarned.add(id); console.warn('LDtk: unmapped entity identifier', id); }   // once per name, not once per entity per load
       continue;
     }
     fn(ent);

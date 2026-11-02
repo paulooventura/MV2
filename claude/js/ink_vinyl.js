@@ -234,10 +234,13 @@
     const at=ageTarget(); INK.age+=(at-INK.age)*(at>INK.age?0.35:0.06);
     gl.viewport(0,0,oc.width,oc.height);
     gl.bindTexture(gl.TEXTURE_2D,tex);
-    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,cv); }catch(e){ return; }
+    // RGBA uploads: RGB makes the browser repack every pixel of the 2D canvas first
+    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv); }catch(e){ return; }
     const menu=!inGameFrame;
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,wtex);
-    try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,(worldOk&&!menu)?wc:cv); }catch(e){}
+    gl.activeTexture(gl.TEXTURE1);
+    // no separate world layer this frame: the world texture is the same picture, so share it (no 2nd upload)
+    if(worldOk&&!menu){ gl.bindTexture(gl.TEXTURE_2D,wtex); try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,wc); }catch(e){} }
+    else gl.bindTexture(gl.TEXTURE_2D,tex);
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1f(U.wok,(worldOk&&!menu)?1:0); gl.uniform1f(U.menu,menu?1:0);
     gl.uniform2f(U.res,cv.width,cv.height); gl.uniform1f(U.lo,INK.lo); gl.uniform1f(U.hi,INK.hi);
