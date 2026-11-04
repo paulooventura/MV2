@@ -974,7 +974,15 @@ function update(){
   if(isPunch()&&!p.pCharging&&p.pCd===0&&!_fMoving){p.pCharging=true;p.pCharge=0;}
   if(_fMoving&&p.pCharging){p.pCharging=false;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
-  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;const charged=_punchLoaded(p);p.pt=charged?8:5;p.pCd=0;p._hitDone=false;sfx(charged?'punch_heavy':'punch');}
+  if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;const charged=_punchLoaded(p);
+    // Paulo, Nov 4 (build 356): empty hands = two gloves. Punches in a row (each within
+    // 30 frames of the last) go right jab, left jab, right hook; a jack in hand = the right
+    // glove only. A loaded punch (held) is still its own right hook and starts the combo over.
+    const empty=!(ITEM>=0&&_itemUnlocked(ITEM));
+    const step=empty&&!charged&&fr-(p._comboFr==null?-999:p._comboFr)<=30?((p._combo||0)+1)%3:0;
+    p._combo=step; p._comboFr=fr; p._punchHand=empty&&step===1?'L':'R';
+    const hook=empty&&step===2; if(hook) p.pCharge=_heroPunch(p).loadF+1;
+    p.pt=(charged||hook)?8:5;p.pCd=0;p._hitDone=false;sfx((charged||hook)?'punch_heavy':'punch');}
   if(p.pt>0)p.pt--;else p._hitDone=false;
   if(p.pCd>0)p.pCd--;
   if(p._pRecoil>0)p._pRecoil--;

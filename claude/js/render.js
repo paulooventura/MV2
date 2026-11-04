@@ -1288,7 +1288,10 @@ function drawCharacter(){
   if(!flicker) drawWheelKit(wcx,wcy,sy(bodyTop+BODY_H),fc,p);
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
-  drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
+  // (build 356) during the left jab this right glove holds its guard; the left hand punches
+  const _leftJab=p._punchHand==='L'&&p.pt>0;
+  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
+  else drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
 
   const drawConnArm=()=>{
@@ -1299,6 +1302,9 @@ function drawCharacter(){
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
+  // (build 356) empty hands: this is the left glove. The left jab punches from this shoulder
+  // toward the aim, with the same hit logic as the right glove.
+  if(_leftJab&&held<0&&!_plugging){ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); return; }
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(p.hook&&p.hook.st==='on'&&held===1&&!p.hook._plugged) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);
@@ -1308,6 +1314,7 @@ function drawCharacter(){
     drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(held>=0&&!_plugging) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
   }
+  if(held<0&&!_plugging) drawFist(tipX,tipY,fc,false,0,false,0);     // the left glove (build 356)
   if(coilFlow){
     const tw=connectorTipWorld(held);
     drawArmEnergyFlow(connShX,connShY,elbowX,elbowY,sx(tw.x),sy(tw.y),useElbow,coilFlow);

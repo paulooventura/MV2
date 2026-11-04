@@ -1976,10 +1976,9 @@
     if(B.on&&_gameState==='game') drawBetaHud();
     return r;
   };
-  // ── Top bar (Paulo, Oct 21): MIND's head + lives · the reel while the RCA is out ·
-  //   the four jacks as their tips, left to right XLR > RCA > TRS > MAG
-  //   Paulo, Nov 4 (build 356): no HP or power bars up here any more — the game itself
-  //   shows how hurt MIND is and whether a jack is charged.
+  // ── Top bar (Paulo, Oct 21): the four jacks as their tips, left to right XLR > RCA > TRS > MAG
+  //   Paulo, Nov 4 (build 356): no left panel any more (HP, power, reel, lives, continues) —
+  //   the game itself shows how hurt MIND is and whether a jack is charged.
   function hudHead(x,y,s,dim){                             // MIND's head: dark box, one big eye, black hat
     ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
     ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#1c1430'; uiRound(-11,-8,22,18,4); ctx.fill();
@@ -1991,33 +1990,30 @@
     else { ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#000'; ctx.fillRect(-13,-11,26,3); ctx.fillRect(-7,-18,14,8); }
     ctx.restore();
   }
+  // the lives card: MIND's head and the lives left, fading in and out at the top left
+  const CARD_FR=150;
+  B.showLives=function(lost){ B.livesCard={t:0, lost:!!lost}; };
+  function drawLivesCard(left,top){
+    const c=B.livesCard; if(!c) return;
+    const a=Math.min(1,c.t/10,(CARD_FR-c.t)/20); if(a<=0) return;
+    const flash=c.lost&&c.t<60&&(c.t>>3)%2;
+    ctx.save(); ctx.globalAlpha=a;
+    uiPanel(left,top,120,54,{r:12,alpha:0.82,flat:true,accent:c.lost?'rgba(255,90,110,0.6)':'rgba(200,170,255,0.55)'});
+    ctx.imageSmoothingEnabled=true;
+    hudHead(left+30,top+30,1.3,false);
+    drawText('x'+Math.max(0,B.lives|0), left+58, top+18, flash?'#ff6a7a':'#ffffff', 3);
+    ctx.restore();
+  }
   const JACK_ORDER0=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MEG','KNIFE'];
   function drawTopBar(){
     const L=typeof uiLayout==='function'?uiLayout():{inset:{t:0,l:0,r:0},phone:false};
     const top=Math.max(6,(L.inset.t||0)+4), left=Math.max(8,(L.inset.l||0)+4), right=W-Math.max(8,(L.inset.r||0)+4);
-    const reel=_itemUnlocked(1);
-    const lw=268, lh=reel?74:48;
-    uiPanel(left,top,lw,lh,{r:12,alpha:0.82,flat:true,accent:'rgba(200,170,255,0.55)'});
-    ctx.imageSmoothingEnabled=true;
-    const lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
-    hudHead(left+26,top+28,1.15,false);
-    drawText('x'+Math.max(0,B.lives|0), left+46, top+8, lost?'#ff6a7a':'#ffffff', 2);
-    drawText('CONT '+(B.continues|0), left+100, top+8, '#d8ffc8', 2);
-    const hx=left+10;
-    if(reel){
-      const hook=p.hook, ven=p.hero==='venture', rc=ven?'#ff4a5a':'#b070ff', rcHi=ven?'#ffb0b8':'#e0c8ff';
-      const cmax=typeof CMAX==='number'?CMAX:400, rmin=typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28;
-      let f=0, live=false;
-      if(hook&&hook.st==='on'){ f=Math.max(0,Math.min(1,((hook.rl||0)-rmin)/(cmax-rmin))); live=true; }
-      else if(hook&&hook.st==='ext'){ const a=typeof ropePlayerEndWorld==='function'?ropePlayerEndWorld():{x:p.x,y:p.y}; f=Math.max(0,Math.min(1,Math.hypot(hook.ex-a.x,hook.ey-a.y)/cmax)); live=true; }
-      const strain=live&&hook.st==='on'?Math.min(1,window.MV_ROPE_STRAIN||0):0;
-      const bc=strain>0.75?'#ff4040':strain>0.45?'#ffc040':rc, bh=strain>0.45?'#fff0c0':rcHi;
-      ctx.globalAlpha=live?1:0.45;
-      drawText('REEL',hx,top+46,bc,2);
-      uiBar(hx+58,top+48,lw-76,10,f,bc,bh,3,{pulse:strain>0.75});
-      ctx.globalAlpha=1;
-    }
-    if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+100,top+28,C.MINT,2); ctx.globalAlpha=1; }
+    // Paulo, Nov 4 (build 356): the top-left bar is gone. The lives count shows only for a
+    //   moment — when MIND spawns and when he gets shut down (livesCard, livesTick) — and the
+    //   continues only on the CONTINUE? screen.
+    const lw=200;
+    drawLivesCard(left,top);
+    if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+10,top+(B.livesCard?62:8),C.MINT,2); ctx.globalAlpha=1; }
     const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
     const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);
     const pill=54, jw=JACK_ORDER.length*pill+12, jx=right-jw;
@@ -2038,7 +2034,7 @@
     const ch=_playerChargeInfo(p), cs=ch.chargeFrac;
     if((p.og&&cs>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||ch.sprinting){
       const ready=p.duckBoostReady||p._wallChargeReady||ch.ready;
-      uiBar(left,top+lh+6,lw,12,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
+      uiBar(left,top+(B.livesCard?62:0),lw,12,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
     }
   }
   function drawLaituTag(){
@@ -2356,7 +2352,11 @@
   B.newRun=function(){ B.lives=3; B.continues=3; B.contScreen=null; B.overT=0; };
   function livesTick(){
     const shut=_shutdownTimer>0;
-    if(shut&&!B._shutWas){ B.lives=Math.max(0,B.lives-1); B._lifeLostT=90; }
+    if(shut&&!B._shutWas){ B.lives=Math.max(0,B.lives-1); B._lifeLostT=90; B.showLives(true); }
+    if(!shut&&B._shutWas&&B.lives>0) B.showLives(false);                 // rebooted: show what's left
+    const where=B.stageId+'|'+B.level;
+    if(where!==B._livesWhere){ B._livesWhere=where; B.showLives(false); }   // spawned into a stage
+    if(B.livesCard){ const c=B.livesCard; c.t++; if(shut&&c.lost) c.t=Math.min(c.t,60); else if(c.t>=CARD_FR) B.livesCard=null; }   // a shutdown card holds (fully shown) until the reboot
     B._shutWas=shut;
     if(B._lifeLostT>0) B._lifeLostT--;
     if(!shut&&B.lives<=0&&!B.contScreen&&!B.overT){
@@ -2377,6 +2377,7 @@
       if(C.sel===0){
         B.continues--; B.lives=3; B.contScreen=null;
         if(typeof _respawnPlayer==='function') _respawnPlayer();
+        B.showLives(false);
         if(window.MV_BETA_AUDIO&&B.music) MV_BETA_AUDIO.play(B.music,{restart:true});
       }else{ B.contScreen=null; B.overT=1; try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.octaveDown(); }catch(e){} }
     }

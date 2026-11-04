@@ -270,7 +270,10 @@ function _updateRunEntry(pl){
   pl._itemWas=btn;
   if((pl._standTapT||0)>0) pl._standTapT--;
   const standing=!dir&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
-  if(btn&&!was&&standing){
+  // Paulo, Nov 4 (build 356): spam = every press fires. With a jack in hand the double-tap
+  // is just two shots; the standing double-tap starts the vehicle only when the hands are empty.
+  const _jackInHand=typeof ITEM!=='undefined'&&ITEM>=0&&typeof _itemUnlocked==='function'&&_itemUnlocked(ITEM);
+  if(btn&&!was&&standing&&!_jackInHand){
     if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
     else pl._standTapT=16;
   }
