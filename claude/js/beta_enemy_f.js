@@ -11,8 +11,10 @@
 //     (a burst out), rest. Matter = the hero, loose cubes, loose items, the
 //     Isolator when knocked off, and the water itself (moved cell to cell,
 //     so the pool's volume never changes);
-//   - only punches hurt it, and only on its 6 notch points (the corners).
-//     Each punch breaks the notch nearest the fist; anything else clinks;
+//   - Paulo, Nov 4 (build 368): it can only be hurt for 3 s after it wakes
+//     (its notches glow), and only by a LOADED punch, a LOADED TRS shot or the
+//     kiritsuke. Each of those breaks the notch nearest the hit; anything else,
+//     or any hit outside the window, clinks;
 //   - all 6 broken: it collapses. The water surges out from where it was,
 //     nearby cubes are thrown loose, omni blocks right around it crumble
 //     (a passage opens), and it's gone.
@@ -29,6 +31,7 @@
   const PASSAGE_R=4.5*T;                              // omni blocks this close crumble on the collapse
   const SHOVE_R=6*T;                                  // cubes this close are thrown loose on the collapse
   const COLLAPSE_FR=48;
+  const VULN_FR=180;                                  // 3 s open to damage after it wakes
   const PLACE={'1.2':[14,60]};                        // [col,row] of the Enemy cell (feet on row 61's floor)
 
   const on=()=>B.on&&typeof p!=='undefined'&&p&&_gameState==='game';
@@ -58,7 +61,16 @@
   const _dmg=window._damageEnemy;
   if(typeof _dmg==='function') window._damageEnemy=function(e){
     if(e&&e._fx&&!fxKill){
-      if(e.alive){ pend={e, fr:typeof fr!=='undefined'?fr:0}; e.hitF=10; }
+      if(!e.alive) return false;
+      if(e.st==='sleep'){ wakeF(e); clink(e,arguments[2]!=null?arguments[2]:e.x+e.w/2,arguments[3]!=null?arguments[3]:e.y+e.h/2); e.hitF=10; return false; }   // a hit wakes it; the window starts now
+      const sh=window._shotHitNow, kn=!!window._knifeHitNow, hx=arguments[2], hy=arguments[3];
+      if(kn||sh){                                        // the kiritsuke or a TRS shot
+        const loaded=kn||!!(sh&&sh.charged);
+        if(loaded&&(e.fVulnT||0)>0&&hx!=null) notchHit(e,hx,hy,sh?Math.atan2(sh.vy||0,sh.vx||1):0,true,true);
+        else clink(e,hx!=null?hx:e.x+e.w/2,hy!=null?hy:e.y+e.h/2);
+        e.hitF=10; return false;
+      }
+      pend={e, fr:typeof fr!=='undefined'?fr:0}; e.hitF=10;   // a punch: decided in _punchConnect (loaded or not)
       return false;
     }
     return _dmg.apply(this,arguments);
@@ -66,17 +78,18 @@
   const _pc=window._punchConnect;
   window._punchConnect=function(x,y,ang,charged,kind){
     const r=typeof _pc==='function'?_pc.apply(this,arguments):undefined;
-    try{ if(kind==='enemy'&&pend&&pend.fr===(typeof fr!=='undefined'?fr:0)){ const e=pend.e; pend=null; notchHit(e,x,y,ang,charged); } }catch(er){ console.warn('enemy F punch',er); }
+    try{ if(kind==='enemy'&&pend&&pend.fr===(typeof fr!=='undefined'?fr:0)){ const e=pend.e; pend=null; if(charged&&(e.fVulnT||0)>0) notchHit(e,x,y,ang,charged); else clink(e,x,y); } }catch(er){ console.warn('enemy F punch',er); }
     return r;
   };
+  function wakeF(e){ const c=core(e); e.st='hunt'; e.awakeT=0; e.fSleepT=0; e.fVulnT=VULN_FR; S('enemy_boot',1.4); burst(c.x,c.y,10,['#bfe6ff','#ffffff'],2); }
   function clink(e,x,y){ burst(x,y,6,['#ffffff','#bfe6ff'],3); SA(e,'omniblock_chip',1.7); }
-  function notchHit(e,x,y,ang,charged){
+  function notchHit(e,x,y,ang,charged,any){        // any: a shot / the blade takes the nearest notch still whole
     if(!e||!e.alive||!e._fx) return;
     const c=core(e), R=radius(e);
-    if(Math.hypot(x-c.x,y-c.y)<R*0.42){ clink(e,x,y); return; }          // the core itself shrugs it off
+    if(!any&&Math.hypot(x-c.x,y-c.y)<R*0.42){ clink(e,x,y); return; }          // the core itself shrugs a punch off
     let best=-1, bd=1e9;
-    for(let i=0;i<NOTCHES;i++){ const q=notchPos(e,i), d=Math.hypot(x-q.x,y-q.y); if(d<bd){ bd=d; best=i; } }
-    if(best<0||bd>R*0.75||e.notch[best]){ clink(e,x,y); return; }
+    for(let i=0;i<NOTCHES;i++){ if(any&&e.notch[i]) continue; const q=notchPos(e,i), d=Math.hypot(x-q.x,y-q.y); if(d<bd){ bd=d; best=i; } }
+    if(best<0||(!any&&bd>R*0.75)||e.notch[best]){ clink(e,x,y); return; }
     e.notch[best]=1;
     const q=notchPos(e,best);
     burst(q.x,q.y,charged?18:12,['#ffffff','#bfe6ff','#7fc8ff'],charged?5:3.5);
@@ -164,12 +177,13 @@
 
   // ── its cycle ───────────────────────────────────────────────────
   function fTick(e){
+    if((e.fVulnT||0)>0) e.fVulnT--;
     const c=core(e), P=heroC(), d=Math.hypot(P.x-c.x,P.y-c.y);
     const wet=B.inWater&&B.inWater(c.x,c.y);
     if(e.st==='sleep'&&wet&&d<WAKE_R&&clearLine(c.x,c.y,P.x,P.y)){
       const dormant=!e.fWasAwake||(e.fSleepT||0)>90;
       e.st='hunt'; e.awakeT=0;
-      if(dormant){ S('enemy_boot',1.4); burst(c.x,c.y,10,['#bfe6ff','#ffffff'],2); }
+      if(dormant){ S('enemy_boot',1.4); burst(c.x,c.y,10,['#bfe6ff','#ffffff'],2); e.fVulnT=VULN_FR; }
     }
     if(e.st==='hunt'&&d<REACH+60) e.awakeT=0;            // stays up while the hero is around
     const awake=e.st==='hunt'&&wet;
@@ -271,7 +285,8 @@
         ctx.fillStyle='rgba(20,30,50,0.85)'; ctx.beginPath(); ctx.moveTo(s,0); ctx.lineTo(-s*0.4,s*0.8); ctx.lineTo(-s*0.4,-s*0.8); ctx.closePath(); ctx.fill();
         ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-s*0.4,0); ctx.lineTo(-s*1.8,s*0.5); ctx.moveTo(-s*0.4,0); ctx.lineTo(-s*1.6,-s*0.7); ctx.stroke();
       }else{                                           // live: a bright notch in the corner
-        const pulse=awake?0.6+0.4*Math.sin(fr*0.15+i):0.5;
+        const vul=(e.fVulnT||0)>0, pulse=vul?0.75+0.25*Math.sin(fr*0.5+i):(awake?0.35+0.15*Math.sin(fr*0.15+i):0.3);   // bright and fast while it can be hurt
+        if(vul){ ctx.fillStyle='rgba(255,240,160,'+(0.35*a)+')'; ctx.beginPath(); ctx.arc(0,0,s*1.6,0,Math.PI*2); ctx.fill(); }
         ctx.fillStyle='rgba(200,240,255,'+(a*pulse)+')'; ctx.beginPath(); ctx.moveTo(s*0.9,0); ctx.lineTo(0,s*0.75); ctx.lineTo(-s*0.9,0); ctx.lineTo(0,-s*0.75); ctx.closePath(); ctx.fill();
         ctx.strokeStyle='rgba(255,255,255,'+(a*0.9)+')'; ctx.lineWidth=1.2; ctx.stroke();
         ctx.fillStyle='rgba(30,60,90,'+(a*0.8)+')'; ctx.beginPath(); ctx.moveTo(s*0.9,0); ctx.lineTo(s*0.1,s*0.25); ctx.lineTo(s*0.1,-s*0.25); ctx.closePath(); ctx.fill();
