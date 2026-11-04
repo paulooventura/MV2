@@ -787,10 +787,12 @@
     // cone used to skip the block right under the wheel, so on a trapdoor the edges went
     // and the middle never moved (stuck at the basement entrance / under Laitu's house)
     if(ax.dr>0&&!ax.dc){
-      const wx=p.x+SW/2, feetRow=Math.floor((p.y+FEET_OFF+4)/T);
+      // (build 369) any cube the wheel rests on counts, not only the one right under its centre
+      const wx=p.x+SW/2, feet=p.y+FEET_OFF, feetRow=Math.floor((feet+4)/T), WH=(typeof WHEEL_R==='number'?WHEEL_R:20)*0.75;
       for(const bw of cubes()){
         if(bw.only==='laser'||bw.only==='pull'||hits.some(h=>h.bw===bw)) continue;
-        if(bw.homeRow!==feetRow||Math.abs(bw.x+T/2-wx)>T*1.05) continue;
+        if(bw.homeRow!==feetRow&&bw.homeRow!==Math.floor((feet+12)/T)) continue;
+        if(!(bw.x<wx+WH&&bw.x+T>wx-WH)) continue;
         hits.push({bw,along:T*0.5,dc:0,dr:1,straight:true});
       }
     }
@@ -2063,7 +2065,14 @@
     ctx.save(); ctx.globalAlpha=a;
     uiPanel(left,top,120,54,{r:12,alpha:0.82,flat:true,accent:c.lost?'rgba(255,90,110,0.6)':'rgba(200,170,255,0.55)'});
     ctx.imageSmoothingEnabled=true;
-    hudHead(left+30,top+30,1.3,false);
+    // Paulo, Nov 4 (build 367): no "lives" — the count is spare green batteries (the same green
+    // tank on MIND's back is his charge; drained, he shuts down and a battery reboots him)
+    const bx0=left+14, by0=top+14, bw0=30, bh0=26;
+    ctx.fillStyle='#0a1a0e'; uiRound(bx0,by0,bw0,bh0,5); ctx.fill();
+    ctx.fillStyle='#2a6a3a'; ctx.fillRect(bx0+bw0,by0+8,4,10);
+    const g0=ctx.createLinearGradient(0,by0,0,by0+bh0); g0.addColorStop(0,'#9dffb0'); g0.addColorStop(0.5,'#3ad070'); g0.addColorStop(1,'#167a3a');
+    ctx.fillStyle=g0; for(let k=0;k<3;k++) ctx.fillRect(bx0+3+k*9,by0+3,7,bh0-6);
+    ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.fillRect(bx0+3,by0+4,bw0-6,2);
     drawText('x'+Math.max(0,B.lives|0), left+58, top+18, flash?'#ff6a7a':'#ffffff', 3);
     ctx.restore();
   }

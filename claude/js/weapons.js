@@ -566,7 +566,7 @@ function updatePlayerShots(){
         const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
         if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
-        _damageEnemy(e,ldmg,s.x,s.y); dead=true; break;
+        window._shotHitNow=s; try{ _damageEnemy(e,ldmg,s.x,s.y); } finally{ window._shotHitNow=null; } dead=true; break;   // (which shot it was: enemy F only takes loaded ones)
       }
     }
     if(dead){p.shots.splice(i,1);continue;}
