@@ -850,6 +850,7 @@
       const wf=itemFx(foeWeight(e));
       const sp=(5+9*k)*wf, bx=dx/d*0.35+ux*0.65, by=dy/d*0.35+uy*0.65, bl=Math.hypot(bx,by)||1;
       e.vx=bx/bl*sp; e.vy=by/bl*sp-(1.5+2.5*k)*wf; e.og=false;
+      if(e._ai&&e._ai!=='circle') e._heave=(e._heave||0)+Math.sign(bx||ux)*(0.12+0.25*k)*wf;   // and it tumbles
       if(e._ai){ e.mn=-1e6; e.mx=1e6; e._thrownF=Math.round(26+30*k); e._reCenter=true; if(!e.alive) e._shutSettled=false; }
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
       if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(4+10*k),o.x+ux*30,o.y+uy*30,0.4);
@@ -857,6 +858,7 @@
       if(B.pushFx) B.pushFx.push({x:cx,y:cy,dir:Math.sign(ux)||1,t:0});
       n++;
     }
+    if(B.sibBlast&&B.sibBlast(o.x,o.y,ux,uy,(0.45+0.55*charge)*pw,RANGE)) n++;
     if(n){ B.shake=Math.max(B.shake||0,3+4*charge); try{ sfx('xlr_push'); }catch(_e){ try{ sfx('hit'); }catch(__){} } }
     return n;
   }
@@ -1207,12 +1209,16 @@
   }
   function blowAround(){
     if(typeof _tipField!=='function'||typeof _applyItemForceToEnemy!=='function') return;
-    const tip=typeof xlrTip==='function'?xlrTip():shoulder(), a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)), range=190;
+    const tip=typeof xlrTip==='function'?xlrTip():shoulder(), a=Math.atan2(p.aimDY||0,p.aimDX||(p.fc?1:-1)), range=240;   // (build 370) a bit farther (was 190)
     for(const e of ENEMS){
       if(!e||!e.alive||e._betaHeld||e._hidden) continue;
       const f=_tipField({x:tip.x,y:tip.y},a,e.x+e.w/2,e.y+e.h/2,range); if(!f) continue;
       const s=f.prox*f.cone*1.4*(0.25+0.75*powNow())*itemFx(foeWeight(e));
       _applyItemForceToEnemy(e,f.ux*s,f.uy*s);
+      // (build 370) the walk / roll AI used to overwrite that every frame, so the air never moved
+      // them: while the blow is on them they're carried like something thrown (its own physics)
+      if(e._ai&&!e._boss&&!e._noGrab&&s>0.04){ e._thrownF=Math.max(e._thrownF||0,10); e.mn=-1e6; e.mx=1e6; e._reCenter=true; }
+      if(e._ai&&e._ai!=='circle'&&e.og!==false&&Math.abs(f.ux)>0.2) e._heave=(e._heave||0)+Math.sign(f.ux)*s*0.14;   // (build 370) a notch-walker is tipped over its corners, not slid
     }
   }
   function pullAround(){
@@ -2076,7 +2082,7 @@
     drawText('x'+Math.max(0,B.lives|0), left+58, top+18, flash?'#ff6a7a':'#ffffff', 3);
     ctx.restore();
   }
-  const JACK_ORDER0=[2,1,0,3], JACK_NAMES=['TRS','RCA','XLR','MEG','KNIFE'];
+  const JACK_ORDER0=[2,0,1,3], JACK_NAMES=['TRS','RCA','XLR','MEG','KNIFE'];
   function drawTopBar(){
     const L=typeof uiLayout==='function'?uiLayout():{inset:{t:0,l:0,r:0},phone:false};
     const top=Math.max(6,(L.inset.t||0)+4), left=Math.max(8,(L.inset.l||0)+4), right=W-Math.max(8,(L.inset.r||0)+4);

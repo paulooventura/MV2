@@ -235,7 +235,7 @@
     const phone=onPhone();
     const r=phone?null:route(name);
     if(!r||!ctx){
-      const g=Math.max(0.55,Math.min(1,s.g));
+      const g=Math.max(0.08,Math.min(1,s.g));   // (build 370) far from the source it really is quiet (was never under 55%)
       ael.volume=Math.max(0,Math.min(1,vol()*base*g));
       ael.muted=vol()<=0;
       if(ael.paused&&vol()>0){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
@@ -655,5 +655,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2)}:null};
 })();

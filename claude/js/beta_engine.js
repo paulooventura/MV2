@@ -171,61 +171,56 @@
     cornerSparks(14, 1);
   }
   // a short throttle stab: the note jumps, then sits, like a blip of the pedal
-  function bark(){
-    if(!N) return;
-    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain(), f=a.createBiquadFilter();
-    o.type='sawtooth';
-    o.frequency.setValueAtTime(62,t);
-    o.frequency.exponentialRampToValueAtTime(240,t+0.07);
-    o.frequency.exponentialRampToValueAtTime(96,t+0.22);
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.26,t+0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
-    f.type='lowpass'; f.frequency.setValueAtTime(1600,t); f.frequency.exponentialRampToValueAtTime(700,t+0.22);
-    o.connect(f); f.connect(g); g.connect(N.out);
-    o.start(t); o.stop(t+0.3);
+  // Paulo, Nov 4 (build 370): the key switch, the start-up, the shut-down and the rev used to
+  // go into the engine's own output, which sits at zero while the engine idles — the moment
+  // you turn sports mode on or off standing still — so they were silent. They play on their
+  // own now, straight out (and don't need the engine worklet loaded at all).
+  function out(a){ const g=a.createGain(); g.gain.value=sv()*Math.max(0.35,ev());
+    let d=a.destination; try{ const G=window.MV_SPATIAL&&MV_SPATIAL.graph&&MV_SPATIAL.graph(); if(G&&G.main&&G.main.context===a) d=G.main; }catch(e){} g.connect(d); return g; }
+  function tone(a,dst,type,f0,f1,t0,dur,peak,lp){
+    const o=a.createOscillator(), g=a.createGain(); o.type=type;
+    o.frequency.setValueAtTime(f0,t0); o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+    g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(peak,t0+Math.min(0.02,dur*0.2)); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    if(lp){ const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=lp; o.connect(f); f.connect(g); } else o.connect(g);
+    g.connect(dst); o.start(t0); o.stop(t0+dur+0.05);
+  }
+  function noiseHit(a,dst,t0,dur,peak,hp){
+    const s=a.createBufferSource(); s.buffer=noiseBuf(a); const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1800;
+    const g=a.createGain(); g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(peak,t0+0.003); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    s.connect(f); f.connect(g); g.connect(dst); s.start(t0); s.stop(t0+dur+0.02);
+  }
+  function keySwitch(a,dst,t0,on){                 // the key turning: two metal ticks (on), one (off)
+    noiseHit(a,dst,t0,0.03,0.5,3200); tone(a,dst,'square',on?2400:1600,on?1800:1200,t0,0.025,0.12);
+    if(on){ noiseHit(a,dst,t0+0.07,0.025,0.4,2600); tone(a,dst,'square',2000,1500,t0+0.07,0.02,0.1); }
+  }
+  function bark(){                                  // the rev: the note leaps up, holds, drops back
+    const a=ac(); if(!a) return; const t=a.currentTime, d=out(a);
+    tone(a,d,'sawtooth',70,420,t,0.16,0.32,2600);
+    tone(a,d,'sawtooth',420,120,t+0.16,0.32,0.26,1800);
+    tone(a,d,'square',35,90,t,0.4,0.18,500);
   }
   function ignite(){
     sportBurst();
-    if(!N) return;
-    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain();
-    o.type='sawtooth';
-    o.frequency.setValueAtTime(38,t);
-    o.frequency.exponentialRampToValueAtTime(120,t+0.32);
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.34,t+0.03);
-    g.gain.exponentialRampToValueAtTime(0.0001,t+0.48);
-    o.connect(g); g.connect(N.out);
-    o.start(t); o.stop(t+0.5);
-    pop(0.85,0.04);
+    const a=ac(); if(!a) return; const t=a.currentTime, d=out(a);
+    keySwitch(a,d,t,true);
+    // the starter cranks (a few chugs), then it catches and settles to idle
+    for(let k=0;k<4;k++) tone(a,d,'sawtooth',48+k*6,40,t+0.14+k*0.09,0.08,0.22,700);
+    tone(a,d,'sawtooth',45,160,t+0.5,0.28,0.34,1500);
+    tone(a,d,'sawtooth',160,70,t+0.78,0.45,0.24,1200);
+    if(N) pop(0.85,0.55);
   }
   function engineOff(){
-    if(!N) return;
-    const a=N.a, t=a.currentTime, o=a.createOscillator(), g=a.createGain();
-    o.type='sawtooth';
-    o.frequency.setValueAtTime(96,t);
-    o.frequency.exponentialRampToValueAtTime(26,t+0.7);
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.26,t+0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001,t+0.78);
-    o.connect(g); g.connect(N.out);
-    o.start(t); o.stop(t+0.82);
+    const a=ac(); if(!a) return; const t=a.currentTime, d=out(a);
+    keySwitch(a,d,t,false);
+    tone(a,d,'sawtooth',96,24,t+0.05,0.8,0.26,900);      // it winds down
+    tone(a,d,'square',40,18,t+0.05,0.7,0.12,300);
   }
 
-  function tick(){
-    const a=ac(); if(!a||a.state!=='running') return;
-    if(A!==a){ A=a; N=null; loading=false; }
-    if(!N){ if(!loading){ loading=true; build(a).then(n=>{ if(A===a) N=n; }).catch(()=>{}); } return; }
-    const live=typeof _gameState!=='undefined'&&_gameState==='game'&&typeof p!=='undefined'&&p&&!(typeof _paused!=='undefined'&&_paused)
-      &&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.loading));
-    const t=a.currentTime, set=(pr,v,tc)=>{ try{ pr.setTargetAtTime(v,t,tc); }catch(e){} };
-    if(!live){ set(N.out.gain,0,0.08); N.core.port.postMessage({thr:0,rpm:IDLE}); return; }
+  // the sports-mode switch and the double-forward rev, run before the engine worklet check
+  function switchTick(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return;
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
-    const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
-    const spd=Math.max(0,Math.abs(p.vx||0)/top);
-    const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
     const sport=typeof isSprintHeld==='function'&&isSprintHeld();
-    const sprint=sport&&dir;
     // Paulo, Nov 4 (build 359): the sports-mode switch (standing double-tap) starts the engine
     // with its start-up sound and turns it off with the shut-down, even standing still; it no
     // longer starts and stops every time he does. Shift-run keeps the old start/stop.
@@ -245,6 +240,22 @@
         cornerSparks(16, 1); exhaustPuff(0.9); exhaustPuff(0.6);
       }
     }
+  }
+  function tick(){
+    try{ switchTick(); }catch(e){}
+    const a=ac(); if(!a||a.state!=='running') return;
+    if(A!==a){ A=a; N=null; loading=false; }
+    if(!N){ if(!loading){ loading=true; build(a).then(n=>{ if(A===a) N=n; }).catch(()=>{}); } return; }
+    const live=typeof _gameState!=='undefined'&&_gameState==='game'&&typeof p!=='undefined'&&p&&!(typeof _paused!=='undefined'&&_paused)
+      &&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.loading));
+    const t=a.currentTime, set=(pr,v,tc)=>{ try{ pr.setTargetAtTime(v,t,tc); }catch(e){} };
+    if(!live){ set(N.out.gain,0,0.08); N.core.port.postMessage({thr:0,rpm:IDLE}); return; }
+    const dir=typeof _moveInputX==='function'?_moveInputX():0;
+    const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+    const spd=Math.max(0,Math.abs(p.vx||0)/top);
+    const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
+    const sport=typeof isSprintHeld==='function'&&isSprintHeld();
+    const sprint=sport&&dir;
     const ax=Math.abs((p.vx||0)-(S._vx0||0));
     S._vx0=p.vx||0;
     if(dir){ if(!S.on) pop(0.45,0.02); S.on=true; S.idle=0; } else if(grounded&&spd<0.06){ if(++S.idle>=180) S.on=false; } else S.idle=0;

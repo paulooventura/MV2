@@ -221,6 +221,14 @@
     return !!(p&&p.pt>0&&typeof _heroPunch==='function'&&(p.pCharge||0)>_heroPunch(p).loadF);   // a loaded punch
   }
   B.cubeHurtable=cubeHurtable;
+  // (build 370) waking is something you see and hear: a boot chime and a crackle, a flash, it
+  // swells and its eyes light; for the 3 s it can be hurt its rim glows gold and sparks
+  function cubeWake(e){
+    e.fVulnT=CUBE_VULN; e._wakeT=30;
+    const c={x:e.x+e.w/2, y:e.y+e.h/2};
+    try{ if(typeof sfxAt==='function'){ sfxAt(e,'enemy_boot',1.5); sfxAt(e,'zap',0.7); } else { S('enemy_boot',1.5); S('zap',0.7); } }catch(er){}
+    if(typeof PFXS!=='undefined') for(let k=0;k<18;k++){ const a=Math.random()*Math.PI*2, v=2+Math.random()*3; PFXS.push({x:c.x+Math.cos(a)*e.w*0.4,y:c.y+Math.sin(a)*e.h*0.4,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*2,col:k%3?'#bfe6ff':'#fff2a0'}); }
+  }
   function cubeTick(e){
     e._fx=false;
     if(e.mhp>=9999){ e.hp=e.mhp=90; }                    // (build 368) beta_enemy_f's 9999 HP stuck after its notch rules were switched off
@@ -236,7 +244,7 @@
     // Paulo, Nov 4 (build 368): waking up (MIND comes close, or a hit) opens a 3 s window in
     // which it can be hurt, and only by a loaded punch, a loaded TRS shot or the kiritsuke
     if((e.fVulnT||0)>0) e.fVulnT--;
-    if(close&&!e._wasClose) e.fVulnT=CUBE_VULN;
+    if(close&&!e._wasClose) cubeWake(e);
     e._wasClose=close;
     if(!close){ e.st='sleep'; e.beams=null; return; }
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
@@ -260,8 +268,12 @@
     }
   }
   function drawCube(e){
-    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56), awake=e.st==='hunt'&&e.alive;
-    const a=e.alive?(awake?0.55:0.22):0.35;                        // nearly invisible while it sleeps
+    const awake=e.alive&&(e.st==='hunt'||e.st==='zap'||!!e._wasClose||(e.fVulnT||0)>0);
+    if(e._wakeT>0) e._wakeT--;
+    const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0);
+    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56)*swell;
+    const a=e.alive?(awake?0.62:0.22):0.35;                        // nearly invisible while it sleeps
+    if(wk>0){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(220,245,255,'+(0.5*wk)+')'; ctx.beginPath(); ctx.arc(cx,cy-sw(e._lift||0),R*(1.6-0.5*wk),0,Math.PI*2); ctx.fill(); ctx.restore(); }   // the wake flash
     ctx.save(); ctx.translate(cx,cy-sw(e._lift||0)); ctx.rotate((e.spin||0)+(e.ang||0));
     // a hexagon outline with the cube's inner edges (the sheet's drawing)
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
@@ -272,6 +284,8 @@
     ctx.strokeStyle=e.hitF>0?'#ffffff':'rgba(230,245,255,'+(a+0.2)+')'; ctx.lineWidth=2; ctx.stroke();
     ctx.strokeStyle='rgba(230,245,255,'+a+')'; ctx.lineWidth=1.2; ctx.beginPath();
     ctx.moveTo(0,0); ctx.lineTo(pts[1][0],pts[1][1]); ctx.moveTo(0,0); ctx.lineTo(pts[3][0],pts[3][1]); ctx.moveTo(0,0); ctx.lineTo(pts[5][0],pts[5][1]); ctx.stroke();
+    if(awake&&e.st!=='zap'){ const k=0.6+0.4*Math.sin(fr*0.12); ctx.fillStyle='rgba(150,230,255,'+(0.8*k)+')'; ctx.beginPath(); ctx.arc(-R*0.2,-R*0.08,R*0.07,0,Math.PI*2); ctx.arc(R*0.2,-R*0.08,R*0.07,0,Math.PI*2); ctx.fill(); }   // awake: its eyes are lit
+    if(vul&&fr%3===0&&typeof PFXS!=='undefined'){ const i=(fr/3|0)%6, an=-Math.PI/2+i*Math.PI/3+(e.spin||0)+(e.ang||0), wx=e.x+e.w/2+Math.cos(an)*e.w*0.56, wy=e.y+e.h/2+Math.sin(an)*e.w*0.56; PFXS.push({x:wx,y:wy,vx:Math.cos(an)*1.2,vy:Math.sin(an)*1.2-0.4,life:10,maxLife:10,r:1.6,col:'#fff2a0'}); }   // corner sparks while it can be hurt
     if(e.st==='zap'){ ctx.fillStyle='rgba(120,220,255,0.9)'; ctx.beginPath(); ctx.arc(R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(-R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(0,R*0.22,R*0.08,0,Math.PI*2); ctx.arc(0,-R*0.22,R*0.08,0,Math.PI*2); ctx.fill(); }
     ctx.restore();
     if(e.beams&&e.alive){
@@ -534,7 +548,7 @@
   if(typeof _dmgE==="function") window._damageEnemy=function(e,dmg,fx,fy,kb){
     if(e&&e._boss&&on()&&!knifeHit){ if(e.alive&&fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } return false; }
     if(e&&e._foe==='cube'&&e.alive&&on()){
-      if(!e._wasClose&&!((e.fVulnT||0)>0)){ e.fVulnT=CUBE_VULN; e._wasClose=true; if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; }   // a hit wakes it; the window starts now
+      if(!e._wasClose&&!((e.fVulnT||0)>0)){ cubeWake(e); e._wasClose=true; if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; }   // a hit wakes it; the window starts now
       else if(!cubeHurtable(e)){ if(fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } e.hitF=6; return false; }
     }
     if(knifeHit&&knifeEnds(e)){

@@ -392,8 +392,11 @@
       }else{
         const ny=m0.y-FEET_OFF, hx=p.x+SW/2, rising=(m0.dy||0)<0;
         const solidAt=y=>typeof gridWorldSolid==='function'&&(gridWorldSolid(hx-12,y)||gridWorldSolid(hx+12,y)||gridWorldSolid(hx,y));
-        const head=ny+8, crushed=rising&&solidAt(head);
-        const sink=!rising&&typeof gridWorldSolid==='function'&&gridWorldSolid(hx,ny+FEET_OFF-2);
+        // Paulo, Nov 4 (build 370): inside an elevator car its own roof keeps MIND safe — the shaft's
+        // ceilings and floors going by (the wrap-around too) never crush or hurt him there
+        const inCab=!!(m0.vert&&B.stageId==='1.3'&&m0.x<23*T)||!!(window.MV_LIFT&&MV_LIFT.sealed);
+        const head=ny+8, crushed=rising&&!inCab&&solidAt(head);
+        const sink=!rising&&!inCab&&typeof gridWorldSolid==='function'&&gridWorldSolid(hx,ny+FEET_OFF-2);
         if(crushed){
           let u=head;
           while(u<m0.y-6&&solidAt(u)) u+=2;

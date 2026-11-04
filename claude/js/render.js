@@ -1029,6 +1029,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   } else {
     // â”€â”€ PUNCH â€” extends in AIM direction (8-way like items) â”€â”€
     let armLen = guardFwd + snapFrac*(punchFwd - guardFwd);
+    if(p._comboHook) armLen+=snapFrac*14;                          // (build 370) the combo's hook: a little more than a loaded punch
+    if(window._jabExtra) armLen+=snapFrac*window._jabExtra;        // the left jab: as far forward as the right
     let punchAngle = Math.atan2(p.aimDY, p.aimDX);
     const _grounded=p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p));
     const _straightDown=_grounded&&p.aimDY>0.75&&Math.abs(p.aimDX)<0.35;
@@ -1301,12 +1303,15 @@ function drawCharacter(){
   const elbowX=sx(pose.elbowX), elbowY=sy(pose.elbowY-floatY);
   ctx.save();
 
+  // (build 370) the body turns into the left jab and drives into the hook (the wheel stays put)
+  const _jabK=p.pt>0&&(p._punchHand==='L'||p._comboHook)?Math.sin(Math.PI*Math.min(1,1-p.pt/(p._comboHook?8:5))):0;
   // 1. SHADOW + WHEEL + FORK â€” behind everything
   if(!flicker) drawCharShadow(wcx,wcy);
   // Paulo's sketch: hanging on the rope MIND tilts with the swing, round his body's centre
   if(pose.tilt){ const tx=sx(pose.tiltCX), ty=sy(pose.tiltCY); ctx.translate(tx,ty); ctx.rotate(pose.tilt); ctx.translate(-tx,-ty); }
   if(!flicker) drawWheel(wcx,wcy,p.wheelAngle,p);
   if(!flicker) drawWheelKit(wcx,wcy,sy(bodyTop+BODY_H),fc,p);
+  if(_jabK>0) ctx.translate((fc?1:-1)*sw(p._comboHook?9:6)*_jabK,0);   // the lean (build 370)
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
   // (build 356) during the left jab this right glove holds its guard; the left hand punches
@@ -1325,7 +1330,7 @@ function drawCharacter(){
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
   // (build 356) empty hands: this is the left glove. The left jab punches from this shoulder
   // toward the aim, with the same hit logic as the right glove.
-  if(_leftJab&&held<0&&!_plugging){ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); return; }
+  if(_leftJab&&held<0&&!_plugging){ const fwd=fc?1:-1; window._jabExtra=Math.max(0,(glovShoulderWX-pose.connShX)*fwd); try{ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); } finally{ window._jabExtra=0; } return; }
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(p.hook&&p.hook.st==='on'&&held===1&&!p.hook._plugged) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);

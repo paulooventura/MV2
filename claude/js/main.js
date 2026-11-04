@@ -982,6 +982,8 @@ function update(){
     const step=empty&&!charged&&fr-(p._comboFr==null?-999:p._comboFr)<=30?((p._combo||0)+1)%3:0;
     p._combo=step; p._comboFr=fr; p._punchHand=empty&&step===1?'L':'R';
     const hook=empty&&step===2; if(hook) p.pCharge=_heroPunch(p).loadF+1;
+    // (build 370) the hook is thrown with everything: it carries MIND forward
+    p._comboHook=hook; if(hook){ const ax=Math.abs(p.aimDX||0)>0.2?Math.sign(p.aimDX):(p.fc?1:-1); p.vx=(p.vx||0)+ax*4.2; }
     // (build 357) the punch goes exactly where the stick points, all 8 ways — it doesn't
     // wait for the arm's swing to catch up with a direction just pressed
     if(adx||ady){ const _l=Math.hypot(adx,ady); p.aimDX=p.tAimDX=adx/_l; p.aimDY=p.tAimDY=ady/_l; }

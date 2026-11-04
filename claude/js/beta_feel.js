@@ -772,6 +772,9 @@
   function crushTick(){
     if(!B.on||!p||typeof _gridReady!=='function'||!_gridReady()) return;
     if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0){ press=0; return; }
+    // (build 370) riding inside an elevator car (sealed, or a cab carrying him through the shaft's
+    // floors and round the wrap): the car's walls are his, no squeeze and no shove out of the rock
+    { const m=B.ridePlat; if((window.MV_LIFT&&MV_LIFT.sealed)||(m&&m.vert&&B.stageId==='1.3'&&m.x<23*32)){ press=0; B.crushK=0; return; } }
     let hard=false, depth=0;
     if(!inside(p.x,p.y)){
       // not in the rock, but pinned: something pushing into him with rock on the far side
