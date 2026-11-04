@@ -534,6 +534,20 @@
     const vxJet=jet?pl.vx:0;
     const r=_origMoveX.apply(this, arguments);
     if(jet) pl.vx=vxJet+Math.max(-0.85,Math.min(0.85,(pl.vx||0)-vxJet));
+    // Paulo, Nov 4 (build 360): a wet slope has no grip. Standing on it he slides down to the
+    // bottom; driving up it barely makes headway.
+    if(onSlope&&!jet&&B.inWater){
+      const fx=pl.x+SW/2, fy=pl.y+FEET_OFF;
+      const wet=B.inWater(fx,fy-3)||B.inWater(fx,fy-8)||B.inWater(fx-10,fy-4)||B.inWater(fx+10,fy-4);
+      const ang=pl._slopeAngle||0;
+      if(wet&&Math.abs(ang)>0.06){
+        const down=Math.sign(Math.sin(ang))||1, top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+        pl.vx=(pl.vx||0)+down*(0.42+0.5*Math.min(1,Math.abs(Math.sin(ang))))*(dir===-down?0.85:1);
+        pl.vx=Math.max(-top,Math.min(top,pl.vx));
+        pl._wetSlide=true; st.coast=true;
+        if(fr%4===0) PFXS.push({x:fx-down*8,y:fy-2,vx:-down*(0.5+Math.random()),vy:-Math.random()*1.2,life:10,maxLife:10,r:1.6,col:'#9fd8ff'});
+      }else pl._wetSlide=false;
+    }else pl._wetSlide=false;
     if(onSlope&&Math.abs(vxIn)>2) st.coast=true;
     if(st.coast&&!jet){
       if(!grounded||dir===-Math.sign(vxIn)||Math.abs(vxIn)<0.3||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0){ if(grounded||Math.abs(vxIn)<0.3) st.coast=onSlope; }

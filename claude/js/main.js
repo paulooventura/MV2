@@ -938,7 +938,7 @@ function update(){
   // the item button as the items see it: held (and not the start of a sprint), or a quick tap played back as a 3-frame press
   const _tapNow=(p._tapPulse||0)>0; if(_tapNow) p._tapPulse--;
   if(p._swapHoldBlock&&!_bindDown('swap')) p._swapHoldBlock=false;   // switched items mid-hold (magnet park): the new item waits for a fresh press
-  const _itemHeld=((_bindDown('swap')&&!_runQuiet)||_tapNow)&&!p._swapHoldBlock;
+  const _itemHeld=((_bindDown('swap')&&!_runQuiet)||_tapNow)&&!p._swapHoldBlock&&!(window.MV_LIFT&&MV_LIFT.sealed);   // no items inside a closed elevator (build 360)
 
   // ── TRS laser charge ──────────────────────────────────────────
   if(ITEM===0&&_itemUnlocked(0)){

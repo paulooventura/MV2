@@ -60,6 +60,14 @@
     S.charge=S.raining?Math.max(S.charge*0.999,clamp(v/STRIKE_START,0.5,1)):clamp(S.brew/BREW,0,1);
     if(!S.raining&&S.brew>=BREW){ S.raining=true; S.brew=0; }
     if(S.raining&&v<=RAIN_STOP){ S.raining=false; S.brew=0; }
+    // Paulo, Nov 4 (build 360): the rain only falls until the level's water is back to its
+    // default amount (less what went down pits this run, which is gone). Then it stops and
+    // the leftover vapor clears, so the storm doesn't brew again.
+    if(S.raining&&B.fluidTotal){
+      const ft=B.fluidTotal();
+      if(ft){ const have=ft.water+ft.drops+ft.mag+ft.core, want=ft.start-ft.lost;
+        if(have>=want-0.5){ S.raining=false; S.brew=0; const left=B.vaporNow(); if(left>0) B.vaporTake(left); } }
+    }
     const cloudT=Math.max(clamp(v/RAIN_START,0,1)*0.6, S.raining?1:S.charge);
     S.cloud+=(cloudT-S.cloud)*0.004;
     // rain intensity: how much is up there, and how fast it went up (up to 1.5 = a torrent)

@@ -131,6 +131,7 @@
     return e.x+e.w>vx0-T&&e.x<vx0+vw+T&&e.y+e.h>vy0-T&&e.y<vy0+vh+T;
   }
   function sees(e){
+    if(window.MV_LIFT&&MV_LIFT.sealed) return false;       // shut in an elevator: out of sight (build 360)
     const a=center(e), m=mindCenter();
     const n=Math.ceil(Math.hypot(m.x-a.x,m.y-a.y)/(T/3));
     for(let i=1;i<n;i++){ const x=a.x+(m.x-a.x)*i/n, y=a.y+(m.y-a.y)*i/n; if(solidAt(x,y)) return false; }

@@ -32,6 +32,13 @@
     stage:null, cab:null, near:false, ask:false, sealed:false, laid:false
   };
   window.MV_LIFT=S;
+  // Paulo, Nov 4 (build 360): inside a closed cab nothing from outside reaches MIND: no hits
+  // (shots, punches, lightning, frags), no foe XLR / MEG; foes can't see him (beta_enemies,
+  // beta_mirror) and his own items stay quiet (main.js) until the doors open.
+  { const _hit=window.applyPlayerHit;
+    if(typeof _hit==='function') window.applyPlayerHit=function(){ if(S.sealed) return; return _hit.apply(this,arguments); }; }
+  { const _fx=window._applyEnemyItemFx;
+    if(typeof _fx==='function') window._applyEnemyItemFx=function(){ if(S.sealed) return; return _fx.apply(this,arguments); }; }
   const yCache=new Map();
 
   function live(){ return !!(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&p&&typeof _gameState!=='undefined'&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)); }
