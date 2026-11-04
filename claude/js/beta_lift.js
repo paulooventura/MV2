@@ -111,7 +111,7 @@
     return best;
   }
   function destIndex(i, up){
-    if(up) return i<LEVELS.length-1?i+1:null;
+    if(up) return i<LEVELS.length-1?i+1:0;                   // the top floor, up: round to the lobby (build 363)
     if(i<=0) return LEVELS.length-1;
     return i-1;
   }
@@ -256,7 +256,15 @@
     const n=destIndex(i, up);
     if(n==null) return;
     const fl=LEVELS[n];
-    const delta=surfaceY(m.x, fl.row)-m.y;
+    let delta=surfaceY(m.x, fl.row)-m.y;
+    // Paulo, Nov 4 (build 363): Donkey Kong style. Down from the lobby the car sinks through
+    // the floor and comes in from the top of the shaft to the top floor; up from the top floor
+    // it rises out through the roof and comes in from the bottom. Its riders go with it.
+    const span=m.loop?(m.yb-m.ya):0;
+    if(span>8){
+      if(!up&&n>i&&delta<0&&delta+span>0) delta+=span;
+      else if(up&&n<i&&delta>0&&delta-span<0) delta-=span;
+    }
     shiftColumn(columnOf(m), delta, 'go');
     for(const c of columnOf(m)) c._used=true;
     S.ask=false; S.dir=up?1:-1; S.vibe=(S.vibe||0)+(up?1:-1);
@@ -288,6 +296,17 @@
       return;
     }
     layLedges();
+    // a car that just wrapped takes the foes standing in it along (MIND is carried by beta_water)
+    if(typeof ENEMS!=='undefined') for(const m of B.platforms){
+      if(!m.vert||!m.wrapped||!m.loop) continue;
+      const span=m.yb-m.ya;
+      for(const e of ENEMS){
+        if(!e) continue;
+        const ex=e.x+(e.w||32)/2, ef=e.y+(e.h||32);
+        if(ex<m.x-4||ex>m.x+m.w+4) continue;
+        if(Math.abs(ef-(m.y+span))<24||Math.abs(ef-(m.y-span))<24){ e.y=m.y-(e.h||32); e.vy=0; e.og=true; }
+      }
+    }
     let sealed=null, hold=null, tookPunch=false;
     for(const [,cabs] of columns()){
       for(const m of cabs){
