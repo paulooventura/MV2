@@ -226,16 +226,24 @@
     const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
     const sport=typeof isSprintHeld==='function'&&isSprintHeld();
     const sprint=sport&&dir;
-    if(sport&&!S.sportOn) ignite();
-    if(!sport&&S.sportOn) engineOff();
-    S.sportOn=!!sport;
-    // a tap of forward or back, not a hold: the exhaust spits and the motor barks
+    // Paulo, Nov 4 (build 359): the sports-mode switch (standing double-tap) starts the engine
+    // with its start-up sound and turns it off with the shut-down, even standing still; it no
+    // longer starts and stops every time he does. Shift-run keeps the old start/stop.
+    const modeOn=p._ignition?true:!!sport;
+    if(modeOn&&!S.sportOn) ignite();
+    if(!modeOn&&S.sportOn) engineOff();
+    S.sportOn=modeOn;
+    // forward twice, fast, in sports mode: the engine pops with sparks and revs
     const pressed=!!dir&&dir!==(S._dir||0);
     S._dir=dir||0;
-    if(sport&&pressed){
-      bark(); pop(0.62,0.015); crackle(2+(Math.random()*2|0), true);
-      S.blip=Math.max(S.blip||0, 8);
-      cornerSparks(8, 0.75); exhaustPuff(0.7); exhaustPuff(0.45);
+    if(modeOn&&pressed){
+      const now=performance.now(), dbl=dir===S._lastPressDir&&now-(S._lastPressT||0)<300;
+      S._lastPressDir=dir; S._lastPressT=dbl?0:now;
+      if(dbl){
+        bark(); pop(0.9,0.01); pop(0.7,0.07); crackle(3+(Math.random()*2|0), true); bang(0.3);
+        S.rev=12; S.blip=Math.max(S.blip||0, 14);
+        cornerSparks(16, 1); exhaustPuff(0.9); exhaustPuff(0.6);
+      }
     }
     const ax=Math.abs((p.vx||0)-(S._vx0||0));
     S._vx0=p.vx||0;

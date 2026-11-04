@@ -23,7 +23,7 @@
   const B=window.MV_BETA; if(!B) return;
   const T=32, A=()=>window.MV_BETA_AUDIO;
   const on=()=>B.on&&typeof _gameState!=='undefined'&&_gameState==='game';
-  let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null;
+  let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null, triDown=false;
   let bowl=null, mixS=0, brake=null, handed=false;
 
   // ── the sources ──
@@ -78,7 +78,7 @@
   // Locked after the first sighting. Shutting that one down is calm from the gate.
   function triOnStage(){
     const list=(typeof ENEMS!=='undefined'?ENEMS:[]).filter(e=>e&&e._ai==='tri');
-    if(triSpeaker&&list.indexOf(triSpeaker)>=0) return triSpeaker;
+    if(triSpeaker&&(list.indexOf(triSpeaker)>=0||triSpeaker._gone)) return triSpeaker;   // (fallen into the pit: still the one)
     if(!list.length) return null;
     let minX=1e9, maxX=-1e9;
     for(const e of list){ if(e.x<minX) minX=e.x; if(e.x>maxX) maxX=e.x; }
@@ -97,9 +97,10 @@
     if(sid==='1.2'){
       const tri=triOnStage();
       if(!tri) return null;                                          // not spawned yet — leave the track alone
-      // A knockdown refills and stands back up. Only the one that stays down
-      // hands the song off — swapping tracks on every fall was the on/off.
-      if(tri._permOff||tri._shorted) return {track:'calm', at:gatePos(), handoff:true};
+      // Paulo, Nov 4 (build 359): shutting him down hands the song off to the calm track at the
+      // 1.3 exit gate, and it stays there for the rest of the stage, even if he boots back up.
+      if(!tri.alive||tri._gone||tri._permOff||tri._shorted) triDown=true;
+      if(triDown) return {track:'calm', at:gatePos(), handoff:true};
       return {track:stageMusic, at:ctr(tri)};
     }
     if(sid==='1.3'){
@@ -129,7 +130,7 @@
   }
   function direct(){
     if(!on()||!p||!A()) return;
-    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; bowl=null; mixS=0; brake=null; handed=false; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
+    if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; triDown=false; bowl=null; mixS=0; brake=null; handed=false; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
     if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze) return;       // item window, dialog, results, and the boss moment play their own
     const want=pick(); if(!want) return;
     if(want.blend&&A().duo){

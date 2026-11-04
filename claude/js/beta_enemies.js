@@ -921,6 +921,7 @@
   B.enemyRespawnTick=function(){
     if(!B.on) return;
     const floorY=(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.ready?MV_GRID.rows*T:(typeof WH!=='undefined'?WH:4000));
+    for(let i=ENEMS.length-1;i>=0;i--) if(ENEMS[i]&&ENEMS[i]._gone) ENEMS.splice(i,1);   // vanished into the 1.2 pit
     for(const e of ENEMS){
       if(!isFinite(e.x)||!isFinite(e.y)) continue;
       if(e._blown){ if(e._spawnFx>0) e._spawnFx--; continue; }
@@ -937,6 +938,8 @@
         continue;
       }
       if(e.y+(e.h||FEET_OFF)>=floorY-2&&!e._betaHeld){   // fell to the bottom of the world (the pit)
+        // Paulo, Nov 4 (build 359): in 1.2 (the pit by the left cave) a foe that falls in is gone for good
+        if(B.stageId==='1.2'){ e._gone=true; e.alive=false; e._permOff=true; e._stayDown=true; e._hidden=true; e.vx=0; e.vy=0; e.y=floorY+400; continue; }
         e._pitT=150; e._hidden=true; e.vx=0; e.vy=0; e.y=floorY+400;
       }
       if(e._spawnFx>0) e._spawnFx--;

@@ -14,7 +14,7 @@
   const T=32;
   const on=()=>B.on&&typeof p!=='undefined'&&p&&_gameState==='game';
   const S=(n,v)=>{ try{ sfx(n,v); }catch(e){} };
-  const CR={HP:100, PUNCH:34, PUNCH_LOADED:100, LASER:50, LASER_LOADED:100, W:46, H:40,
+  const CR={HP:100, PUNCH:34, PUNCH_LOADED:100, LASER:50, LASER_LOADED:100, W:92, H:80,   // Paulo, Nov 4 (build 359): twice as big (was 46x40), so a standing punch opens it
             GRAV:0.45, BOUNCE:0.35, FRIC:0.82, KNOCK:5.5, KNOCK_LOADED:10};
   B.CRATE=CR;
 
@@ -181,11 +181,11 @@
   // ── drawing ─────────────────────────────────────────────────────
   // A crate of wooden pallets: dark frame, slats with gaps, nail heads.
   function drawPallet(c){
-    const b=box(c), R=rectOf(c), dmg=1-b.hp/CR.HP;
+    const b=box(c), R=rectOf(c), dmg=1-b.hp/CR.HP, k=R.w/46;
     const jx=b.shake>0.3?(Math.random()-0.5)*b.shake:0, jy=b.shake>0.3?(Math.random()-0.5)*b.shake*0.5:0;
     const X=v=>sx(v+jx), Y=v=>sy(v+jy), Wd=v=>sw(v);
     ctx.save();
-    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx(c.cx),sy(c.bottom),sw(24),sw(3),0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx(c.cx),sy(c.bottom),sw(24*k),sw(3*k),0,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#2a1608'; ctx.fillRect(X(R.x+3),Y(R.y+3),Wd(R.w-6),Wd(R.h-6));               // dark inside (seen through the gaps)
     // horizontal slats with gaps
     const slats=4, sh=(R.h-4)/slats;
@@ -195,18 +195,18 @@
       if(broken){ ctx.fillRect(X(R.x+2),Y(y),Wd(R.w*0.45),Wd(sh-3)); ctx.fillRect(X(R.x+R.w*0.62),Y(y+1),Wd(R.w*0.36),Wd(sh-3)); }
       else ctx.fillRect(X(R.x+2),Y(y),Wd(R.w-4),Wd(sh-3));
       ctx.fillStyle='rgba(255,230,180,0.25)'; ctx.fillRect(X(R.x+2),Y(y),Wd(R.w-4),Wd(1.2));
-      ctx.fillStyle='rgba(60,30,10,0.35)'; for(let g=0;g<3;g++) ctx.fillRect(X(R.x+6+g*13+(i*5)%9),Y(y+sh*0.45),Wd(6),Wd(0.8));   // grain
+      ctx.fillStyle='rgba(60,30,10,0.35)'; for(let g=0;g<3;g++) ctx.fillRect(X(R.x+(6+g*13+(i*5)%9)*k),Y(y+sh*0.45),Wd(6*k),Wd(0.8*k));   // grain
     }
     // uprights + diagonal brace (pallet frame)
     ctx.fillStyle='#6a3e1a';
-    ctx.fillRect(X(R.x),Y(R.y),Wd(5),Wd(R.h)); ctx.fillRect(X(R.x+R.w-5),Y(R.y),Wd(5),Wd(R.h)); ctx.fillRect(X(R.x+R.w/2-2.5),Y(R.y),Wd(5),Wd(R.h));
-    ctx.fillRect(X(R.x),Y(R.y),Wd(R.w),Wd(3)); ctx.fillRect(X(R.x),Y(R.y+R.h-3),Wd(R.w),Wd(3));
-    ctx.fillStyle='#c8ccd4'; for(const [ox,oy] of [[2.5,2],[R.w-2.5,2],[2.5,R.h-2],[R.w-2.5,R.h-2],[R.w/2,R.h/2]]){ ctx.beginPath(); ctx.arc(X(R.x+ox),Y(R.y+oy),Wd(1.3),0,Math.PI*2); ctx.fill(); }
+    ctx.fillRect(X(R.x),Y(R.y),Wd(5*k),Wd(R.h)); ctx.fillRect(X(R.x+R.w-5*k),Y(R.y),Wd(5*k),Wd(R.h)); ctx.fillRect(X(R.x+R.w/2-2.5*k),Y(R.y),Wd(5*k),Wd(R.h));
+    ctx.fillRect(X(R.x),Y(R.y),Wd(R.w),Wd(3*k)); ctx.fillRect(X(R.x),Y(R.y+R.h-3*k),Wd(R.w),Wd(3*k));
+    ctx.fillStyle='#c8ccd4'; for(const [ox,oy] of [[2.5*k,2*k],[R.w-2.5*k,2*k],[2.5*k,R.h-2*k],[R.w-2.5*k,R.h-2*k],[R.w/2,R.h/2]]){ ctx.beginPath(); ctx.arc(X(R.x+ox),Y(R.y+oy),Wd(1.3*k),0,Math.PI*2); ctx.fill(); }
     // cracks as it takes damage
     if(dmg>0.05){
-      ctx.strokeStyle='rgba(20,8,0,0.85)'; ctx.lineWidth=Wd(1.4);
-      ctx.beginPath(); ctx.moveTo(X(R.x+10),Y(R.y+6)); ctx.lineTo(X(R.x+18),Y(R.y+16)); ctx.lineTo(X(R.x+14),Y(R.y+26));
-      if(dmg>0.4){ ctx.moveTo(X(R.x+30),Y(R.y+4)); ctx.lineTo(X(R.x+26),Y(R.y+18)); ctx.lineTo(X(R.x+36),Y(R.y+30)); }
+      ctx.strokeStyle='rgba(20,8,0,0.85)'; ctx.lineWidth=Wd(1.4*k);
+      ctx.beginPath(); ctx.moveTo(X(R.x+10*k),Y(R.y+6*k)); ctx.lineTo(X(R.x+18*k),Y(R.y+16*k)); ctx.lineTo(X(R.x+14*k),Y(R.y+26*k));
+      if(dmg>0.4){ ctx.moveTo(X(R.x+30*k),Y(R.y+4*k)); ctx.lineTo(X(R.x+26*k),Y(R.y+18*k)); ctx.lineTo(X(R.x+36*k),Y(R.y+30*k)); }
       ctx.stroke();
     }
     if(b.glow>0){ ctx.fillStyle='rgba(255,240,210,'+(b.glow/14*0.35).toFixed(3)+')'; ctx.fillRect(X(R.x),Y(R.y),Wd(R.w),Wd(R.h)); }

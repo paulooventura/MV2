@@ -772,8 +772,9 @@
     if(p.pt>0){ if(!b._pHit){ const rx=P.x+ux*52, ry=P.y+uy*52; if(Math.hypot(c.x-rx,c.y-ry)<64||(Math.abs(dx)<SW&&Math.abs(dy)<70&&dot>0.2)){ b._pHit=true; const k=(p.pCharge||0)>20||p.pCd>4?1.6:1; knock(b,ux*7.5*k,uy*5*k-3.5,'punch',k>1?22:12); } } }
     else b._pHit=false;
     // the XLR blows it away; the MAG pulls it in
-    if(p.xlrOn&&ITEM===2&&d<170&&dot>0.6){ const f=(1-d/170)*1.5; b.vx=(b.vx||0)+ux*f; b.vy=(b.vy||0)+uy*f-0.25; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,24); if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }
-    if(p.magOn&&ITEM===3&&d<190&&d>64&&dot>0.55){ const f=(1-d/190)*1.2; b.vx=(b.vx||0)-ux*f; b.vy=(b.vy||0)-uy*f-0.3; if(!(b.free>0)) knock(b,b.vx,b.vy,'mag',0); b.free=Math.max(b.free,24); }
+    const _wf=B.itemFx&&B.bodyMass?B.itemFx(B.bodyMass(b)):1;   // the companion is as heavy as its hero (omnibox rule, build 359)
+    if(p.xlrOn&&ITEM===2&&d<170&&dot>0.6){ const f=(1-d/170)*1.5*_wf; b.vx=(b.vx||0)+ux*f; b.vy=(b.vy||0)+uy*f-0.25; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,24); if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }
+    if(p.magOn&&ITEM===3&&d<190&&d>64&&dot>0.55){ const f=(1-d/190)*1.2*_wf; b.vx=(b.vx||0)-ux*f; b.vy=(b.vy||0)-uy*f-0.3; if(!(b.free>0)) knock(b,b.vx,b.vy,'mag',0); b.free=Math.max(b.free,24); }
     // your weight: land on it, or roll into it
     if(Math.abs(dx)<SW*0.75&&Math.abs((b.y)-(p.y))<70){
       if((p.vy||0)>3&&p.y+FEET_OFF<b.y+FEET_OFF-36){ p.vy=-7; p.og=false; knock(b,Math.sign(dx||1)*2.5,2,'stomp',10); }

@@ -477,11 +477,32 @@ function drawLogoHat(cx,brimY,Wd,dir,opt){
   ctx.restore();
 }
 function _hatDir(){ return (typeof p!=='undefined'&&p&&p.fc===false)?-1:1; }
+// Paulo, Nov 4 (build 359): the hats move. Running forward tips the hat back (front brim up,
+// back brim down) the faster he goes; falling, it lifts off the head, farther the longer the
+// drop, and drops back on when he lands. Same for MIND and VENTURE (and P2 / the companion).
+function _hatMotion(dir){
+  const pl=typeof p!=='undefined'?p:null; if(!pl||pl.mirror||window._hatStill) return {ang:0,lift:0};
+  if(pl._hatFr!==fr){
+    pl._hatFr=fr;
+    const falling=!pl.og&&(pl.vy||0)>0.6&&!(pl.hook&&pl.hook.st==='on');
+    if(falling){ if(pl._fallY0==null) pl._fallY0=pl.y; pl._fallD=Math.max(0,pl.y-pl._fallY0); }   // how far he's dropped since the fall began
+    else if(pl.og){ pl._fallD=0; pl._fallY0=null; }
+    const liftT=falling?Math.min(26,(pl._fallD||0)*0.05):0;
+    pl._hatLift=(pl._hatLift||0)+(liftT-(pl._hatLift||0))*(liftT>(pl._hatLift||0)?0.25:0.5);
+    const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4, fwd=Math.max(-0.3,Math.min(1,(pl.vx||0)*dir/top));
+    const angT=-dir*fwd*0.32+(pl._hatLift>2?Math.sin(fr*0.25)*0.04*Math.min(1,pl._hatLift/12):0);
+    pl._hatAng=(pl._hatAng||0)+(angT-(pl._hatAng||0))*0.2;
+  }
+  return {ang:pl._hatAng||0, lift:pl._hatLift||0};
+}
+function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.lift); ctx.rotate(m.ang); ctx.translate(-px,-py); }
 function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=Math.round((hatTY||0)*9);
-  const hatBrimY=drawY-R+3+ty;
-  drawLogoHat(cx+tx,hatBrimY,80,window._hatDirOverride||_hatDir(),{crownH:15});   // the key art's wide flat brim
+  const hatBrimY=drawY-R+3+ty, dir=window._hatDirOverride||_hatDir();
+  ctx.save(); _hatXform(cx+tx,hatBrimY,dir<0?-1:1);
+  drawLogoHat(cx+tx,hatBrimY,80,dir,{crownH:15});   // the key art's wide flat brim
+  ctx.restore();
 }
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
@@ -489,7 +510,7 @@ function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const hatBrimY=drawY-R+3+ty;
   // Paulo (Oct 22, the key art): a red baseball cap worn backwards — the bill points behind him
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
-  ctx.save();
+  ctx.save(); _hatXform(cx+tx,by,dir<0?-1:1);
   ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
   // the bill, behind
   ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-10),by-3); ctx.lineTo(X(-29),by+1); ctx.lineTo(X(-28),by+3.5); ctx.lineTo(X(-9),by+1); ctx.closePath(); ctx.fill();
@@ -638,7 +659,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   for(let i=0;i<3;i++){ctx.fillStyle='#4e5660';ctx.fillRect(cx-12,baseY+1.5+i*1.5,24,0.8);}
   ctx.fillStyle='#5a6270';ctx.fillRect(cx-14,baseY+5,28,4);
   ctx.fillStyle='#6a7280';ctx.fillRect(cx-13,baseY+6,26,2.5);
-  if(hostile&&window._mirrorHat) _drawMindWideHat(cx,drawY,R,0,0);   // the mirror enemy wears MIND's own hat
+  if(hostile&&window._mirrorHat){ window._hatStill=true; try{ _drawMindWideHat(cx,drawY,R,0,0); } finally{ window._hatStill=false; } }   // the mirror enemy wears MIND's own hat
   if(!hostile){
     const htx=unifiedHat?0:hatTX, hty=unifiedHat?0:hatTY;
     if(hero==='venture') _drawVentureCap(cx,drawY,R,htx,hty);

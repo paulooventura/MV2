@@ -266,7 +266,7 @@
   function applyBeta(raw, level){
     B.on=true; B.level=level; B.open=false; B.cleared=false; B.talked=0;
     B.rooms=[]; B.labels=[]; B.rings=[]; B.shells=[]; B.decor=[]; B.crateCells=new Set(); B.flying=[];
-    B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[];
+    B.bounceT=0; B.bounced=0; B.chX=0; B.chM=0; B.booms=[]; B.blasts=[]; B.eFrags=[];
     B.echoNeed=0; B.revisitNote=0; B.safe=null;
     B.stats={shutdowns:0, permOff:0, booms:0, hits:0, frames:0, items:0}; B.popup=null; B.results=null; B.lastMask=0; B.shake=0;
     B.mag={held:[], lockedThisHold:false, power:100, wasOn:false, tips:[]}; B.magLock=null; B.magPark=null;
@@ -845,9 +845,9 @@
       const along=(dx*ux+dy*uy)/d; if(along<0.72) continue;               // a ~45° cone
       if(!losClear(cx,cy)) continue;
       const k=(0.45+0.55*charge)*pw*(1-0.55*d/RANGE);
-      const wgt=Math.max(0.5,Math.sqrt((weightOf('enemy',e)||6)/6));
-      const sp=(7+9*k)/wgt, bx=dx/d*0.35+ux*0.65, by=dy/d*0.35+uy*0.65, bl=Math.hypot(bx,by)||1;
-      e.vx=bx/bl*sp; e.vy=by/bl*sp-(2+3*k)/wgt; e.og=false;
+      const wf=itemFx(foeWeight(e));
+      const sp=(5+9*k)*wf, bx=dx/d*0.35+ux*0.65, by=dy/d*0.35+uy*0.65, bl=Math.hypot(bx,by)||1;
+      e.vx=bx/bl*sp; e.vy=by/bl*sp-(1.5+2.5*k)*wf; e.og=false;
       if(e._ai){ e.mn=-1e6; e.mx=1e6; e._thrownF=Math.round(26+30*k); e._reCenter=true; if(!e.alive) e._shutSettled=false; }
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
       if(e.alive&&typeof _damageEnemy==='function') _damageEnemy(e,Math.round(4+10*k),o.x+ux*30,o.y+uy*30,0.4);
@@ -918,6 +918,11 @@
     return WEIGHT.object;
   }
   B.weightOf=weightOf;
+  // Paulo, Nov 4 (build 359): how much XLR / MEG move a body, the omnibox rule for everyone:
+  // up to 7 weight units (an omnibox is 3, foe A is 3) take the full push, heavier ones less.
+  function foeWeight(e){ if(e&&e.mirror) return WEIGHT.mindTotal; return weightOf('enemy',e)||6; }
+  function itemFx(m){ return Math.min(1,7/Math.max(0.5,m)); }
+  B.itemFx=itemFx;
   function bodyMass(pl){ return pl&&pl.hero==='venture'?7.6:WEIGHT.mindTotal; }
   B.bodyMass=bodyMass;
 
@@ -1204,8 +1209,7 @@
     for(const e of ENEMS){
       if(!e||!e.alive||e._betaHeld||e._hidden) continue;
       const f=_tipField({x:tip.x,y:tip.y},a,e.x+e.w/2,e.y+e.h/2,range); if(!f) continue;
-      const m=weightOf('enemy',e)||6;
-      const s=f.prox*f.cone*0.9*(0.25+0.75*powNow())*Math.max(0.35,Math.min(1.8,6/m));
+      const s=f.prox*f.cone*1.4*(0.25+0.75*powNow())*itemFx(foeWeight(e));
       _applyItemForceToEnemy(e,f.ux*s,f.uy*s);
     }
   }
@@ -1222,12 +1226,13 @@
     // Paulo (Oct 22): enemies answer the magnet right away — their velocity is steered straight
     // toward the poles (not nudged a little each frame and eaten by their walk)
     for(const e of ENEMS){
-      if(!e._ai||e._betaHeld||e._noGrab) continue;
+      if((!e._ai&&!e.mirror)||e._betaHeld||e._noGrab||e._hidden) continue;   // (D answers the magnet too, build 359)
       const f=force(e.x+e.w/2,e.y+e.h/2);
       if(!f||typeof _applyItemForceToEnemy!=='function') continue;
-      if(e.alive){ const k=Math.min(1,f.s*3), sp=(4+10*k)*(0.3+0.7*powNow()), n=Math.hypot(f.fx,f.fy)||1, tvx=f.fx/n*sp, tvy=f.fy/n*sp-0.6*k;
-        _applyItemForceToEnemy(e,(tvx-(e.vx||0))*0.6*Math.max(0.35,k),(tvy-(e.vy||0))*0.6*Math.max(0.35,k)); }
-      else _applyItemForceToEnemy(e,f.fx*2.2,f.fy*2.2);
+      const wf=itemFx(foeWeight(e));
+      if(e.alive){ const k=Math.min(1,f.s*3), sp=(4+10*k)*(0.3+0.7*powNow())*wf, n=Math.hypot(f.fx,f.fy)||1, tvx=f.fx/n*sp, tvy=f.fy/n*sp-0.6*k*wf;
+        _applyItemForceToEnemy(e,(tvx-(e.vx||0))*0.6*Math.max(0.35,k)*wf,(tvy-(e.vy||0))*0.6*Math.max(0.35,k)*wf); }
+      else _applyItemForceToEnemy(e,f.fx*2.2*wf,f.fy*2.2*wf);
     }
     for(const bw of BWALLS){
       if(bw.hp<=0||bw._carried||bw.only==='push') continue;
@@ -1510,6 +1515,68 @@
   //   MIND (never lethally) and sets off neighbouring cage blocks. The more
   //   blasts going at once, the harder each one hits.
   const BOOM={R:80, DMG:14, FUSE:7, WINDOW:30, MAX_P:34};
+  // ── Paulo, Nov 4 (build 359): a yellow electro-block bursts into 8 electro-frags. For 3 s
+  //   they're live and shock whatever touches them (MIND, a foe, the companion); then the charge
+  //   dies and the dead frag lies there until it's gone, 9 s after the burst.
+  const FRAG={N:8, LIVE:180, LIFE:540, R:24, DMG:5, CD:40, GRAV:0.32, BOUNCE:0.45, FRIC:0.8};
+  B.eFrags=B.eFrags||[];
+  function spawnFrags(cx,cy){
+    for(let i=0;i<FRAG.N;i++){
+      const a=i/FRAG.N*Math.PI*2+(Math.random()-0.5)*0.5, sp=3+Math.random()*2.5;
+      B.eFrags.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2.2,t:0,rot:Math.random()*6.3,vr:(Math.random()-0.5)*0.4,cd:new Map(),pcd:0,sz:4+Math.random()*3});
+    }
+  }
+  function fragSolid(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
+  function fragTick(){
+    if(B.level!==B._fragLevel){ B._fragLevel=B.level; B.eFrags.length=0; }
+    for(let i=B.eFrags.length-1;i>=0;i--){
+      const f=B.eFrags[i]; f.t++;
+      if(f.t>=FRAG.LIFE){ B.eFrags.splice(i,1); continue; }
+      f.vy=Math.min(f.vy+FRAG.GRAV,10);
+      const nx=f.x+f.vx; if(fragSolid(nx,f.y)){ f.vx*=-FRAG.BOUNCE; } else f.x=nx;
+      const ny=f.y+f.vy; if(fragSolid(f.x,ny)){ if(f.vy>0){ f.vx*=FRAG.FRIC; f.vr*=0.7; } f.vy*=-FRAG.BOUNCE; if(Math.abs(f.vy)<0.6) f.vy=0; } else f.y=ny;
+      f.rot+=f.vr;
+      if(f.t>=FRAG.LIVE) continue;
+      if(f.t%5===0) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y+(Math.random()-0.5)*6,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:8,maxLife:8,r:1.2,col:Math.random()<0.5?'#fff6a0':'#ffd040'});
+      // MIND (the Isolator stops the shock)
+      if(p&&f.pcd<=0&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)){
+        const d=Math.hypot(p.x+SW/2-f.x,p.y+FEET_OFF-40-f.y);
+        if(d<FRAG.R+20){
+          f.pcd=FRAG.CD;
+          if(!B.hasIsolator&&typeof applyPlayerHit==='function'){ applyPlayerHit(Math.sign(p.x+SW/2-f.x||1)*3,-2,FRAG.DMG); B.shortT=Math.max(B.shortT||0,20); try{ sfx('hit',0.6); }catch(e){} }
+        }
+      }
+      if(f.pcd>0) f.pcd--;
+      // foes
+      for(const e of ENEMS){
+        if(!e||!e.alive) continue;
+        if(Math.hypot(e.x+e.w/2-f.x,e.y+e.h/2-f.y)>FRAG.R+Math.max(e.w,e.h)*0.5) continue;
+        const last=f.cd.get(e)||-999; if(f.t-last<FRAG.CD) continue;
+        f.cd.set(e,f.t);
+        e._shortT=(e._shortT||0)+10;
+        if(typeof _damageEnemy==='function') _damageEnemy(e,FRAG.DMG+1,f.x,f.y,0.4);
+      }
+      // the companion
+      if(B.sibHurtAt&&f.t%FRAG.CD===0) B.sibHurtAt(f.x,f.y,FRAG.R+14,FRAG.DMG*0.6);
+    }
+  }
+  function drawFrags(){
+    for(const f of B.eFrags){
+      const live=f.t<FRAG.LIVE, fade=Math.min(1,(FRAG.LIFE-f.t)/40), X=sx(f.x), Y=sy(f.y), z=sw(f.sz);
+      ctx.save(); ctx.globalAlpha=fade; ctx.translate(X,Y); ctx.rotate(f.rot);
+      if(live){
+        const fl=0.6+0.4*Math.sin(f.t*0.6+f.sz);
+        ctx.fillStyle='rgba(255,230,90,'+(0.35*fl)+')'; ctx.beginPath(); ctx.arc(0,0,z*2.4,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#ffd040'; ctx.fillRect(-z,-z*0.7,z*2,z*1.4);
+        ctx.fillStyle='#fff6c0'; ctx.fillRect(-z*0.5,-z*0.35,z,z*0.5);
+        if(Math.random()<0.5){ ctx.strokeStyle='rgba(255,250,200,0.9)'; ctx.lineWidth=Math.max(1,sw(1.2)); ctx.beginPath(); let x=0,y=0; ctx.moveTo(x,y); for(let j=0;j<3;j++){ x+=(Math.random()-0.5)*z*3; y+=(Math.random()-0.5)*z*3; ctx.lineTo(x,y); } ctx.stroke(); }
+      }else{
+        ctx.fillStyle='#5a5448'; ctx.fillRect(-z,-z*0.7,z*2,z*1.4);
+        ctx.fillStyle='#3a362e'; ctx.fillRect(-z,z*0.2,z*2,z*0.5);
+      }
+      ctx.restore();
+    }
+  }
   function boomTick(){
     for(const bw of BWALLS){
       if(bw.only!=='laser') continue;
@@ -1517,6 +1584,7 @@
       if(bw._wasUp!==false&&bw.hp<=0&&!bw._boomed){ bw._boomed=true; explode(bw); }
       bw._wasUp=bw.hp>0;
     }
+    fragTick();
     B.booms=B.booms.filter(t=>fr-t<BOOM.WINDOW);
     if(!B.booms.length){ B.chainHurtP=0; for(const e of ENEMS) e._chainHurt=0; }
     flushCage();
@@ -1526,6 +1594,7 @@
     if(bw.homeCol!=null) gridSmashCell(bw.homeCol,bw.homeRow);
     B.booms.push(fr); B.stats.booms++;
     B.blasts.push({x:cx,y:cy,t:0,amp:0.45});
+    spawnFrags(cx,cy);
     B.cageQ=B.cageQ||[];
     B.cageQ.push({x:cx,y:cy});
     B.cageFr=fr;
@@ -2415,6 +2484,7 @@
     if(!B.on||_gameState!=='game') return;
     if(B.contScreen||B.overT>0){ drawLivesScreens(); return; }
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
+    try{ drawFrags(); }catch(e){}
     for(let i=B.blasts.length-1;i>=0;i--){                 // blast flashes + rings
       const b=B.blasts[i]; b.t++;
       const k=b.t/26, r=sw(20+70*k*Math.min(1.6,b.amp));
