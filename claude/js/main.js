@@ -915,7 +915,7 @@ function update(){
   // Short-way arc. A thumb roll from up to left passes through the diagonal
   // instead of jumping from one cardinal to the next. Shots and blasts leave
   // along wherever the arm is on that arc.
-  {
+  if(!(p.pt>0&&p._hasAimInput)){
     let cx=p.aimDX||0, cy=p.aimDY||0, cl=Math.hypot(cx,cy);
     if(cl<0.08){ cx=p.fc?1:-1; cy=0; cl=1; }
     cx/=cl; cy/=cl;
@@ -982,6 +982,9 @@ function update(){
     const step=empty&&!charged&&fr-(p._comboFr==null?-999:p._comboFr)<=30?((p._combo||0)+1)%3:0;
     p._combo=step; p._comboFr=fr; p._punchHand=empty&&step===1?'L':'R';
     const hook=empty&&step===2; if(hook) p.pCharge=_heroPunch(p).loadF+1;
+    // (build 357) the punch goes exactly where the stick points, all 8 ways — it doesn't
+    // wait for the arm's swing to catch up with a direction just pressed
+    if(adx||ady){ const _l=Math.hypot(adx,ady); p.aimDX=p.tAimDX=adx/_l; p.aimDY=p.tAimDY=ady/_l; }
     p.pt=(charged||hook)?8:5;p.pCd=0;p._hitDone=false;sfx((charged||hook)?'punch_heavy':'punch');}
   if(p.pt>0)p.pt--;else p._hitDone=false;
   if(p.pCd>0)p.pCd--;

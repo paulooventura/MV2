@@ -832,13 +832,16 @@ function connectorTipWorld(itemOverride=ITEM){
 // Paulo (Oct 20): standing still and holding DOWN, he ducks — and the items
 // can be used straight down too (MAG locks him to the floor, RCA ropes the
 // ground under his wheel, XLR launches him, TRS bounces off the floor upward)
+// Paulo, Nov 4 (build 357): Down + left/right is the diagonal (8-way aim), not a shot into
+// the floor; only Down on its own aims straight down under the wheel.
+function _aimDiagDown(){ return typeof isDn==='function'&&isDn()&&_moveInputX()!==0; }
 function _itemDownAim(pl){
   if(pl!==p||!pl.og||typeof isDn!=='function'||!isDn()||ITEM<0) return false;
-  if(pl._sprintMode) return false;
+  if(pl._sprintMode||_aimDiagDown()) return false;
   return _bindDown('swap')||(typeof _bindJ==='function'&&_bindJ('swap'))||!!pl.laserCharging||!!pl.xlrOn||!!pl.magOn||!!(pl.hook&&pl.hook.st==='ext');
 }
 function connectorAimAngle(){
-  const ca2=(p.og&&!_itemDownAim(p))?p.crouchAmt:0;
+  const ca2=(p.og&&!_itemDownAim(p)&&!_aimDiagDown())?p.crouchAmt:0;   // ducking levels the arm, unless he aims the diagonal
   const rawAngle=Math.atan2(p.aimDY,p.aimDX);
   const duckAngle=p.fc?0:Math.PI;
   return rawAngle*(1-ca2*0.85)+duckAngle*(ca2*0.85);

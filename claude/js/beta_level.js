@@ -659,21 +659,15 @@
   // it moves only if the cell past the far end is free. A pull-only or laser
   // block in the line stops an XLR push; push-only blocks stop a MAG pull.
   const B_CHAINS=[];
-  // The shaft under Laitu's house is two tiles wide and about twenty deep, with the
-  // only way out being back up. Rungs every two rows are floors for MIND and air
-  // to a falling cube. The lip cubes he stands on stay one-way, so a jump from
-  // the rung underneath passes up through them.
+  // The shaft under Laitu's house is two tiles wide and drops into the basement.
+  // The lip cubes he stands on stay one-way, so a jump from below passes up through them.
   function installLaituShaft(){
     B.rungs=new Set();
     if(B.stageId&&B.stageId!=='1.1') return;            // (Cursor's shaft is under Laitu's house, in 1.1 only)
     if(typeof gridCell!=='function'||typeof gridSet!=='function') return;
-    for(let r=29;r<=43;r+=2) for(const c of [64,65]){
-      const t=gridCell(c,r);
-      if(t===MV_GRID_SOLID||t===MV_GRID_DESTRUCT) continue;
-      if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)) continue;
-      gridSet(c,r,MV_GRID_ONEWAY);
-      B.rungs.add(c+','+r);
-    }
+    // Paulo, Nov 4 (build 357): no rungs. They were invisible floors every two rows (29-43),
+    // and from row 36 down they hung in the open basement air. MIND falls straight to the
+    // basement floor now.
     for(const bw of BWALLS) if(bw.cube&&bw.homeCol!=null){
       bw.lipPass=bw.homeCol>=64&&bw.homeCol<=65&&bw.homeRow>=26&&bw.homeRow<=27;
       if(bw.lipPass) gridSet(bw.homeCol,bw.homeRow,MV_GRID_ONEWAY);
