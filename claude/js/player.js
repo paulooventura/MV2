@@ -270,12 +270,13 @@ function _updateRunEntry(pl){
   pl._itemWas=btn;
   if((pl._standTapT||0)>0) pl._standTapT--;
   const standing=!dir&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
-  // Paulo, Nov 4 (build 356): spam = every press fires. With a jack in hand the double-tap
-  // is just two shots; the standing double-tap starts the vehicle only when the hands are empty.
-  const _jackInHand=typeof ITEM!=='undefined'&&ITEM>=0&&typeof _itemUnlocked==='function'&&_itemUnlocked(ITEM);
-  if(btn&&!was&&standing&&!_jackInHand){
+  // Paulo, Nov 4 (build 370): turbo (sports mode) flips on a fast double tap of the item button
+  // only after half a second standing still, on and off alike (a jack in hand or not). Running
+  // around spamming the button never touches it.
+  if(standing&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
+  if(btn&&!was&&standing){
     if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
-    else pl._standTapT=16;
+    else if((pl._stillT||0)>=30) pl._standTapT=16;
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)
@@ -372,12 +373,15 @@ function _grantPlayerItem(idx, silent){
   if(!silent){ try{sfx('unlock');}catch(_e){} }
   return true;
 }
+// Paulo, Nov 4 (build 370): one order for the switch button and the item wheel:
+// XLR, TRS, RCA, MEG, then the gaucho knife once it's found (1.3)
+const ITEM_ORDER=[2,0,1,3,4];
 function _cycleItem(){
   if(_unlockedMask===0) return;
-  const start=ITEM<0?0:ITEM, N=ITEM_UNLOCK_BITS.length;   // 4 jacks, + the gaucho knife once it's found (1.3)
+  const N=ITEM_ORDER.length, at=ITEM_ORDER.indexOf(ITEM);
   for(let n=1;n<=N;n++){
-    const next=(start+n)%N;
-    if(_itemUnlocked(next)){ ITEM=next; return; }
+    const next=ITEM_ORDER[((at<0?-1:at)+n+N)%N];
+    if(next<ITEM_UNLOCK_BITS.length&&_itemUnlocked(next)){ ITEM=next; return; }
   }
 }
 function _resetItemProgress(){

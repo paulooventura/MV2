@@ -24,7 +24,7 @@
   const T=32, A=()=>window.MV_BETA_AUDIO;
   const on=()=>B.on&&typeof _gameState!=='undefined'&&_gameState==='game';
   let lastTrack=null, placed=null, stageMusic=null, stageId=null, triSpeaker=null, triDown=false;
-  let bowl=null, mixS=0, brake=null, handed=false;
+  let bowl=null, mixS=0, brake=null, handed=false, srcBoss=null;
 
   // ── the sources ──
   const ctr=e=>({x:e.x+e.w/2, y:e.y+e.h/2});
@@ -104,15 +104,18 @@
       return {track:stageMusic, at:ctr(tri)};
     }
     if(sid==='1.3'){
+      // Paulo, Nov 4 (build 370): 1.3's music comes from the boss itself (no crossfade with the
+      // stage score); shut it down and the track stops like a vinyl, then the calm one plays
+      // from the exit gate.
       const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
-      if(B.bossDown||!boss||!boss.alive){ B.bossMeet=false; mixS=0; return {track:'calm', at:gatePos()}; }
+      if(boss) srcBoss=boss;
+      if(B.bossDown||!boss||!boss.alive){ B.bossMeet=false; mixS=0; return {track:'calm', at:gatePos(), handoff:true}; }
       const see=bossClose(boss);
       B.bossOn=see;
       B.bossMeet=onBowl(boss);
       if(see&&!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,4); }
-      const amt=bossMix(boss);
-      B.bossMix=amt;
-      return {blend:{under:stageMusic||'stage2', over:'boss', amt}, at:ctr(boss)};
+      B.bossMix=1;
+      return {track:'boss', at:ctr(boss)};
     }
     return null;
   }
@@ -120,13 +123,14 @@
   function solidAt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
   function hear(at){
     const ox=p.x+SW/2, oy=p.y+FEET_OFF-50, dx=at.x-ox, dy=at.y-oy, d=Math.hypot(dx,dy);
-    const near=Math.max(0,1-d/1800);
+    const near=Math.max(0,1-d/1500);
     let rock=0; const n=Math.min(40,Math.ceil(d/T));
     for(let i=1;i<n;i++){ if(solidAt(ox+dx*i/n,oy+dy*i/n)) rock++; }
     const occ=Math.min(1,rock/12);
     // Loudest on the source, still clearly on across the stage. A floor under
     // about half was reading as the song switching off inside the house.
-    return {gain:0.62+0.38*near*near*(1-0.4*occ), pan:Math.max(-0.85,Math.min(0.85,dx*(p.fc?1:-1)/650)), lp:Math.max(1600,(4200+14000*near)*(1-0.5*occ))};
+    // (build 370) the source is where the music is: full on it, faint far off (it was never under 62%)
+    return {gain:0.1+0.9*Math.pow(near,1.6)*(1-0.45*occ), pan:Math.max(-0.9,Math.min(0.9,dx/520)), lp:Math.max(900,(2600+15400*Math.pow(near,1.3))*(1-0.55*occ))};
   }
   function direct(){
     if(!on()||!p||!A()) return;
@@ -152,8 +156,8 @@
         if(brake.t<brake.dur){
           brake.t++;
           if(A().vinylBrake) A().vinylBrake(Math.max(0,1-brake.t/brake.dur));
-          const tri=triOnStage();
-          if(brake.from&&tri&&A().place){ placed=brake.from; A().place(brake.from, hear(ctr(tri))); }
+          const src=B.stageId==='1.3'?srcBoss:triOnStage();       // the record winds down where it was playing from
+          if(brake.from&&src&&A().place){ placed=brake.from; A().place(brake.from, hear(ctr(src))); }
           return;
         }
         if(A().vinylHalt) A().vinylHalt();
@@ -177,9 +181,8 @@
     const boss=(typeof ENEMS!=='undefined'?ENEMS:[]).find(e=>e&&e._boss);
     const alive=!!(boss&&boss.alive);
     if(bossWasAlive&&!alive&&!B.freeze){
-      B.freeze={t:0, dur:FREEZE, z0:typeof camZoom!=='undefined'&&camZoom?camZoom:1};
-      if(A()) A().stopAll();
-      glory();
+      B.freeze={t:0, dur:FREEZE, z0:typeof camZoom!=='undefined'&&camZoom?camZoom:1, brake:true};
+      glory();                                                      // (build 370) the boss's own track winds down like a record (below), not a hard cut
     }
     bossWasAlive=alive;
   }
@@ -187,7 +190,8 @@
   window.update=function(){
     if(B.on&&B.freeze){
       const F=B.freeze; F.t++;
-      if(F.t>=F.dur){ B.freeze=null; lastTrack=null; }
+      if(F.brake&&A()){ const BR=70; if(F.t<BR){ if(A().vinylBrake) A().vinylBrake(1-F.t/BR); } else { if(A().vinylHalt) A().vinylHalt(); else A().stopAll(); F.brake=false; } }
+      if(F.t>=F.dur){ if(F.brake&&A()) A().stopAll(); B.freeze=null; lastTrack=null; }
       return;                                                       // the whole scene holds still
     }
     const r=_up.apply(this,arguments);

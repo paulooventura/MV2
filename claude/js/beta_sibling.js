@@ -47,6 +47,11 @@
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return true; }, set ff(v){ ff=true; try{ localStorage.setItem(KEY+'.ff','1'); }catch(e){} },   // a hit on your brother always counts
     state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail, probe:()=>({floorStep, walkable, inView, standOk, deadly}) };
+  // the XLR's blast on release throws the companion like a foe of its weight (build 370)
+  B.sibBlast=function(ox,oy,ux,uy,k,range){ const b=S&&typeof active==='function'&&active()?S:null; if(!b) return false;
+    const c=centre(b), dx=c.x-ox, dy=c.y-oy, d=Math.hypot(dx,dy)||1; if(d>range||(dx*ux+dy*uy)/d<0.72||!clearLine(ox,oy,c.x,c.y)) return false;
+    const wf=B.itemFx&&B.bodyMass?B.itemFx(B.bodyMass(b)):1, sp=(5+9*k)*wf*(1-0.4*d/range);
+    knock(b,(dx/d*0.35+ux*0.65)*sp,(dy/d*0.35+uy*0.65)*sp-(1.5+2.5*k)*wf,'xlr',0); b.free=Math.max(b.free||0,50); b._windT=20; return true; };
   B.platRiders=()=>{ const o=[]; if(S) o.push(S); if(npc&&npc.s) o.push(npc.s); return o; };
   const labOk=()=>!window.MV_BETA_LAB||/[?&]sib=1/.test(location.search);
   const KEEP=900, MIN_GAP=62, LOST=560;
@@ -91,7 +96,7 @@
   // ── its own RCA rope (Paulo, Oct 25): the same rope as yours — the game's own updateHook runs
   //    on its body with AI hands on the stick — but its own anchor and its own call. You being on
   //    a rope is never a reason for it to rope; it throws one when it needs to cross or climb.
-  const ROPE_CD=45, ROPE_MAX_T=300;
+  const ROPE_CD=45, ROPE_MAX_T=150;   // (build 370) 2.5 s at most on one rope (was 5 s: it looked stuck)
   function ropeIdle(b){
     const h=b&&b.hook; if(!h) return;
     if(h.st!=='idle'){ h.st='idle'; h.ox=NaN; h.oy=NaN; h.tgt=null; h.plat=null; h._tight=false; h._slack=false; h._path=null; h._tension=0; h.pivots=null; h.vr=null; h._cord=null; }
@@ -146,10 +151,17 @@
     const P=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
     const c2=centre(S), past=(c2.x-P.x)*dir>12, rising=S.vy<-0.5, toward=S.vx*dir>2.2;
     const there=Math.hypot(G.x-c2.x,G.y-c2.y)<110;
-    if((S._ropeT>24&&past&&rising&&toward)||there||S._ropeT>ROPE_MAX_T){
-      if(typeof _detachPlayerRope==='function') _detachPlayerRope(h); else ropeIdle(S);
-      S._ropeCd=ROPE_CD; S._launchT=50; S._ropeT=0;
-    }
+    if(Math.hypot(S.vx||0,S.vy||0)<1) S._ropeStill=(S._ropeStill||0)+1; else S._ropeStill=0;
+    if(S._ropeStill>45){ S._ropeStill=0; letGo(); return; }        // hanging there doing nothing: let go
+    if((S._ropeT>24&&past&&rising&&toward)||there||S._ropeT>ROPE_MAX_T) letGo();
+  }
+  // (build 370) let go of its OWN rope: detach in its own context (the helper works on "the
+  // player"), and if the latch is somehow still on, drop it, so it never hangs from it for good
+  function letGo(){
+    const h=S.hook; if(!h) return;
+    try{ if(typeof _detachPlayerRope==='function') withPlayerContext(S,()=>_detachPlayerRope(h)); }catch(e){}
+    if(S.hook&&S.hook.st!=='idle') ropeIdle(S);
+    S._ropeCd=ROPE_CD; S._launchT=50; S._ropeT=0;
   }
   // ── where it can stand, what it can see, where it can't go ──
   const solidAt=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
@@ -278,6 +290,7 @@
     if(S._flyCd>0) S._flyCd--;
     if(S._zip){ zipTick(); return; }
     if(S._ropeCd>0) S._ropeCd--;
+    if(S.hook&&S.hook.st!=='idle'&&(S._ropeT||0)>ROPE_MAX_T+90) letGo();   // a rope that outlived its use: let go
     if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
     if(S._fly){ hoverTick(); return; }
     const spot=pickSpot(), work=!!spot.work;
@@ -764,6 +777,7 @@
     if(b._madT<=0){ b.pt=0; b.pCharge=0; b.pCharging=false; b.crouchAmt=0; }
   }
   function interact(b){
+    if(b===S&&(p._sibPassT||0)>0) p._sibPassT--;
     if(b._madT>0) return;
     const c=centre(b), P=centre(p), dx=c.x-P.x, dy=c.y-P.y, d=Math.hypot(dx,dy)||1;
     const ax=p.aimDX||0, ay=p.aimDY||0, al=Math.hypot(ax,ay)||1, ux=ax/al, uy=ay/al, dot=(dx*ux+dy*uy)/d;
@@ -773,17 +787,20 @@
     else b._pHit=false;
     // the XLR blows it away; the MAG pulls it in
     const _wf=B.itemFx&&B.bodyMass?B.itemFx(B.bodyMass(b)):1;   // the companion is as heavy as its hero (omnibox rule, build 359)
-    if(p.xlrOn&&ITEM===2&&d<170&&dot>0.6){ const f=(1-d/170)*1.5*_wf; b.vx=(b.vx||0)+ux*f; b.vy=(b.vy||0)+uy*f-0.25; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,24); if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }
+    if(p.xlrOn&&ITEM===2&&d<220&&dot>0.55){ const k=1-d/220, tvx=ux*(4+10*k)*_wf, tvy=uy*(4+10*k)*_wf-0.6*k; b.vx=(b.vx||0)+(tvx-(b.vx||0))*0.3; b.vy=(b.vy||0)+(tvy-(b.vy||0))*0.2; if(!(b.free>0)) knock(b,b.vx,b.vy,'xlr',0); b.free=Math.max(b.free,40); b._windT=12; if(ff&&fr%10===0) knock(b,b.vx,b.vy,'xlr',3); }   // (build 370) the air really moves it: longer, and it slides
     if(p.magOn&&ITEM===3&&d<190&&d>64&&dot>0.55){ const f=(1-d/190)*1.2*_wf; b.vx=(b.vx||0)-ux*f; b.vy=(b.vy||0)-uy*f-0.3; if(!(b.free>0)) knock(b,b.vx,b.vy,'mag',0); b.free=Math.max(b.free,24); }
     // your weight: land on it, or roll into it
     if(Math.abs(dx)<SW*0.75&&Math.abs((b.y)-(p.y))<70){
-      if((p.vy||0)>3&&p.y+FEET_OFF<b.y+FEET_OFF-36){ p.vy=-7; p.og=false; knock(b,Math.sign(dx||1)*2.5,2,'stomp',10); }
+      // Paulo, Nov 4 (build 370): one bounce on its head, then you drop straight through it
+      // (in a passage with it under you, you'd bounce forever and never get down)
+      if((p.vy||0)>3&&p.y+FEET_OFF<b.y+FEET_OFF-36&&!((p._sibPassT||0)>0)){ p.vy=-7; p.og=false; knock(b,Math.sign(dx||1)*2.5,2,'stomp',10); p._sibPassT=70; }
       else if(Math.abs(p.vx||0)>(b._aiCompanion?6:4.5)&&Math.sign(p.vx)===Math.sign(dx||p.vx)){ const push=p.vx*0.85+Math.sign(dx||p.vx)*0.8; if(!(b.free>0)||Math.abs(b.vx||0)<Math.abs(push)) knock(b,push,b.og?-0.6:(b.vy||0),'bump',0); }   // only a real ram shoves the companion (walking past it doesn't)
     }
   }
   function bodyPhysics(b){
     b.vy=Math.min((b.vy||0)+GRAV,14);
-    b.vx*=b.og?0.84:0.985;
+    if(b._windT>0) b._windT--;
+    b.vx*=b.og?(b._windT>0?0.95:0.84):0.985;
     if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(b,b.vx,b.vy); else { b.x+=b.vx; b.y+=b.vy; }
     if(b.og&&b.vy>0) b.vy=0;
     b.wheelAngle=(b.wheelAngle||0)+b.vx/WHEEL_R;
