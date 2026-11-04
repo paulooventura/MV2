@@ -414,7 +414,7 @@
       if(q.dir<0){
         const prev=q.y-(q.dy||0);
         if(!(prev>=feet-8&&q.y<=feet+6)) continue;
-      }else if(!(p.og||Math.abs(p.vy||0)<1.2)||Math.abs(q.y-feet)>7) continue;
+      }else if(!((p.vy||0)>=-0.4&&feet>=q.y-(q.dy||0)-8&&feet<=q.y+12)) continue;   // a sinking cab catches him too, so he stands on it and can jump off (build 364)
       p.y=q.y-FEET_OFF; p.vy=0; p.og=true; B.ridePlat=q;
     }
     const m=ridingPlat(p);
