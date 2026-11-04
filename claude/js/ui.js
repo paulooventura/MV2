@@ -31,8 +31,7 @@ let _paused=false;
 let _pauseIdx=0, _optFromPause=false, _optBackFr=-99;
 function _pauseItems(){
   const items=['RESUME','OPTIONS'];
-  if(window.MV_SIGNAL) items.push('LEAVE A NOTE');
-  if(window.MV_BETA&&MV_BETA.unstick) items.push('UNSTICK ME');
+  // (Paulo, Nov 4, build 358: no LEAVE A NOTE / UNSTICK ME in the pause menu)
   items.push('EXIT');
   return items;
 }

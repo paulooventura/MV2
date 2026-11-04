@@ -2009,28 +2009,63 @@
     drawLivesCard(left,top);
     if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+10,top+(B.livesCard?62:8),C.MINT,2); ctx.globalAlpha=1; }
     const icols=(typeof ICOLS!=='undefined'?ICOLS:[C.GREY,C.RED_L,C.SKY,C.LILAC]);
-    const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);
-    const pill=54, jw=JACK_ORDER.length*pill+12, jx=right-jw;
-    uiPanel(jx,top,jw,72,{r:12,alpha:0.82,flat:true});
-    JACK_ORDER.forEach((i,k)=>{
-      const bx=jx+6+k*pill, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
-      uiPill(bx,top+6,pill-6,40,{on:cur,col:icols[i]});
-      ctx.save(); ctx.beginPath(); ctx.rect(bx+2,top+8,pill-10,36); ctx.clip();
-      ctx.translate(bx+(pill-6)/2,top+26);
-      if(!on) ctx.globalAlpha=0.18;
-      ctx.scale(0.7,0.7);
-      if(typeof drawConnectorTip==='function') drawConnectorTip(i===3?-14:-16,0,0,0,i,enh);
-      ctx.restore();
-      if(!on){ ctx.fillStyle='rgba(10,6,24,0.35)'; uiRound(bx+2,top+8,pill-10,36,8); ctx.fill(); }
-      if(on&&enh) uiSparkle(bx+pill-14,top+10,4,icols[i],0.9);
-      if(cur) drawTextC(JACK_NAMES[i], bx+(pill-6)/2, top+48, '#ffffff', 2);
-    });
+    // Paulo, Nov 4 (build 358): the item wheel. It hides above the window and drops in only
+    //   when the item changes (switch button or a pickup), shows the one in hand highlighted for
+    //   a second, then slides back up.
+    if(ITEM!==B._wheelItem){ B._wheelItem=ITEM; if(B._wheelSeen) B.wheel={t0:performance.now()}; }
+    B._wheelSeen=true;
+    const WH=B.wheel;
+    if(WH){
+      const IN=170, HOLD=1000, OUT=240, t=performance.now()-WH.t0;            // ms: drop in, a second shown, back up
+      if(t>=IN+HOLD+OUT) B.wheel=null;
+      else{
+        const e=t<IN?t/IN:t<IN+HOLD?1:1-(t-IN-HOLD)/OUT, k=e*e*(3-2*e);
+        const JACK_ORDER=JACK_ORDER0.concat(_itemUnlocked(4)?[4]:[]);
+        const pill=54, jw=JACK_ORDER.length*pill+12, jx=Math.round(W/2-jw/2), wy=Math.round(top-90+k*90);
+        const pulse=t>=IN&&t<IN+HOLD?0.5+0.5*Math.sin((t-IN)*0.018):0;
+        uiPanel(jx,wy,jw,72,{r:12,alpha:0.82,flat:true});
+        JACK_ORDER.forEach((i,n)=>{
+          const bx=jx+6+n*pill, on=_itemUnlocked(i), cur=i===ITEM&&on, enh=typeof _itemEnhanced!=='undefined'&&_itemEnhanced[i];
+          uiPill(bx,wy+6,pill-6,40,{on:cur,col:icols[i]});
+          if(cur&&pulse>0){ ctx.save(); ctx.globalAlpha=0.35*pulse; ctx.fillStyle='#ffffff'; uiRound(bx,wy+6,pill-6,40,10); ctx.fill(); ctx.restore(); }
+          ctx.save(); ctx.beginPath(); ctx.rect(bx+2,wy+8,pill-10,36); ctx.clip();
+          ctx.translate(bx+(pill-6)/2,wy+26);
+          if(!on) ctx.globalAlpha=0.18;
+          ctx.scale(0.7,0.7);
+          if(typeof drawConnectorTip==='function') drawConnectorTip(i===3?-14:-16,0,0,0,i,enh);
+          ctx.restore();
+          if(!on){ ctx.fillStyle='rgba(10,6,24,0.35)'; uiRound(bx+2,wy+8,pill-10,36,8); ctx.fill(); }
+          if(on&&enh) uiSparkle(bx+pill-14,wy+10,4,icols[i],0.9);
+          if(cur) drawTextC(JACK_NAMES[i], bx+(pill-6)/2, wy+48, '#ffffff', 2);
+        });
+        if(!(ITEM>=0&&_itemUnlocked(ITEM))) drawTextC('GLOVES', W/2, wy+76, '#ffffff', 2);
+      }
+    }
     const ch=_playerChargeInfo(p), cs=ch.chargeFrac;
     if((p.og&&cs>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||ch.sprinting){
       const ready=p.duckBoostReady||p._wallChargeReady||ch.ready;
       uiBar(left,top+(B.livesCard?62:0),lw,12,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
     }
   }
+  // the pause menu's stage card: name, time (it stops while paused), crystals and seeds
+  function drawPauseStats(){
+    const n=counts(), L=typeof uiLayout==='function'?uiLayout():{inset:{t:0}};
+    const pw=Math.min(460,W-32), px=Math.round(W/2-pw/2), py=Math.max(8,(L.inset&&L.inset.t||0)+8), ph=B.tier>0&&B.echoNeed>0?150:124;
+    uiPanel(px,py,pw,ph,{r:16});
+    drawTextC(B.stageName||'', W/2, py+10, '#d8ffc8', 3);
+    drawTextC(fmtTime(B.stats.frames), W/2, py+42, '#ffffff', 2);
+    const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
+    const cx0=px+24; let gx=cx0;
+    for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+7,py+80,i<n.crystals,cAll,i); gx+=18; }
+    drawText('CRYSTALS '+n.crystals+'/'+B.need.crystals+'  ('+Math.max(0,B.need.crystals-n.crystals)+' LEFT)', gx+8, py+70, '#5dffa0', 2);
+    gx=cx0;
+    for(let i=0;i<Math.min(B.need.seeds,8);i++){ hudSeed(gx+5,py+106,i<n.seeds,sAll,i); gx+=14; }
+    drawText('SEEDS '+n.seeds+'/'+B.need.seeds+'  ('+Math.max(0,B.need.seeds-n.seeds)+' LEFT)', gx+8, py+96, '#7dffcf', 2);
+    if(B.tier>0&&B.echoNeed>0) drawText('ECHO '+n.echo+'/'+B.echoNeed, cx0, py+122, '#ff9ae0', 2);
+    if(B.open) drawTextR('ARCH OPEN', px+pw-14, py+42, C.GREEN_L||'#7dffcf', 2);
+  }
+  { const _dp=window.drawPauseMenu;
+    if(typeof _dp==='function') window.drawPauseMenu=function(){ const r=_dp.apply(this,arguments); try{ if(B.on&&B.stats) drawPauseStats(); }catch(e){} return r; }; }
   function drawLaituTag(){
     const tg=B._laituTag; B._laituTag=null; if(!tg) return;
     const {cx, top}=tg;
@@ -2088,48 +2123,9 @@
   function drawBetaHud(){
     if(B.textQ.length){ if(typeof _worldZoomBegin==='function') _worldZoomBegin(); try{ for(const [fn,args] of B.textQ) fn(...args); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); } } B.textQ.length=0;
     drawLaituTag();
+    // Paulo, Nov 4 (build 358): no bottom panels while playing. The stage name, the time and
+    //   the crystals / seeds are on the pause menu (drawPauseStats).
     const n=counts();
-    const L=typeof uiLayout==='function'?uiLayout():{phone:false,pad:{l:0,r:0,b:0}};
-    const pad=L.pad||{l:0,r:0,b:0};
-    const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
-    let lx, ly, lw, rx, ry, rw;
-    if(L.phone){
-      const x0=pad.l+8, x1=W-pad.r-8, gap=Math.max(180,x1-x0);
-      lw=Math.min(400,gap); lx=x0+Math.max(0,(gap-lw)/2); ly=H-70;
-      rx=lx; ry=ly; rw=lw;
-    }else{
-      lx=12; ly=H-78; lw=260;
-      rw=280; rx=W-12-rw; ry=ly;
-    }
-    uiPanel(lx,ly,lw,66,{r:12,alpha:0.82,flat:true});
-    drawText(B.stageName, lx+10, ly+6, '#d8ffc8', 2);
-    let status=fmtTime(B.stats.frames);
-    if(ITEM===3&&p){
-      const pw=Math.max(0,Math.min(100,p.itemStamina||0)), held=B.mag.held.length, cap=magCap(pw);
-      status='MEG '+Math.round(pw)+'%  '+cap.toFixed(1)+'/9'+(held?'  '+held:'');
-    }else if(ITEM===2&&p&&B.chX>0){
-      const c=Math.min(1,B.chX/45);
-      status=c>=1?'XLR FULL':('XLR '+Math.round(c*100)+'%');
-    }
-    if(L.phone) status=n.crystals+'/'+B.need.crystals+'   '+n.seeds+'/'+B.need.seeds+'   '+status;
-    drawText(status, lx+10, ly+32, '#ffffff', 2);
-    if(!L.phone){
-      uiPanel(rx,ry,rw,66,{r:12,alpha:0.82,flat:true});
-      let gx=rx+12;
-      for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+7,ry+16,i<n.crystals,cAll,i); gx+=18; }
-      drawText(n.crystals+'/'+B.need.crystals, gx+6, ry+4, '#5dffa0', 2);
-      gx=rx+12;
-      for(let i=0;i<Math.min(B.need.seeds,8);i++){ hudSeed(gx+5,ry+46,i<n.seeds,sAll,i); gx+=14; }
-      const seedLbl=n.seeds+'/'+B.need.seeds;
-      drawText(seedLbl, gx+6, ry+32, '#7dffcf', 2);
-      if(B.tier>0&&B.echoNeed>0){
-        const ex=gx+6+textW(seedLbl,2)+14;
-        if(ex<rx+rw-8) drawText('ECHO '+n.echo+'/'+B.echoNeed, ex, ry+32, '#ff9ae0', 2);
-      }
-      if(B.open){ ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN', rx+rw-8, ry+6, C.GREEN_L||'#7dffcf', 2); ctx.restore(); }
-    }else if(B.open){
-      ctx.save(); ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.15); drawTextR('ARCH OPEN', lx+lw-8, ly+6, C.GREEN_L||'#7dffcf', 2); ctx.restore();
-    }
     if(B.revisitNote>0){
       const a=Math.min(1,B.revisitNote/30,(360-B.revisitNote)/20);
       ctx.save(); ctx.globalAlpha=Math.max(0,a);
