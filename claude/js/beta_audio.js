@@ -155,12 +155,15 @@
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
     try{ const c=typeof ga==='function'?ga():null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
     const pr=a.play();
-    if(pr&&pr.then) pr.then(()=>{}).catch(()=>{ wantPlay=name; });
+    // (build 371) a play() cut off by the next switch rejects later; only retry it if it is
+    // still the track we want — it used to reclaim the slot and ensure() ran two songs at once
+    if(pr&&pr.then) pr.then(()=>{}).catch(()=>{ if(current===name) wantPlay=name; });
   }
   // the stage track is asked for after a level fetch, past the click that
   // unlocked sound — keep trying until the browser actually lets it play
   function ensure(){
     if(!wantPlay||!els[wantPlay]) return;
+    if(current&&wantPlay!==current) wantPlay=current;
     const a=els[wantPlay];
     if(!a.paused) return;
     if(++ensureN%20) return;
@@ -209,11 +212,18 @@
   const routed={};
   const smoothed={};
   function route(name){
-    if(routed[name]!==undefined) return routed[name];
-    const a=ac(); if(!a||!els[name]) return null;
+    if(routed[name]) return routed[name];
+    if(!els[name]) return null;
+    // (build 371) sound16 owns every music element (it pipes them through the console chain),
+    // so our own createMediaElementSource always failed and placement fell back to plain
+    // element volume. Use the per-track gain / pan / low-pass sound16 gives each one.
+    const S=window.MV_SOUND16;
+    if(S&&S.routeEl&&!S.off){ const fx=S.routeEl(els[name]); if(fx) routed[name]=fx; return fx||null; }
+    if(routed[name]===null) return null;
+    const a=ac(); if(!a) return null;
     try{ const src=a.createMediaElementSource(els[name]), lp=a.createBiquadFilter(), pan=a.createStereoPanner(), g=a.createGain();
       lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.5; src.connect(lp); lp.connect(pan); pan.connect(g); g.connect(a.destination);
-      routed[name]={lp,pan,g}; }catch(e){ routed[name]=null; }
+      routed[name]={lp,pan,g}; }catch(e){ routed[name]=null; window._mvRouteErr=String(e); }
     return routed[name];
   }
   function onPhone(){
@@ -238,7 +248,7 @@
       const g=Math.max(0.08,Math.min(1,s.g));   // (build 370) far from the source it really is quiet (was never under 55%)
       ael.volume=Math.max(0,Math.min(1,vol()*base*g));
       ael.muted=vol()<=0;
-      if(ael.paused&&vol()>0){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+      if(ael.paused&&vol()>0&&name===current){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
       return;
     }
     ael.volume=Math.min(1,base);
@@ -246,11 +256,15 @@
     r.g.gain.value=Math.max(0.0001,s.g*vol());
     r.pan.pan.value=Math.max(-1,Math.min(1,s.p));
     r.lp.frequency.value=Math.max(80,s.lp);
-    if(ael.paused&&vol()>0){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    if(ael.paused&&vol()>0&&name===current){ const pr=ael.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
   }
   function unplace(name){
-    const ael=els[name]; if(ael) ael._placed=false;
-    const r=routed[name]; if(r) place(name,{gain:1,pan:0,lp:20000});
+    const ael=els[name]; if(!ael) return;
+    ael._placed=false; delete smoothed[name];
+    // back to plain, without waking it up (build 371: this used to resume a paused track)
+    const r=routed[name];
+    if(r){ r.g.gain.value=1; r.pan.pan.value=0; r.lp.frequency.value=20000; }
+    if(name!==current&&!ael.paused) try{ ael.pause(); }catch(e){}
   }
   function stopAll(){
     duoEnd();
@@ -655,5 +669,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2)}:null};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();

@@ -161,7 +161,13 @@
       const b=busFor(ac); known.add(ac);
       if(!b.mfx){ const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.707; const g=ac.createGain(); const pn=ac.createStereoPanner();
         SKIP.add(lp); SKIP.add(g); SKIP.add(pn); origConnect.call(lp,pn); origConnect.call(pn,g); origConnect.call(g,b.musicPost||b.music); b.mfx={lp,g,pan:pn}; }
-      origConnect.call(src,b.mfx.lp); routed.add(el);
+      // (build 371) each track gets its own place on the stage — gain, pan, low-pass — ahead of
+      // the shared music chain, so the positional music (beta_audio place()) is really heard
+      const lp=ac.createBiquadFilter(), pn=ac.createStereoPanner(), g=ac.createGain();
+      lp.type='lowpass'; lp.frequency.value=20000; lp.Q.value=0.5;
+      SKIP.add(lp); SKIP.add(pn); SKIP.add(g);
+      origConnect.call(src,lp); origConnect.call(lp,pn); origConnect.call(pn,g); origConnect.call(g,b.mfx.lp);
+      el._mvFx={lp,pan:pn,g}; routed.add(el);
     }catch(e){ routed.add(el); }
   }
   HTMLMediaElement.prototype.play=function(){
@@ -229,5 +235,5 @@
       try{ b.uw.lp.frequency.setTargetAtTime(20000*Math.pow(380/20000,k),t,0.05);
         b.uw.low.gain.setTargetAtTime(5*k,t,0.08); b.uw.g.gain.setTargetAtTime(1-0.3*k,t,0.08); }catch(e){} }
   }
-  window.MV_SOUND16={ underwater, musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
+  window.MV_SOUND16={ underwater, routeEl(el){ if(disabled||!el) return null; const ac=ctxNow(); if(ac&&ac.state==='running') routeMusic(el,ac); return el._mvFx||null; }, get off(){ return disabled; }, musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
 })();

@@ -548,7 +548,10 @@
   if(typeof _dmgE==="function") window._damageEnemy=function(e,dmg,fx,fy,kb){
     if(e&&e._boss&&on()&&!knifeHit){ if(e.alive&&fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } return false; }
     if(e&&e._foe==='cube'&&e.alive&&on()){
-      if(!e._wasClose&&!((e.fVulnT||0)>0)){ cubeWake(e); e._wasClose=true; if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; }   // a hit wakes it; the window starts now
+      // (build 371) any hit while its window is shut wakes it and opens the 3 s window again —
+      // before, only walking up to it did, so standing next to it once the 3 s ran out it
+      // could never be hurt (Paulo: "I still can't really damage the AG F")
+      if(!((e.fVulnT||0)>0)){ cubeWake(e); e._wasClose=true; if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; }
       else if(!cubeHurtable(e)){ if(fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } e.hitF=6; return false; }
     }
     if(knifeHit&&knifeEnds(e)){
