@@ -787,10 +787,12 @@
     // cone used to skip the block right under the wheel, so on a trapdoor the edges went
     // and the middle never moved (stuck at the basement entrance / under Laitu's house)
     if(ax.dr>0&&!ax.dc){
-      const wx=p.x+SW/2, feetRow=Math.floor((p.y+FEET_OFF+4)/T);
+      // (build 369) any cube the wheel rests on counts, not only the one right under its centre
+      const wx=p.x+SW/2, feet=p.y+FEET_OFF, feetRow=Math.floor((feet+4)/T), WH=(typeof WHEEL_R==='number'?WHEEL_R:20)*0.75;
       for(const bw of cubes()){
         if(bw.only==='laser'||bw.only==='pull'||hits.some(h=>h.bw===bw)) continue;
-        if(bw.homeRow!==feetRow||Math.abs(bw.x+T/2-wx)>T*1.05) continue;
+        if(bw.homeRow!==feetRow&&bw.homeRow!==Math.floor((feet+12)/T)) continue;
+        if(!(bw.x<wx+WH&&bw.x+T>wx-WH)) continue;
         hits.push({bw,along:T*0.5,dc:0,dr:1,straight:true});
       }
     }

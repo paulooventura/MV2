@@ -548,6 +548,18 @@
         if(fr%4===0) PFXS.push({x:fx-down*8,y:fy-2,vx:-down*(0.5+Math.random()),vy:-Math.random()*1.2,life:10,maxLife:10,r:1.6,col:'#9fd8ff'});
       }else pl._wetSlide=false;
     }else pl._wetSlide=false;
+    // Paulo, Nov 4 (build 369): no perching. With the wheel's centre over nothing and only one
+    // side resting on a block or a ledge, the round wheel rolls off that corner instead of
+    // floating on it (the body's width used to hold him up there).
+    if(grounded&&!onSlope&&!jet&&!(pl.hook&&pl.hook.st==='on')&&!B.ridePlat&&!(pl.wallGrip>0)&&typeof gridCell==='function'&&typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile){
+      const TT=MV_GRID.tile, sup=(x,y)=>{ const t=gridCell(Math.floor(x/TT),Math.floor(y/TT)); return !!t&&t!==MV_GRID_AIR; };   // rock, a cube, a one-way lip, a slope
+      const fx=pl.x+SW/2, fy=pl.y+FEET_OFF+3, R=(typeof WHEEL_R==='number'?WHEEL_R:20);
+      const under=sup(fx,fy)||sup(fx-3,fy)||sup(fx+3,fy);
+      if(!under){
+        const L=sup(fx-R*0.8,fy), Rt=sup(fx+R*0.8,fy);
+        if(L!==Rt){ const off=L?1:-1; if(dir!==-off||Math.abs(pl.vx||0)<0.5) pl.vx=(pl.vx||0)+off*0.55; pl._edgeRoll=true; }
+      }
+    }
     if(onSlope&&Math.abs(vxIn)>2) st.coast=true;
     if(st.coast&&!jet){
       if(!grounded||dir===-Math.sign(vxIn)||Math.abs(vxIn)<0.3||(pl.hook&&pl.hook.st==='on')||pl.wallGrip>0){ if(grounded||Math.abs(vxIn)<0.3) st.coast=onSlope; }
