@@ -132,6 +132,7 @@
   }
   function sees(e){
     if(window.MV_LIFT&&MV_LIFT.sealed) return false;       // shut in an elevator: out of sight (build 360)
+    if(e&&e._inCab) return false;                          // the foe itself is shut in a car (build 362)
     const a=center(e), m=mindCenter();
     const n=Math.ceil(Math.hypot(m.x-a.x,m.y-a.y)/(T/3));
     for(let i=1;i<n;i++){ const x=a.x+(m.x-a.x)*i/n, y=a.y+(m.y-a.y)*i/n; if(solidAt(x,y)) return false; }

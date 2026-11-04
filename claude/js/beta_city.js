@@ -159,16 +159,7 @@
         // the cab: a lit box with a frame, open doors (you step in and out of it)
         const g=ctx.createLinearGradient(0,y-cabH,0,y); g.addColorStop(0,'rgba(255,220,160,0.20)'); g.addColorStop(1,'rgba(255,200,140,0.08)');
         ctx.fillStyle=g; ctx.fillRect(x,y-cabH,w,cabH);
-        const door=Math.max(0,Math.min(1,m.door||0));
-        if(door>0.02){
-          const pw=Math.max(sw(2),(w*0.5)*door);
-          ctx.fillStyle='#8e96a2';
-          ctx.fillRect(x,y-cabH+sw(6),pw,cabH-sw(10));
-          ctx.fillRect(x+w-pw,y-cabH+sw(6),pw,cabH-sw(10));
-          ctx.fillStyle='#d5dbe4';
-          ctx.fillRect(x+pw-sw(2),y-cabH+sw(6),sw(2),cabH-sw(10));
-          ctx.fillRect(x+w-pw,y-cabH+sw(6),sw(2),cabH-sw(10));
-        }
+        // (the doors are drawn over the riders, in MV_CITY.doors(), build 362)
         ctx.fillStyle='#4a4048'; ctx.fillRect(x,y-cabH,w,sw(6)); ctx.fillRect(x,y-cabH,sw(3),cabH); ctx.fillRect(x+w-sw(3),y-cabH,sw(3),cabH);
         const flash=Math.max(0,m._flash||0)/26;
         ctx.fillStyle=flash>0.05?'#fff6d8':'#ffe0a0'; ctx.fillRect(x+w/2-sw(5),y-cabH+sw(6),sw(10),sw(2));
@@ -188,6 +179,21 @@
         ctx.strokeStyle='#8a8a92'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.beginPath(); ctx.moveTo(x+w/2,y-sw(3*T)); ctx.lineTo(x+w/2,sy(m.clipT!=null?m.clipT:2*T)); ctx.stroke();
       }
       return true;
+    },
+    // Paulo, Nov 4 (build 362): the cab doors close in FRONT of whoever is inside (MIND, a foe),
+    // so a closed car hides its riders until the doors open again.
+    doors(){
+      const B=window.MV_BETA; if(!B||B.stageId!=='1.3'||!B.platforms) return;
+      for(const m of B.platforms){
+        if(!m.vert||m.x>=23*T||m.hidden) continue;
+        const door=Math.max(0,Math.min(1,m.door||0)); if(door<=0.02) continue;
+        const x=sx(m.x), y=sy(m.y), w=sw(m.w), cabH=sw(4*T-6), pw=Math.max(sw(2),(w*0.5)*door);
+        const top=y-cabH+sw(6), h=cabH-sw(6);
+        ctx.fillStyle='#8e96a2'; ctx.fillRect(x,top,pw,h); ctx.fillRect(x+w-pw,top,pw,h);
+        ctx.fillStyle='#7a828e'; ctx.fillRect(x+sw(3),top+h*0.45,Math.max(0,pw-sw(6)),sw(1)); ctx.fillRect(x+w-pw+sw(3),top+h*0.45,Math.max(0,pw-sw(6)),sw(1));
+        ctx.fillStyle='#d5dbe4'; ctx.fillRect(x+pw-sw(2),top,sw(2),h); ctx.fillRect(x+w-pw,top,sw(2),h);
+        if(door>0.95){ ctx.fillStyle='#3a3e46'; ctx.fillRect(x+w/2-sw(0.5),top,Math.max(1,sw(1)),h); }   // the seam where they meet
+      }
     },
     // after the tiles: the lobby, and the vault's cover
     over(B){

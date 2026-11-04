@@ -578,7 +578,7 @@ function updatePlayerShots(){
       p.shots.splice(i,1); dead=true; break;
     }
     if(dead) continue;
-    const mov=_shotHitsMovingPlat(s);
+    const mov=(window.MV_BETA&&MV_BETA.on)?null:_shotHitsMovingPlat(s);   // Paulo, Nov 4 (build 362): our shots go through platforms (walls and ground still stop them)
     if(mov){
       const bounces=s.bounces||0;
       if(bounces>=3){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }

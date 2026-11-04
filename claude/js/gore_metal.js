@@ -193,8 +193,9 @@
   }
   function pool(x,feet,w){
     const fy=floorBelow(x,feet-4); if(fy==null) return;
-    for(const q of pools) if(Math.abs(q.x-x)<q.r&&q.y===fy){ q.r=Math.min(q.r+w*0.3,120); q.life=1; return; }
+    for(const q of pools) if(Math.abs(q.x-x)<q.r&&q.y===fy){ q.r=Math.min(q.r+w*0.3,120); q.life=1; if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(2,w*0.08)); return; }
     pools.push({x,y:fy,r:Math.max(26,w*0.6),grow:0,life:1,smeared:0});
+    if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(3,w*0.12));   // (build 362) drawn as liquid, runs off edges
     if(pools.length>CAP.pools) pools.shift();
   }
   function smearTick(){
@@ -227,10 +228,9 @@
   function drawPools(){
     for(const q of pools){
       const r=q.r*q.grow, a=Math.min(1,q.life*4);
+      if(window.MV_BLOOD) continue;                                   // (build 362) the liquid puddle is drawn by beta_gore
       ctx.fillStyle='rgba(150,0,22,'+(0.92*a).toFixed(3)+')';
       ctx.beginPath(); ctx.ellipse(sx(q.x),sy(q.y)+sw(1),sw(r),Math.max(3,sw(r*0.16)),0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(235,40,56,'+(0.7*a).toFixed(3)+')';
-      ctx.beginPath(); ctx.ellipse(sx(q.x-r*0.2),sy(q.y),sw(r*0.45),Math.max(1,sw(r*0.05)),0,0,Math.PI*2); ctx.fill();
     }
     ctx.lineCap='round';
     for(const s of streaks){

@@ -17,7 +17,7 @@
   }
   // Full gore is 33 floors down. A chosen GORE filter fades as the ride climbs.
   function goreAmt(){
-    const base=(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')?1:0;
+    const base=((window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')||(window.MV_BETA&&MV_BETA.bloodOn))?1:0;   // the GORE code keeps blood on in every filter (build 362)
     return Math.max(0,Math.min(1,Math.max(base*(1-rideInk()), rideGore())));
   }
   function gore(){ return goreAmt()>0.04; }
@@ -93,14 +93,90 @@
       return gridSolid(Math.floor(x/t), Math.floor(y/t));
     }catch(e){ return false; }
   }
+  // ── Paulo, Nov 4 (build 362): blood on a floor is liquid. Drops that land merge into a
+  //   flat, glossy puddle on that floor; it spreads a little, and where it reaches the edge of
+  //   the platform it runs over the lip: a drip swells under the edge, lets go, and falls to
+  //   the platform below, where it pools again. (Blood that hits a wall still stains it.)
+  const puddles=[], hang=[];
+  const TS=()=>(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
+  function floorTop(x,y){ const t=TS(); return hitFloor(x,y+2)?Math.floor((y+2)/t)*t:null; }
+  function onFloor(x,fy){ return hitFloor(x,fy+3)&&!hitFloor(x,fy-3); }
+  function pour(x,fy,m){
+    if(!isFinite(x)||fy==null) return;
+    for(const q of puddles) if(q.y===fy&&x>=q.x0-10&&x<=q.x1+10){ q.m=Math.min(40,q.m+m); q.x0=Math.min(q.x0,x-2); q.x1=Math.max(q.x1,x+2); q.age=0; return; }
+    puddles.push({x0:x-3,x1:x+3,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6});
+    if(puddles.length>90) puddles.shift();
+  }
+  window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }};
   function splat(x,y,r){
+    const fy=floorTop(x,y);
+    if(fy!=null&&onFloor(x,fy)){ pour(x,fy,0.35+r*0.25); return; }
     stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:8+Math.random()*18,bits:2+Math.random()*3|0});
     if(stains.length>220) stains.splice(0,stains.length-220);
   }
+  function puddleTick(){
+    for(let i=puddles.length-1;i>=0;i--){
+      const q=puddles[i]; q.age++;
+      if(q.age>60*70||q.m<0.08){ puddles.splice(i,1); continue; }
+      const want=6+Math.sqrt(q.m)*14, cx=(q.x0+q.x1)/2, half=(q.x1-q.x0)/2;
+      if(half<want){ q.x0-=0.12; q.x1+=0.12; }
+      // past the lip: the edge stops at the drop and the blood runs over it
+      for(const side of [-1,1]){
+        const ex=side<0?q.x0:q.x1;
+        if(onFloor(ex,q.y)) continue;
+        let k=ex; for(let n=0;n<64&&!onFloor(k,q.y);n++) k-=side;     // back to the last floor under it
+        if(side<0) q.x0=k; else q.x1=k;
+        const key=side<0?'dl':'dr';
+        q[key]+=0.02+q.m*0.006;
+        if(q[key]>=1&&q.m>0.25){
+          q[key]=0; q.m-=0.22;
+          hang.push({x:k+side*1.5,y:q.y,g:0,m:0.22});
+        }
+      }
+    }
+    // drips swell under the lip, then let go
+    for(let i=hang.length-1;i>=0;i--){
+      const h=hang[i]; h.g+=0.03;
+      if(h.g>=1){ drops.push({x:h.x,y:h.y+4,px:h.x,py:h.y+4,vx:0,vy:0.6,r:1.6,t:5,max:400,chunk:false,drip:true}); hang.splice(i,1); }
+    }
+    if(hang.length>80) hang.splice(0,hang.length-80);
+  }
+  function drawPuddles(){
+    for(const q of puddles){
+      const a=Math.min(1,(60*70-q.age)/(60*6)), th=Math.min(4.5,1.4+Math.sqrt(q.m)*0.9);
+      const x0=sx(q.x0), x1=sx(q.x1), y=sy(q.y), h=Math.max(1.5,sw(th)), w=x1-x0;
+      if(w<1) continue;
+      ctx.save(); ctx.globalAlpha=a;
+      // the body: a flat sheet with rounded, slightly bulging ends
+      const g=ctx.createLinearGradient(0,y-h,0,y+1);
+      g.addColorStop(0,'#a3061e'); g.addColorStop(0.5,'#6e0010'); g.addColorStop(1,'#3a0006');
+      ctx.fillStyle=g; ctx.beginPath();
+      ctx.moveTo(x0,y+0.5);
+      ctx.quadraticCurveTo(x0-h*0.6,y-h*0.2,x0+h*0.9,y-h);
+      for(let k=1;k<=6;k++){ const xx=x0+h*0.9+(w-h*1.8)*k/6, wob=Math.sin(q.ph+k*1.7+(typeof fr==='number'?fr*0.02:0))*h*0.12; ctx.lineTo(xx,y-h+wob); }
+      ctx.quadraticCurveTo(x1+h*0.6,y-h*0.2,x1,y+0.5);
+      ctx.closePath(); ctx.fill();
+      // the shine: a thin highlight along the top and a couple of glints
+      ctx.strokeStyle='rgba(255,140,150,0.55)'; ctx.lineWidth=Math.max(1,sw(0.8));
+      ctx.beginPath(); ctx.moveTo(x0+w*0.12,y-h*0.78); ctx.lineTo(x0+w*0.55,y-h*0.82); ctx.stroke();
+      ctx.fillStyle='rgba(255,220,225,0.7)';
+      ctx.fillRect(x0+w*0.2,y-h*0.85,Math.max(1,sw(1.4)),Math.max(1,sw(0.7)));
+      if(w>sw(30)) ctx.fillRect(x0+w*0.66,y-h*0.7,Math.max(1,sw(1)),Math.max(1,sw(0.6)));
+      ctx.restore();
+    }
+    // a drip hanging from the lip: a thin neck and a swelling bead
+    for(const h of hang){
+      const X=sx(h.x), Y=sy(h.y), len=sw(2+h.g*7), r=Math.max(1,sw(1+h.g*1.4));
+      ctx.fillStyle='#7a0012';
+      ctx.fillRect(X-Math.max(0.6,sw(0.5)),Y,Math.max(1.2,sw(1)),len);
+      ctx.beginPath(); ctx.ellipse(X,Y+len,r,r*1.25,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,170,180,0.6)'; ctx.fillRect(X-r*0.4,Y+len-r*0.5,Math.max(1,r*0.35),Math.max(1,r*0.35));
+    }
+  }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; burstN=0; splashN=0; }
-    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; } return; }
+    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; burstN=0; splashN=0; }
+    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
     if(splashN>0){ splashSfx(splashN); splashN=0; }
@@ -111,6 +187,7 @@
       const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-8;
       spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
     }
+    puddleTick();
     for(let i=drops.length-1;i>=0;i--){
       const d=drops[i];
       d.px=d.x; d.py=d.y;
@@ -122,6 +199,7 @@
   function drawBlood(){
     if(!playing()||typeof sx!=='function') return;
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
+    try{ drawPuddles(); }catch(e){}
     for(const s of stains){
       if(s.drip>0){ s.y+=0.35; s.drip--; }
       ctx.save();

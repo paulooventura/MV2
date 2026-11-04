@@ -122,9 +122,12 @@ function _goreUnlock(){
   uiShowToast('GORE FILTER UNLOCKED');
   try{ sfx('confirm'); }catch(e){}
   try{ if(window.MV_CONSOLE&&MV_CONSOLE.set) MV_CONSOLE.set('gore'); }catch(e){}
+  // Paulo, Nov 4 (build 362): from now on in this journey the blood stays, in any filter,
+  // and it's saved with this timeline slot
+  try{ if(window.MV_BETA){ if(MV_BETA.storySlot==null||!MV_BETA.on) MV_BETA._bloodPending=true; MV_BETA.bloodOn=true; if(MV_BETA.saveSlotNow) MV_BETA.saveSlotNow(); } }catch(e){}   // entered on the title: it goes with the next journey picked
 }
 function _goreFeed(dir){
-  if(_goreUnlocked()) return;
+  if(_goreUnlocked()&&(!window.MV_BETA||MV_BETA.bloodOn||MV_BETA._bloodPending)) return;   // (a journey without blood can enter it again)
   if(dir===GORE_SEQ[_goreStep]){ _goreStep++; if(_goreStep>=GORE_SEQ.length) _goreUnlock(); }
   else _goreStep=dir===GORE_SEQ[0]?1:0;
 }

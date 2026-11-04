@@ -33,7 +33,7 @@
   function snapshot(){
     return {stageId:B.stageId, mask:_unlockedMask|0, progress:B.progress|0, saves:JSON.parse(JSON.stringify(B.saves||{})),
       popupSeen:Object.assign({},B.popupSeen||{}), isoOwned:!!B.isoOwned, t:Date.now(),
-      hero:(typeof _heroChoice!=='undefined'?_heroChoice:'mind'), intro:true};   // intro: this run has had its story + hero pick
+      hero:(typeof _heroChoice!=='undefined'?_heroChoice:'mind'), intro:true, blood:!!B.bloodOn};   // blood: the GORE code was entered on this file (build 362)   // intro: this run has had its story + hero pick
   }
   function savepoint(push){
     if(B.storySlot==null||!B.stageId) return;
@@ -45,6 +45,7 @@
     if(push&&!lastWriteOk){ while(tl.length>1&&!lastWriteOk){ tl.shift(); writeSlots(s); } }   // storage full: lose the oldest first
   }
   // Savrah (the floppy who keeps the save) calls this: the moment goes into this file's timeline
+  B.saveSlotNow=function(){ try{ savepoint(false); }catch(e){} };
   B.timelinePush=function(){ try{ savepoint(true); }catch(e){ console.warn('timeline',e); } };
   B.storySlots=slots;
 
@@ -116,7 +117,7 @@
     try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
     if(B.newRun) B.newRun();
     if(save.hero&&typeof _heroChoice!=='undefined'){ _heroChoice=save.hero; if(typeof p!=='undefined'&&p) p.hero=save.hero; }
-    B.saves=JSON.parse(JSON.stringify(save.saves||{})); B.progress=save.progress|0; B.popupSeen=Object.assign({},save.popupSeen||{}); B.isoOwned=!!save.isoOwned;
+    if(save.blood) B.bloodOn=true; B.saves=JSON.parse(JSON.stringify(save.saves||{})); B.progress=save.progress|0; B.popupSeen=Object.assign({},save.popupSeen||{}); B.isoOwned=!!save.isoOwned;
     B.results=null; B.popup=null; B.trans=null; B.ending=null; B.contScreen=null; B.overT=0;
     _paused=false; _gameState='game';
     startBetaLab(save.stageId, save.mask|0).catch(err=>console.error('stage load failed',err));
@@ -142,6 +143,7 @@
     const s=slots()[i]; close();
     B.storySlot=i; B.pendingSave=s||null;
     if(s&&pick_ti>=0&&Array.isArray(s.timeline)&&s.timeline.length){ const st=s.timeline[s.timeline.length-1-pick_ti]; if(st) B.pendingSave=Object.assign({},st,{timeline:s.timeline}); }   // a quantum leap to an earlier state
+    B.bloodOn=!!(B.pendingSave&&B.pendingSave.blood)||!!B._bloodPending; B._bloodPending=false;
     if(!s){ _storyNew(); return; }                           // a new file: the storyline first, then the select
     if(s.hero&&typeof _heroChoice!=='undefined') _heroChoice=s.hero;   // a saved file: the select (on its hero), no storyline
     _gameState='select'; if(typeof _selectStep!=='undefined') _selectStep=0; if(typeof _playModeIdx!=='undefined') _playModeIdx=window.MV_SIBLING&&!MV_SIBLING.on?0:1;

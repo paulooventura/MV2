@@ -37,6 +37,21 @@
   // beta_mirror) and his own items stay quiet (main.js) until the doors open.
   { const _hit=window.applyPlayerHit;
     if(typeof _hit==='function') window.applyPlayerHit=function(){ if(S.sealed) return; return _hit.apply(this,arguments); }; }
+  { const _ov=window.drawDamageOverlay;                    // after the world and its characters, before the HUD
+    if(typeof _ov==='function') window.drawDamageOverlay=function(){
+      try{ if(B.on&&B.stageId==='1.3'&&window.MV_CITY&&MV_CITY.doors){ if(typeof _worldZoomBegin==='function') _worldZoomBegin(); try{ MV_CITY.doors(); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); } } }catch(e){}
+      return _ov.apply(this,arguments);
+    }; }
+  // a foe riding in a closed car: out of sight and out of reach, like MIND (build 362)
+  S.cabOf=function(e){
+    if(!B.platforms) return null;
+    const ex=e.x+(e.w||32)/2, ef=e.y+(e.h||32);
+    for(const m of B.platforms){ if(!m.vert||m.x>=23*T||!((m.door||0)>0.7)) continue; if(ex>m.x&&ex<m.x+m.w&&Math.abs(ef-m.y)<14) return m; }
+    return null;
+  };
+  setInterval(()=>{ try{ if(!B.on||B.stageId!=='1.3'||typeof ENEMS==='undefined') return; for(const e of ENEMS) if(e) e._inCab=!!S.cabOf(e); }catch(_e){} },50);
+  { const _de=window._damageEnemy;
+    if(typeof _de==='function') window._damageEnemy=function(e){ if(e&&e._inCab&&!(S.sealed&&S.cab===S.cabOf(e))) return; return _de.apply(this,arguments); }; }
   { const _fx=window._applyEnemyItemFx;
     if(typeof _fx==='function') window._applyEnemyItemFx=function(){ if(S.sealed) return; return _fx.apply(this,arguments); }; }
   const yCache=new Map();

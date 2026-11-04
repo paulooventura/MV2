@@ -30,6 +30,7 @@
   // sees MIND: on screen and a clear line between them
   function sees(e){
     if(window.MV_LIFT&&MV_LIFT.sealed) return false;       // shut in an elevator: out of sight (build 360)
+    if(e&&e._inCab) return false;
     if(typeof _enemyLineClear==='function'&&!_enemyLineClear(e)) return false;
     const vx0=typeof _rcamX==='number'?_rcamX:camX, vy0=typeof _rcamY==='number'?_rcamY:camY;
     const vw=typeof camViewW==='function'?camViewW():W, vh=typeof camViewH==='function'?camViewH():H;
