@@ -160,7 +160,7 @@
     if(p&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)){
       const c={x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5}, d=Math.hypot(c.x-x,(c.y-y)*0.7);
       if(d<110){
-        if(B.hasIsolator&&B.knockIsolator){ B.knockIsolator(Math.sign(c.x-x)||1,'bolt'); p.vy=Math.min(p.vy||0,-5); }
+        if(B.hasIsolator){ p.vy=Math.min(p.vy||0,-5); try{ if(typeof uiShowToast==='function'&&!S._toldIso){ S._toldIso=true; uiShowToast('THE ISOLATOR TOOK THE BOLT!'); } }catch(e){} }   // it takes the bolt and stays on (only D knocks it off, build 356)
         else{
           const dmg=Math.round(62*(1-0.55*clamp((d-30)/80,0,1)));      // a direct hit: ~60 HP
           S.static=0;

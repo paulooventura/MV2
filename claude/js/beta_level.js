@@ -1976,8 +1976,10 @@
     if(B.on&&_gameState==='game') drawBetaHud();
     return r;
   };
-  // ── Top bar (Paulo, Oct 21): MIND's head + lives · HP with the power bar under it ·
+  // ── Top bar (Paulo, Oct 21): MIND's head + lives · the reel while the RCA is out ·
   //   the four jacks as their tips, left to right XLR > RCA > TRS > MAG
+  //   Paulo, Nov 4 (build 356): no HP or power bars up here any more — the game itself
+  //   shows how hurt MIND is and whether a jack is charged.
   function hudHead(x,y,s,dim){                             // MIND's head: dark box, one big eye, black hat
     ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
     ctx.fillStyle=dim?'rgba(255,255,255,0.12)':'#1c1430'; uiRound(-11,-8,22,18,4); ctx.fill();
@@ -1994,20 +1996,14 @@
     const L=typeof uiLayout==='function'?uiLayout():{inset:{t:0,l:0,r:0},phone:false};
     const top=Math.max(6,(L.inset.t||0)+4), left=Math.max(8,(L.inset.l||0)+4), right=W-Math.max(8,(L.inset.r||0)+4);
     const reel=_itemUnlocked(1);
-    const lw=268, lh=reel?128:104;
+    const lw=268, lh=reel?74:48;
     uiPanel(left,top,lw,lh,{r:12,alpha:0.82,flat:true,accent:'rgba(200,170,255,0.55)'});
     ctx.imageSmoothingEnabled=true;
     const lost=B._lifeLostT>0&&(B._lifeLostT>>3)%2;
     hudHead(left+26,top+28,1.15,false);
     drawText('x'+Math.max(0,B.lives|0), left+46, top+8, lost?'#ff6a7a':'#ffffff', 2);
     drawText('CONT '+(B.continues|0), left+100, top+8, '#d8ffc8', 2);
-    const hx=left+10, low=p.hp<=PLAYER_HIT_DMG*2;
-    drawText('HP',hx,top+40,'#ffb0b8',2);
-    uiBar(hx+40,top+42,lw-58,14,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
-    const pw=Math.max(0,Math.min(100,p.itemStamina||0)), pc=pw>50?'#46e06a':(pw>20?'#ffa040':'#ff4a5a');
-    drawText('PWR',hx,top+64,pc,2);
-    uiBar(hx+52,top+66,lw-108,12,pw/100,pc,pw>50?'#c8ffd0':pc,8,{pulse:pw<20});
-    drawText(pw<1&&fr%16<8?'LOW':Math.round(pw)+'%',left+lw-50,top+62,pc,2);
+    const hx=left+10;
     if(reel){
       const hook=p.hook, ven=p.hero==='venture', rc=ven?'#ff4a5a':'#b070ff', rcHi=ven?'#ffb0b8':'#e0c8ff';
       const cmax=typeof CMAX==='number'?CMAX:400, rmin=typeof ROPE_RL_MIN==='number'?ROPE_RL_MIN:28;
@@ -2017,8 +2013,8 @@
       const strain=live&&hook.st==='on'?Math.min(1,window.MV_ROPE_STRAIN||0):0;
       const bc=strain>0.75?'#ff4040':strain>0.45?'#ffc040':rc, bh=strain>0.45?'#fff0c0':rcHi;
       ctx.globalAlpha=live?1:0.45;
-      drawText('REEL',hx,top+90,bc,2);
-      uiBar(hx+58,top+92,lw-76,10,f,bc,bh,3,{pulse:strain>0.75});
+      drawText('REEL',hx,top+46,bc,2);
+      uiBar(hx+58,top+48,lw-76,10,f,bc,bh,3,{pulse:strain>0.75});
       ctx.globalAlpha=1;
     }
     if(_nearKnowlTree(p)){ ctx.globalAlpha=0.6+0.4*Math.sin(fr*0.2); drawText('TREE 2X',left+100,top+28,C.MINT,2); ctx.globalAlpha=1; }

@@ -1103,7 +1103,7 @@
 
   // ── The Isolator pickup ───────────────────────────────────────
   // Paulo, Oct 22 (build 265): the Isolator doesn't wear off any more — but a hit knocks it off
-  // (an enemy, a blast, a lightning bolt it takes for you). It pops off and bounces away; grab it
+  // (since build 356 only D's hits do). It pops off and bounces away; grab it
   // again. The crate still grows back 30 s after you first take it.
   const ISO_RESPAWN=1800;                                  // frames (60 fps)
   B.ISO_TIME=0;
@@ -1117,10 +1117,12 @@
     isoBurst(x,y,16,'#c86a30'); try{ zap(0.6); sfx('hit',0.7); }catch(e){}
     if(typeof uiShowToast==='function') uiShowToast(why==='bolt'?'THE ISOLATOR TOOK THE BOLT - AND FLEW OFF! GRAB IT':'THE ISOLATOR GOT KNOCKED OFF! GRAB IT');
   };
-  // any hit that hurts knocks it off
+  // Paulo, Nov 4 (build 356): only D (the mirror antagonist) knocks it off — any other
+  // hit, a blast or a lightning bolt leaves it on
   const _origHit=window.applyPlayerHit;
   if(_origHit) window.applyPlayerHit=function(kx,ky,dmg){
-    const had=on()&&B.hasIsolator&&(dmg==null||dmg>0)&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(p.inv>0);
+    const byD=!!(window._mirrorActing||(window._hitShotSrc&&window._hitShotSrc.mirror));
+    const had=byD&&on()&&B.hasIsolator&&(dmg==null||dmg>0)&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(p.inv>0);
     const r=_origHit.apply(this, arguments);
     if(had&&!window._skipIsoKnock) B.knockIsolator(Math.sign(kx||0)||null,'hit');
     return r;
