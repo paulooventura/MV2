@@ -45,7 +45,7 @@
   function stable(t){ if(t<=1) return 1; if(t<2+MAXC) return (1+t*MAXC)/(1+MAXC); return (t+MAXC)/2; }
 
   // ── Level hooks ────────────────────────────────────────────────
-  B.onLevelStart=function(){ B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.magCore=null; B.wRings=[];
+  B.onLevelStart=function(){ B.torrents=[]; B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.magCore=null; B.wRings=[];
     B.drops=[]; B.steam=[]; F.ready=false; F.rects=[]; F.M=null; };
   B.onEntities=function(ents, Fd, cell){
     for(const e of ents){
@@ -959,13 +959,60 @@
   }
 
   // ── A plug of electro blocks gives way: the rush of water ──────
+  // Paulo, Nov 4 (build 367): the bigger the body of water a plug was holding back, the bigger
+  //   the wave torrent when it gives way: the water bursts out harder and longer, and the rush
+  //   shoves MIND, foes, cubes and loose things downstream with force that grows with the volume
+  //   and the depth behind the gap.
+  function reservoir(bw){
+    const {NX,NY,M,BLK,CS}=F, seen=new Uint8Array(NX*NY), q=[];
+    for(let dy=-8;dy<=bw.h+8;dy+=8) for(let dx=-14;dx<=bw.w+14;dx+=14){ const i=cellFor(bw.x+dx,bw.y+dy); if(i>=0&&!BLK[i]&&M[i]>0.05&&!seen[i]){ seen[i]=1; q.push(i); } }
+    let vol=0, sx=0, top=1e9, bot=-1;
+    for(let h=0;h<q.length&&q.length<40000;h++){
+      const i=q[h], x=i%NX, y=(i/NX)|0; vol+=M[i]; sx+=x*M[i]; if(y<top) top=y; if(y>bot) bot=y;
+      for(const j of [i-1,i+1,i-NX,i+NX]){ if(j<0||j>=NX*NY||seen[j]) continue; if(Math.abs((j%NX)-x)>1) continue; if(BLK[j]||M[j]<=0.05) continue; seen[j]=1; q.push(j); }
+    }
+    if(vol<=0) return null;
+    const cx=(sx/vol+0.5)*CS, gx=bw.x+bw.w/2;
+    return {vol, depth:Math.max(1,bot-top+1)*CS, dir:gx>=cx?1:-1};   // the water rushes out away from where it sits
+  }
+  B.torrents=[];
   function plugTick(){
     for(const bw of BWALLS){
       if(!bw.plug||bw.hp>0||bw._gushed) continue;
       bw._gushed=true;
-      let wet=false;
-      for(let dy=-8;dy<=bw.h+8&&!wet;dy+=8) for(let dx=-12;dx<=bw.w+12;dx+=12) if(waterAt(bw.x+dx,bw.y+dy)){ wet=true; break; }
-      if(wet&&!B._gushFr||wet&&fr-B._gushFr>90){ B._gushFr=fr; try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_SPATIAL_from(bw),MV_BETA_AUDIO.splash(1); sfxAt(bw,'water_gush'); }catch(e){} B.shake=Math.max(B.shake||0,4); }
+      if(!F.ready) continue;
+      const R=reservoir(bw); if(!R) continue;
+      const near=B.torrents.find(t=>Math.abs(t.x-(bw.x+bw.w/2))<T*2&&t.t<20);
+      if(near){ near.y0=Math.min(near.y0,bw.y); near.y1=Math.max(near.y1,bw.y+bw.h); continue; }   // the rest of the same plug
+      // energy ~ volume x depth: a pool's worth is a strong shove, a whole tank is a wave
+      const amp=Math.max(0.4,Math.min(6,Math.sqrt(R.vol)*Math.sqrt(R.depth/T)/18));
+      B.torrents.push({x:bw.x+bw.w/2, y0:bw.y, y1:bw.y+bw.h, dir:R.dir, amp, t:0, dur:Math.round(50+amp*45), vol:R.vol});
+      try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from(bw); MV_BETA_AUDIO.splash(Math.min(1,0.4+amp/6)); } sfxAt(bw,'water_gush'); }catch(e){}
+      B.shake=Math.max(B.shake||0,Math.min(16,3+amp*2.2));
+    }
+    torrentTick();
+  }
+  function torrentTick(){
+    for(let i=B.torrents.length-1;i>=0;i--){
+      const t=B.torrents[i]; t.t++;
+      if(t.t>t.dur){ B.torrents.splice(i,1); continue; }
+      const k=t.amp*Math.pow(1-t.t/t.dur,1.3);                     // strongest at the break, fading as it drains
+      // the water itself: a push out through the gap, every row of it
+      for(let y=t.y0-T;y<=t.y1+T;y+=F.CS) for(const ox of [-T,0,T]) shove(t.x+ox,y,t.dir,0.05*k);
+      // the rush downstream: a fan that widens and reaches farther the more water there was
+      const reach=T*(4+t.amp*3), x0=t.x, x1=t.x+t.dir*reach;
+      for(const b of bodies()){
+        const cx=b.x+b.w/2, cy=b.y+b.h/2, along=(cx-x0)*t.dir;
+        if(along<-T||along>reach) continue;
+        if(cy<t.y0-T*3||cy>t.y1+T*4+along*0.5) continue;
+        if(!waterAt(cx,cy)&&!waterAt(cx,b.y+b.h-4)) continue;
+        const f=k*(1-Math.max(0,along)/reach)*0.55/Math.max(0.6,Math.sqrt((b.m||3)/3));
+        if(b.me&&p){ p.vx+=t.dir*f; p.vy-=f*0.12; }
+        else{ const r=b.ref; r.vx=(r.vx||0)+t.dir*f; r.vy=(r.vy||0)-f*0.1; if(b.enemy&&typeof _markEnemyItemForce==='function') _markEnemyItemForce(r,20); if(r.cube&&!r._fly&&f>1.2&&B.throwCube) B.throwCube(r,t.dir*f*3,-f); }
+      }
+      if(t.t%2===0) for(let n=0;n<Math.ceil(1+k*1.5);n++){ const y=t.y0+Math.random()*(t.y1-t.y0+T);
+        PFXS.push({x:t.x+t.dir*(6+Math.random()*10),y,vx:t.dir*(2+k*2.2+Math.random()*2),vy:-1-Math.random()*(1+k*0.6),life:16+Math.random()*12|0,maxLife:28,r:1.6+Math.random()*1.8+k*0.2,col:Math.random()<0.5?'#bfe6ff':'#ffffff'}); }
+      if(t.t%10===0) wave(x1,-k*0.6,1);
     }
   }
   // where a falling stream hits standing water or the floor: spray (looks only)

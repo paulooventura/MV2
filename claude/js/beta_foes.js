@@ -393,11 +393,16 @@
     const s=B.savePt;
     if(s&&Math.abs(P.x-s.x)<40&&Math.abs(P.y-(s.y-20))<70){
       if(!s.near){ s.near=true; s.used=true; s.say=200;
+        // Paulo, Nov 4 (build 367): the first time in this journey she gives MIND a spare battery
+        // (a battery is what reboots him after a shutdown); her line says so.
+        B.popupSeen=B.popupSeen||{};
+        if(!B.popupSeen.savrahBattery){ B.popupSeen.savrahBattery=true; s.gift=true; s.say=330; B.lives=(B.lives|0)+1; if(B.showLives) B.showLives(false); try{ S('item_get'); }catch(er){} }
+        else s.gift=false;
         _spawnX=s.x-SW/2; _spawnY=s.y-FEET_OFF; B.safe={x:_spawnX,y:_spawnY};
         try{ if(B.saveStage) B.saveStage(); }catch(er){}
         try{ if(B.timelinePush) B.timelinePush(); }catch(er){}
         burst(s.x,s.y-24,20,['#60d0ff','#ffffff'],3); S('chargeReady',1.2);
-        if(typeof uiShowToast==='function') uiShowToast('SAVRAH SAVED THIS MOMENT TO YOUR TIMELINE');
+        if(typeof uiShowToast==='function') uiShowToast(s.gift?'+1 BATTERY  -  SAVRAH SAVED THIS MOMENT':'SAVRAH SAVED THIS MOMENT TO YOUR TIMELINE');
       }
     }else if(s) s.near=false;
     if(s&&s.say>0) s.say--;
@@ -771,7 +776,7 @@
     for(let i=0;i<3;i++){ const u=((fr*0.02+i/3)%1), nx=x+sw(34)+Math.sin(u*6+i)*sw(5), ny=by-sw(2)-u*sw(34);
       ctx.globalAlpha=1-u; ctx.fillStyle='#bfe6ff'; ctx.beginPath(); ctx.ellipse(nx,ny,sw(2.6),sw(2),-0.4,0,Math.PI*2); ctx.fill(); ctx.fillRect(nx+sw(2),ny-sw(7),sw(1.2),sw(7)); ctx.globalAlpha=1; }
     // what she says
-    if(near){ const txt="AH, IT'S SO GOOD TO SEE YOU!", w=Math.min(W-20,Math.max(sw(190),txt.length*9+24)), bx=Math.max(10,Math.min(W-w-10,x-w/2)), bY=by-sw(66);
+    if(near){ const txt=s.gift?"IT'S SO NICE TO SEE YOU! HERE'S A BATTERY!":"AH, IT'S SO GOOD TO SEE YOU!", w=Math.min(W-20,Math.max(sw(190),txt.length*9+24)), bx=Math.max(10,Math.min(W-w-10,x-w/2)), bY=by-sw(66);
       ctx.fillStyle='rgba(8,14,28,0.88)'; ctx.fillRect(bx,bY,w,26); ctx.strokeStyle='#7ac8ff'; ctx.lineWidth=1.5; ctx.strokeRect(bx,bY,w,26);
       ctx.fillStyle='rgba(8,14,28,0.88)'; ctx.beginPath(); ctx.moveTo(x-6,bY+26); ctx.lineTo(x+6,bY+26); ctx.lineTo(x,bY+34); ctx.fill();
       wt(drawTextC,txt,bx+w/2,bY+9,'#e8f4ff',1); }

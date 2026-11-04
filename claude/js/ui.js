@@ -763,7 +763,7 @@ function drawHUD(){
   uiBar(hpX+40,top+54,lw-58,14,p.hp/p.maxHp,'#ff3c5a','#ffb04a',10,{pulse:low});
   if(typeof _campaignUsesLives==='function'&&_campaignUsesLives()){
     const leftN=Math.max(0,(typeof SHUT_LIMIT!=='undefined'?SHUT_LIMIT:5)-(_playerShutCount||0));
-    drawText('LIVES '+leftN,hpX,top+32,'#d8ffc8',2);
+    drawText('BATTERIES '+leftN,hpX,top+32,'#d8ffc8',2);
   }
   const pwrCol=p.itemStamina>50?'#46e06a':(p.itemStamina>20?'#ffa040':'#ff4a5a');
   drawText('PWR',hpX,top+76,pwrCol,2);
