@@ -17,8 +17,8 @@
   const IMG={}, FEATHER={};
   for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
   const HERO={
-    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  Â·  BIG IDEAS'},
-    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  Â·  ALL NERVE'},
+    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},
@@ -163,12 +163,15 @@
     if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
     return (FEATHER[ck]=off);
   }
-  function heroCard(key,cx,sel,k,box,topName){
+  // scl (desktop only): the card's size, 1 = full; smaller cards sit centred on the full card's height
+  function heroCard(key,cx,sel,k,box,topName,scl){
     const H0=HERO[key], im=IMG[key];
-    const sc=0.9+0.1*k;
+    const sc=scl!=null?scl:0.9+0.1*k;
     let w,h,x,y,sk;
     if(box){ w=box.w; h=box.h; x=box.x; y=box.y+(sel?Math.sin(fr*0.07)*3:0); sk=12; cx=x+w/2; }
+    else if(scl!=null){ w=Math.round(340*sc); h=Math.round(480*sc); x=Math.round(cx-w/2); y=Math.round(150+(480-h)/2+(sel?Math.sin(fr*0.07)*4:0)); sk=22*sc; }
     else { w=Math.round(340*sc); h=Math.round(480*sc); x=Math.round(cx-w/2); y=Math.round(130+(1-k)*26+(sel?Math.sin(fr*0.07)*4:0)); sk=22*sc; }
+    const small=!box&&sc<0.8;
     // drop shadow + light rays behind the lead
     if(k>0.05) rays(cx,y+h*0.42,H0.glow,k);
     ctx.save(); ctx.fillStyle='rgba(0,0,0,0.55)'; cardPath(x+8,y+10,w,h,sk); ctx.fill(); ctx.restore();
@@ -201,9 +204,9 @@
     // name + role + tag. On a phone the face buttons cover the bottom, so the name sits high.
     const ny=topName?y+16:(h<200?y+Math.max(8,h-86):y+h-112);
     ctx.save(); if(!sel) ctx.globalAlpha=0.55;
-    uiLogo(H0.name,cx,ny,sel?50:40,{col:H0.col,sweep:200});
-    drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200?2:3);
-    if(h>=200) drawTextC(H0.tag,cx,ny+70,sel?H0.col:'#8aa090',2);
+    uiLogo(H0.name,cx,ny,small?32:(sel?50:40),{col:H0.col,sweep:200});
+    drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200||small?2:3);
+    if(h>=200&&!small) drawTextC(H0.tag,cx,ny+70,sel?H0.col:'#8aa090',2);
     ctx.restore();
     // badge: LEAD / ALLY (or P1 in local co-op)
     const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
@@ -293,20 +296,77 @@
     }
     hints();
   }
+  // The qualities, read from the game's own numbers (player.js HERO_STATS, physics.js LIFE_REGEN_*,
+  // main.js power refill, beta_level.js weights), so the screen can't drift from how they play.
+  // Each bar is that brother against the stronger of the two; the thin tick is the other brother.
+  let QROWS=null, QLAB=0;
+  const qBar=[];
+  function qualityRows(){
+    const HS=typeof HERO_STATS!=='undefined'?HERO_STATS:{mind:{top:1,accel:1,punch:{dmg:13,loadF:24,loadDmg:40,loadReach:54}},venture:{top:0.9,accel:1.3,punch:{dmg:18,loadF:14,loadDmg:30,loadReach:66}}};
+    const regM=typeof LIFE_REGEN_FRAMES!=='undefined'?LIFE_REGEN_FRAMES:60, regV=typeof LIFE_REGEN_FRAMES_VEN!=='undefined'?LIFE_REGEN_FRAMES_VEN:84;
+    const wM=(window.MV_BETA&&MV_BETA.WEIGHT&&MV_BETA.WEIGHT.mindTotal)||9.5, wV=7.6;   // Venture's 7.6: beta_level.js bodyMass
+    const m=HS.mind, v=HS.venture;
+    return [
+      ['TOP SPEED', m.top, v.top],
+      ['PICK-UP', m.accel, v.accel],
+      ['PUNCH', m.punch.dmg, v.punch.dmg],
+      ['LOADED PUNCH', m.punch.loadDmg, v.punch.loadDmg],
+      ['QUICK LOAD', 1/m.punch.loadF, 1/v.punch.loadF],
+      ['LOADED REACH', m.punch.loadReach, v.punch.loadReach],
+      ['HEALING', 1/regM, 1/regV],
+      ['POWER REFILL', 1.5, 2.1],                                                         // main.js itemStamina refill
+      ['WEIGHT', wM, wV],
+    ];
+  }
+  function qualities(x0,x1){
+    const pw=Math.min(440,Math.round(x1-x0)); if(pw<240) return;
+    if(!QROWS){ QROWS=qualityRows(); for(const r of QROWS) QLAB=Math.max(QLAB,textW(r[0],2)); }
+    const key=_heroChoice==='venture'?'venture':'mind', other=key==='mind'?'venture':'mind', H0=HERO[key], H1=HERO[other];
+    const px=Math.round((x0+x1)/2-pw/2), py=214, ph=406;
+    const since=fr-(anim.swF||0);
+    if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:12,flat:true,accent:H0.col,alpha:0.82});
+    const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
+    ctx.save(); ctx.translate(px+pw/2,py-14); ctx.scale(pz,pz); uiLogo('&',0,-22,44,{col:'#b8f5a0',sweep:180}); ctx.restore();
+    drawText(H0.name,px+16,py+22,H0.col,2);
+    const lg=textW(H1.name,1); ctx.fillStyle=H1.col; ctx.fillRect(px+pw-16-lg-10,py+22,3,14); drawText(H1.name,px+pw-16-lg,py+25,H1.col,1);
+    const lx=px+16, bx=lx+QLAB+12, bw=px+pw-16-bx, ry0=py+58, rowH=Math.floor((ph-58-14)/QROWS.length);
+    for(let i=0;i<QROWS.length;i++){
+      const [lab,mv,vv]=QROWS[i], mx=Math.max(mv,vv), me=(key==='mind'?mv:vv)/mx, ot=(key==='mind'?vv:mv)/mx;
+      if(since>i*3) qBar[i]=(qBar[i]||0)+(me-(qBar[i]||0))*0.16;
+      const f=qBar[i]||0, ry=ry0+i*rowH, best=me>=0.999, fw=Math.round((bw-2)*f);
+      drawText(lab,lx,ry,best?'#ffffff':'#b7c8b4',2);
+      ctx.fillStyle='rgba(2,8,4,0.85)'; ctx.fillRect(bx,ry+2,bw,12);
+      ctx.strokeStyle='rgba(120,150,130,0.45)'; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,ry+2.5,bw-1,11);
+      ctx.fillStyle=H0.col;                                                                // segmented, like a VU meter
+      for(let sx=0;sx<fw;sx+=6) ctx.fillRect(bx+1+sx,ry+3,Math.min(5,fw-sx),10);
+      if(best&&fw>8){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.3+0.25*Math.sin(fr*0.12+i); ctx.fillRect(bx+fw-7,ry+1,8,14); ctx.restore(); }
+      ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle=H1.col; ctx.fillRect(bx+1+Math.round((bw-2)*ot)-2,ry-1,3,18); ctx.restore();
+    }
+  }
   function drawHeroes(){
     const mSel=_heroChoice==='mind';
-    if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; eyeT=1; eyeKey=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
+    if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; anim.swF=fr; eyeT=1; eyeKey=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
     eyeT*=0.9;
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
     const one=window.uiLayout&&uiLayout().oneCol;
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS. PLAYER 2 RIDES.':(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
+    // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
+    // qualities panel fills the middle between them.
     const order=mSel?['venture','mind']:['mind','venture'];
+    const SM=0.6, M=40, leadX=M+22+170, smallX=M+22*SM+170*SM;
+    const pos={}, cards={};
+    for(const k of ['mind','venture']){
+      const t=anim[k], c=leadX*t+smallX*(1-t)+(k===_heroChoice?anim.punch*10:0);
+      pos[k]={cx:k==='mind'?c:W-c, scl:SM+(1-SM)*t};
+    }
     heroRects=[];
-    for(const k of order) heroRects.push(Object.assign({k}, heroCard(k, k==='mind'?W*0.29-(k===_heroChoice?anim.punch*10:0):W*0.71+(k===_heroChoice?anim.punch*10:0), k===_heroChoice, anim[k])));
-    const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
-    ctx.save(); ctx.translate(W/2,H*0.48); ctx.scale(pz,pz); uiLogo('&',0,-30,54,{col:'#b8f5a0',sweep:180}); ctx.restore();
+    for(const k of order){ cards[k]=heroCard(k, pos[k].cx, k===_heroChoice, anim[k], null, false, pos[k].scl); heroRects.push(Object.assign({k}, cards[k])); }
+    const sk=s=>22*s;
+    const gapL=pos.mind.cx+170*pos.mind.scl+sk(pos.mind.scl)+18, gapR=pos.venture.cx-170*pos.venture.scl-sk(pos.venture.scl)-18;
+    qualities(gapL, gapR);
     sparkTick();
     if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
     hints();
