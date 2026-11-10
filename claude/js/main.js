@@ -1251,6 +1251,24 @@ function update(){
 }
 
 // ── Main draw loop ────────────────────────────────────────────
+// T202 (Paulo: sports-mode sparks "not reading on screen"): engine sparks (beta_engine.js cornerSparks,
+// spark:true) are drawn here, after MIND, the foes and the foreground, so nothing paints over them:
+// a soft glow, a hot streak along the flight and a white-hot core, all additive.
+function drawSparks(){
+  if(!PFXS.length) return;
+  const W2=v=>typeof sw==='function'?sw(v):v, L=3.6;
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+  for(const pf of PFXS){
+    if(!pf.spark) continue;
+    const t=pf.life/pf.maxLife, x0=sx(pf.x), y0=sy(pf.y), a=Math.min(1,0.45+t);
+    ctx.globalAlpha=a*0.35; ctx.fillStyle=pf.col; ctx.beginPath(); ctx.arc(x0,y0,Math.max(4,W2(pf.r*4.2)),0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=a; ctx.strokeStyle=pf.col; ctx.lineWidth=Math.max(2.5,W2(pf.r*2.6));
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(sx(pf.x-pf.vx*L),sy(pf.y-pf.vy*L)); ctx.stroke();
+    ctx.strokeStyle='#fff4c8'; ctx.lineWidth=Math.max(1.2,W2(pf.r*1.1));
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(sx(pf.x-pf.vx*L*0.45),sy(pf.y-pf.vy*L*0.45)); ctx.stroke();
+  }
+  ctx.restore();
+}
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);
   if(_gameState==='title'){drawTitle();return;}
@@ -1284,7 +1302,9 @@ function draw(){
     }
   }
   drawGoal();
-  for(const pf of PFXS){const t=pf.life/pf.maxLife;if(pf.shimmer){ctx.globalAlpha=Math.min(1,t*1.1);ctx.fillStyle=pf.col;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(0.6+t*0.5),0,Math.PI*2);ctx.fill();if(t>0.5){ctx.globalAlpha=(t-0.5)*0.5;ctx.strokeStyle=pf.col;ctx.lineWidth=1;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(1.2+t),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;continue;}if(t<0.4&&(fr&1))continue;ctx.fillStyle=pf.col;const pr=t>0.6?2:1;ctx.fillRect(sx(pf.x),sy(pf.y),pr,pr);}
+  for(const pf of PFXS){const t=pf.life/pf.maxLife;
+    if(pf.spark) continue;                             // drawn last in the world pass, on top (drawSparks)
+    if(pf.shimmer){ctx.globalAlpha=Math.min(1,t*1.1);ctx.fillStyle=pf.col;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(0.6+t*0.5),0,Math.PI*2);ctx.fill();if(t>0.5){ctx.globalAlpha=(t-0.5)*0.5;ctx.strokeStyle=pf.col;ctx.lineWidth=1;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(1.2+t),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;continue;}if(t<0.4&&(fr&1))continue;ctx.fillStyle=pf.col;const pr=t>0.6?2:1;ctx.fillRect(sx(pf.x),sy(pf.y),pr,pr);}
   for(const s of ESHOTS){if(s.type==='laser')continue;const bx=sx(s.x),by=sy(s.y);if(s.type==='signol_frag'){const r=sw(s.r||5),dull=s.settled,ageAfterStop=dull?(fr-(s.stopFr||fr)):0,fade=dull?Math.max(0.2,1-ageAfterStop/SIGNOL_FRAG_STOP_FADE):1,pulse=dull?0.55:0.85+0.15*Math.sin(fr*0.35+s.x*0.1);ctx.globalAlpha=fade*pulse;if(dull){ctx.fillStyle='#6a4030';ctx.fillRect(bx-r*0.6,by-r*0.4,r*1.2,r*0.9);ctx.fillStyle='#4a3028';ctx.fillRect(bx-r*0.35,by-r*0.2,r*0.7,r*0.45);}else{const ta=Math.atan2(s.vy||0,s.vx||-0.01)+Math.PI;for(let fi=0;fi<3;fi++){const d=fi*5+2;ctx.globalAlpha=fade*(0.4-fi*0.1);ctx.fillStyle=fi===0?'#ffff55':(fi===1?'#ff8800':'#ff3300');ctx.beginPath();ctx.arc(sx(s.x+Math.cos(ta)*d),sy(s.y+Math.sin(ta)*d),r*(0.38-fi*0.09),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=fade*pulse;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(bx,by,r,0,Math.PI*2);ctx.fill();ctx.fillStyle=(fr&1)?C.YELLOW:C.ORANGE;ctx.beginPath();ctx.arc(bx,by,r*0.55,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.WHITE;ctx.fillRect(bx-1,by-1,2,2);}ctx.globalAlpha=1;continue;}const sp=Math.hypot(s.vx,s.vy)||1,ux=s.vx/sp,uy=s.vy/sp;ctx.fillStyle=C.RED;ctx.fillRect(bx-1,by-1,3,2);ctx.fillStyle=(fr&1)?C.ORANGE:C.YELLOW;ctx.fillRect(bx,by-1,1,1);ctx.fillStyle=C.ORANGE;ctx.fillRect(bx-Math.round(ux*3),by-Math.round(uy*3)-1,1,1);}
   if(typeof drawKnowlTree==='function') drawKnowlTree();
   drawKnowlTreeAura(); drawRopePickup(); drawItemDrops(); drawKnowl();
@@ -1304,6 +1324,7 @@ function draw(){
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
+  drawSparks();
   } finally { _worldZoomEnd(); }
   if(typeof _drawSportBlur==='function') _drawSportBlur();
   drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();

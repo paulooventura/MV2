@@ -163,12 +163,13 @@
     const t=tailOf(), hot=Math.max(0.25,heat||0);
     for(let i=0;i<n;i++){
       const col=Math.random()<0.3?'#ffe08a':(Math.random()<0.55?'#ff6a18':'#ff3810');
-      PFXS.push({x:t.x+(Math.random()-0.5)*7,y:t.y+(Math.random()-0.5)*5,vx:t.back*(2.2+Math.random()*7)+(Math.random()-0.5)*2.4,vy:-1.2-Math.random()*(2.4+hot*4),life:9+(Math.random()*8|0),maxLife:18,r:1.05+Math.random()*1.35,col});
+      // spark:true = main.js draws it as a glowing streak (T202: plain particles are 1-2 px dots, unreadable)
+      PFXS.push({x:t.x+(Math.random()-0.5)*7,y:t.y+(Math.random()-0.5)*5,vx:t.back*(2.2+Math.random()*7)+(Math.random()-0.5)*2.4,vy:-1.2-Math.random()*(2.4+hot*4),life:20+(Math.random()*14|0),maxLife:34,r:1.05+Math.random()*1.35,col,spark:true});
     }
   }
   function sportBurst(){
     for(let i=0;i<8;i++) exhaustPuff(0.85);
-    cornerSparks(14, 1);
+    cornerSparks(18, 1);
   }
   // a short throttle stab: the note jumps, then sits, like a blip of the pedal
   // Paulo, Nov 4 (build 370): the key switch, the start-up, the shut-down and the rev used to
@@ -237,7 +238,7 @@
       if(dbl){
         bark(); pop(0.9,0.01); pop(0.7,0.07); crackle(3+(Math.random()*2|0), true); bang(0.3);
         S.rev=12; S.blip=Math.max(S.blip||0, 14);
-        cornerSparks(16, 1); exhaustPuff(0.9); exhaustPuff(0.6);
+        cornerSparks(22, 1); exhaustPuff(0.9); exhaustPuff(0.6);
       }
     }
   }
