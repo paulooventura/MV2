@@ -182,7 +182,7 @@
       label('INSTRUCTION BOOKLET',x+w/2,y+18,22,'#fff8e6','center');
       if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#b8f5a0',sweep:9999});
       label('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,16,'#9ef58a','center');
-      mmrSeal(x+w-78,y+h-78,92);
+      mmrSeal(x+w-64,y+h-64,72);   // clear of the build line above (92 px at -78 covered its last word)
       label('AN M.M.R. GAME',x+30,y+h-62,16,'#c8b8ff');
     },
     // 2 · the story
