@@ -388,6 +388,9 @@
     const overX=q=>p&&p.x+8<q.x+q.w+10&&p.x+SW-8>q.x-10;
     if(m0&&m0.vert&&p&&overX(m0)&&(m0.wrapped||(!m0.hidden&&Math.abs(p.y+FEET_OFF-(m0.y-(m0.dy||0)))<=12&&(p.vy||0)>=-0.4))){
       if(m0.wrapped){
+        // T171: a rope anchored to the world can't follow the car round the loop (it would run the
+        // height of the building through rock), so it snaps free. One latched to this car rides along.
+        { const h=p.hook; if(h&&h.st&&h.st!=='idle'&&h._mplat!==m0&&typeof _detachPlayerRope==='function') _detachPlayerRope(h,'snap'); }
         p.y=m0.y-FEET_OFF; p.vy=0; p.og=true;
       }else{
         const ny=m0.y-FEET_OFF, hx=p.x+SW/2, rising=(m0.dy||0)<0;
@@ -435,7 +438,29 @@
       }
       if(h._mplat){ h.ax=h._mplat.x+h._mdx; h.ay=h._mplat.y+h._mdy; h.ex=h.ax; h.ey=h.ay; if(h._path&&h._path[0]){ h._path[0].x=h.ax; h._path[0].y=h.ay; } }
     }else if(h){ h._mplatChecked=false; h._mplat=null; }
+    ropeRockGuard();
     if(window.MV_LIFT&&MV_LIFT.afterPlatforms) MV_LIFT.afterPlatforms();
+  }
+  // T171 ("rope through rock", probe-old-bugs ropeWalls): if any stretch of the line, anchor -> pivots
+  // -> MIND, runs through more than 24 px of solid rock for 4 frames running, it snaps free, the way
+  // letting go does. Catches whatever carried MIND away from his rope (a car, a gust, a torrent).
+  let ropeInRock=0;
+  function ropeRockGuard(){
+    const h=p&&p.hook;
+    if(!h||h.st!=='on'||typeof gridWorldSolid!=='function'||typeof ropePlayerEndWorld!=='function'){ ropeInRock=0; return; }
+    const pts=[{x:h.ax,y:h.ay}].concat(h.pivots||[], [ropePlayerEndWorld()]);
+    let worst=0;
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i], b=pts[i+1], L=Math.hypot(b.x-a.x,b.y-a.y), n=Math.max(1,Math.ceil(L/3));
+      let run=0;
+      for(let j=0;j<=n;j++){
+        const d=j/n*L; if(d<8||d>L-8){ run=0; continue; }
+        if(gridWorldSolid(a.x+(b.x-a.x)*j/n, a.y+(b.y-a.y)*j/n)){ run+=L/n; if(run>worst) worst=run; } else run=0;
+      }
+    }
+    ropeInRock=worst>24?ropeInRock+1:0;
+    // a long run is never a corner being rounded: snap now
+    if(ropeInRock>=4||worst>64){ ropeInRock=0; if(typeof _detachPlayerRope==='function') _detachPlayerRope(h,'snap'); }
   }
   // the hook can bite a moving platform
   const _origRay=window._hookRayHit;
