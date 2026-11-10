@@ -2268,7 +2268,7 @@
     {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
     {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE. TAP UP PAYS OUT ALL THE SLACK.','TAP DOWN MAKES IT TAUT, JACK TIP TO THE LATCH.','A LIGHTER CATCH IS PULLED TO THE JACK. HOLD THAT','SLACK 1.5S, OR TAP UP AGAIN, AND IT SNAPS FREE.']},
     {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
-    {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY ONE THING: A BLOCK,','AN ENEMY OR A KNOWL. AIM DOWN AND IT LOCKS TO','THE FLOOR. THE GRIP WEAKENS AS POWER DRAINS.','SWING THE ARM AND LET GO TO THROW.']}
+    {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY ONE THING: A BLOCK,','AN ANTAGONIST OR A KNOWL. AIM DOWN AND IT LOCKS TO','THE FLOOR. THE GRIP WEAKENS AS POWER DRAINS.','SWING THE ARM AND LET GO TO THROW.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
   // Paulo: the item card only comes up the first time you get that item
@@ -2317,8 +2317,8 @@
       ['KNOWL SEEDS', n.seeds+' / '+B.need.seeds, n.seeds*100],
       ['KNOWL CRYSTALS', n.crystals+' / '+B.need.crystals, n.crystals*300],
       ['ITEMS FOUND', st.items+' / '+(B.itemsTotal||4), st.items*200],
-      ['ENEMY SHUTDOWNS', String(st.shutdowns), st.shutdowns*50],
-      ['ENEMIES OFF FOR GOOD', String(st.permOff), st.permOff*100],
+      ['ANTAGONIST SHUTDOWNS', String(st.shutdowns), st.shutdowns*50],
+      ['ANTAGONISTS OFF FOR GOOD', String(st.permOff), st.permOff*100],
       ['CAGE BLASTS', String(st.booms), st.booms*20],
       ['TIME BONUS', fmtTime(st.frames), Math.max(0,Math.round((480-secs)*5))],
       ['NO-HIT BONUS', st.hits+' HITS', st.hits===0?1000:st.hits<=2?400:0]
@@ -2328,8 +2328,8 @@
     if(secs<240) ach.push('SPEED RUNNER - UNDER 4:00');
     if(st.hits===0) ach.push('UNTOUCHED - NO HITS TAKEN');
     if(st.booms>=5) ach.push('DEMOLITION CREW - 5+ CAGE BLASTS');
-    if(st.shutdowns===0) ach.push('GENTLE SOUL - NO ENEMY SHUT DOWN');
-    if(st.permOff>=2) ach.push('LIGHTS OUT - 2 ENEMIES OFF FOR GOOD');
+    if(st.shutdowns===0) ach.push('GENTLE SOUL - NO ANTAGONIST SHUT DOWN');
+    if(st.permOff>=2) ach.push('LIGHTS OUT - 2 ANTAGONISTS OFF FOR GOOD');
     if(st.items>=(B.itemsTotal||4)&&B.stageId==='1.1') ach.push('FULL KIT - ALL 4 JACKS');
     if(B.extraAch) for(const a of B.extraAch()) ach.push(a);
     const rank=total>=5000?'S':total>=4000?'A':total>=3000?'B':'C';

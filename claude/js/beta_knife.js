@@ -264,12 +264,12 @@
   window.MV_SIB_JACK={ use:sibUse, SJ };
 
   // ── the boss intro ───────────────────────────────────────────
-  // PAULO: final lines
+  // Paulo (Nov 2): option B
   const LINES=[
-    'SO. A LITTLE SPEAKER ROLLS INTO MY BOWL.',
-    'YOUR KNOWLS ARE NOISE. YOUR SONG IS A LIE.',
-    'SEVEN CORNERS. SEVEN SILENCES. KNEEL.',
-    'COME, THEN. LET ME UNPLUG YOU.'
+    'OH! LITTLE VISITORS!',
+    'I HAVE SEVEN NOTES INSIDE.',
+    'TRADZKUL LETS ME PLAY ONE.',
+    'HELP ME REMEMBER?'
   ];
   function introTick(){
     const I=intro; I.t++;

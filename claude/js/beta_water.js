@@ -1221,7 +1221,7 @@
     return false;
   };
   if(B.ITEM_INFO&&!B.ITEM_INFO[4]) B.ITEM_INFO[4]={name:'THE ISOLATOR', lines:['A RUBBER WRAP FOR A SPEAKER. WITH IT ON,','MIND GOES UNDERWATER WITHOUT SHORTING OUT,','KEEPS THE STORM\'S STATIC OFF AND TAKES A BOLT.','IT DOESN\'T WEAR OFF - BUT A HIT KNOCKS IT OFF. GRAB IT AGAIN!','IN WATER: A KICKS, HOLD X WITH THE XLR: A CURRENT.']};
-  B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.isoEver) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ENEMY'); return a; };
+  B.extraAch=function(){ const a=[]; if(B.stageId==='1.2'&&B.isoEver) a.push('INSULATED - FOUND THE ISOLATOR'); if(B.stats&&B.stats.shortedEnemies>=1) a.push('SHORT CIRCUIT - DUNKED AN ANTAGONIST'); return a; };
 
   // ── Drawing ───────────────────────────────────────────────────
   B.drawWorldExtras=function(){

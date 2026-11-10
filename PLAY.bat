@@ -8,8 +8,10 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-set "MV_URL=http://127.0.0.1:8765/index.html?b=97"
-echo Mind ^& Venture build 97
+set "MV_BUILD=?"
+if exist "%~dp0build.txt" set /p MV_BUILD=<"%~dp0build.txt"
+set "MV_URL=http://127.0.0.1:8765/index.html?b=%MV_BUILD%"
+echo Mind ^& Venture build %MV_BUILD%
 echo Live: https://mindandventure.pauloventura.org/
 echo %MV_URL%
 echo Leave this window open while you play. Ctrl+C stops the server.

@@ -199,7 +199,7 @@
         holders.push(e);
         S(e,'item_clink'); S(e,'enemy_alert');
         for(let k=0;k<10;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:R.x+R.w/2,y:R.y+R.h/2,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.5-1,life:14,maxLife:14,r:2,col:ICOLS[d.item]||'#fff'}); }
-        if(typeof uiShowToast==='function') uiShowToast('ENEMY '+TAKERS[e._ai]+' TOOK YOUR '+NAMES[d.item]+'!');
+        if(typeof uiShowToast==='function') uiShowToast('ANTAGONIST '+TAKERS[e._ai]+' TOOK YOUR '+NAMES[d.item]+'!');
         break;
       }
     }

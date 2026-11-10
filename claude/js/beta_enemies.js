@@ -1115,7 +1115,7 @@
       return;
     }
     if(bar.querySelector('[data-d]')) return;
-    bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><span>ENEMIES</span>'+[[1,'EASY'],[2,'NORMAL'],[3,'HARD']].map(([d,l])=>'<button type="button" data-d="'+d+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join(''));
+    bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><span>ANTAGONISTS</span>'+[[1,'EASY'],[2,'NORMAL'],[3,'HARD']].map(([d,l])=>'<button type="button" data-d="'+d+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join(''));
     const sync=()=>bar.querySelectorAll('[data-d]').forEach(b=>{ const on=+b.dataset.d===B.difficulty; b.setAttribute('aria-pressed',on); b.style.background=on?'#2a1650':'#120a22'; b.style.color=on?'#ffe39a':'#9c8cc8'; b.style.borderColor=on?'#f0d070':'#3a2878'; });
     bar.addEventListener('click',ev=>{ const b=ev.target.closest('[data-d]'); if(!b) return; B.setDifficulty(+b.dataset.d); sync(); const c=document.getElementById('c'); if(c&&c.focus) c.focus(); });
     bar.style.flexWrap='wrap';
