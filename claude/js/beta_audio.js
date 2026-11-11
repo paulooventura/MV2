@@ -144,6 +144,9 @@
     }
     duoEnd();
     if(!TRACKS[name]) name='stage';
+    // T426 (Paulo, Nov 11): "every time a song starts, the one that was playing previously stops" —
+    // the title / story song (audio.js) used to keep going under the stage song
+    try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('story'); } }catch(e){}
     const a=el(name);
     for(const k in els) if(k!==name&&els[k]&&els[k]!==a) try{ els[k].pause(); }catch(e){}
     if(restart) try{ a.currentTime=0; }catch(e){}

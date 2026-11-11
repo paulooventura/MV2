@@ -2278,13 +2278,15 @@
     if(B.popupSeen[i]) return;
     B.popupSeen[i]=true;
     B.popup={item:i, t:0};
-    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('popup',true);
+    // T426 (Paulo, Nov 11): the item window plays the slower song of the current theme; closing it
+    // picks the stage song up where it left off
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play){ B._popupMusic=B.music||'stage'; MV_BETA_AUDIO.play('item'); }
   }
   function closePopup(){
     B.popup=null;
     for(const k in K) delete K[k];
     if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
-    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('popup',false);
+    if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play&&B._popupMusic){ MV_BETA_AUDIO.play(B._popupMusic); B._popupMusic=null; }
   }
   function drawPopup(){
     const P=B.popup, a=Math.min(1,P.t/12);
