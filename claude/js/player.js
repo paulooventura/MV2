@@ -269,7 +269,10 @@ function _updateRunEntry(pl){
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
   if((pl._standTapT||0)>0) pl._standTapT--;
-  const standing=!dir&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
+  // T448 (Paulo, Nov 11): only standing idle and aiming at no direction — shooting down at a
+  // platform (or up) with a double tap no longer flips turbo
+  const aimNone=!(typeof isUp==='function'&&isUp())&&!(typeof isDn==='function'&&isDn());
+  const standing=!dir&&aimNone&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
   // Paulo, Nov 4 (build 370): turbo (sports mode) flips on a fast double tap of the item button
   // only after half a second standing still, on and off alike (a jack in hand or not). Running
   // around spamming the button never touches it.

@@ -338,6 +338,26 @@
       if(ITEM===3&&d<260){ e.bolts.splice(i,1); b.mag=true; knock(b,-dx/d*6,-dy/d*6,'#ffb0c0'); continue; }
     }
   }
+  // T464 (Paulo, Nov 11): "with the kiritsuke knife, we should be able to deflect foes' projectiles."
+  // Any foe shot (ESHOTS) the swinging blade or a loaded slash meets is knocked back: it leaves the
+  // foes' list (it can't hurt MIND any more) and flies as a free bolt that hurts foes it hits.
+  function deflectShots(){
+    if(typeof ESHOTS==='undefined'||!ESHOTS.length||ITEM!==4) return;
+    const bl=blade(), big=B.knifeBig&&B.knifeBig();
+    const om=bl&&knPrev!=null?wrap(bl.kn-knPrev):0, swinging=bl&&Math.abs(om)>0.1;
+    if(!swinging&&!(big&&big.t<=8)) return;
+    for(let i=ESHOTS.length-1;i>=0;i--){
+      const s=ESHOTS[i]; if(!s||s.owner==='player'||s.settled) continue;
+      let hit=false, vx=0, vy=0;
+      if(swinging){ for(let k=0;k<=3&&!hit;k++){ const aw=toW(knPrev+om*k/3); if(segDist(s.x,s.y,bl.hx,bl.hy,bl.hx+Math.cos(aw)*64,bl.hy+Math.sin(aw)*64)<22){ hit=true; const sg=(om>0?1:-1)*dirOf(); vx=-Math.sin(aw)*sg*11+Math.cos(aw)*3; vy=Math.cos(aw)*sg*11+Math.sin(aw)*3; } } }
+      if(!hit&&big&&big.t<=8){ const ux=Math.cos(big.ang), uy=Math.sin(big.ang), dx=s.x-big.x, dy=s.y-big.y, al=dx*ux+dy*uy, ac2=-dx*uy+dy*ux;
+        if(al>-30&&al<big.R&&Math.abs(ac2)<big.H){ hit=true; vx=ux*14; vy=uy*14; } }
+      if(!hit) continue;
+      ESHOTS.splice(i,1);
+      knock({x:s.x,y:s.y},vx,vy,'#ffe39a'); clang(0.8);
+      B.deflected=(B.deflected|0)+1;
+    }
+  }
   function freeTick(){
     if(!free.length) return;
     const P=p._armPose, magHeld=ITEM===3&&typeof _bindDown==='function'&&_bindDown('swap')&&P;
@@ -352,6 +372,9 @@
       }
       b.x+=b.vx; b.y+=b.vy; b.life--;
       if(b.life<=0||solid(b.x,b.y)){ burst(b.x,b.y,5,[b.col||'#ffe39a','#ffffff'],2); free.splice(i,1); continue; }
+      // a knocked-back shot hurts the foe it meets (T464)
+      { let f=null; for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(!e||!e.alive||e._boss||e._betaHeld) continue; if(b.x>e.x&&b.x<e.x+e.w&&b.y>e.y&&b.y<e.y+e.h){ f=e; break; } }
+        if(f){ try{ if(typeof _damageEnemy==='function') _damageEnemy(f,14,b.x,b.y); }catch(er){} burst(b.x,b.y,10,['#ffffff','#ffd060'],3); free.splice(i,1); continue; } }
       if(bs&&bs.alive&&Math.hypot(b.x-(bs.x+bs.w/2),b.y-(bs.y+bs.h/2))<62){
         bs.hp=Math.max(1,bs.hp-8); bs.hitF=6; B.shake=Math.max(B.shake||0,4);
         burst(b.x,b.y,12,['#ffffff','#ffd060','#ff6060'],4); S('omniblock_chip',1.2); free.splice(i,1); }
@@ -541,7 +564,7 @@
     try{
       if(!on()) return r;
       if(hitCd>0) hitCd--;
-      sharedTick(); sibJackTick(); knifeFeel(); freeTick(); marksTick();
+      sharedTick(); sibJackTick(); deflectShots(); knifeFeel(); freeTick(); marksTick();
       const bs=boss();
       if(B.stageId==='1.3'&&bs){
         if(B.bossMeet&&!introSeen&&bs.alive&&!B.freeze){ introSeen=true; intro={t:0,line:0,ch:0,hold:0,out:0}; }
@@ -557,7 +580,9 @@
   const _cf=window._cameraFollowTarget;
   if(typeof _cf==='function') window._cameraFollowTarget=function(pl){
     const bs=intro&&boss();
-    if(bs&&B.on&&typeof camViewW==='function'){ const vw=camViewW(), vh=camViewH(); return {x:bs.x+bs.w/2-vw/2, y:bs.y+bs.h/2-vh/2}; }
+    // T461 (Paulo, Nov 11): while the boss's dialog is open the camera frames both: MIND on one side,
+    // the boss on the other (the midpoint between them)
+    if(bs&&B.on&&typeof camViewW==='function'){ const vw=camViewW(), vh=camViewH(), mx=(p.x+SW/2+bs.x+bs.w/2)/2, my=(p.y+FEET_OFF-48+bs.y+bs.h/2)/2; return {x:mx-vw/2, y:my-vh/2}; }
     return _cf.apply(this,arguments);
   };
   const _hud=window.drawLdtkLabHud;

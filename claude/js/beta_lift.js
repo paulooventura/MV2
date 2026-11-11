@@ -106,6 +106,8 @@
   function surfaceY(colX, row){
     const key=colX+'|'+row;
     if(yCache.has(key)) return yCache.get(key);
+    // a looping shaft's street is the one-way platform cutShafts left (the rows under it are open)
+    for(const s of S.shafts||[]) if(s.street!=null&&colX>=s.x0-T&&colX<=s.x1+T&&row*T>=s.street){ yCache.set(key,s.street); return s.street; }
     let y=row*T, c=Math.round(colX/T);
     if(typeof gridSolid==='function'){
       let r=row;
@@ -172,6 +174,7 @@
       }
       S.shafts.push({x0:g.c0*T, x1:(g.c1+1)*T, top:r0*T, street:street!=null?street*T:null, loop:g.loop});
     }
+    yCache.clear();
     return true;
   }
   // under the street platform: in again at the top of the shaft, falling
@@ -384,11 +387,14 @@
         if(m._flash>0) m._flash--;
         if(m.phase==='summon'||m.phase==='go'){
           m._lift='go';
+          // T455 (Paulo, Nov 11): riding past the top, the car wraps to the bottom of its loop in one
+          // frame; MIND sealed in it stays in it (aboard() lost him there: he was left at the top)
+          const rider=m.phase==='go'&&(aboard(m)||(S.cab===m&&S.sealed));
           if(m._linkLeft!=null&&Math.abs(m._linkLeft)<0.4){
-            if(m.phase==='go'&&aboard(m)) holdCab(m,true);
+            if(m.phase==='go'&&rider) holdCab(m,true);
             else if(m.phase==='summon'&&m._called) holdCab(m,true);
             else holdCab(m,false);
-          }else if(m.phase==='go'&&aboard(m)) sealed=m;
+          }else if(rider) sealed=m;
         }else if(m.phase==='park'){
           m._lift='hold'; m.lockY=m.y;
         }else if(m.phase==='open'){

@@ -6,7 +6,7 @@ export default async ({pg,out})=>{
     return {px:Math.round(p.x),vx:+(p.vx||0).toFixed(2),feet:Math.round(p.y+FEET_OFF),og:p.og,sealed:L.sealed,hold:!!L.hold,near:L.near,
       cab:cab?{y:Math.round(cab.y),ph:cab.phase,door:+(cab.door||0).toFixed(2)}:null, hp:Math.round(p.hp)}; });
   const results=[]; const check=(n,ok,i)=>{ results.push([n,!!ok]); console.log(ok?'ok  ':'FAIL',n,ok?'':JSON.stringify(i)); };
-  const surf=(col,row)=>ev(([c,r])=>{ while(gridSolid(c,r-1)) r--; return r*32; },[col,row]);
+  const surf=(col,row)=>ev(([c,r])=>{ for(const s of (MV_LIFT.shafts||[])) if(s.street!=null&&c*32>=s.x0-32&&c*32<=s.x1+32&&r*32>=s.street) return s.street; while(gridSolid(c,r-1)) r--; return r*32; },[col,row]);
   const place=async(x,feet)=>{ await ev(([x,f])=>{ p.x=x; p.y=f-FEET_OFF; p.vx=0; p.vy=0; p.og=true; },[x,feet]); await sleep(pg,350); };
   const openCabY=X=>ev(x=>{ const m=MV_BETA.platforms.find(q=>q.x===x&&q.phase==='open'); return m?Math.round(m.y):null; },X);
   const waitOpen=async(X,ms)=>{ const t=Date.now(); while(Date.now()-t<ms){ const y=await openCabY(X); const s=await st(); if(y!=null&&(!s.cab||s.cab.door<0.15)) return y; await sleep(pg,100); } return null; };
@@ -37,14 +37,20 @@ export default async ({pg,out})=>{
       const want=await surf(col,FLOORS[k]); y=await waitOpen(X,9000); s=await st();
       check(`${shaft}: doors open on floor ${k+1} with MIND inside`,y!=null&&Math.abs(y-want)<3&&Math.abs(s.feet-want)<3,{y,want,s});
     }
-    await pg.keyboard.press('ArrowUp'); await sleep(pg,600); s=await st();
-    check(shaft+': no ride past the 6th',s.cab&&s.cab.ph==='open'&&Math.abs(s.feet-(await surf(col,14)))<3,s);
-    for(let k=FLOORS.length-2;k>=0;k--){
-      await pg.keyboard.press('ArrowDown'); await sleep(pg,300);
-      s=await st(); check(`${shaft}: carried down toward ${k?'floor '+(k+1):'the street'}`,s.sealed&&s.cab&&Math.abs(s.feet-s.cab.y)<3,s);
-      const want=await surf(col,FLOORS[k]); y=await waitOpen(X,9000); s=await st();
-      check(`${shaft}: doors open on ${k?'floor '+(k+1):'the street'}`,y!=null&&Math.abs(s.feet-want)<3,{y,want,s});
-    }
+    // one floor down and back up
+    await pg.keyboard.press('ArrowDown'); await sleep(pg,300);
+    s=await st(); check(shaft+': carried down toward floor 5',s.sealed&&s.cab&&Math.abs(s.feet-s.cab.y)<3,s);
+    y=await waitOpen(X,9000); s=await st();
+    check(shaft+': doors open on floor 5',y!=null&&Math.abs(s.feet-(await surf(col,FLOORS[4])))<3,{y,s});
+    await pg.keyboard.press('ArrowUp'); await sleep(pg,300);
+    y=await waitOpen(X,9000); s=await st();
+    check(shaft+': back on floor 6',y!=null&&Math.abs(s.feet-(await surf(col,FLOORS[5])))<3,{y,s});
+    // Paulo, Nov 11 (T455): up from the 6th the car goes on over the top and comes round to the
+    // street, MIND inside it (it used to leave him at the top of the level)
+    await pg.keyboard.press('ArrowUp'); await sleep(pg,300);
+    s=await st(); check(shaft+': up past the 6th: carried on, sealed',s.sealed&&s.cab&&Math.abs(s.feet-s.cab.y)<3,s);
+    y=await waitOpen(X,15000); s=await st();
+    check(shaft+': round to the street, MIND inside',y!=null&&Math.abs(s.feet-street)<3&&s.hp>0,{y,street,s});
     await walk('KeyA',x=>p.x+SW/2<x-30,X);
     s=await st(); check(shaft+': steps back out onto the street',!s.sealed&&!s.hold&&s.og&&Math.abs(s.feet-street)<3,s);
     await sleep(pg,1200);

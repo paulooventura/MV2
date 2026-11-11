@@ -35,6 +35,13 @@
     const vx=typeof camX==='number'?camX:0, vy=typeof camY==='number'?camY:0, m=200;
     return boss.x+boss.w>vx-m&&boss.x<vx+vw+m&&boss.y+boss.h>vy-m&&boss.y<vy+vh+m;
   }
+  function bossInView(boss){
+    const vw=typeof camViewW==='function'?camViewW():(typeof W==='number'?W:1024);
+    const vh=typeof camViewH==='function'?camViewH():(typeof H==='number'?H:768);
+    const vx=typeof camX==='number'?camX:0, vy=typeof camY==='number'?camY:0;
+    const cx=boss.x+boss.w/2, cy=boss.y+boss.h/2;
+    return cx>vx&&cx<vx+vw&&cy>vy&&cy<vy+vh;
+  }
   // The flat of the stone bowl under the heptagon: the run of floor directly
   // below its home. The lines play only in a circle at the middle of that floor.
   function bowlSpot(boss){
@@ -99,7 +106,9 @@
       if(!tri) return null;                                          // not spawned yet — leave the track alone
       // Paulo, Nov 4 (build 359): shutting him down hands the song off to the calm track at the
       // 1.3 exit gate, and it stays there for the rest of the stage, even if he boots back up.
-      if(!tri.alive||tri._gone||tri._permOff||tri._shorted) triDown=true;
+      // T447 (Paulo, Nov 11): it goes down twice and boots back up before it is shut down for good;
+      // only the permanent shutdown hands the song to the calm track (a short or a first down doesn't)
+      if(tri._gone||tri._permOff||(tri._stayDown&&!tri.alive)) triDown=true;
       if(triDown) return {track:'calm', at:gatePos(), handoff:true};
       return {track:stageMusic, at:ctr(tri)};
     }
@@ -112,7 +121,11 @@
       if(B.bossDown||!boss||!boss.alive){ B.bossMeet=false; mixS=0; return {track:'calm', at:gatePos(), handoff:true}; }
       const see=bossClose(boss);
       B.bossOn=see;
-      B.bossMeet=onBowl(boss);
+      // T453 / T461 (Paulo, Nov 11): the boss theme starts, and its dialog opens, the first time the
+      // boss is really in view (on the screen, no margin) — before that the stage music plays
+      if(!B.bossSeenOnce&&bossInView(boss)) B.bossSeenOnce=true;
+      B.bossMeet=!!B.bossSeenOnce;
+      if(!B.bossSeenOnce) return {track:stageMusic||'stage'};
       if(see&&!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,4); }
       B.bossMix=1;
       return {track:'boss', at:ctr(boss)};

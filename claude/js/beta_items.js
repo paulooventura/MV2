@@ -272,19 +272,42 @@
   //  no power (similar to when you try to pull the trigger on a pistol with no bullets)".
   // Four cells along the jack in MIND's hand: jade, gold under half, red under a quarter; empty,
   // the outline blinks. The cells sit on the upper side of the jack whichever way he aims.
-  const POW_CELLS=4;
+  // T445 (Paulo, Nov 11): "the charge meter should be present only on the push and pull items. the
+  // TRS and rope don't need it. and the meter should be embedded in the jack itself. be artistic."
+  //   XLR: a glass window set into the black grip barrel, filled with light up to the power left.
+  //   MEG: the charge runs as a glowing line through the horseshoe, from one pole round the bend
+  //        toward the other; it shortens as the power drains.
+  //   Jade, gold under half, red under a quarter; empty, the window / line blinks red.
   const powFrac=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
-  function drawPowerCells(cx,cy,ang){
-    const f=powFrac(), lit=f*POW_CELLS, col=f>0.5?'#3ad070':f>0.25?'#f0c040':'#ff4a3a';
-    const up=Math.cos(ang)>=0?-1:1, k=typeof sw==='function'?sw(10)/10:1;
-    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang); ctx.scale(k,k);
-    const x0=-18, cw=8, gap=2, y=up*11-3;
-    ctx.fillStyle='rgba(8,6,12,0.82)'; ctx.fillRect(x0-2,y-2,POW_CELLS*(cw+gap)+2,9);
-    for(let i=0;i<POW_CELLS;i++){
-      const a=Math.max(0,Math.min(1,lit-i)), x=x0+i*(cw+gap);
-      if(a>0){ ctx.globalAlpha=0.35+0.65*a; ctx.fillStyle=col; ctx.fillRect(x,y,cw,5); ctx.globalAlpha=1; }
+  const powCol=f=>f>0.5?[58,208,112]:f>0.25?[240,192,64]:[255,74,58];
+  function drawPowerJack(cx,cy,ang,item){
+    const f=powFrac(), c=powCol(f), rgb=(a)=>'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';
+    const empty=f<=0.001, blink=((typeof fr!=='undefined'?fr:0)>>3)&1;
+    const sc=typeof _itemArtScale==='function'?_itemArtScale(item):1;
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang); ctx.scale(sc,sc); ctx.lineCap='round';
+    if(item===2){
+      const x0=-4, L=21, y=0;
+      ctx.fillStyle='rgba(4,6,8,0.92)'; ctx.beginPath(); ctx.roundRect(x0-1.2,y-2.9,L+2.4,5.8,2.6); ctx.fill();          // the window's dark glass
+      if(f>0){ const w=L*f;
+        ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle=rgb(0.28); ctx.beginPath(); ctx.roundRect(x0-2,y-4.4,w+4,8.8,4); ctx.fill(); ctx.restore();   // its glow on the barrel
+        const g=ctx.createLinearGradient(0,y-2,0,y+2); g.addColorStop(0,'rgba(255,255,255,0.85)'); g.addColorStop(0.35,rgb(1)); g.addColorStop(1,rgb(0.75));
+        ctx.fillStyle=g; ctx.beginPath(); ctx.roundRect(x0,y-1.9,w,3.8,1.9); ctx.fill();
+        const t=(typeof fr!=='undefined'?fr:0)*0.6%L; if(t<w){ ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.fillRect(x0+t,y-1.6,1.4,3.2); }   // a bead of light running along it
+      }
+      ctx.fillStyle='rgba(0,0,0,0.55)'; for(let k=1;k<4;k++) ctx.fillRect(x0+L*k/4-0.4,y-2.4,0.8,4.8);                // quarter marks
+      ctx.strokeStyle=empty&&blink?'#ff4a3a':'rgba(200,210,220,0.55)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.roundRect(x0-1.2,y-2.9,L+2.4,5.8,2.6); ctx.stroke();
+    }else if(item===3){
+      const halfG=7, prongL=24, seg1=prongL-5, arc=Math.PI*halfG, total=seg1*2+arc, len=total*f;
+      const path=()=>{ ctx.beginPath(); ctx.moveTo(prongL-3,-halfG); ctx.lineTo(2,-halfG); ctx.arc(0,0,halfG,-Math.PI/2,Math.PI/2,true); ctx.lineTo(prongL-3,halfG); };
+      ctx.lineWidth=2.6; ctx.strokeStyle=empty&&blink?'rgba(255,74,58,0.9)':'rgba(4,6,8,0.85)'; path(); ctx.stroke();       // the channel
+      if(f>0){
+        ctx.setLineDash([len,total+10]);
+        ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineWidth=5.5; ctx.strokeStyle=rgb(0.3); path(); ctx.stroke(); ctx.restore();
+        ctx.lineWidth=1.8; ctx.strokeStyle=rgb(1); path(); ctx.stroke();
+        ctx.lineWidth=0.7; ctx.strokeStyle='rgba(255,255,255,0.75)'; path(); ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
-    if(f<=0.001&&((typeof fr!=='undefined'?fr:0)>>3)&1){ ctx.strokeStyle='#ff4a3a'; ctx.lineWidth=1.2; ctx.strokeRect(x0-2,y-2,POW_CELLS*(cw+gap)+2,9); }
     ctx.restore();
   }
   let inMind=false; const _dch=window.drawCharacter;
@@ -292,7 +315,7 @@
   const _tip=window.drawConnectorTip;
   if(typeof _tip==='function') window.drawConnectorTip=function(cx,cy,aimAngle,flash,itemOverride){
     const r=_tip.apply(this,arguments);
-    try{ if(inMind&&(itemOverride==null||itemOverride===ITEM)&&ITEM>=0&&ITEM<=3&&_gameState==='game') drawPowerCells(cx,cy,aimAngle||0); }catch(e){}
+    try{ if(inMind&&(itemOverride==null||itemOverride===ITEM)&&(ITEM===2||ITEM===3)&&_gameState==='game') drawPowerJack(cx,cy,aimAngle||0,ITEM); }catch(e){}
     return r;
   };
   // the dry click: a tiny metal tick and a dull knock, no shot

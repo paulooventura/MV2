@@ -549,6 +549,15 @@
     for(let x=x0;x<=x1;x++){ const a=0.22*(WH[x-1]+WH[x+1]-2*WH[x])-0.015*WH[x]; WV[x]=(WV[x]+a)*0.972; }
     for(let x=x0;x<=x1;x++){ WH[x]+=WV[x]; if(WH[x]>34) WH[x]=34; else if(WH[x]<-34) WH[x]=-34; }   // (Paulo, Oct 22: room for real swells)
   }
+  let _steamSpr=null;
+  function steamSprite(){                                  // a soft vapour puff: no edge, a faint warm core
+    if(_steamSpr) return _steamSpr;
+    const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d');
+    const rg=g.createRadialGradient(32,32,0,32,32,32); rg.addColorStop(0,'rgba(250,248,244,0.95)'); rg.addColorStop(0.35,'rgba(238,242,246,0.6)'); rg.addColorStop(0.7,'rgba(225,232,240,0.18)'); rg.addColorStop(1,'rgba(220,230,240,0)');
+    g.fillStyle=rg; g.fillRect(0,0,64,64);
+    for(let k=0;k<40;k++){ const a=Math.random()*6.283, d=Math.random()*20; g.fillStyle='rgba(255,255,255,'+(0.03+Math.random()*0.05)+')'; g.beginPath(); g.arc(32+Math.cos(a)*d,32+Math.sin(a)*d,3+Math.random()*7,0,6.283); g.fill(); }   // a little texture
+    _steamSpr=c; return c;
+  }
   // take up to `amt` of water from the surface around a column (for spray, the MAG, steam)
   function takeSurface(sf,amt){
     if(!sf||amt<=0) return 0;
@@ -1312,7 +1321,7 @@
   const _origFg=window.drawTmjForeground;
   window.drawTmjForeground=function(){
     const r=_origFg?_origFg.apply(this, arguments):undefined;
-    if(on()) drawWater();
+    if(on()){ drawWater(); try{ if(B.drawSolidFoes) B.drawSolidFoes(); }catch(e){} }
     return r;
   };
   // water as drawn: a body standing in the water is shown under it (the
@@ -1457,10 +1466,24 @@
       ctx.fillStyle='rgba(240,248,252,0.55)'; ctx.beginPath(); ctx.arc(x-r*0.25,y-r*0.3,Math.max(0.8,r*0.22),0,Math.PI*2); ctx.fill();
     }
     // steam (the water that burned off)
+    // T450 (Paulo, Nov 11): "the steam ... just look like transparent white circles, let's make it look
+    // more like steam." Each puff is a few soft, edge-less lobes (one cached soft sprite) that swirl
+    // round each other, stretch upward and thin out as they rise; young puffs are denser and warmer.
+    const SP=steamSprite();
+    ctx.save();
     for(const s of B.steam){
-      const a=Math.min(1,s.life/30)*Math.min(1,(s.max-s.life+10)/20)*0.38;
-      ctx.fillStyle='rgba(235,240,245,'+a.toFixed(3)+')'; ctx.beginPath(); ctx.arc(sx(s.x),sy(s.y),Math.max(3,sw(s.r)),0,Math.PI*2); ctx.fill();
+      if(s.seed==null){ s.seed=Math.random()*6.283; s.lobes=2+(Math.random()*3|0); }
+      const age=1-s.life/s.max, a=Math.min(1,s.life/30)*Math.min(1,(s.max-s.life+10)/20)*0.34;
+      if(a<=0.004) continue;
+      const R=Math.max(4,sw(s.r)), x=sx(s.x), y=sy(s.y), t=fr*0.025;
+      for(let i=0;i<s.lobes;i++){
+        const an=s.seed+i*2.39+t*(i%2?1:-1), off=R*(0.25+0.35*age), lr=R*(0.75+0.25*Math.sin(s.seed*3+i));
+        const lx=x+Math.cos(an)*off, ly=y+Math.sin(an)*off*0.6-R*0.15*i;
+        ctx.globalAlpha=a*(1-i*0.18);
+        ctx.drawImage(SP, lx-lr, ly-lr*1.35, lr*2, lr*2.7);                                  // stretched upward
+      }
     }
+    ctx.restore();
     // bubbles: big enough to read at console resolution, with a glint
     for(const bb of B.bubbles){
       const x=sx(bb.x), y=sy(bb.y), r=Math.max(3,sw(bb.r));

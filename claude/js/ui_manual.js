@@ -288,8 +288,8 @@
     (x,y,w,h)=>{
       ctx.fillStyle='#120a20'; ctx.fillRect(x,y,w,h);
       ribbon('CREDITS',x+30,y+30,220,GOLD);
-      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE"'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','M.M.R.'],['PROGRAMMING & SOUND','PAULO VENTURA'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA']];
-      let yy=y+96; for(const [r,n] of C){ label(r,x+w/2,yy,16,'#c8b8e8','center'); label(n,x+w/2,yy+22,26,'#fff2c8','center'); yy+=72; }
+      const C=[['CREATED, DIRECTED & SCORED BY','PAULO VENTURA'],['STORYLINE THEME','"THE KNOWL TREE"'],['PRESENTED BY','MMR · MUSIC MECCA RECORDS'],['STUDIO','M.M.R.'],['PROGRAMMING & SOUND','PAULO VENTURA'],['STARRING','MIND · VENTURE · LAITU · D'],['SPECIAL THANKS','EVERY PLAYER OF THE ALPHA AND THE BETA']];
+      let yy=y+96; for(const [r,n] of C){ label(r,x+w/2,yy,16,'#c8b8e8','center'); fitLabel(n,x+w/2,yy+22,w-40,26,'#fff2c8','center'); yy+=72; }
       label('(c) 2026 Paulo Ventura · build '+(window.MV_BUILD||'?'),x+w/2,y+h-44,16,'#c8b8e8','center');
     },
     // 9 · progress
@@ -305,7 +305,7 @@
     // 10 · curious facts
     (x,y,w,h)=>{
       ribbon('CURIOUS FACTS',x+30,y+30,300,RED);
-      const F=['Every drop of water is counted. Boil it to steam and it still exists — until it rains back down.','Mind\'s wheel hides a V8: five gears, a rev limiter, burble at idle and crackles when you lift off.','You hear the world from Mind\'s spot: walls muffle, rooms ring, and 3D "ears" put sounds beside or behind you.','The stage music isn\'t everywhere — it comes out of the gramophone in the living room.','Mind\'s eye squints harder the more danger is around him.','The title screen is hand-painted pixel art, and so is every story page.'];
+      const F=['Every drop of water is counted. Boil it to steam and it still exists — until it rains back down.','Mind\'s wheel hides a V8: five gears, a rev limiter, burble at idle and crackles when you lift off.','You hear the world from Mind\'s spot: walls muffle, rooms ring, and 3D "ears" put sounds beside or behind you.','On level 1.1 the stage music isn\'t everywhere — it comes out of the gramophone in the living room.','Mind\'s eye squints harder the more danger is around him.','The title screen is hand-painted pixel art, and so is every story page.'];
       // T198: each fact's box fits its text; the type is as big as the page allows
       const bh=s=>F.map(t=>32+8+nLines(t,w-80,s)*LH(s)+8);
       const fs=fitSize(s=>bh(s).reduce((a,b)=>a+b,0)+5*8,y+h-40-(y+84),21,16), BH=bh(fs);

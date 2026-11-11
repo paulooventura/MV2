@@ -597,6 +597,15 @@
       try{ h.g.gain.setTargetAtTime(0.0001,t,0.06); h.o.stop(t+0.22); h.o2.stop(t+0.22); }catch(e){}
     }
   }
+  // T446 (Paulo, Nov 11): "when we clear a level, the sfx of the engine stays locked ... We want only
+  // the clear course song on that part." The idle hum is switched by the stage's per-frame rules,
+  // which stop on the results screen (and on pause, a popup, the ending): it was left running.
+  setInterval(()=>{ try{
+    if(!eng) return;
+    const B=window.MV_BETA;
+    const live=typeof _gameState!=='undefined'&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)&&!(B&&(B.results||B.ending||B.popup||B.trans||B.loading||B.saveDlg));
+    if(!live) engine(false,0);
+  }catch(e){} },100);
   function applyVol(){
     const v=vol();
     for(const k in els){
@@ -716,5 +725,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();

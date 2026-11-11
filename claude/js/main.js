@@ -970,9 +970,9 @@ function update(){
   else{p.xlrOn=false;p.magOn=false;p.xlrHeld=0;p.magHeld=0;}
 
   // ── Punch charge ──────────────────────────────────────────────
-  const _fMoving=isSprintHeld()&&_playerGrounded(p);
-  if(isPunch()&&!p.pCharging&&p.pCd===0&&!_fMoving){p.pCharging=true;p.pCharge=0;}
-  if(_fMoving&&p.pCharging){p.pCharging=false;p.pCharge=0;}
+  // T443 (Paulo, Nov 11): "the loaded punch isn't loading when we're moving" — running no longer
+  // cancels the charge (it used to drop it whenever the run was held on the ground)
+  if(isPunch()&&!p.pCharging&&p.pCd===0){p.pCharging=true;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
   if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;const charged=_punchLoaded(p);
     // Paulo, Nov 4 (build 356): empty hands = two gloves. Punches in a row (each within
@@ -1089,6 +1089,8 @@ function update(){
     let _platLaunch=false;
     if(_grounded&&isDn()&&!p.magOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
+    // T443: holding DOWN in the air loads the jump too; it's ready the moment he lands
+    else if(isDn()&&!p.magOn&&!p.xlrOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     const _springOn=_grounded&&!!p.duckBoostReady;
     p._springFloat=(p._springFloat||0)+((_springOn?1:0)-(p._springFloat||0))*(_springOn?0.055:0.12);

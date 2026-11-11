@@ -512,6 +512,64 @@
     choir.out.gain.setTargetAtTime(vol,choir.ac.currentTime,0.25);
   }
 
+  // T463 (Paulo, Nov 11): "in the kiritsuke chamber, let's have that same aah sound we have close to
+  // the knowl tree but more oriental". The same choir build, but on the Japanese 'in' scale
+  // (D A Eb G Bb: the half-step Eb gives it its colour), a darker "aah", slower and wider vibrato
+  // like a sung bend, and now and then a breathy shakuhachi-like phrase over it.
+  const CHANT={R:620, VOL:0.15};
+  let chant=null;
+  function chantInit(){
+    const ac=(typeof _bgmAC!=='undefined'&&_bgmAC)||null;
+    if(!ac||ac.state!=='running') return null;
+    const out=ac.createGain(); out.gain.value=0;
+    const wet=ac.createGain(); wet.gain.value=0.65;
+    const d1=ac.createDelay(1), d2=ac.createDelay(1), f1=ac.createGain(), f2=ac.createGain();
+    d1.delayTime.value=0.19; d2.delayTime.value=0.31; f1.gain.value=0.55; f2.gain.value=0.5;
+    out.connect(ac.destination); out.connect(d1); out.connect(d2);
+    d1.connect(f1); f1.connect(d1); d2.connect(f2); f2.connect(d2); f1.connect(wet); f2.connect(wet); wet.connect(ac.destination);
+    const bus=ac.createGain(); bus.gain.value=0.7; bus.connect(out);
+    const forms=[[640,7,1],[980,9,0.55],[2300,12,0.12]].map(([f,q,gain])=>{ const b=ac.createBiquadFilter(); b.type='bandpass'; b.frequency.value=f; b.Q.value=q;
+      const gg=ac.createGain(); gg.gain.value=gain*3.2; b.connect(gg); gg.connect(bus); return b; });
+    const voices=[];
+    const chord=[146.83,220.0,293.66,311.13,392.0,466.16];          // D3 A3 D4 Eb4 G4 Bb4
+    chord.forEach((f,i)=>{
+      for(const det of [-5,5]){
+        const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.detune.value=det;
+        const lfo=ac.createOscillator(), lg=ac.createGain(); lfo.frequency.value=3.1+i*0.11+(det>0?0.13:0); lg.gain.value=f*0.011; lfo.connect(lg); lg.connect(o.frequency);
+        const vg=ac.createGain(); vg.gain.value=i===3?0.03:0.05;
+        o.connect(vg); forms.forEach(b=>vg.connect(b));
+        o.start(); lfo.start(); voices.push(o,lfo);
+      }
+    });
+    const sw=ac.createOscillator(), sg=ac.createGain(); sw.frequency.value=0.06; sg.gain.value=0.3; sw.connect(sg); sg.connect(bus.gain); sw.start(); voices.push(sw);
+    return {ac,out,voices,flute:0};
+  }
+  function shakuhachi(c){                                          // a breathy phrase: a few notes of the scale, bent into
+    const ac=c.ac, t0=ac.currentTime+0.05, notes=[[587.33,0.9],[622.25,0.5],[587.33,1.2],[440,1.6]];
+    let t=t0;
+    for(const [f,d] of notes){
+      const o=ac.createOscillator(), g=ac.createGain(); o.type='sine';
+      o.frequency.setValueAtTime(f*0.94,t); o.frequency.exponentialRampToValueAtTime(f,t+0.18);           // sung up into the note
+      const vib=ac.createOscillator(), vg=ac.createGain(); vib.frequency.value=5; vg.gain.setValueAtTime(0,t); vg.gain.linearRampToValueAtTime(f*0.012,t+d); vib.connect(vg); vg.connect(o.frequency);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.09,t+0.12); g.gain.setValueAtTime(0.09,t+d*0.7); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+      const len=Math.round(ac.sampleRate*d), nb=ac.createBuffer(1,len,ac.sampleRate), nd=nb.getChannelData(0); for(let i=0;i<len;i++) nd[i]=Math.random()*2-1;
+      const n=ac.createBufferSource(); n.buffer=nb; const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f*2; bp.Q.value=3; const ng=ac.createGain(); ng.gain.setValueAtTime(0.0001,t); ng.gain.exponentialRampToValueAtTime(0.05,t+0.04); ng.gain.exponentialRampToValueAtTime(0.0001,t+d);
+      n.connect(bp); bp.connect(ng); ng.connect(c.out); o.connect(g); g.connect(c.out);
+      o.start(t); vib.start(t); n.start(t); o.stop(t+d+0.05); vib.stop(t+d+0.05); t+=d*0.92;
+    }
+  }
+  function chantTick(B){
+    const k0=B.knifePickup;
+    if(!k0||!B.on||typeof p==='undefined'||!p){ if(chant) chant.out.gain.setTargetAtTime(0,chant.ac.currentTime,0.3); return; }
+    const d=Math.hypot(p.x+SW/2-k0.x, p.y+FEET_OFF-60-(k0.y-40));
+    const k=Math.max(0,1-d/CHANT.R), vol=k*k*CHANT.VOL*Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1));
+    B.chantLevel=+vol.toFixed(4);
+    if(vol<=0.0005&&!chant) return;
+    if(!chant){ chant=chantInit(); if(!chant) return; }
+    chant.out.gain.setTargetAtTime(vol,chant.ac.currentTime,0.25);
+    if(vol>0.02&&--chant.flute<=0){ chant.flute=60*9+(Math.random()*240|0); try{ shakuhachi(chant); }catch(e){} }
+  }
+
   // ── Pickups ───────────────────────────────────────────────────────
   function seed(k){
     const x=k.x, y=k.y, ph=(k.bob||0)*3+fr*0.06;
@@ -893,7 +951,7 @@
     }
     fireflies(B);
     for(const l of B.labels) B.wtext(drawText, l.text, X(l.x), Y(l.y), '#f0d8a8', 1);
-    choirTick(B);
+    choirTick(B); chantTick(B);
   }
 
   // pass 4 (Oct 22): the blocks get the key art's light — a moonlit rim on open tops, soft
