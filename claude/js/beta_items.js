@@ -265,11 +265,64 @@
     takeTick(); holdTick();
   }
 
+  // ── T435 (Paulo, Nov 11): the power left, shown on the item itself, and a dry click when empty ──
+  // "a visual reference at the item itself that shows how much of the power item it has been
+  //  consumed and how much is left" + "a low click sound for when we try to use the item that has
+  //  no power (similar to when you try to pull the trigger on a pistol with no bullets)".
+  // Four cells along the jack in MIND's hand: jade, gold under half, red under a quarter; empty,
+  // the outline blinks. The cells sit on the upper side of the jack whichever way he aims.
+  const POW_CELLS=4;
+  const powFrac=()=>Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+  function drawPowerCells(cx,cy,ang){
+    const f=powFrac(), lit=f*POW_CELLS, col=f>0.5?'#3ad070':f>0.25?'#f0c040':'#ff4a3a';
+    const up=Math.cos(ang)>=0?-1:1, k=typeof sw==='function'?sw(10)/10:1;
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(ang); ctx.scale(k,k);
+    const x0=-18, cw=8, gap=2, y=up*11-3;
+    ctx.fillStyle='rgba(8,6,12,0.82)'; ctx.fillRect(x0-2,y-2,POW_CELLS*(cw+gap)+2,9);
+    for(let i=0;i<POW_CELLS;i++){
+      const a=Math.max(0,Math.min(1,lit-i)), x=x0+i*(cw+gap);
+      if(a>0){ ctx.globalAlpha=0.35+0.65*a; ctx.fillStyle=col; ctx.fillRect(x,y,cw,5); ctx.globalAlpha=1; }
+    }
+    if(f<=0.001&&((typeof fr!=='undefined'?fr:0)>>3)&1){ ctx.strokeStyle='#ff4a3a'; ctx.lineWidth=1.2; ctx.strokeRect(x0-2,y-2,POW_CELLS*(cw+gap)+2,9); }
+    ctx.restore();
+  }
+  let inMind=false; const _dch=window.drawCharacter;
+  if(typeof _dch==='function') window.drawCharacter=function(){ inMind=!!(B.on&&p&&!p._aiCompanion); try{ return _dch.apply(this,arguments); } finally{ inMind=false; } };
+  const _tip=window.drawConnectorTip;
+  if(typeof _tip==='function') window.drawConnectorTip=function(cx,cy,aimAngle,flash,itemOverride){
+    const r=_tip.apply(this,arguments);
+    try{ if(inMind&&(itemOverride==null||itemOverride===ITEM)&&ITEM>=0&&ITEM<=3&&_gameState==='game') drawPowerCells(cx,cy,aimAngle||0); }catch(e){}
+    return r;
+  };
+  // the dry click: a tiny metal tick and a dull knock, no shot
+  let dryCd=0, wasUse=false;
+  function dryClick(){
+    let a=null; try{ a=typeof ga==='function'?ga():null; }catch(e){}
+    if(!a||a.state!=='running') return;
+    const t=a.currentTime, v=(typeof OPT!=='undefined'&&OPT.sfxVol!=null?OPT.sfxVol:1);
+    const len=Math.round(a.sampleRate*0.03), buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,6);
+    const n=a.createBufferSource(); n.buffer=buf;
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2600; bp.Q.value=2.2;
+    const g=a.createGain(); g.gain.value=0.32*v; n.connect(bp); bp.connect(g); g.connect(a.destination); n.start(t);
+    const o=a.createOscillator(), og=a.createGain(); o.type='triangle'; o.frequency.setValueAtTime(190,t+0.004); o.frequency.exponentialRampToValueAtTime(90,t+0.05);
+    og.gain.setValueAtTime(0.0001,t); og.gain.exponentialRampToValueAtTime(0.16*v,t+0.006); og.gain.exponentialRampToValueAtTime(0.0001,t+0.07);
+    o.connect(og); og.connect(a.destination); o.start(t); o.stop(t+0.08);
+    B.dryClicks=(B.dryClicks|0)+1;
+  }
+  B.dryClick=dryClick;
+  function dryTick(){
+    if(dryCd>0) dryCd--;
+    const use=typeof _bindDown==='function'&&_bindDown('swap');
+    if(use&&!wasUse&&ITEM>=0&&ITEM<=3&&_itemUnlocked(ITEM)&&(p.itemStamina||0)<=0.5&&!(typeof _runItemQuiet==='function'&&_runItemQuiet(p))&&dryCd<=0){ dryClick(); dryCd=10; }
+    wasUse=!!use;
+  }
+
   // ── wiring ───────────────────────────────────────────────────
   const _up=window.update;
   window.update=function(){
     const r=_up.apply(this,arguments);
-    try{ if(on()&&!B.freeze&&!B.loading){ swingTick(); stowTick(); if(typeof ITEM_DROPS!=='undefined') jackTick(); } }catch(er){ console.warn('items',er); }
+    try{ if(on()&&!B.freeze&&!B.loading){ swingTick(); stowTick(); dryTick(); if(typeof ITEM_DROPS!=='undefined') jackTick(); } }catch(er){ console.warn('items',er); }
     return r;
   };
   const _hud=window.drawLdtkLabHud;
