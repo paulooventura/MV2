@@ -90,7 +90,8 @@
     const fl=a.createGain(); fl.gain.value=1; const lfo=a.createOscillator(), lg=a.createGain(); lfo.frequency.value=22; lg.gain.value=0.45; lfo.connect(lg); lg.connect(fl.gain);   // the flutter
     s.connect(hp); hp.connect(g); g.connect(fl); fl.connect(N.out); s.start(t); s.stop(t+0.5); lfo.start(t); lfo.stop(t+0.5);
   }
-  // A backfire pop, booked on the audio clock: a bright crack plus a low thump.
+  const POP_CURVE=(()=>{ const n=512, c=new Float32Array(n); for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(x*3.2)/Math.tanh(3.2); } return c; })();
+  // A backfire pop, booked on the audio clock: a bright crack plus a little blast (T432).
   function pop(level, delay){
     if(!N||!(level>0)) return;
     const a=N.a, t=a.currentTime+Math.max(0,delay||0), k=Math.max(0.15,Math.min(1,level));
@@ -102,13 +103,18 @@
     ng.gain.exponentialRampToValueAtTime(0.0001, t+0.035+Math.random()*0.02);
     const wide=a.createStereoPanner(); wide.pan.value=(Math.random()*2-1)*0.4;
     s.connect(hp); hp.connect(ng); ng.connect(wide); wide.connect(N.out);
-    const o=a.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(70+Math.random()*40,t);
-    const og=a.createGain();
-    og.gain.setValueAtTime(0.0001,t);
-    og.gain.exponentialRampToValueAtTime(0.28*k, t+0.008);
-    og.gain.exponentialRampToValueAtTime(0.0001, t+0.06);
-    o.connect(og); og.connect(wide);
-    s.start(t); s.stop(t+0.09); o.start(t); o.stop(t+0.09);
+    // T432 (Paulo, Nov 11): "tiny explosions and not boops" — the body was a sine thump (the boop).
+    // Now it is a burst of noise whose low-pass slams shut (a little blast), clipped hard for grit.
+    const b=a.createBufferSource(); b.buffer=N.NB;
+    const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.8;
+    lp.frequency.setValueAtTime(3200+Math.random()*1400,t); lp.frequency.exponentialRampToValueAtTime(180+Math.random()*80,t+0.07);
+    const sh=a.createWaveShaper(); sh.curve=POP_CURVE;
+    const bg=a.createGain();
+    bg.gain.setValueAtTime(0.0001,t);
+    bg.gain.exponentialRampToValueAtTime(0.34*k, t+0.0015);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t+0.075+Math.random()*0.03);
+    b.connect(lp); lp.connect(sh); sh.connect(bg); bg.connect(wide);
+    s.start(t); s.stop(t+0.09); b.start(t,Math.random()*0.5); b.stop(t+0.12);
   }
   function crackle(count, big){
     const n=Math.max(1,Math.min(8,count|0));
@@ -164,7 +170,7 @@
     for(let i=0;i<n;i++){
       const col=Math.random()<0.3?'#ffe08a':(Math.random()<0.55?'#ff6a18':'#ff3810');
       // spark:true = main.js draws it as a glowing streak (T202: plain particles are 1-2 px dots, unreadable)
-      PFXS.push({x:t.x+(Math.random()-0.5)*7,y:t.y+(Math.random()-0.5)*5,vx:t.back*(2.2+Math.random()*7)+(Math.random()-0.5)*2.4,vy:-1.2-Math.random()*(2.4+hot*4),life:20+(Math.random()*14|0),maxLife:34,r:1.05+Math.random()*1.35,col,spark:true});
+      PFXS.push({x:t.x+(Math.random()-0.5)*7,y:t.y+(Math.random()-0.5)*5,vx:t.back*(3+Math.random()*8)+(Math.random()-0.5)*3,vy:-1.4-Math.random()*(2.8+hot*4.5),life:14+(Math.random()*14|0),maxLife:28,r:0.8+Math.random()*1,col,spark:true});
     }
   }
   function sportBurst(){
@@ -368,7 +374,9 @@
     }
     if(sport&&(fr%2===0)){
       exhaustPuff(Math.max(0.2,S.heat||0));
-      if((S.heat||0)>0.42&&fr%4===0) cornerSparks(2, S.heat);
+      // T433 (Paulo, Nov 11): sparks only on the double-tap rev (and the sports-mode switch) and at
+      // high speed with the engine high in the revs — not a constant trickle while running
+      if((S.heat||0)>0.42&&(S.rpm||0)>RED*0.8&&fr%4===0) cornerSparks(2, S.heat);
     }
     const ef=180+spd*2400;
     set(N.e1.frequency,ef,0.04); set(N.e2.frequency,ef*1.5,0.04); set(N.ebp.frequency,ef*2,0.04); set(N.eg.gain,0.02*sportMix*Math.min(1,spd*1.4)*(0.4+0.6*S.thr),0.06);

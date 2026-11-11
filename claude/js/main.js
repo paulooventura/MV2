@@ -1256,16 +1256,22 @@ function update(){
 // a soft glow, a hot streak along the flight and a white-hot core, all additive.
 function drawSparks(){
   if(!PFXS.length) return;
-  const W2=v=>typeof sw==='function'?sw(v):v, L=3.6;
-  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+  // T432 (Paulo, Nov 11): sharp like a fire's sparks, not round heat droplets — each spark is a
+  // thin needle: a white-hot point at the head tapering to nothing along its trail, no round glow
+  const W2=v=>typeof sw==='function'?sw(v):v, L=4.2;
+  // (on Ink & Vinyl's light paper, adding light washes them white and the print drops their colour)
+  const inkP=!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
+  ctx.save(); ctx.globalCompositeOperation=inkP?'source-over':'lighter'; ctx.lineJoin='miter';
   for(const pf of PFXS){
     if(!pf.spark) continue;
-    const t=pf.life/pf.maxLife, x0=sx(pf.x), y0=sy(pf.y), a=Math.min(1,0.45+t);
-    ctx.globalAlpha=a*0.35; ctx.fillStyle=pf.col; ctx.beginPath(); ctx.arc(x0,y0,Math.max(4,W2(pf.r*4.2)),0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=a; ctx.strokeStyle=pf.col; ctx.lineWidth=Math.max(2.5,W2(pf.r*2.6));
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(sx(pf.x-pf.vx*L),sy(pf.y-pf.vy*L)); ctx.stroke();
-    ctx.strokeStyle='#fff4c8'; ctx.lineWidth=Math.max(1.2,W2(pf.r*1.1));
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(sx(pf.x-pf.vx*L*0.45),sy(pf.y-pf.vy*L*0.45)); ctx.stroke();
+    const t=pf.life/pf.maxLife, x0=sx(pf.x), y0=sy(pf.y), a=Math.min(1,0.35+t);
+    const x1=sx(pf.x-pf.vx*L), y1=sy(pf.y-pf.vy*L), dx=x0-x1, dy=y0-y1, d=Math.hypot(dx,dy)||1;
+    const nx=-dy/d, ny=dx/d, hw=Math.max(0.9,W2(pf.r*1.15));
+    ctx.globalAlpha=a; ctx.fillStyle=pf.col;
+    ctx.beginPath(); ctx.moveTo(x0+dx/d*hw*1.6,y0+dy/d*hw*1.6); ctx.lineTo(x0+nx*hw,y0+ny*hw); ctx.lineTo(x1,y1); ctx.lineTo(x0-nx*hw,y0-ny*hw); ctx.closePath(); ctx.fill();
+    const xm=x0-dx*0.35, ym=y0-dy*0.35, hc=hw*0.45;                          // the white-hot core, shorter
+    ctx.fillStyle='#fff8dc';
+    ctx.beginPath(); ctx.moveTo(x0+dx/d*hw*1.2,y0+dy/d*hw*1.2); ctx.lineTo(x0+nx*hc,y0+ny*hc); ctx.lineTo(xm,ym); ctx.lineTo(x0-nx*hc,y0-ny*hc); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 }
