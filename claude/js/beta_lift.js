@@ -50,6 +50,21 @@
     return null;
   };
   setInterval(()=>{ try{ if(!B.on||B.stageId!=='1.3'||typeof ENEMS==='undefined') return; for(const e of ENEMS) if(e) e._inCab=!!S.cabOf(e); }catch(_e){} },50);
+  // T439 (Paulo, Nov 11): "Our sprites should disappear when the elevator doors are closed because
+  // currently it's showing parts of it outside of the elevator." MIND (and the companion) are not
+  // drawn while they stand in a cab whose doors are shut.
+  function inClosedCab(pl){
+    if(!pl||!B.platforms) return false;
+    const ex=pl.x+SW/2, ef=pl.y+(typeof FEET_OFF==='number'?FEET_OFF:88);
+    for(const m of B.platforms){ if(!m.vert||m.x>=23*T||!((m.door||0)>0.7)) continue; if(ex>m.x&&ex<m.x+m.w&&Math.abs(ef-m.y)<20) return true; }
+    return false;
+  }
+  S.inClosedCab=inClosedCab;
+  { const _dc=window.drawCharacter;
+    if(typeof _dc==='function') window.drawCharacter=function(){
+      try{ if(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&inClosedCab(p)) return; }catch(_e){}
+      return _dc.apply(this,arguments);
+    }; }
   { const _de=window._damageEnemy;
     if(typeof _de==='function') window._damageEnemy=function(e){ if(e&&e._inCab&&!(S.sealed&&S.cab===S.cabOf(e))) return; return _de.apply(this,arguments); }; }
   { const _fx=window._applyEnemyItemFx;
