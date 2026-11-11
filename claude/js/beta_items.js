@@ -13,9 +13,10 @@
 //   MEG STOW      switching away from the MEG (not stuck to a surface — that's the
 //                 park): the glove hand takes it off the arm, carries it over the
 //                 head and seats it in the back socket, like the RCA.
-//   FOES TAKE     "If they shut us down, we drop our items ... and the enemies can
-//   JACKS         pick it up and use it". A shutdown drops the jack in hand. Any
-//                 loose jack of MIND's (shutdown, A+B drop, D's knock) is taken by
+//   FOES TAKE     Paulo, Oct 29 (T162): a shutdown drops NOTHING. A jack drops only on
+//   JACKS         a shock (the one in hand: beta_impact's live cage blocks) or when the
+//                 mirror enemy D knocks MIND (the one in hand, beta_mirror). Any
+//                 loose jack of MIND's (shock, A+B drop, D's knock) is taken by
 //                 an enemy A / B / C / E that touches it; it shows in its hand and
 //                 it uses it on MIND: TRS shots, XLR gusts, MEG pull, RCA yank.
 //                 Shut it down and the jack drops; leaving the stage gives back
@@ -154,7 +155,7 @@
   // ── foes take MIND's loose jacks and use them ────────────────
   const TAKERS={circle:'A', tri:'B', square:'C', eye:'E'};
   const lost=new Set();
-  let holders=[], lastLevel=null, wasShut=false;
+  let holders=[], lastLevel=null;
   function looseDrop(item,enh,x,y,vx,vy){
     const d={item, enhanced:!!enh, x:x-16, y:y-16, w:32, h:32, got:false, bob:0, _knocked:true, _jackLoose:true,
       _box:{hp:0, broken:true, shake:0, glow:0, item:{x, y, vx, vy, rot:0, vr:(vx>=0?1:-1)*0.3, og:false, noPick:40}}};
@@ -167,8 +168,9 @@
     for(const i of lost) if(ITEM_UNLOCK_BITS[i]) _unlockedMask|=ITEM_UNLOCK_BITS[i];
     lost.clear();
   }
-  // a shutdown drops the jack in hand where he went down (never into the pit)
-  function shutDrop(){
+  // a shock drops the jack in hand where he was hit (never into the pit). (Before Oct 29 a
+  // shutdown did this; now a shutdown keeps every jack.)
+  function shockDrop(){
     const it=ITEM;
     if(it<0||it>3||!_itemUnlocked(it)||B.magPark) return;
     const cx=p.x+SW/2, cy=p.y+FEET_OFF-40;
@@ -260,9 +262,6 @@
   function jackTick(){
     if(B.level!==lastLevel){ if(lastLevel) giveBackAll(); else { holders=[]; lost.clear(); } lastLevel=B.level; }
     for(const i of [...lost]) if(_itemUnlocked(i)) lost.delete(i);
-    const shut=_shutdownTimer>0;
-    if(shut&&!wasShut) shutDrop();
-    wasShut=shut;
     takeTick(); holdTick();
   }
 
@@ -280,5 +279,5 @@
     return r;
   };
   window.MV_ITEMS={ state:()=>({stow:stow&&stow.t, holders:holders.map(e=>({ai:e._ai,jack:e._jack})), lost:[...lost], swing:B.magSwing()}),
-    RIC, SWING, looseDrop:(it,x,y)=>looseDrop(it,false,x,y,0,-2) };
+    RIC, SWING, shockDrop:()=>{ if(on()) shockDrop(); }, looseDrop:(it,x,y)=>looseDrop(it,false,x,y,0,-2) };
 })();

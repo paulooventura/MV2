@@ -126,6 +126,7 @@
     let kx=mx-bx, ky=my-by; const d=Math.hypot(kx,ky)||1; kx/=d; ky/=d;
     const kb=kind==='punchLoaded'?9:punch?6:Math.min(8,3+dmg/8);
     try{ applyPlayerHit(kx*kb, Math.min(-3,ky*kb-2), dmg); }catch(e){}
+    try{ if(window.MV_ITEMS&&MV_ITEMS.shockDrop) MV_ITEMS.shockDrop(); }catch(e){}   // T162: a shock knocks the jack in hand loose
     shockCd=SHOCK.CD; zapT=zapMax=kind==='punchLoaded'?54:dmg>25?36:24; zapFrom={x:bx,y:by};
     bw.hitGlow=16; bw.shakeX=(Math.random()-0.5)*4;
     B.shake=Math.max(B.shake||0,kind==='punchLoaded'?11:Math.min(8,3+dmg/8));
