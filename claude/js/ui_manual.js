@@ -33,6 +33,20 @@
     if(line){ ink(); yy+=lh; }
     ctx.restore(); return yy;
   }
+  // T198: measure before drawing, so text never runs into the next block
+  function nLines(text,maxW,size){
+    ctx.save(); ctx.font=size+'px '+BODY(); const words=String(text).split(' '); let line='', n=0;
+    for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW&&line){ n++; line=w; } else line=t; }
+    if(line) n++; ctx.restore(); return n;
+  }
+  const LH=s=>Math.round(s*1.27);
+  // the biggest body size (pref down to min) for which total(size) fits in maxH
+  function fitSize(total,maxH,pref,min){ for(let s=pref;s>min;s--) if(total(s)<=maxH) return s; return min; }
+  // a one-line heading that shrinks to its width
+  function fitLabel(t,x,y,maxW,size,col,align){
+    ctx.save(); let s=size; ctx.font=s+'px '+HEAD(); while(s>12&&ctx.measureText(t).width>maxW){ s--; ctx.font=s+'px '+HEAD(); } ctx.restore();
+    label(t,x,y+Math.round((size-s)/2),s,col,align); return s;
+  }
   function ribbon(text,x,y,w,col){
     ctx.save(); ctx.translate(x,y); ctx.rotate(-0.035);
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.moveTo(6,6); ctx.lineTo(w+20,6); ctx.lineTo(w+6,52); ctx.lineTo(-8,52); ctx.closePath(); ctx.fill();
@@ -220,29 +234,48 @@
         if(dev==='pad'||dev==='touch') return (typeof uiActLabel==='function')?uiActLabel(a):a.toUpperCase();
         return keyOf(a==='swap'?'swap':a==='use'?'use':a==='punch'?'punch':'jump');
       };
-      const rows=[['MOVE',act('left')+'  ·  '+act('right')],['JUMP  ·  hold it in the air to climb',act('jump')],['USE ITEM (hold to charge)',act('swap')],['SWITCH ITEM',act('use')],['PUNCH',act('punch')],['SPORTS-MODE: double-tap run and hold while moving',act('swap')],['LOADED JUMP: hold down on the ground, then jump',act('down')+' + '+act('jump')]];
-      let yy=y+250;
-      for(const [a,b] of rows){ label(a,x+24,yy,20,INK); label(b,x+w-24,yy,20,BLUE,'right'); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+24,w-48,1); yy+=36; }
-      box(x+40,yy+6,w-80,70,'PAUSE',RED); wrap('ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the filter and this booklet.',x+52,yy+36,w-104,14,18);
+      // T198: each row is the action (left), its button (right) and, under them, a short note
+      const rows=[['MOVE',act('left')+'  ·  '+act('right')],['JUMP',act('jump'),'Hold it in the air to climb.'],['USE ITEM',act('swap'),'Hold to charge.'],['SWITCH ITEM',act('use')],['PUNCH',act('punch')],['SPORTS-MODE',act('swap'),'Double-tap run and hold while moving.'],['LOADED JUMP',act('down')+' + '+act('jump'),'Hold down on the ground, then jump.']];
+      const pauseT='ESC / START opens the pause menu: RESUME · OPTIONS · EXIT. Options hold the sound, the filter and this booklet.';
+      const y0=y+246, room=y+h-44-y0;
+      const rowsH=s=>rows.reduce((n,r)=>n+s+12+(r[2]?LH(s-2):0),0);
+      const total=s=>rowsH(s)+6+40+nLines(pauseT,w-104,s-2)*LH(s-2)+12;
+      const fs=fitSize(total,room,20,15);
+      let yy=y0;
+      for(const [a,b,note] of rows){
+        ctx.save(); ctx.font=fs+'px '+HEAD(); const kw=ctx.measureText(b).width; ctx.restore();
+        fitLabel(a,x+24,yy,w-48-kw-18,fs,INK); label(b,x+w-24,yy,fs,BLUE,'right');
+        yy+=fs+4;
+        if(note){ wrap(note,x+24,yy,w-48,fs-2,LH(fs-2),'#3a3028'); yy+=LH(fs-2); }
+        ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+24,yy+3,w-48,1); yy+=8;
+      }
+      const pl=nLines(pauseT,w-104,fs-2), ph=40+pl*LH(fs-2)+12;
+      box(x+40,yy+6,w-80,ph,'PAUSE',RED); wrap(pauseT,x+52,yy+6+42,w-104,fs-2,LH(fs-2));
     },
     // 5 · the four jacks
     (x,y,w,h)=>{
       ribbon('THE FOUR JACKS',x+30,y+30,320,BLUE);
       const sheet=img('boxes','assets/items/mv2-item-boxes-standard-enhanced.png');
       const T=[['TRS','A charged shot. Breaks yellow cage blocks and boils water into steam.'],['RCA','The rope. Tap up pays out all the slack. Tap down pulls it taut to the jack tip. A lighter catch comes to you. Hold up after that and it lets go with a snap.'],['XLR','A blast that throws blocks and antagonists — and you, the other way.'],['MEG','The magnet. Locks to the floor when you aim down. Grab, carry, let go to throw.']];
-      T.forEach(([n,t],i)=>{ const by=y+92+i*142; framed(sheet,x+24,by,112,104,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+152,by+4,30,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+152,by+42,w-188,22,28); });
+      // T198: each jack's row is as tall as its text (never under the next jack); shrink only if the page would overflow
+      const tw=w-188, rowH=s=>T.map(([,t])=>Math.max(104,40+nLines(t,tw,s)*LH(s)));
+      const fs=fitSize(s=>rowH(s).reduce((a,b)=>a+b,0)+3*12,y+h-40-(y+92),22,16), RH=rowH(fs);
+      let by=y+92;
+      T.forEach(([n,t],i)=>{ framed(sheet,x+24,by,112,104,{sx:JACK_X[i],sy:150,sw:312,sh:300,pixel:true}); label(n,x+152,by,30,i===3?RED:i===1?'#6a2cc8':INK); wrap(t,x+152,by+38,tw,fs,LH(fs)); by+=RH[i]+12; });
       starburst(x+w-58,y+48,34,'PWR');
     },
     // 6 · Awdjoo Town
     (x,y,w,h)=>{
       ribbon('AWDJOO TOWN',x+24,y+16,280);
       framed(img('s5','assets/story/story-5.png'),x+24,y+78,w-48,96,{ay:0.5});
-      box(x+24,y+186,w-48,150,'STAGE 1.1 · THE STREET','#2a7a3a',22);
-      wrap('Find the four jacks in their crates, collect the Knowl seeds, meet Laitu and open the arch. Watch for the minions, and the gramophone in your living room.',x+40,y+230,w-80,22,28);
-      box(x+24,y+348,w-48,130,'STAGE 1.2 · DEEP WATERS',BLUE,22);
-      wrap('A flooded house, a crystal chamber and a corridor where D waits. Pull the drain plug. Water shorts out robots.',x+40,y+392,w-80,22,28);
-      box(x+24,y+490,w-48,150,'STAGE 1.3 · THE LAIR',RED,22);
-      wrap('Past the flooded street. E watches from one eye. F sleeps under the water. The knife is the only thing that can finish what waits at the end.',x+40,y+534,w-80,22,28);
+      // T198: boxes sized to their text
+      const ST=[['STAGE 1.1 · THE STREET','#2a7a3a','Find the four jacks in their crates, collect the Knowl seeds, meet Laitu and open the arch. Watch for the minions, and the gramophone in your living room.'],
+        ['STAGE 1.2 · DEEP WATERS',BLUE,'A flooded house, a crystal chamber and a corridor where D waits. Pull the drain plug. Water shorts out robots.'],
+        ['STAGE 1.3 · THE LAIR',RED,'Past the flooded street. E watches from one eye. F sleeps under the water. The knife is the only thing that can finish what waits at the end.']];
+      const bh=s=>ST.map(([,,t])=>34+10+nLines(t,w-80,s)*LH(s)+10);
+      const fs=fitSize(s=>bh(s).reduce((a,b)=>a+b,0)+2*12,y+h-40-(y+186),22,17), BH=bh(fs);
+      let yy=y+186;
+      ST.forEach(([ti,c,t],i)=>{ box(x+24,yy,w-48,BH[i],ti,c,22); wrap(t,x+40,yy+44,w-80,fs,LH(fs)); yy+=BH[i]+12; });
     },
     // 7 · tips
     (x,y,w,h)=>{
@@ -263,8 +296,8 @@
     (x,y,w,h)=>{
       ribbon('HOW FAR WE ARE',x+30,y+30,310,BLUE);
       const build=window.MV_BUILD||'?';
-      const st=[['BUILD',build],['STAGES PLAYABLE','2  (AWDJOO 1.1 · 1.2)'],['ZONES PLANNED','6  (TOWN → HILLS → GARDEN → CAVERN → FACTORY → LAIR)'],['CODE','30,000 LINES · 50+ MODULES'],['NEXT','THE ALPHA: CREATIVE MODE + GAUDER HILLS']];
-      let yy=y+88; for(const [a,b] of st){ box(x+24,yy,w-48,78,a,BLUE,20); label(b,x+40,yy+42,24,INK); yy+=90; }
+      const st=[['BUILD',build],['STAGES PLAYABLE','3  (AWDJOO 1.1 · 1.2 · 1.3)'],['ZONES PLANNED','6: TOWN · HILLS · GARDEN · CAVERN · FACTORY · LAIR'],['CODE','30,000 LINES · 50+ MODULES'],['NEXT','THE ALPHA: CREATIVE MODE + GAUDER HILLS']];
+      let yy=y+88; for(const [a,b] of st){ box(x+24,yy,w-48,78,a,BLUE,20); fitLabel(b,x+40,yy+42,w-80,24,INK); yy+=90; }   // T198: never past the box
       // a progress bar: zones done / planned
       ctx.save(); ctx.fillStyle='#000'; ctx.fillRect(x+30,yy+8,w-60,22); ctx.fillStyle='#3fae5a'; ctx.fillRect(x+32,yy+10,(w-64)*(1/6),18); ctx.restore();
       label('ZONE 1 OF 6',x+w/2,yy+40,14,INK,'center');
@@ -273,7 +306,10 @@
     (x,y,w,h)=>{
       ribbon('CURIOUS FACTS',x+30,y+30,300,RED);
       const F=['Every drop of water is counted. Boil it to steam and it still exists — until it rains back down.','Mind\'s wheel hides a V8: five gears, a rev limiter, burble at idle and crackles when you lift off.','You hear the world from Mind\'s spot: walls muffle, rooms ring, and 3D "ears" put sounds beside or behind you.','The stage music isn\'t everywhere — it comes out of the gramophone in the living room.','Mind\'s eye squints harder the more danger is around him.','The title screen is hand-painted pixel art, and so is every story page.'];
-      let yy=y+84; F.forEach((t,i)=>{ box(x+24,yy,w-48,90,'FACT '+(i+1),i%2?BLUE:RED,20); wrap(t,x+40,yy+40,w-80,18,23); yy+=96; });
+      // T198: each fact's box fits its text; the type is as big as the page allows
+      const bh=s=>F.map(t=>32+8+nLines(t,w-80,s)*LH(s)+8);
+      const fs=fitSize(s=>bh(s).reduce((a,b)=>a+b,0)+5*8,y+h-40-(y+84),21,16), BH=bh(fs);
+      let yy=y+84; F.forEach((t,i)=>{ box(x+24,yy,w-48,BH[i],'FACT '+(i+1),i%2?BLUE:RED,20); wrap(t,x+40,yy+40,w-80,fs,LH(fs)); yy+=BH[i]+8; });
     },
     // 11 · the endeavor, full bleed, with its own title
     (x,y,w,h)=>{
