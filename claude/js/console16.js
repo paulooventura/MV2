@@ -141,7 +141,9 @@
   //   health is clean; every phase lost crushes the whole picture harder —
   //   bigger pixels, fewer colours, and at the end it starts to tear.
   // HP phase 5 = posh and clean · 4..1 = more crushed, darker, slower music · 0 HP = shut down (phase 1)
-  const CRUSH=[null,{f:7,lv:4,tear:1,dark:0.42,rate:0.52},{f:5,lv:5,tear:0.75,dark:0.34,rate:0.64},{f:4,lv:7,tear:0.45,dark:0.26,rate:0.76},{f:3,lv:10,tear:0.2,dark:0.16,rate:0.88},{dark:0,rate:1}];
+  // T428 (Paulo, Nov 11): the screen gets darker as MIND weakens; almost shut down, it is almost black
+  // and only MIND stays fully lit (redrawMind below). (Was 0.16 / 0.26 / 0.34 / 0.42.)
+  const CRUSH=[null,{f:7,lv:4,tear:1,dark:0.88,rate:0.52},{f:5,lv:5,tear:0.75,dark:0.62,rate:0.64},{f:4,lv:7,tear:0.45,dark:0.4,rate:0.76},{f:3,lv:10,tear:0.2,dark:0.2,rate:0.88},{dark:0,rate:1}];
   const DITH=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(v=>v/16-0.47);   // ordered dither so dark shades survive the crush
   const JOLT_FR=28; let jolt=0, lastHp=null;          // a hit: a short burst of full crush, tear and a red flash
   let crushC=null;
@@ -162,17 +164,23 @@
   api.hurtDark=function(){ return CRUSH[hpPhase()].dark; };
   api.jolt=()=>jolt/JOLT_FR;
   // darker screen per phase (replaces ui.js drawDamageOverlay's soft ramp)
-  window.drawDamageOverlay=function(){
-    if(typeof _gameState==='undefined'||_gameState!=='game'||!p) return;
-    const j=jolt/JOLT_FR, dark=Math.min(0.8,CRUSH[hpPhase()].dark+j*0.25);
-    if(dark<0.02&&j<=0) return;
+  // T428: the darkening on its own (Ink & Vinyl uses it too, without the crush); true when it drew
+  function darken(noRed){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||!p) return false;
+    const j=jolt/JOLT_FR, dark=Math.min(0.94,CRUSH[hpPhase()].dark+j*0.2);
+    if(dark<0.02&&j<=0) return false;
     ctx.save(); ctx.globalCompositeOperation='source-over';
     ctx.fillStyle='rgba(2,0,8,'+dark.toFixed(3)+')'; ctx.fillRect(0,0,W,H);
     const vg=ctx.createRadialGradient(W/2,H/2,H*0.25,W/2,H/2,H*0.8);   // closing-in edges
     vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,'+Math.min(0.9,dark*1.3).toFixed(3)+')');
     ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
-    if(j>0){ ctx.fillStyle='rgba(200,10,40,'+(0.35*j).toFixed(3)+')'; ctx.fillRect(0,0,W,H); }
+    if(j>0&&!noRed){ ctx.fillStyle='rgba(200,10,40,'+(0.35*j).toFixed(3)+')'; ctx.fillRect(0,0,W,H); }
     ctx.restore();
+    return true;
+  }
+  api.darkOverlay=function(){ if(darken(true)) try{ redrawMind(); }catch(e){} };
+  window.drawDamageOverlay=function(){
+    if(!darken()) return;
     // Paulo (Oct 21): only the world glitches — this runs after the world and before the
     // HUD, so the top and bottom bars stay readable; MIND is drawn again on top, clear
     // (his eye and cracked bulb show the damage instead, render.js drawHead)

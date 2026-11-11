@@ -184,7 +184,8 @@
   }
   // the console's darkening + bit-crush damage overlay is swapped for the ageing print (shader)
   const _dmg=window.drawDamageOverlay, _atm=window.drawAtmosphere;
-  window.drawDamageOverlay=function(){ if(enabled()) return; if(typeof _dmg==='function') return _dmg.apply(this,arguments); };
+  // T428 (Paulo, Nov 11): in the print too the world goes dark as MIND weakens (sumi wash), MIND stays lit
+  window.drawDamageOverlay=function(){ if(enabled()){ try{ if(window.MV_CONSOLE&&MV_CONSOLE.darkOverlay) MV_CONSOLE.darkOverlay(); }catch(e){} return; } if(typeof _dmg==='function') return _dmg.apply(this,arguments); };
   // the glass-TV vignette would read as HUD to the layer mask; the print has its own margin
   window.drawAtmosphere=function(){ if(enabled()) return; if(typeof _atm==='function') return _atm.apply(this,arguments); };
   for(const name of ['drawDamageOverlay','drawItemTutorial','drawHUD']){

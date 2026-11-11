@@ -196,7 +196,10 @@
   setInterval(()=>{
     let ph=5; try{ if(window.MV_CONSOLE&&MV_CONSOLE.hpPhase){ ph=MV_CONSOLE.hpPhase(); if(MV_CONSOLE.jolt&&MV_CONSOLE.jolt()>0) ph=Math.max(1,ph-2); } }catch(e){}
     for(const ac of known){ const b=BUS.get(ac); if(!b||b.phase===ph) continue; b.phase=ph;
-      try{ b.crusher.curve=ph>=5?null:stepCurve(BITS[ph],1.0); }catch(e){} }
+      // T428 (Paulo, Nov 11): "the getting damaged sfx sounds way too distorted, making the game sound
+      // dirty" — the sound is no longer bit-crushed by damage. Damage shows as the music pitching
+      // down (beta_audio hurtTick) and the screen going dark (console16 drawDamageOverlay).
+      try{ b.crusher.curve=null; }catch(e){} }
   },60);
   // the TV state: speaker voicing on/off, and the degauss "thoom" when the set comes on
   // or the console is switched
