@@ -950,6 +950,15 @@
       for(const j of [i-NX,x>0?i-1:-1,x<NX-1?i+1:-1,i+NX]){ if(j<0||j>=M.length||seen.has(j)||BLK[j]||M[j]<0.02) continue; seen.add(j); Q[t++]=j; }
     }
   }
+  // T434: boil the water right at a point (enemy F's spark bubbles pop at the surface): the cell
+  // there, or the one just under it, and the water joined to it, up to `amt` cells' worth
+  B.boilAt=function(x,y,amt){
+    if(!F.ready) return 0;
+    const {NX,NY,M,CS}=F, cx=Math.floor(x/CS);
+    for(const dy of [0,1,2,-1]){ const cy=Math.floor(y/CS)+dy; if(cx<0||cx>=NX||cy<0||cy>=NY) continue;
+      const i=cy*NX+cx; if(M[i]>=0.05){ const v0=F.vapor; boil(i,amt||0.6); return F.vapor-v0; } }
+    return 0;
+  };
   function elecTick(){
     const {NX,M,BLK,EL,CS}=F, b=F.bb; if(b.x1<b.x0) return;
     for(let y=Math.max(0,b.y0-1);y<=Math.min(F.NY-1,b.y1+1);y++) for(let x=b.x0;x<=b.x1;x++){

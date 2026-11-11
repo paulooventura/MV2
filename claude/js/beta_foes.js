@@ -213,13 +213,53 @@
   }
 
   // ── F: the transparent cube ───────────────────────────────────
-  const CUBE_VULN=180;
+  // T434 (Paulo, Nov 11): "heptagon foe has to look solid (white like the circular and triangular
+  // ones) when we can damage it. When it's sitting idle it looks transparent, but when we get too
+  // close to it, it turns solid with the electric sparks that spawn from its angle notches (6 spark
+  // bubbles ... that will rise to the surface, and when it reaches the surface, the bubble bursts and
+  // the electric sparks will evaporate the water pixels where the spark is). It shall take three
+  // loaded punches, or a couple of laser shots (one, when loaded) to shut it down."
+  //   Solid (and open to damage) while MIND is close; a hit from afar wakes it and opens 3 s.
+  //   Of its 90: a loaded punch takes 30, a TRS shot 45, a loaded shot 90. Plain punches clink.
+  const CUBE_VULN=180, CUBE_DMG={punch:30, shot:45, shotLoaded:90};
   function cubeHurtable(e){
     if((e.fVulnT||0)<=0) return false;
     if(knifeHit) return true;
-    const sh=window._shotHitNow; if(sh) return !!sh.charged;
+    const sh=window._shotHitNow; if(sh) return true;
     return !!(p&&p.pt>0&&typeof _heroPunch==='function'&&(p.pCharge||0)>_heroPunch(p).loadF);   // a loaded punch
   }
+  // the 6 spark bubbles: from the notches, up through the water, bursting at the surface
+  const fBubbles=[];
+  function cubeBubbles(e){
+    const c={x:e.x+e.w/2, y:e.y+e.h/2}, R=e.w*0.56;
+    for(let i=0;i<6;i++){ const an=-Math.PI/2+i*Math.PI/3+(e.spin||0)+(e.ang||0); fBubbles.push({x:c.x+Math.cos(an)*R, y:c.y+Math.sin(an)*R, vy:-0.4, t:0, ph:Math.random()*6.3}); }
+  }
+  function bubbleTick(){
+    for(let i=fBubbles.length-1;i>=0;i--){
+      const b=fBubbles[i]; b.t++;
+      const wetHere=B.inWater&&B.inWater(b.x,b.y), wetAbove=B.inWater&&B.inWater(b.x,b.y-8);
+      if(wetHere){ b.vy=Math.max(-2.2,b.vy-0.05); b.y+=b.vy; b.x+=Math.sin(b.t*0.15+b.ph)*0.6; }
+      if(!wetHere||!wetAbove||solid(b.x,b.y-8)||b.t>420){
+        let boiled=0; try{ if(B.boilAt) boiled=B.boilAt(b.x,b.y+4,0.7); }catch(er){}
+        if(typeof PFXS!=='undefined') for(let k=0;k<7;k++){ const a=-Math.PI/2+(Math.random()-0.5)*2.4, s=2+Math.random()*4; PFXS.push({x:b.x,y:b.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:10+(Math.random()*10|0),maxLife:20,r:0.8+Math.random()*0.6,col:Math.random()<0.5?'#bfefff':'#fff6a0',spark:true}); }
+        try{ if(typeof sfxAt==='function') sfxAt(b,'zap',1.6+Math.random()*0.4); }catch(er){}
+        B.fBubblePops=(B.fBubblePops|0)+1; B.fBubbleBoil=(B.fBubbleBoil||0)+boiled;
+        fBubbles.splice(i,1);
+      }
+    }
+  }
+  function drawBubbles(){
+    for(const b of fBubbles){
+      const x=sx(b.x), y=sy(b.y), r=Math.max(4,sw(7));
+      ctx.save();
+      ctx.fillStyle='rgba(180,235,255,0.18)'; ctx.strokeStyle='rgba(225,248,255,0.9)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle=(b.t>>2)&1?'#fff6a0':'#ffffff'; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let k=0;k<4;k++){ const a=b.t*0.6+k*1.7; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.8,y+Math.sin(a)*r*0.8); }
+      ctx.stroke(); ctx.restore();
+    }
+  }
+  B.fBubbles=()=>fBubbles.length;
   B.cubeHurtable=cubeHurtable;
   // (build 370) waking is something you see and hear: a boot chime and a crackle, a flash, it
   // swells and its eyes light; for the 3 s it can be hurt its rim glows gold and sparks
@@ -231,6 +271,7 @@
   }
   function cubeTick(e){
     e._fx=false;
+    if(B._fBubFr!==fr){ B._fBubFr=fr; try{ bubbleTick(); }catch(er){} }
     if(e.mhp>=9999){ e.hp=e.mhp=90; }                    // (build 368) beta_enemy_f's 9999 HP stuck after its notch rules were switched off
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
     if(e.cd>0) e.cd--;
@@ -244,8 +285,10 @@
     // Paulo, Nov 4 (build 368): waking up (MIND comes close, or a hit) opens a 3 s window in
     // which it can be hurt, and only by a loaded punch, a loaded TRS shot or the kiritsuke
     if((e.fVulnT||0)>0) e.fVulnT--;
-    if(close&&!e._wasClose) cubeWake(e);
+    if(close&&!e._wasClose){ cubeWake(e); cubeBubbles(e); }
+    if(close&&e.alive) e.fVulnT=Math.max(e.fVulnT||0,2);           // T434: solid and open to damage while MIND is close
     e._wasClose=close;
+    e.fSolidK=(e.fSolidK||0)+((close&&e.alive?1:0)-(e.fSolidK||0))*0.12;
     if(!close){ e.st='sleep'; e.beams=null; return; }
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
     else {
@@ -268,6 +311,7 @@
     }
   }
   function drawCube(e){
+    try{ drawBubbles(); }catch(er){}
     const awake=e.alive&&(e.st==='hunt'||e.st==='zap'||!!e._wasClose||(e.fVulnT||0)>0);
     if(e._wakeT>0) e._wakeT--;
     const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0);
@@ -279,6 +323,8 @@
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
     ctx.beginPath(); pts.forEach((q,i)=>ctx[i?'lineTo':'moveTo'](q[0],q[1])); ctx.closePath();
     ctx.fillStyle='rgba(190,230,255,'+(a*0.35)+')'; ctx.fill();
+    const sk=e.alive?(e.fSolidK||0):0;                                // T434: solid white while it can be hurt, like A and B
+    if(sk>0.02){ ctx.fillStyle='rgba(246,248,252,'+(0.94*sk).toFixed(3)+')'; ctx.fill(); ctx.strokeStyle='rgba(40,50,70,'+(0.85*sk).toFixed(3)+')'; ctx.lineWidth=3; ctx.stroke(); }
     const vul=(e.fVulnT||0)>0&&e.alive;
     if(vul){ ctx.save(); ctx.strokeStyle='rgba(255,226,120,'+(0.55+0.35*Math.sin(fr*0.5))+')'; ctx.lineWidth=5; ctx.stroke(); ctx.restore(); }   // the window: it can be hurt now
     ctx.strokeStyle=e.hitF>0?'#ffffff':'rgba(230,245,255,'+(a+0.2)+')'; ctx.lineWidth=2; ctx.stroke();
@@ -575,8 +621,10 @@
       // (build 371) any hit while its window is shut wakes it and opens the 3 s window again —
       // before, only walking up to it did, so standing next to it once the 3 s ran out it
       // could never be hurt (Paulo: "I still can't really damage the AG F")
-      if(!((e.fVulnT||0)>0)){ cubeWake(e); e._wasClose=true; if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; }
-      else if(!cubeHurtable(e)){ if(fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } e.hitF=6; return false; }
+      if(!((e.fVulnT||0)>0)){ cubeWake(e); e._wasClose=true; if(!window._shotHitNow){ if(fx!=null&&fy!=null) clink(e,fx,fy); e.hitF=6; return false; } }   // T434: a shot from afar wakes it and counts
+      if(!cubeHurtable(e)){ if(fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } e.hitF=6; return false; }
+      if(!knifeHit){ const sh=window._shotHitNow, amt=sh?(sh.charged?CUBE_DMG.shotLoaded:CUBE_DMG.shot):CUBE_DMG.punch;   // T434: 3 loaded punches / 2 shots / 1 loaded shot
+        return _dmgE.call(this,e,amt,fx,fy,kb); }
     }
     if(knifeHit&&knifeEnds(e)){
       knifeFinish(e);
