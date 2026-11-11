@@ -432,7 +432,8 @@
         try{ if(B.saveStage) B.saveStage(); }catch(er){}
         try{ if(B.timelinePush) B.timelinePush(); }catch(er){}
         burst(s.x,s.y-24,20,['#60d0ff','#ffffff'],3); S('chargeReady',1.2);
-        if(typeof uiShowToast==='function') uiShowToast(s.gift?'+1 BATTERY  -  SAVRAH SAVED THIS MOMENT':'SAVRAH SAVED THIS MOMENT TO YOUR TIMELINE');
+        // T440 (Paulo, Nov 11): "A dialog box has to pop open when we reach the save state." (was a toast)
+        B.saveDlg={t:0, lines:s.gift?['I SAVED THIS MOMENT TO YOUR TIMELINE.','TAKE THIS SPARE BATTERY: IF YOU GET','SHUT DOWN, IT REBOOTS YOU.']:['I SAVED THIS MOMENT TO YOUR TIMELINE.','IF YOU GET SHUT DOWN, YOU START AGAIN','FROM HERE.']};
       }
     }else if(s) s.near=false;
     if(s&&s.say>0) s.say--;
@@ -862,10 +863,44 @@
     }catch(er){ if(!B._hudWarn){ B._hudWarn=1; console.warn('foes hud',er); } }
     return r;
   };
+  // T440: Savrah's dialog box. The stage holds while it is open; any button closes it (after half a
+  // second, so a held jump doesn't skip it), and that press doesn't carry into the stage.
+  const SAVE_MIN=30;
+  function saveDlgKey(){
+    if(typeof readGamepad==='function') try{ readGamepad(); }catch(e){}
+    let any=false; for(const k in Kj) if(Kj[k]){ any=true; break; }
+    if(typeof clkj==='function') clkj();
+    return any;
+  }
+  { const _upd=window.update;
+    window.update=function(){
+      const d=B.saveDlg;
+      if(d&&B.on&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)){
+        d.t++;
+        if(saveDlgKey()&&d.t>SAVE_MIN){ B.saveDlg=null; for(const k in K) delete K[k]; for(const k in Kj) delete Kj[k]; try{ S('menu'); }catch(e){} }
+        if(typeof fr!=='undefined') fr++;
+        return;
+      }
+      if(d&&!B.on) B.saveDlg=null;
+      return _upd.apply(this,arguments);
+    }; }
+  function drawSaveDlg(){
+    const d=B.saveDlg; if(!d) return;
+    const a=Math.min(1,d.t/10), pw=Math.min(600,W-40), ph=200, px=Math.round(W/2-pw/2), py=Math.round(H*0.5-ph/2+(1-a)*24);
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(0,0,W,H);
+    uiPanel(px,py,pw,ph,{r:16,alpha:0.92,accent:'rgba(96,208,255,0.6)'});
+    drawTextC('SAVRAH',W/2,py+18,'#60d0ff',3);
+    d.lines.forEach((l,i)=>drawTextC(l,W/2,py+64+i*28,'#f2ffe8',2));
+    if(d.t>SAVE_MIN){ ctx.globalAlpha=a*(0.65+0.35*Math.sin(fr*0.12)); drawTextC(!(typeof _uiDev!=='undefined'&&_uiDev==='touch')?'PRESS ANY BUTTON':'TAP TO GO ON',W/2,py+ph-34,'#ffe39a',2); }
+    ctx.restore();
+  }
+  B.drawSaveDlg=drawSaveDlg;
   // the boss's energy bar, over the HUD while it's awake
   const _drawHUD=window.drawHUD;
   window.drawHUD=function(){
     const r=_drawHUD.apply(this,arguments);
+    try{ drawSaveDlg(); }catch(er){}
     try{
       const e=B.on&&B.bossOn&&ENEMS.find(q=>q&&q._boss&&q.alive);
       if(e){ const w=420, x=W/2-w/2, y=H-64, f=Math.max(0,e.hp/e.mhp);
