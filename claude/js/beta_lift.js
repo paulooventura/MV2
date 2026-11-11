@@ -145,6 +145,51 @@
     }
     S.laid=true;
   }
+  // T438 (Paulo, Nov 11): a vertical tunnel behind every elevator. The wall and floor sprites stay
+  // (they are the tile layer), but the collision grid is cut along each car's whole run, so a car
+  // never carries MIND into rock and he is never hurt there. Paulo (later the same day): under a
+  // looping shaft the street floor is a platform: drop through it (DOWN + JUMP) and he comes in at
+  // the top of the shaft and falls until he lands on the roof of the first car below.
+  S.shafts=[];
+  function cutShafts(){
+    if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready||!B.platforms||!B.platforms.length) return false;
+    const groups=new Map();
+    for(const m of B.platforms){ if(!m.vert||m.x>=23*T) continue;
+      const k=m.x+':'+m.w; let g=groups.get(k);
+      if(!g){ g={c0:Math.floor(m.x/T), c1:Math.floor((m.x+m.w-1)/T), top:1e9, bot:-1e9, loop:false}; groups.set(k,g); }
+      g.top=Math.min(g.top,Math.min(m.ya,m.yb)-CAB); g.bot=Math.max(g.bot,Math.max(m.ya,m.yb)); if(m.loop) g.loop=true; }
+    const R=MV_GRID.rows, air=(c,r)=>{ if(r<0||r>=R) return; const t=gridCell(c,r); if(t!==MV_GRID_AIR&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r))) gridSet(c,r,MV_GRID_AIR); };
+    S.shafts=[];
+    for(const g of groups.values()){
+      const r0=Math.max(0,Math.floor(g.top/T)), rb=Math.floor(g.bot/T);
+      let street=null;
+      if(g.loop){                                    // the street floor: the first solid row at or above the car's lowest stop
+        for(let r=Math.min(R-1,rb);r>=r0;r--){ let solidRow=true; for(let c=g.c0;c<=g.c1;c++){ const t=gridCell(c,r); if(!(t===MV_GRID_SOLID||t===MV_GRID_DESTRUCT)) { solidRow=false; break; } } if(solidRow&&gridCell(g.c0,r-1)===MV_GRID_AIR){ street=r; break; } }
+      }
+      for(let c=g.c0;c<=g.c1;c++){
+        for(let r=r0;r<=rb;r++){ if(r===street) continue; air(c,r); }
+        if(street!=null){ gridSet(c,street,MV_GRID_ONEWAY); air(c,street+1); air(c,street+2); }
+      }
+      S.shafts.push({x0:g.c0*T, x1:(g.c1+1)*T, top:r0*T, street:street!=null?street*T:null, loop:g.loop});
+    }
+    return true;
+  }
+  // under the street platform: in again at the top of the shaft, falling
+  function shaftWrap(){
+    if(!p) return;
+    const x=p.x+SW/2, f=p.y+(typeof FEET_OFF==='number'?FEET_OFF:88);
+    for(const s of S.shafts){
+      if(!s.loop||s.street==null||x<s.x0||x>s.x1) continue;
+      if(f>s.street+T+6){
+        p.y=s.top+T*2-(typeof FEET_OFF==='number'?FEET_OFF:88); p.vy=Math.max(2,p.vy||0); p.og=false;
+        if(p.hook&&p.hook.st&&p.hook.st!=='idle'&&typeof _detachPlayerRope==='function') _detachPlayerRope(p.hook,'snap');
+        if(B.ridePlat) B.ridePlat=null; B.roofPlat=null;
+        S.wraps=(S.wraps|0)+1;
+        try{ if(typeof sfx==='function') sfx('whoosh'); }catch(e){}
+      }
+    }
+  }
+  S.cutShafts=cutShafts;
   function resume(m){
     m.phase='run'; m._lift=null; m.destY=null; m.lockY=null; m.locked=false;
     m._used=false; m._called=false; m.doorT=0; m._linkLeft=null; m._flash=0;
@@ -318,6 +363,8 @@
       return;
     }
     layLedges();
+    if(S._cutFor!==B.platforms&&cutShafts()) S._cutFor=B.platforms;
+    shaftWrap();
     // a car that just wrapped takes the foes standing in it along (MIND is carried by beta_water)
     if(typeof ENEMS!=='undefined') for(const m of B.platforms){
       if(!m.vert||!m.wrapped||!m.loop) continue;

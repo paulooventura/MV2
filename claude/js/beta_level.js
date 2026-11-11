@@ -2153,6 +2153,7 @@
   const REVEAL_MS=3000, R_IN=200, R_OUT=260;
   const reveal=t0=>{ if(!t0) return 0; const t=performance.now()-t0; if(t<0||t>=REVEAL_MS+R_OUT) return 0; const e=t<R_IN?t/R_IN:t<REVEAL_MS?1:1-(t-REVEAL_MS)/R_OUT; return e*e*(3-2*e); };
   function revealWatch(){
+    if(B._revStage!==B.level){ B._revStage=B.level; B._revKey=null; B._revHp=null; B._pickBarT=0; B._hpBarT=0; }   // a new stage starts quiet
     const n=counts(), key=n.crystals+'/'+n.seeds, hp=Math.round(p.hp||0);
     if(B._revKey!=null&&key!==B._revKey&&(n.crystals+n.seeds)>0) B._pickBarT=performance.now();
     if(B._revHp!=null&&hp!==B._revHp) B._hpBarT=performance.now();

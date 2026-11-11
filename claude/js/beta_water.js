@@ -305,6 +305,7 @@
   const _origGrounded=window._playerGrounded;
   window._playerGrounded=function(pl){
     if(on()&&pl===p&&ridingPlat(pl)) return true;
+    if(on()&&pl===p&&B.roofPlat&&(pl.vy||0)>=-0.45&&!(typeof _mvDropThru!=='undefined'&&_mvDropThru>0)&&Math.abs(pl.y+FEET_OFF-(B.roofPlat.y-(4*T-6)))<=4) return true;   // T439: on a car's roof
     return _origGrounded.apply(this, arguments);
   };
   // The grid's ground snap moves a grounded MIND onto the nearest floor or ramp near his
@@ -412,9 +413,27 @@
         else{ p.y=ny; p.vy=Math.min(p.vy||0,0); p.og=true; }
       }
     }
+    // T439 (Paulo, Nov 11): "when the elevators are moving, we should be able to land on top of the
+    // elevator too, not just on its floor. And we should be able to jump out of it like we do in
+    // moving or stable platforms. (not when we're INSIDE the elevator, though.)" The 1.3 cars' roofs
+    // catch MIND from above and carry him; a jump takes him off, like any moving platform.
+    if(B.stageId==='1.3'&&p&&!(window.MV_LIFT&&MV_LIFT.sealed)){
+      const CABH=4*T-6, isCab=q=>q.vert&&q.x<23*T&&!q.hidden;
+      const r0=B.roofPlat;
+      if(r0){
+        const ry=r0.y-CABH, feet=p.y+FEET_OFF;
+        if(r0.wrapped||!isCab(r0)||!overX(r0)||(p.vy||0)<-1.4||Math.abs(feet-(ry-(r0.dy||0)))>14) B.roofPlat=null;
+        else{ p.y=ry-FEET_OFF; p.vy=0; p.og=true; p.x+=r0.dx||0; }
+      }
+      if(!B.roofPlat&&(p.vy||0)>=-0.4) for(const q of B.platforms){
+        if(!isCab(q)||q.wrapped||!overX(q)) continue;
+        const ry=q.y-CABH, prev=ry-(q.dy||0), feet=p.y+FEET_OFF, pf=feet-(p.vy||0);
+        if(pf<=Math.max(prev,ry)+4&&feet>=Math.min(prev,ry)-6){ p.y=ry-FEET_OFF; p.vy=0; p.og=true; B.roofPlat=q; B.ridePlat=null; break; }
+      }
+    }else B.roofPlat=null;
     for(const q of B.platforms){
       if(!q.vert||q.hidden||q.wrapped||q._lift==='hold'||!p) continue;
-      if(B.ridePlat===q) continue;
+      if(B.ridePlat===q||B.roofPlat) continue;
       const feet=p.y+FEET_OFF;
       if(!overX(q)||(p.vy||0)<-1.4) continue;
       if(q.dir<0){
@@ -424,7 +443,8 @@
       p.y=q.y-FEET_OFF; p.vy=0; p.og=true; B.ridePlat=q;
     }
     const m=ridingPlat(p);
-    if(m&&m._shed>0){ m._shed--; B.ridePlat=null; } else if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
+    if(B.roofPlat){ B.ridePlat=null; }
+    else if(m&&m._shed>0){ m._shed--; B.ridePlat=null; } else if(m){ p.x+=m.dx; B.ridePlat=m; } else B.ridePlat=null;
     // other bodies (the sibling, the NPC at home) ride them too (Paulo, Oct 22)
     for(const o of B.platRiders?B.platRiders():[]){ const q=o._ridePlat; if(!q) continue;
       const cx=o.x+SW/2, feet=o.y+FEET_OFF;
