@@ -149,6 +149,30 @@
     return false;
   };
 
+  // T175: a loose jack the stage may need can't be lost for good (no soft-lock). If it falls
+  // to the bottom of the map (the pit), leaves the world or stays buried in rock for 1.5 s, it
+  // drops back in where its crate stood, and a toast says so.
+  function worldBottom(){
+    if(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.ready) return MV_GRID.rows*T;
+    return B.level?(B.level.rows||B.level.h||62)*T:1e9;
+  }
+  function lost(it){
+    if(!isFinite(it.x)||!isFinite(it.y)) return true;
+    if(it.y>=worldBottom()-8) return true;
+    if(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.ready&&(it.x<-T||it.x>MV_GRID.cols*T+T)) return true;
+    it.buried=solid(it.x,it.y)?(it.buried||0)+1:0;
+    return it.buried>90;
+  }
+  function giveBack(c,b){
+    b.item={x:c.cx, y:c.bottom-CR.H/2, vx:0, vy:-2, rot:0, vr:0.05, og:false, noPick:20};
+    b.glow=14;
+    splinter(c.cx,c.bottom-CR.H/2,8,0.6);
+    S('ping');
+    B.lostJacks=(B.lostJacks|0)+1;
+    if(typeof uiShowToast==='function') uiShowToast((NAMES[c.idx]||'ITEM')+' LOST - BACK AT ITS CRATE');
+  }
+  B.crateGiveBack=function(o){ const c=list().find(q=>q.o===o); if(c&&c.o._box&&c.o._box.broken) giveBack(c,c.o._box); };
+
   function tick(){
     if(!on()) return;
     chipTick();
@@ -157,7 +181,7 @@
       const b=c.o._box; if(!b) continue;
       if(b.shake>0) b.shake*=0.75;
       if(b.glow>0) b.glow--;
-      if(b.broken&&b.item) itemTick(b.item);
+      if(b.broken&&b.item){ itemTick(b.item); if(lost(b.item)) giveBack(c,b); }
     }
     // a picked-up item / a regrown isolator crate starts over as a fresh box
     const iso=B.isoPickup; if(iso&&iso.got) iso._box=null;
