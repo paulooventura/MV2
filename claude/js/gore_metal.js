@@ -50,8 +50,11 @@
   }
 
   // ── grade uniforms read by beta_gore.js grade() ──
+  // riding an elevator down fades the GORE grade in (beta_gore.js multiplies metal by that amount),
+  // so the metal layer comes with it, not only when GORE is picked (Paulo, Nov 11)
+  function rideDown(){ const L=window.MV_LIFT; return L&&(L.pull||0)<-0.015&&!/[?&](selftest|ci=)/.test(location.search||''); }
   function uniforms(){
-    if(!on()) return null;
+    if(!on()&&!rideDown()) return null;
     const b=beat(), c=calm();
     return {
       t:(now()/1000)%1000,

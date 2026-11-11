@@ -286,6 +286,13 @@
     S.vibe=Math.max(-SPAN, Math.min(SPAN, S.vibe));
     travelSfx();
   }
+  function fullFilter(m){
+    const C=window.MV_CONSOLE; if(!C||typeof C.set!=='function'||C.mode===m) return;
+    // GORE is a secret filter: reaching it 33 floors down unlocks it, as the code on the FILTER row does
+    if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){ _goreUnlock(); return; }
+    C.set(m);
+    if(C.mode===m) try{ uiShowToast(m==='ink'?'INK & VINYL':'GORE'); }catch(e){}
+  }
   function aboard(m){
     if(onCab(m)) return true;
     if(!m||!p) return false;
@@ -386,6 +393,11 @@
     S.floors=S.vibe||0;
     const tgt=Math.max(-1,Math.min(1,S.floors/SPAN));
     S.pull+=(tgt-S.pull)*0.04;
+    // Paulo, Nov 11: from where 1.3 starts, each floor up fades the picture and the music toward
+    // Ink & Vinyl, each floor down toward GORE (MV_LIFT.pull, read by ink_vinyl.js, beta_gore.js,
+    // gore_metal.js and beta_audio.js liftMix). At the 33rd floor, once the fade is full, the game
+    // switches to that filter for real.
+    if(Math.abs(S.vibe||0)>=SPAN&&Math.abs(S.pull)>0.985) fullFilter(S.vibe>0?'ink':'gore');
     const zT=S.sealed?1:0;
     S.zoom+=(zT-S.zoom)*(S.sealed?0.1:0.06);
     if(!S.sealed) S.dir+=(0-S.dir)*0.06;
