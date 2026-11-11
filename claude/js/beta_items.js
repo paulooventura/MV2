@@ -255,7 +255,8 @@
     for(const e of holders){
       if(e._jack==null||!e.alive) continue;
       const h=hand(e), a=Math.atan2(h.uy,h.ux);
-      if(e._jackLine>0){ ctx.save(); ctx.strokeStyle='#ff8866'; ctx.lineWidth=Math.max(1.5,sw(2)); ctx.beginPath(); ctx.moveTo(sx(h.x),sy(h.y)); ctx.lineTo(sx(h.m.x),sy(h.m.y)); ctx.stroke(); ctx.restore(); }
+      // T436: a foe's RCA yank draws the same black-and-grey cord as its own rope
+      if(e._jackLine>0){ ctx.save(); ctx.lineCap='round'; for(const [c,w] of [['#050506',6],['#2c2e34',4],['#7c808a',2]]){ ctx.strokeStyle=c; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(sx(h.x),sy(h.y)); ctx.lineTo(sx(h.m.x),sy(h.m.y)); ctx.stroke(); } ctx.restore(); }
       try{ drawConnectorTip(sx(h.x),sy(h.y),a,e._jackCd>60&&e._jack===0?1:0,e._jack,e._jackEnh); }catch(er){}
     }
   }

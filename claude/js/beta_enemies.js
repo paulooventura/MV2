@@ -1038,13 +1038,22 @@
   }
   function drawRopes(){
     for(const r of B.ropes){
-      const c=ropeOrigin(r.e), pts=cordFor(r,c);
-      ctx.save(); ctx.strokeStyle='#d8b070'; ctx.lineWidth=Math.max(2,sw(3)); ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(sx(pts[0].x),sy(pts[0].y));
-      for(let k=1;k<pts.length-1;k++) ctx.quadraticCurveTo(sx(pts[k].x),sy(pts[k].y),(sx(pts[k].x)+sx(pts[k+1].x))/2,(sy(pts[k].y)+sy(pts[k+1].y))/2);
-      ctx.lineTo(sx(pts[pts.length-1].x),sy(pts[pts.length-1].y)); ctx.stroke();
-      const x1=sx(r.x), y1=sy(r.y);
-      ctx.strokeStyle='#7a5a30'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle='#ffe0a0'; ctx.beginPath(); ctx.arc(x1,y1,sw(4),0,Math.PI*2); ctx.fill();
+      // T436 (Paulo, Nov 11): the foes' pulling cord looks like MIND's (render.js drawHook): the same
+      // layered cord, travelling braid marks and suction-ball tip — but black and grey
+      const c=ropeOrigin(r.e), pts=cordFor(r,c), wpts=pts.map(q=>({x:sx(q.x),y:sy(q.y)}));
+      ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+      const taut=r.st!=='fly';
+      for(const L of (taut?[{c:'#050506',w:6},{c:'#2c2e34',w:4},{c:'#7c808a',w:2},{c:'rgba(255,255,255,0.35)',w:1}]:[{c:'#050506',w:7},{c:'#2c2e34',w:5},{c:'#7c808a',w:2}])){
+        ctx.strokeStyle=L.c; ctx.lineWidth=L.w; ctx.beginPath(); ctx.moveTo(wpts[0].x,wpts[0].y);
+        if(wpts.length<3){ for(let k=1;k<wpts.length;k++) ctx.lineTo(wpts[k].x,wpts[k].y); }
+        else{ for(let k=1;k<wpts.length-1;k++) ctx.quadraticCurveTo(wpts[k].x,wpts[k].y,(wpts[k].x+wpts[k+1].x)/2,(wpts[k].y+wpts[k+1].y)/2); ctx.lineTo(wpts[wpts.length-1].x,wpts[wpts.length-1].y); }
+        ctx.stroke();
+      }
+      r._braid=(r._braid||0)+(taut?1.6:0.6);
+      if(typeof _drawRopeBraid==='function') try{ _drawRopeBraid(wpts.slice().reverse(),r._braid,'#9aa0aa','#050506'); }catch(e){}
+      const x1=sx(r.x), y1=sy(r.y), nb=wpts.length>1?wpts[wpts.length-2]:wpts[0];
+      if(typeof _drawRopeMagnetTip==='function') try{ _drawRopeMagnetTip(x1,y1,Math.atan2(nb.y-y1,nb.x-x1),taut,'#b8bcc6'); }catch(e){}
+      else { ctx.fillStyle='#6a6e78'; ctx.beginPath(); ctx.arc(x1,y1,sw(4),0,Math.PI*2); ctx.fill(); }
       ctx.restore();
     }
   }
