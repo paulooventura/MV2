@@ -38,8 +38,10 @@
   // 'ink' (D · INK & VINYL, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
   const plain=m=>m==='off'||m==='ink'||m==='gore';
   const goreOn=()=>{ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } };
-  // Fresh start is Ink & Vinyl. A saved mode or ?console= still wins. Selftest stays clean.
-  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||(plain(qs)&&qs!=='gore')||(qs==='gore'&&goreOn()))) return qs; try{ const v=localStorage.getItem('mv2.console'); if(v==='gore'&&!goreOn()) return 'ink'; if(MODES[v]||plain(v)) return v; }catch(e){} return 'ink'; })();
+  // T425 (Paulo, Nov 11): "The game should always start with the Ink & Vinyl theme on selected and
+  // active." Every boot is Ink & Vinyl; a filter picked in Options lasts for that session only.
+  // ?console= still wins (labs, QA). Selftest stays clean.
+  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||(plain(qs)&&qs!=='gore')||(qs==='gore'&&goreOn()))) return qs; return 'ink'; })();
   const listeners=[];
   const api={
     get mode(){ return mode; },

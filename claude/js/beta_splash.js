@@ -74,9 +74,13 @@
   }
   function skipKey(){ for(const k in Kj){ if(Kj[k]) return true; } return false; }
   const _update=window.update, _draw=window.draw;
+  let musicTry=false;
   window.update=function(){
     if(_gameState==='splash'){
       const s=SPLASHES[idx];
+      // T425: the game theme starts on the first splash. The desktop build allows autoplay; in a
+      // browser that blocks it, the first key / click / tap starts it (retried until it plays).
+      if(!musicTry||(fr%30===0&&!(typeof _openingAudioEl!=='undefined'&&_openingAudioEl&&!_openingAudioEl.paused))){ musicTry=true; if(typeof _ensureTitleMusic==='function') try{ _ensureTitleMusic(); }catch(e){} }
       if(!s.settled&&++waitF<240){ clkj(); fr++; return; }
       s.settled=true; waitF=0;
       if(skipKey()) skipAll();

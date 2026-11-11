@@ -548,7 +548,7 @@ function startStoryMode(){
 }
 function _ensureTitleMusic(){
   if(_gameState!=='title'&&_gameState!=='splash') return;
-  if(_gameState==='splash'&&window.MV_SPLASH&&MV_SPLASH.idx()<1) return;      // Paulo (Oct 22): the title music comes in on the 2nd logo
+  // T425 (Paulo, Nov 11): the music starts with the first splash (it used to wait for the 2nd logo)
   if(_titleMusicPlaying&&_openingAudioEl&&!_openingAudioEl.paused) return;
   _unlockAudio(); _playBGM('title',OPT.musicVol);
 }
