@@ -2130,6 +2130,49 @@
       const ready=p.duckBoostReady||p._wallChargeReady||ch.ready;
       uiBar(left,top+(B.livesCard?62:0),lw,12,cs,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
     }
+    drawRevealBars(L,top);
+  }
+  // T437 (Paulo, Nov 11): "when we pick up a knowl seed and/or crystal a bar at the bottom of the
+  // screen reveals itself showing how many we've picked up so far on that level, it stays on screen
+  // for 3 seconds and then hides itself again. same goes for our energy bar, but it reveals itself
+  // on the top of the screen instead." The energy bar shows when MIND's charge (HP) changes.
+  const REVEAL_MS=3000, R_IN=200, R_OUT=260;
+  const reveal=t0=>{ if(!t0) return 0; const t=performance.now()-t0; if(t<0||t>=REVEAL_MS+R_OUT) return 0; const e=t<R_IN?t/R_IN:t<REVEAL_MS?1:1-(t-REVEAL_MS)/R_OUT; return e*e*(3-2*e); };
+  function revealWatch(){
+    const n=counts(), key=n.crystals+'/'+n.seeds, hp=Math.round(p.hp||0);
+    if(B._revKey!=null&&key!==B._revKey&&(n.crystals+n.seeds)>0) B._pickBarT=performance.now();
+    if(B._revHp!=null&&hp!==B._revHp) B._hpBarT=performance.now();
+    B._revKey=key; B._revHp=hp;
+  }
+  B.revealWatch=revealWatch;
+  function drawRevealBars(L,top){
+    try{ revealWatch(); }catch(e){}
+    const kb=reveal(B._pickBarT);
+    if(kb>0){
+      const n=counts(), pw=Math.min(520,W-40), ph=46, px=Math.round(W/2-pw/2);
+      const bot=H-Math.max(10,((L.inset&&L.inset.b)||0)+10), py=Math.round(bot-ph*kb);
+      ctx.save(); ctx.globalAlpha=Math.min(1,kb*1.4);
+      uiPanel(px,py,pw,ph,{r:14,alpha:0.86,flat:true,accent:'rgba(125,255,207,0.55)'});
+      let gx=px+20; const cy=py+ph/2;
+      const cAll=n.crystals>=B.need.crystals, sAll=n.seeds>=B.need.seeds;
+      for(let i=0;i<B.need.crystals;i++){ hudCrystal(gx+5,cy+1,i<n.crystals,cAll,i); gx+=16; }
+      drawText(n.crystals+'/'+B.need.crystals, gx+6, cy-9, '#5dffa0', 2); gx+=textW(n.crystals+'/'+B.need.crystals,2)+28;
+      for(let i=0;i<Math.min(B.need.seeds,12);i++){ hudSeed(gx+4,cy+2,i<n.seeds,sAll,i); gx+=13; }
+      drawText(n.seeds+'/'+B.need.seeds, gx+6, cy-9, '#7dffcf', 2);
+      ctx.restore();
+    }
+    const kh=reveal(B._hpBarT);
+    if(kh>0){
+      const f=Math.max(0,Math.min(1,(p.hp||0)/(p.maxHp||100))), bw=Math.min(360,W-60), bx=Math.round(W/2-bw/2);
+      const below=B.wheel?84:0, by=Math.round(top+below-50+(50+6)*kh);
+      const col=f>0.5?'#3ad070':f>0.25?'#f0c040':'#ff4a3a';
+      ctx.save(); ctx.globalAlpha=Math.min(1,kh*1.4);
+      uiPanel(bx-14,by-8,bw+28,40,{r:12,alpha:0.86,flat:true,accent:'rgba(200,170,255,0.5)'});
+      drawText('ENERGY',bx,by,'#d8ffe0',2);
+      const tx=bx+textW('ENERGY',2)+12;
+      uiBar(tx,by+2,bx+bw-tx,14,f,col,col,10,{pulse:f<0.25});
+      ctx.restore();
+    }
   }
   // the pause menu's stage card: name, time (it stops while paused), crystals and seeds
   function drawPauseStats(){
