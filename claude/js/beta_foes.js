@@ -503,6 +503,29 @@
     for(const e of ENEMS){ if(!e.alive||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2;
       if(near(ex,ey,16+e.w/2)&&clearLine(sh.x,sh.y,ex,ey)){ if(e._boss){ clink(e,sh.x,sh.y); continue; } knifeHit=true; window._knifeHitNow=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,knifeEnds(e)?9999:14,sh.x,sh.y,0.8); } finally{ knifeHit=false; window._knifeHitNow=false; } burst(ex,ey,8,['#ffe0b0','#ff8060'],3); } }
   }
+  // T150: is the blade, at east-frame angle aE round the shoulder, in rock? (the floor right under
+  // the wheel doesn't count, like the clang in beta_knife.js)
+  function bladeInRock(aE){
+    const sh=shoulder(), P=p._armPose, R=(P?Math.hypot(P.tipX-P.connShX,P.tipY-P.connShY):40)+34, a=toW(aE);
+    const feet=p.y+FEET_OFF, mx=p.x+SW/2;
+    for(const r of [R*0.5,R*0.75,R]){
+      const x=sh.x+Math.cos(a)*r, y=sh.y+Math.sin(a)*r;
+      if(y>=feet-10&&Math.abs(x-mx)<46) continue;
+      if(solid(x,y)) return true;
+    }
+    return false;
+  }
+  function swingStopped(atE){
+    const dir=Math.sign(swing.to-swing.from)||1, sh=shoulder(), a=toW(atE);
+    swing.to=atE;                                                  // the arc ends here (and only hits up to here)
+    if(!swing.hit){ swing.hit=true; swingHit(swing); }
+    const back=Math.max(-1.3,Math.min(1.3,atE-dir*0.35));
+    swing={from:atE,to:back,t:0,dur:5,up:swing.up,hit:true,bounce:true};
+    const P=p._armPose, R=(P?Math.hypot(P.tipX-P.connShX,P.tipY-P.connShY):40)+30;
+    const ux=Math.cos(toW(atE+dir*0.12)), uy=Math.sin(toW(atE+dir*0.12));
+    if(B.knifeBladeHit) B.knifeBladeHit(sh.x+ux*R,sh.y+uy*R,0.6,ux,uy);
+    B.knifeBounces=(B.knifeBounces|0)+1;
+  }
   // held, then let go: one wide sweep out along the aimed direction, from just behind MIND
   // out to ~5.5 tiles; walls still block it (line of sight from the chest)
   function bigSlash(aE,t){
@@ -613,7 +636,10 @@
     // ── the pose ──
     if(big&&big.t<=6){ const u=Math.min(1,big.t/5); armE=knE=big.aE-BACK+SWEEP*(1-(1-u)*(1-u)); return; }
     if(holdT>4){ const tg=aimE()-BACK; armE=ease(armE,tg,0.22); knE=ease(knE,tg-0.25*B.knifeCharge(),0.22); return; }
-    if(swing){ const u=Math.min(1,++swing.t/swing.dur), k=1-(1-u)*(1-u); armE=knE=swing.from+(swing.to-swing.from)*k;
+    if(swing){ const u=Math.min(1,++swing.t/swing.dur), k=1-(1-u)*(1-u), nA=swing.from+(swing.to-swing.from)*k;
+      // T150: the quick slash stops at rock and bounces back a little (it never sweeps through a wall)
+      if(!swing.bounce&&bladeInRock(nA)){ swingStopped(swing.cur!=null?swing.cur:swing.from); return; }
+      armE=knE=swing.cur=nA;
       if(!swing.hit&&swing.t>=3){ swing.hit=true; swingHit(swing); }
       if(swing.t>=swing.dur){ swing=null; comboT=18; } return; }
     if(comboT>0){ comboT--; if(!comboT) nextUp=true; return; }

@@ -459,6 +459,7 @@
     marks.push({x,y,ux,uy,life:50});
     p.vx-=ux*(1.5+2.5*k);                                          // the rock pushes back
   }
+  B.knifeBladeHit=bladeHit;
   function marksTick(){ for(const m of marks) m.life--; marks=marks.filter(m=>m.life>0); }
 
   // ── the finish: knife → gate → golden beam ───────────────────
