@@ -484,6 +484,50 @@
     return (R0-a.currentTime+2.2)*1000;
   }
 
+  // T429 (Paulo, Nov 11): "When we get shut down there should be a little sad tune ... the same kind
+  // of tune that plays when we clear a level, but instead of being happy it's sad." The stage-clear
+  // song's own voices (detuned saw chords in a hall, the square + saw lead with vibrato, a sine sub)
+  // at about two thirds of its pace, falling instead of rising: Cm -> Ab -> Fm -> G, the lead sighing down and
+  // bending flat, ending on a hollow C minor that fades. About 4 s, no drums.
+  function sadTune(){
+    const a=ac(); if(!a) return 0;
+    if(a.state!=='running') try{ const pr=a.resume(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+    const v=sv(), out=a.createGain(); out.gain.value=0.42*v;
+    const comp=a.createDynamicsCompressor(); comp.threshold.value=-16; comp.ratio.value=3; out.connect(comp); comp.connect(D(a));
+    const rev=a.createConvolver(); { const len=Math.round(a.sampleRate*2.2), ir=a.createBuffer(2,len,a.sampleRate); for(let c=0;c<2;c++){ const d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6); } rev.buffer=ir; }
+    const revG=a.createGain(); revG.gain.value=0.34; rev.connect(revG); revG.connect(out);
+    const q=60/96, t0=a.currentTime+0.05, N=n=>440*Math.pow(2,(n-69)/12);
+    const env=(g,s,peak,att,end,rel)=>{ g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(peak,s+att); g.gain.setValueAtTime(peak,Math.max(s+att,end)); g.gain.exponentialRampToValueAtTime(0.0001,end+rel); };
+    const pad=(notes,s,len,peak)=>{ const f=a.createBiquadFilter(); f.type='lowpass'; f.Q.value=1.2; f.frequency.setValueAtTime(2400,s); f.frequency.exponentialRampToValueAtTime(700,s+len);
+      const g=a.createGain(); env(g,s,peak,0.04,s+len*0.8,0.5); f.connect(g); g.connect(out); g.connect(rev);
+      for(const n of notes) for(const dt of [-9,9]){ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.value=N(n); o.detune.value=dt; o.connect(f); o.start(s); o.stop(s+len+0.6); } };
+    const CH=[[48,60,63,67],[44,56,60,63],[41,53,56,60],[43,55,59,62]];          // Cm · Ab · Fm · G
+    CH.forEach((c,i)=>pad(c,t0+i*q,q*0.98,0.035));
+    const E0=t0+4*q;
+    pad([36,48,55,60,63],E0,q*2.2,0.04);                                          // the hollow C minor it ends on
+    { const o=a.createOscillator(), g=a.createGain(); o.type='sine'; o.frequency.value=N(36); env(g,E0,0.3,0.03,E0+q*1.6,0.8); o.connect(g); g.connect(out); o.start(E0); o.stop(E0+q*2.6+0.9); }
+    // the lead: a falling sigh, the last note bending down a semitone (the power running out)
+    const lead=[[75,0,0.5],[74,0.5,0.5],[72,1,1],[68,2,0.5],[67,2.5,0.5],[65,3,0.5],[63,3.5,0.5],[60,4,2]];
+    { const o=a.createOscillator(), o2=a.createOscillator(), f=a.createBiquadFilter(), g=a.createGain();
+      o.type='square'; o2.type='sawtooth'; o2.detune.value=-7; f.type='lowpass'; f.frequency.value=1900; f.Q.value=1;
+      const vib=a.createOscillator(), vg=a.createGain(); vib.frequency.value=4.6; vg.gain.value=12; vib.connect(vg); vg.connect(o.detune); vg.connect(o2.detune);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(out); g.connect(rev); g.gain.setValueAtTime(0.0001,t0);
+      o.frequency.setValueAtTime(N(75),t0); o2.frequency.setValueAtTime(N(75),t0);
+      for(const [n,b,d] of lead){ const s=t0+b*q, e=s+d*q; o.frequency.setTargetAtTime(N(n),s,0.03); o2.frequency.setTargetAtTime(N(n),s,0.03); g.gain.setTargetAtTime(0.06,s,0.01); g.gain.setTargetAtTime(0.025,e-0.06,0.03); }
+      const END=t0+6*q;
+      o.frequency.setTargetAtTime(N(59),END-q*0.9,0.25); o2.frequency.setTargetAtTime(N(59),END-q*0.9,0.25);   // bends flat as it fades
+      g.gain.setTargetAtTime(0.0001,END-q*0.6,0.18);
+      for(const x of [o,o2,vib]){ x.start(t0); x.stop(END+0.4); } }
+    return (t0+6*q-a.currentTime+0.6)*1000;
+  }
+  let sadWas=false;
+  function sadWatch(){
+    const shut=typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0&&typeof _gameState!=='undefined'&&_gameState==='game';
+    if(shut&&!sadWas) try{ (window.MV_BETA_AUDIO&&MV_BETA_AUDIO.sadTune||sadTune)(); }catch(e){}
+    sadWas=shut;
+  }
+  setInterval(sadWatch,50);                 // its own clock: the stage's per-frame rules pause while he is down
+
   // a splash: filtered noise whoosh + a little bloop, bigger for heavier things
   let lastSplash=0;
   function splash(k){
@@ -672,5 +716,5 @@
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
+  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();
