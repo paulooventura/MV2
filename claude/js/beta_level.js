@@ -1178,6 +1178,18 @@
       c2.og=false;
     }
   }
+  const RAM_HEFT=2.2;
+  // T431: a punch moves an omni block toward the punch, by its weight; MIND's momentum into the
+  // punch sends it farther. (A loaded punch still smashes a whole omni block - render.js.)
+  B.punchShove=function(bw,ux,uy,charged){
+    if(!bw||bw.hp<=0||!bw.cube||bw.only||bw._fly||bw._carried||busy(bw)||holdsStill(bw)) return false;
+    const m=weightOf('cube',bw)*RAM_HEFT, massP=bodyMass(p);
+    const mom=Math.max(0,(p.vx||0)*ux+(p.vy||0)*uy);
+    const k=((charged?9:4.2)+mom*0.7)*(massP/(massP+m));
+    if(k<1.4) return false;
+    throwCube(bw, ux*k, uy*k-1.2-Math.max(0,-uy)*1.5);
+    return true;
+  };
   // Driving into a loose block shares the momentum. A hard hit sends it airborne.
   function ramCubes(){
     if(!p) return;
@@ -1193,7 +1205,9 @@
       if(bodyB<ct-2||bodyT>cb+2) continue;
       const gap=side>0?cl-bodyR:bodyL-cr;
       if(gap>8||gap<-16) continue;
-      const m=weightOf('cube',bw);
+      // T431 (Paulo, Nov 11): blocks are heavier to the body: running past one used to send it
+      // off "like styrofoam". The ram feels RAM_HEFT x the block's weight (the MAG / XLR keep theirs).
+      const m=weightOf('cube',bw)*RAM_HEFT;
       if(sp<4.2+m*0.45){
         p.vx*=Math.max(0.62,massP/(massP+m*0.55));
         bw.shakeX=side*Math.min(5,sp*0.35);
@@ -1202,8 +1216,8 @@
         continue;
       }
       const share=(2*massP)/(massP+m), keep=(massP-m)/(massP+m);
-      p.vx=vx*Math.max(-0.15,keep);
-      throwCube(bw, side*Math.min(13,sp*share*0.62), -Math.min(5.2,sp*0.22*(WEIGHT.mindTotal/m)));
+      p.vx=vx*Math.max(0.3,keep);
+      throwCube(bw, side*Math.min(9,sp*share*0.45), -Math.min(3.2,sp*0.16*(WEIGHT.mindTotal/m)));
       try{ sfxAt(bw,'omniblock_chip'); }catch(e){}
     }
   }

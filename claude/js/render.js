@@ -1146,6 +1146,9 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
             vx:bw.movable?Math.cos(punchAngle)*(_charged?8:5):0,
             vy:bw.movable?Math.sin(punchAngle)*(_charged?6:3.5):0
           });
+          // T431 (Paulo, Nov 11): the punch moves an omni block toward the punch, by its weight
+          // (beta_level B.punchShove); MIND's momentum into the punch sends it farther
+          try{ if(!_charged&&!p._aiCompanion&&bw.hp>0&&window.MV_BETA&&MV_BETA.on&&MV_BETA.punchShove) MV_BETA.punchShove(bw,Math.cos(punchAngle),Math.sin(punchAngle),false); }catch(e){}
           spawnDebris(bw,10);p._pRecoil=10;
           p.vx-=Math.cos(punchAngle)*(_charged?4:2.5);
           p.vy-=Math.sin(punchAngle)*(_charged?2:1);
