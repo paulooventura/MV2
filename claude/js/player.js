@@ -1168,7 +1168,9 @@ function updateHook(){
         if(h._dnT>8){
           const step=ROPE_REEL_IN*2.6*(0.65+arm*0.7);
           if(light&&_haulCatch(h, caught, step)) h.rl=_cordSpan(h);
-          else h.rl=Math.max(ROPE_RL_MIN, h.rl-step);
+          // T430: the reel stops (and goes quiet) when the body can't follow the cord — stuck
+          // under a ledge or against a wall it used to click on every 4th frame for as long as held
+          else h.rl=Math.max(ROPE_RL_MIN, h.rl-step, Math.min(h.rl,(h._path&&h._path.length>1&&typeof _ropePathLen==="function"?_ropePathLen(h._path):_cordSpan(h))-24));
         }
       }
       h._upWas=!!up; h._dnWas=!!dn;

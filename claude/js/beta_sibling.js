@@ -139,8 +139,11 @@
       const P0=h.pivots&&h.pivots.length?h.pivots[h.pivots.length-1]:{x:h.ax,y:h.ay};
       const behind=(c.x-P0.x)*dir<8, sp=Math.hypot(S.vx,S.vy);
       if(Math.abs(G.x-c.x)>40&&behind&&sp<8.5&&(S.vx*dir>0||Math.abs(S.vx)<0.6)) inp[dir>0?'r':'l']=true;   // pump on the downswing toward the goal, like you would
-      if(G.y<c.y-40&&h.rl>ROPE_RL_MIN+30) inp.u=true;                                        // climb toward it
-      else if(G.y>c.y+90&&h.rl<CMAX-20) inp.d=true;
+      // T430 (Paulo, Nov 11): since build 336 down reels IN and up pays all the slack out (held, it
+      // snaps). The old mapping held down to go down, which reeled it up, away from the goal, so it
+      // kept holding it: the reel click repeated for seconds, then let go, re-threw, again.
+      if(G.y<c.y-40&&h.rl>ROPE_RL_MIN+30) inp.d=true;                                        // climb toward it: reel in
+      else if(G.y>c.y+90){ letGo(); return; }                                                 // the goal is below: drop
     }
     const x0=S.x;
     asSib(inp,()=>updateHook());
