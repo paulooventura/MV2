@@ -59,7 +59,9 @@
     // cabinet honk around 1.4 kHz, the top rolled off — and the flyback transformer's faint
     // 15.7 kHz whine. Off, it's the clean line out.
     const tvIn=G(1), dryOut=G(1), tvOut=G(0);
-    C(out,crusher); C(crusher,tvIn); C(musicOut,tvIn);
+    // T200 (Paulo, Oct 27): pause muffles the music smoothly until resume (pauseMuffle below)
+    const pzLP=F('lowpass',20000,0.7);
+    C(out,crusher); C(crusher,tvIn); C(musicOut,pzLP); C(pzLP,tvIn);
     // Paulo (Oct 22): under water everything is muffled — music, effects, all of it — a low-pass that
     // closes down as MIND's head goes under, a touch of low thump, a little quieter (MV_SOUND16.underwater)
     const uwLP=F('lowpass',20000,0.9), uwLow=F('peaking',180,0.8,0), uwG=G(1);
@@ -108,7 +110,7 @@
       }
     }
     b={sfx:inS, music:inM, musicPost:postM, sel, ac, chips:[], crusher, phase:5, tv:tvNodes, tvState:null};
-    b.uw={lp:uwLP, low:uwLow, g:uwG};
+    b.uw={lp:uwLP, low:uwLow, g:uwG}; b.pz=pzLP;
     BUS.set(ac,b);
     try{
       if(ac.audioWorklet&&!disabled){
@@ -235,5 +237,24 @@
       try{ b.uw.lp.frequency.setTargetAtTime(20000*Math.pow(380/20000,k),t,0.05);
         b.uw.low.gain.setTargetAtTime(5*k,t,0.08); b.uw.g.gain.setTargetAtTime(1-0.3*k,t,0.08); }catch(e){} }
   }
-  window.MV_SOUND16={ underwater, routeEl(el){ if(disabled||!el) return null; const ac=ctxNow(); if(ac&&ac.state==='running') routeMusic(el,ac); return el._mvFx||null; }, get off(){ return disabled; }, musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
+  // T200: while the game is paused the soundtrack closes down to a muffle (eased, ~0.3 s), and
+  // opens again on resume. Changing the music volume or the filter while paused brings the full
+  // spectrum back, so the change can be heard; the next pause muffles again.
+  let pzOn=false, pzKey=null, pzFull=false, pzNow=20000;
+  const pzKeyNow=()=>{ try{ return (typeof OPT!=='undefined'&&OPT?OPT.musicVol:'')+'|'+(window.MV_CONSOLE?MV_CONSOLE.mode:''); }catch(e){ return ''; } };
+  function pauseTick(){
+    let paused=false;
+    try{ paused=typeof _paused!=='undefined'&&!!_paused&&typeof _gameState!=='undefined'&&_gameState!=='title'; }catch(e){}
+    if(paused&&!pzOn){ pzOn=true; pzFull=false; pzKey=pzKeyNow(); }
+    else if(!paused&&pzOn){ pzOn=false; pzFull=false; }
+    if(pzOn&&!pzFull&&pzKeyNow()!==pzKey) pzFull=true;
+    const want=pzOn&&!pzFull?PZ_HZ:20000;
+    if(want===pzNow) return; pzNow=want;
+    for(const ac of known){ const b=BUS.get(ac); if(!b||!b.pz) continue;
+      try{ const t=ac.currentTime; b.pz.frequency.cancelScheduledValues(t); b.pz.frequency.setTargetAtTime(want,t,0.1); }catch(e){} }
+  }
+  const PZ_HZ=520;
+  setInterval(pauseTick,50);
+  function pauseState(){ return {on:pzOn, full:pzFull, hz:pzNow}; }
+  window.MV_SOUND16={ pauseState, underwater, routeEl(el){ if(disabled||!el) return null; const ac=ctxNow(); if(ac&&ac.state==='running') routeMusic(el,ac); return el._mvFx||null; }, get off(){ return disabled; }, musicFx(ac){ const b=ac&&BUS.get(ac); return b&&b.mfx||null; }, get mode(){ return mode(); }, refresh:applyMode, info(){ const r=[]; for(const ac of known){ const b=BUS.get(ac); r.push({chips:b?b.chips.length:0, state:ac.state, rate:ac.sampleRate}); } return r; } };
 })();
