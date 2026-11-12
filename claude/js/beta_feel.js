@@ -659,10 +659,14 @@
     const slackRaw=Math.max(0,(rl||plen)-plen);
     // Paulo (Oct 26): even a loaded web bows and whips. A straight rod only when
     // he's reeled up against the anchor. Slack pays out into a real belly.
-    const loaded=(h._tension||0)>0.35&&slackRaw<16;
+    // T479 (Paulo, Nov 11-12): "it looks like there is slack there, when there should be tension". The
+    // drawn cord ends at the jack's nose, a little closer to the anchor than the point the rope
+    // physics measures to, so even pulled tight it saw spare length and bowed. Tight in the physics
+    // (h._tight), or hanging in the air with no slack, it now draws taut.
+    const loaded=!!h._tight||(!p.og&&!h._slack&&!h._paid)||((h._tension||0)>0.35&&slackRaw<16);
     const spare=loaded?0:slackRaw;
     const loose=loaded?0:Math.min(1, spare/Math.max(36, plen*0.4));
-    const L=plen+(loaded?Math.min(12,plen*0.05):spare*(0.5+0.5*loose));
+    const L=plen+(loaded?Math.min(3,plen*0.01):spare*(0.5+0.5*loose));
     const n=Math.max(10,Math.min(64,Math.round(Math.max(plen,L)/8)));
     const A=path[0], E=path[path.length-1];
     let c=h._cord;
@@ -693,7 +697,7 @@
         }
       }
       // a taut web may settle a hair toward the span; it is not yanked into a rod
-      const lift=loaded?0.05:0;
+      const lift=loaded?0.55:0;
       if(lift>0.01){
         for(let i=1;i<n-1;i++){
           const q=P[i], tp=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*i/(n-1)):{x:A.x+(E.x-A.x)*i/(n-1),y:A.y+(E.y-A.y)*i/(n-1)};

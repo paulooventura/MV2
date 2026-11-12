@@ -1308,9 +1308,18 @@
     if(L.uy>0.8&&Math.abs(L.ux)<0.4){
       const t=magTip(); L.cx=t.x; L.cy=t.y; L.x=p.x; L.y=p.y; return;
     }
-    const t=magTip(), tx=L.cx+L.ux, ty=L.cy+L.uy;
+    // T480 (Paulo, Nov 11-12): the poles sit on the surface, pixel-perfect, not in the wall — the hit
+    // point is the first solid sample, up to 2 px in (and the old target 1 px further): back off along
+    // the aim to the last free pixel and seat the pole faces there
+    let sx0=L.cx, sy0=L.cy;
+    const inRock=(x,y)=>(typeof gridWorldSolid==="function"&&gridWorldSolid(x,y))||(typeof gridSolid==="function"&&gridSolid(Math.floor(x/T),Math.floor(y/T)));
+    for(let k=0;k<64&&inRock(sx0,sy0);k++){ sx0-=L.ux*0.5; sy0-=L.uy*0.5; } L.cx=sx0; L.cy=sy0;
+    const t=magTip(), tx=sx0, ty=sy0;
     let dx=tx-t.x, dy=ty-t.y; const dl=Math.hypot(dx,dy); if(dl>36){ dx*=36/dl; dy*=36/dl; }
     L.x=p.x+dx; L.y=p.y+dy;
+    // moving the body changes the arm's pose a little: measure the tip again and correct (twice)
+    if(dl<=36) for(let k=0;k<2;k++){ const ox=p.x, oy=p.y; p.x=L.x; p.y=L.y; const t2=magTip(); p.x=ox; p.y=oy;
+      const ex=tx-t2.x, ey=ty-t2.y; if(Math.hypot(ex,ey)<0.3) break; L.x+=ex; L.y+=ey; }
   }
   B.magPark=null;
   function parkStart(){
@@ -2352,27 +2361,48 @@
     if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play&&B._popupMusic){ MV_BETA_AUDIO.play(B._popupMusic); B._popupMusic=null; }
   }
+  // T500 (Paulo, Nov 12): "the item pop up screen has to be more interesting and less busy." No boxed
+  // panel, no crate, no paragraph: the jack itself, big, laid on a slowly turning record under a
+  // spotlight in its own colour, its name, one short line of how to use it (the right button for
+  // the device in hand), and a quiet prompt. It settles in with a little drop and a light sweep.
+  const POP={0:{col:[255,205,90], line:'HOLD {X} TO CHARGE - LET GO TO FIRE'},
+    1:{col:[255,150,60], line:'{X} THROWS IT - DOWN REELS IN, UP GIVES SLACK'},
+    2:{col:[210,220,235], line:'HOLD {X}, LET GO - A BLAST THAT SHOVES'},
+    3:{col:[255,80,90], line:'HOLD {X} TO GRAB - SWING AND LET GO TO THROW'},
+    4:{col:[255,160,70], line:'GO UNDERWATER WITHOUT SHORTING OUT'},
+    5:{col:[255,200,140], line:'TAP {X} TO SLASH - HOLD IT TO HEAT THE BLADE'}};
+  function popKey(){ try{ return typeof uiActLabel==='function'?uiActLabel('swap'):'X'; }catch(e){ return 'X'; } }
   function drawPopup(){
-    const P=B.popup, a=Math.min(1,P.t/12);
-    ctx.globalAlpha=a*0.75; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=a;
-    const bw=Math.min(W-40,680), bh=380, bx=(W-bw)/2, by=(H-bh)/2-20+(1-a)*30;
-    // light rays behind the window
-    ctx.save(); ctx.translate(W/2,by+140); ctx.rotate(fr*0.004);
-    for(let i=0;i<12;i++){ ctx.rotate(Math.PI/6); ctx.fillStyle='rgba(255,220,140,'+(0.05*a)+')'; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-60,-520); ctx.lineTo(60,-520); ctx.fill(); }
+    const P=B.popup, a=Math.min(1,P.t/14), e=1-Math.pow(1-a,3), info=ITEM_INFO[P.item]||{name:'?',lines:['']}, pp=POP[P.item]||{col:[255,230,160],line:info.lines[0]||''};
+    const c=pp.col, rgb=(al)=>'rgba('+c[0]+','+c[1]+','+c[2]+','+al+')';
+    ctx.save();
+    ctx.globalAlpha=a*0.86; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+    const cx=W/2, cy=H*0.42, R=Math.min(W,H)*0.2;
+    const sp=ctx.createRadialGradient(cx,cy,R*0.2,cx,cy,R*2.1); sp.addColorStop(0,rgb(0.34*a)); sp.addColorStop(1,rgb(0));   // the spotlight
+    ctx.fillStyle=sp; ctx.fillRect(0,0,W,H);
+    // the record: black vinyl, grooves, a label in the item's colour, turning slowly
+    ctx.save(); ctx.translate(cx,cy+R*0.12); ctx.scale(e,e*0.42); ctx.rotate(fr*0.01);
+    ctx.fillStyle='#0c0b10'; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1.2; for(let r=R*0.38;r<R*0.97;r+=R*0.06){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke(); }
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,R*0.8,-0.5,0.2); ctx.stroke();               // a sheen that turns with it
+    ctx.fillStyle=rgb(0.95); ctx.beginPath(); ctx.arc(0,0,R*0.3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#0c0b10'; ctx.beginPath(); ctx.arc(0,0,R*0.04,0,Math.PI*2); ctx.fill();
     ctx.restore();
-    uiPanel(bx,by,bw,bh,{r:22,sel:true});
-    drawTextC('YOU FOUND', W/2, by+22, '#c8b8ff', 1);
-    const info=ITEM_INFO[P.item];
-    uiLogo(info.name, W/2, by+40, 34, {sweep:200});
-    const gl=ctx.createRadialGradient(W/2,by+150,0,W/2,by+150,110); gl.addColorStop(0,'rgba(255,230,160,0.35)'); gl.addColorStop(1,'rgba(255,230,160,0)'); ctx.fillStyle=gl; ctx.fillRect(W/2-120,by+40,240,220);
-    // the crate, big, with the jack on its label
-    if(window.MV_BETA_DECOR){
-      ctx.save(); const cx=W/2, cy=by+142+Math.sin(fr*0.06)*3; ctx.translate(cx,cy); ctx.scale(1.8,1.8); ctx.translate(-cx,-cy);
-      MV_BETA_DECOR.itemCrateScreen(P.item, cx, cy+20, true);
-      ctx.restore();
-    }
-    info.lines.forEach((l,i)=>drawTextC(l, W/2, by+214+i*26, '#f4ecff', 2));
-    if(P.t>40){ ctx.save(); ctx.globalAlpha=0.72+0.28*Math.sin(fr*0.1); drawTextC('PRESS A OR ENTER TO CONTINUE', W/2, by+bh-28, '#ffe39a', 1); ctx.restore(); }
+    // the jack, big, floating just over the record
+    const drop=(1-e)*-60, bob=Math.sin(fr*0.05)*4, k=Math.min(W,H)/170;
+    ctx.save(); ctx.translate(cx,cy-R*0.18+drop+bob); ctx.rotate(-0.28+Math.sin(fr*0.03)*0.04); ctx.globalAlpha=a;
+    if(P.item<=3&&typeof drawConnectorTip==='function'){ ctx.scale(k,k); drawConnectorTip(P.item===3?-14:-16,0,0,0,P.item,false); }
+    else if(P.item===4&&window.MV_BETA_DECOR&&MV_BETA_DECOR.isolatorIcon){ MV_BETA_DECOR.isolatorIcon(0,0,k*0.6); }
+    else if(window.MV_BETA_DECOR&&MV_BETA_DECOR.itemCrateScreen){ ctx.scale(1.6,1.6); MV_BETA_DECOR.itemCrateScreen(P.item,0,20,true); }
+    ctx.restore();
+    if(P.t<40){ const sw0=(P.t/40)*W*1.4-W*0.2; const lg=ctx.createLinearGradient(sw0-80,0,sw0+80,0); lg.addColorStop(0,'rgba(255,255,255,0)'); lg.addColorStop(0.5,'rgba(255,255,255,'+(0.18*(1-P.t/40))+')'); lg.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=lg; ctx.fillRect(0,cy-R*1.2,W,R*2.2); }   // the light sweep
+    // the name and one line
+    ctx.globalAlpha=a;
+    const ty=cy+R*0.75;
+    uiLogo(info.name, cx, ty, 40, {sweep:200});
+    drawTextC(pp.line.replace('{X}',popKey()), cx, ty+62, '#f4ecff', 2);
+    if(P.t>40){ ctx.globalAlpha=0.55+0.3*Math.sin(fr*0.08); drawTextC((typeof uiMenuHint==='function'?uiMenuHint('story'):'PRESS A'), cx, H-54, rgb(1), 2); }
+    ctx.restore();
     ctx.globalAlpha=1;
   }
 

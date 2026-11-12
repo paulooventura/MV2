@@ -31,6 +31,11 @@
   const vol=()=>{ try{ return Math.max(0,Math.min(1,(typeof OPT!=='undefined'&&OPT.musicVol!=null)?OPT.musicVol:0.75)); }catch(e){ return 0.75; } };
   function pathOf(name){
     const base=TRACKS[name]||TRACKS.stage;
+    // T503 (Paulo, Nov 12): "the music from the 3rd level is still not spawning from the boss." It was —
+    // placed on the boss, louder near it — but under Ink & Vinyl the boss track WAS the stage song
+    // (and under SNES / GORE the same as 1.3's stage track), so nothing changed when he came into
+    // view. The boss always has its own theme now, in every filter.
+    if(name==='boss') return TRACKS.boss;
     try{
       if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
         const music=window.MV_BETA&&MV_BETA.music;

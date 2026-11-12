@@ -62,7 +62,9 @@
   S.inClosedCab=inClosedCab;
   { const _dc=window.drawCharacter;
     if(typeof _dc==='function') window.drawCharacter=function(){
-      try{ if(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&inClosedCab(p)) return; }catch(_e){}
+      // T501 (Paulo, Nov 12): hidden the whole ride, the wrap to the top included, until the doors open —
+      // sealed in a car he isn't drawn even on the frames where the car and he are a step apart
+      try{ if(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&((S.sealed&&!p._aiCompanion)||inClosedCab(p))) return; }catch(_e){}
       return _dc.apply(this,arguments);
     }; }
   { const _de=window._damageEnemy;

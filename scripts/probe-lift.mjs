@@ -13,11 +13,11 @@ const exe=fs.existsSync('/opt/pw-browsers')&&fs.readdirSync('/opt/pw-browsers').
 const b=await chromium.launch({executablePath:process.env.MV_CHROME||exe,args:['--mute-audio','--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required']});
 const pg=await b.newPage({viewport:{width:1100,height:900}});
 const errs=[]; pg.on('pageerror',e=>errs.push(e.message));
-await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=1.3`,{waitUntil:'load'});
+await pg.goto(`http://127.0.0.1:${PORT}/index.html?lvl=${process.env.MV_LIFT_LVL||"1.3"}`,{waitUntil:'load'});
 await pg.focus('#c').catch(()=>{});
 for(let i=0;i<80;i++){ const ok=await pg.evaluate(()=>typeof _gameState!=='undefined'&&_gameState==='game'&&window.MV_BETA&&!MV_BETA.loading&&MV_BETA.stageId==='1.3'); if(ok) break; await pg.keyboard.press('Enter'); await pg.waitForTimeout(250); }
-await pg.evaluate(()=>startBetaLab('1.3',15));
-await pg.waitForFunction(()=>MV_BETA.stageId==='1.3'&&!MV_BETA.loading&&_gameState==='game',null,{timeout:20000});
+await pg.evaluate((l)=>startBetaLab(l,15),process.env.MV_LIFT_LVL||"1.3");
+await pg.waitForFunction(()=>MV_BETA.stageId===(window.__lvl||MV_BETA.stageId)&&!MV_BETA.loading&&_gameState==="game",null,{timeout:20000});
 await pg.waitForTimeout(800);
 const ctx={pg,out,errs};
 const mod=await import(process.argv[2]?url.pathToFileURL(path.resolve(process.argv[2])).href:'./probe-lift-steps.mjs');

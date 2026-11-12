@@ -387,6 +387,13 @@
     // riding: a rising belt scoops you. A clear shaft carries you off the top of its
     // course and back in at the bottom (and the other way going down), the way
     // Donkey Kong barrels wrap, but vertical. A ceiling in the way sandwiches you.
+    // T502 (Paulo, Nov 12): "I still can't jump off of the moving elevators." On a rising car a tapped
+    // jump was caught again at once by the floor (or roof) coming up under him. Jumping off a car now
+    // carries its lift into the jump, and that car can't catch him again for a moment.
+    { const was=B.ridePlat||B.roofPlat;
+      if(was&&p&&(p.vy||0)<-1){ B._jumpOff={q:was,t:20}; if((was.dy||0)<0) p.vy+=was.dy; B.ridePlat=null; B.roofPlat=null; B.carJumps=(B.carJumps|0)+1; }
+      if(B._jumpOff&&--B._jumpOff.t<=0) B._jumpOff=null; }
+    const jumpedOff=q=>!!(B._jumpOff&&B._jumpOff.q===q);
     const m0=B.ridePlat;
     const overX=q=>p&&p.x+8<q.x+q.w+10&&p.x+SW-8>q.x-10;
     if(m0&&m0.vert&&p&&overX(m0)&&(m0.wrapped||(!m0.hidden&&Math.abs(p.y+FEET_OFF-(m0.y-(m0.dy||0)))<=12&&(p.vy||0)>=-0.4))){
@@ -428,14 +435,14 @@
         else{ p.y=ry-FEET_OFF; p.vy=0; p.og=true; p.x+=r0.dx||0; }
       }
       if(!B.roofPlat&&(p.vy||0)>=-0.4) for(const q of B.platforms){
-        if(!isCab(q)||q.wrapped||!overX(q)) continue;
+        if(!isCab(q)||q.wrapped||!overX(q)||jumpedOff(q)) continue;
         const ry=q.y-CABH, prev=ry-(q.dy||0), feet=p.y+FEET_OFF, pf=feet-(p.vy||0);
         if(pf<=Math.max(prev,ry)+4&&feet>=Math.min(prev,ry)-6){ p.y=ry-FEET_OFF; p.vy=0; p.og=true; B.roofPlat=q; B.ridePlat=null; break; }
       }
     }else B.roofPlat=null;
     for(const q of B.platforms){
       if(!q.vert||q.hidden||q.wrapped||q._lift==='hold'||!p) continue;
-      if(B.ridePlat===q||B.roofPlat) continue;
+      if(B.ridePlat===q||B.roofPlat||jumpedOff(q)) continue;
       const feet=p.y+FEET_OFF;
       if(!overX(q)||(p.vy||0)<-1.4) continue;
       if(q.dir<0){
