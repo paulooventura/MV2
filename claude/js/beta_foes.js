@@ -289,6 +289,14 @@
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
     e.og=!boxFree(e.x,e.y+2,e.w,e.h);                              // on the floor: it lies on a face — its float-spin hands over to the notches
     if(e.og&&e.st!=='zap'){ e.ang=(e.ang||0)+(e.spin||0); e.spin=0; }
+    // T487 (Paulo, Nov 11): on the ground it moves by pushing on its corner notches — it rolls over
+    // them, tipping up onto a corner and dropping onto the next face (a stumble, not a slide)
+    if(e.og&&Math.abs(e.vx||0)>0.05){
+      const R=e.w*0.5; e.ang=(e.ang||0)+(e.vx||0)/R;
+      const seg=Math.PI/3, ph=((e.ang%seg)+seg)%seg-seg/2;                  // -30°..30° from lying flat on a face
+      e._lift=R*(1-Math.cos(ph))*0.9;
+      if(Math.abs(ph)<0.04&&Math.abs(e.vx)>0.6&&(e._thudCd||0)<=fr){ e._thudCd=fr+10; try{ if(typeof sfxAt==='function') sfxAt(e,'land',0.7); }catch(er){} }   // a face lands
+    }else if(e._lift>0) e._lift*=0.8;
     const close=d<260;
     // Paulo, Nov 4 (build 368): waking up (MIND comes close, or a hit) opens a 3 s window in
     // which it can be hurt, and only by a loaded punch, a loaded TRS shot or the kiritsuke
@@ -320,6 +328,7 @@
   }
   function drawCube(e,over){
     if(!over) try{ drawBubbles(); }catch(er){}
+    if(!e.alive){ e.fVulnT=0; e._wakeT=0; e.fSolidK=0; }      // T487 (Paulo, Nov 11): shut down, it stops pulsing
     const awake=e.alive&&(e.st==='hunt'||e.st==='zap'||!!e._wasClose||(e.fVulnT||0)>0);
     if(e._wakeT>0&&!over) e._wakeT--;
     const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0);

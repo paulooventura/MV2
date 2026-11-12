@@ -571,6 +571,13 @@
   }
 
   // ── Pickups ───────────────────────────────────────────────────────
+  // T488 (Paulo, Nov 11): seeds and crystals float with no shadow; one only appears once the thing has
+  // been pushed or pulled (thrown, carried, knocked) and lies on the floor
+  function restsMoved(k,footY){
+    if(k._fly||k._carried||Math.abs(k.vx||0)>0.05||Math.abs(k.vy||0)>0.05) k._moved=true;
+    if(!k._moved||k._fly||k._carried) return false;
+    return typeof gridWorldSolid==='function'&&gridWorldSolid(k.x,footY+6);
+  }
   function seed(k){
     const x=k.x, y=k.y, ph=(k.bob||0)*3+fr*0.06;
     if(!inView(x-60,y-140,120,160)) return;
@@ -580,7 +587,7 @@
     gg.addColorStop(0,'rgba(120,255,200,0)'); gg.addColorStop(1,'rgba(120,255,200,'+(0.22*pulse)+')');
     ctx.fillStyle=gg; ctx.fillRect(X(x-7),Y(y-150),S(14),S(150));
     glow(x,y,46,0.45*pulse,'rgba(110,255,200,');
-    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(y+14),S(10),S(2.5),0,0,Math.PI*2); ctx.fill();
+    if(restsMoved(k,y+14)){ ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(y+14),S(10),S(2.5),0,0,Math.PI*2); ctx.fill(); }
     teardrop(x,y+4,8,'#7dffcf','#13684e');
     ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.ellipse(X(x-2.5),Y(y-2),S(1.8),S(3.2),-0.4,0,Math.PI*2); ctx.fill();
     for(let i=0;i<3;i++){                                // sparkles orbiting
@@ -628,7 +635,7 @@
     if(!inView(x-60,cy-60,120,110)) return;
     const hw=S(13), hh=S(24), X0=X(x), Y0=Y(cy);
     glow(x,cy,echo?60:54,0.34+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,170,');
-    ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(12),S(2.5),0,0,Math.PI*2); ctx.fill();
+    if(restsMoved(k,k.y+13)){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(12),S(2.5),0,0,Math.PI*2); ctx.fill(); }
     const O=[[0,-hh],[hw,-hh/2],[hw,hh/2],[0,hh],[-hw,hh/2],[-hw,-hh/2]];           // the outline
     const I=O.map(([u,v])=>[u*0.42,v*0.42]);                                           // the table (inner hexagon)
     const base=echo?320:145;

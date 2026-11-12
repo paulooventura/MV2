@@ -829,6 +829,20 @@ function _updateBattleEye(pl){
   let tx, ty;
   if(best){ const reach=4.5; tx=best.dx/best.d*reach; ty=best.dy/best.d*reach*0.8; }
   else { tx=(pl.tAimDX||0)*4; ty=(pl.tAimDY||0)*4; }
+  // T486 (Paulo, Nov 11): standing still for 10 s, MIND passes the time: he looks around (left,
+  // right, up) and lifts his arm to look it over. Any button and he's back.
+  if(pl===p){
+    let anyKey=false; for(const kk in K){ if(K[kk]){ anyKey=true; break; } }
+    if(!best&&pl.og&&Math.abs(pl.vx||0)<0.05&&!anyKey&&!(pl.hook&&pl.hook.st!=='idle')) pl._idleT=(pl._idleT||0)+1; else { if((pl._idleT||0)>600){ pl.tAimDX=pl.fc?1:-1; pl.tAimDY=0; } pl._idleT=0; }
+    if(pl._idleT>600){
+      const t=(pl._idleT-600)%480, f=pl.fc?1:-1;
+      if(t<120){ tx=-4.5; ty=0.5; }                                   // a look to the left
+      else if(t<240){ tx=4.5; ty=0.5; }                               // ...and to the right
+      else if(t<380){ tx=f*3; ty=3.5; pl.tAimDX=f*0.55; pl.tAimDY=-0.35; }   // lifts his arm and looks it over
+      else { tx=f*1.5; ty=-4; pl.tAimDX=f; pl.tAimDY=0; }             // a glance up
+      pl._idling=true;
+    }else pl._idling=false;
+  }
   const k=best?0.3:(pl.og?0.18:0.07);
   pl.pupilX+=(tx-pl.pupilX)*k; pl.pupilY+=(ty-pl.pupilY)*k;
   pl._eyeBot=(pl._eyeBot||0)+(Math.max(near,sport*0.9)-(pl._eyeBot||0))*0.16;

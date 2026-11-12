@@ -189,7 +189,8 @@
   function deadly(x,y){
     const cx=x+SW/2, f=y+FEET_OFF;
     if(typeof WH==='number'&&f>WH-40) return true;                      // the bottom of the world
-    return !!(B.elecAt&&B.elecAt(cx,f-20));                             // live water
+    if(B.elecAt&&B.elecAt(cx,f-20)) return true;                       // live water
+    return !B.hasIsolator&&!!(B.inWater&&B.inWater(cx,f-40));           // T494/T495: deep water without the Isolator: it would short
   }
   function standOk(x,y){ const cx=x+SW/2, f=y+FEET_OFF; return solidAt(cx,f+6)&&!solidAt(cx,f-30)&&!solidAt(cx,f-60)&&!deadly(x,y); }
   // the floor in this column nearest a feet height (null if there's none to stand on)
@@ -721,9 +722,59 @@
     }
     // live water
     if(envCd<=0&&B.elecAt&&B.elecAt(c.x,c.y)){ envHurt(b,8,(b.vx||0)*0.5,-3,'water'); envCd=20; }
+    // T494 (Paulo, Nov 11): "our companion must deal with the same set of rules ... if they don't have an
+    // isolator, they can't go underwater because they will short circuit." Head under, no Isolator:
+    // it shorts like MIND does (its charge drains, sparks, a crackle) and shuts down at zero.
+    if(!B.hasIsolator&&B.inWater&&B.inWater(c.x,c.y-14)&&!(b._downT>0)){
+      b.sibHp=(b.sibHp==null?100:b.sibHp)-0.55; b._hurtFr=fr; b._shorting=true;
+      if(fr%3===0) PFXS.push({x:c.x+(Math.random()-0.5)*30,y:c.y+(Math.random()-0.5)*30,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:8,maxLife:8,r:1.4,col:Math.random()<0.5?'#fff6a0':'#80d8ff'});
+      if(fr%12===0) try{ if(B.tzzz) B.tzzz(0.3); }catch(e){}
+      if(b.sibHp<=0){ b._downT=240; b.sibHp=100; b._shorting=false; B.sibShorts=(B.sibShorts|0)+1; try{ sfx('enemy_shut',1.2); }catch(e){} }
+    }else b._shorting=false;
     // it heals slowly when it's been left alone for a few seconds
     if(b.sibHp<100&&fr-(b._hurtFr||-999)>180) b.sibHp=Math.min(100,b.sibHp+0.12);
   }
+  // ── T495 (Paulo, Nov 11): the companion is its own entity: it keeps clear of danger (deadly() keeps it
+  //    out of water without the Isolator), and now and then a little balloon pops over its head, like
+  //    Laitu's: heads-ups about threats, a word when you're hurt or charged, small talk when it's calm.
+  let say=null, sayCd=240, wasHp=null, idleT=0;
+  const SMALL=['NICE WHEELS, BROTHER.','I CAN SMELL THE KNOWL TREE FROM HERE.','WHERE IS TRADZKUL HIDING THEM?','THIS TOWN NEEDS MORE SPEAKERS.','I KEEP YOUR SIX. ALWAYS.','LISTEN... HEAR THAT HUM?','WE GET THEM BACK. TOGETHER.'];
+  function speak(txt,t){ say={txt,t:t||180,max:t||180}; sayCd=420+(Math.random()*240|0); B.sibSaid=(B.sibSaid|0)+1; B.sibLast=txt; }
+  function sayTick(b){
+    if(say){ if(--say.t<=0) say=null; }
+    if(sayCd>0) sayCd--;
+    const hp0=wasHp; wasHp=p?p.hp:null;
+    if(!p||sayCd>0||say) return;
+    const c=centre(b);
+    const wet=B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-40);
+    if(b._shorting){ speak('I\'M SHORTING OUT! GET ME OUT!',150); return; }
+    if(B.chargeT>240){ speak('YOU\'RE BUZZING! STAY OUT OF THE WATER!'); return; }
+    if(wet&&!B.hasIsolator){ speak('NO ISOLATOR, NO SWIM. I\'LL WAIT HERE.'); return; }
+    if(hp0!=null&&p.hp<hp0-8){ speak(p.hp<35?'YOU\'RE RUNNING LOW! FIND A SEED!':'WATCH IT! YOU OK?',150); return; }
+    let near=null, nd=340;
+    for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(!e||!e.alive||e._hidden||e._permOff) continue; const d=Math.hypot(e.x+e.w/2-(p.x+SW/2),e.y+e.h/2-(p.y+FEET_OFF-40)); if(d<nd){ nd=d; near=e; } }
+    if(near){ const side=near.x+near.w/2<p.x+SW/2?'LEFT':'RIGHT'; speak(near._boss?'THAT THING ONLY FEARS THE BLADE!':'HEADS UP! ONE ON YOUR '+side+'!',150); return; }
+    for(const w of (typeof BWALLS!=='undefined'?BWALLS:[])){ if(!w||w.only!=='laser'||w.hp<=0) continue; if(Math.hypot(w.x+16-(p.x+SW/2),w.y+16-(p.y+FEET_OFF-40))<90){ speak('CAREFUL, THAT BOX IS LIVE. SHOOT IT, DON\'T TOUCH IT.'); return; } }
+    if(Math.abs(p.vx||0)<0.3&&p.og) idleT++; else idleT=0;
+    if(idleT>300&&Math.random()<0.01){ idleT=0; speak(SMALL[(Math.random()*SMALL.length)|0],200); }
+  }
+  B.sibSay=(t)=>speak(t);
+  { const _hud=window.drawLdtkLabHud;
+    if(typeof _hud==='function') window.drawLdtkLabHud=function(){
+      const r=_hud.apply(this,arguments);
+      try{ if(say&&S&&B.on&&typeof sx==='function'){
+        const a=Math.min(1,say.t/12,(say.max-say.t)/8+0.2), cx=sx(S.x+SW/2), top=sy(S.y+FEET_OFF-STAND_H-30);
+        const txt=say.txt; ctx.save(); ctx.font='15px "MV Pixel", monospace'; const tw=ctx.measureText(txt).width+28; ctx.restore();
+        const x0=Math.max(8,Math.min(W-tw-8,cx-tw/2));
+        ctx.save(); ctx.globalAlpha=a; ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+        const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fff6f6'); bg.addColorStop(1,'#f3d8d8');
+        ctx.fillStyle=bg; uiRound(x0, top-32, tw, 24, 12); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
+        ctx.shadowColor='transparent'; ctx.lineWidth=1.5; ctx.strokeStyle='#c05a6a'; uiRound(x0+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
+        ctx.fillStyle='#3a1018'; ctx.font='15px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.fillText(txt, x0+tw/2, top-15);
+        ctx.restore(); } }catch(e){}
+      return r;
+    }; }
   function knock(b,vx,vy,kind,dmg){
     ropeIdle(b);
     b.vx=vx; b.vy=vy; b.og=false; b.free=Math.max(b.free||0,46); b._prevLandFeet=b.y+FEET_OFF;
@@ -905,7 +956,7 @@
       if(S.pt>0) S.pt--; if(S._bang>0) S._bang--; if(S._punchCd>0) S._punchCd--;
       if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
-      envTick(S);
+      envTick(S); sayTick(S);
       if(S._madT>0){ madTick(S); boltsTick(); return r; }
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
       watchBlocks(); readAction();

@@ -175,8 +175,9 @@ function drawWheel(cx,cy,angle,plRef){
   // knobby tire (rigid knobs; only the contact knobs flatten a hair), anodized rim, crossed
   // spokes, a drilled disc brake and a glowing motor hub with an LED ring
   const isVen=pl.hero==='venture'&&!pl._wheelHostile, hostile=!!pl._wheelHostile;
-  const ano=hostile?'#8a1420':isVen?'#b0242e':'#7a2cc8', anoHi=hostile?'#e04050':isVen?'#ff5a5a':'#b884ff';
-  const led=pal.tread?pal.b3:(hostile?'#ff4050':isVen?'#ff6a5a':'#5cffa0');
+  // T490 (Paulo, Nov 11): the mirror foe D (the only hostile MIND here) is black and chrome; its eye stays red
+  const ano=hostile?'#1a1c22':isVen?'#b0242e':'#7a2cc8', anoHi=hostile?'#c8ced8':isVen?'#ff5a5a':'#b884ff';
+  const led=pal.tread?pal.b3:(hostile?'#d8dee8':isVen?'#ff6a5a':'#5cffa0');
   const flat=Math.max(0,Math.min(2,(pl._tireSq||0)*0.35));       // contact patch: a hair, not jelly
   const rimR=R-6;
   // tire carcass
@@ -552,7 +553,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   // pass 4 (Oct 22): the glowing green glass bulb of the key art (the mirror enemy keeps dark red glass)
   if(isFinite(cx)&&isFinite(drawY)){
     // Paulo (Oct 22, the key art): clear glass with a violet (MIND) / rose (VENTURE) glow
-    const gl=hostile?['rgba(255,70,50,','#3a1210','#200808','#5a1a14']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
+    const gl=hostile?['rgba(205,215,230,','#2a2e36','#14161a','#3a3e48']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
     const halo=ctx.createRadialGradient(cx,drawY,R*0.6,cx,drawY,R+9);
     halo.addColorStop(0,gl[0]+(hostile?0.0:0.30)+')'); halo.addColorStop(1,gl[0]+'0)');
     ctx.fillStyle=halo; ctx.beginPath(); ctx.ellipse(cx,drawY,R+9,R+10,0,0,Math.PI*2); ctx.fill();
@@ -633,8 +634,10 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   }
   // Paulo (Oct 22): the eye finds the nearest enemy. Closer = a higher bottom lid.
   // Danger in the radius pulls the top lid down, slanted, so a hard fight looks angry.
-  if(!hostile&&p&&((p._eyeBot||0)>0.03||(p._eyeTop||0)>0.03)){
-    const bot=Math.max(0,Math.min(1,p._eyeBot||0)), top=Math.max(0,Math.min(1,p._eyeTop||0));
+  // T483 (Paulo, Nov 11): in sports mode he squints, harder the faster he goes
+  const _sq=p&&p._ignition?Math.min(1,Math.abs(p.vx||0)/11):0, _sqOn=p&&p._ignition;
+  if(!hostile&&p&&((p._eyeBot||0)>0.03||(p._eyeTop||0)>0.03||_sqOn)){
+    const bot=Math.max(0,Math.min(1,Math.max(p._eyeBot||0,_sqOn?0.3+0.55*_sq:0))), top=Math.max(0,Math.min(1,Math.max(p._eyeTop||0,_sqOn?0.2+0.5*_sq:0)));
     const slant=Math.max(-1,Math.min(1,p._eyeSlant||0));
     const ey=drawY+2, rx=10, ry=9, tan=Math.tan(Math.max(-0.8,Math.min(0.8,slant))*0.42);
     const fill=isVen?'#14060a':'#0c0618', rim=isVen?'#c46070':'#9a7ae0';
@@ -1325,9 +1328,10 @@ function drawCharacter(){
 
   const drawConnArm=()=>{
   const isVenture=p.hero==='venture';
-  const _armDark=isVenture?C.MAROON:C.PURPLE_D;
-  const _armMain=isVenture?C.RED_D:C.INDIGO;
-  const _armGlow=isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
+  const _md=!!window._mirrorDraw;                                  // T490: the mirror foe's arms are black and chrome
+  const _armDark=_md?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
+  const _armMain=_md?'#5c626e':isVenture?C.RED_D:C.INDIGO;
+  const _armGlow=_md?'rgba(220,228,240,0.16)':isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;

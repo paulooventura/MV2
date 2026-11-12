@@ -1563,13 +1563,15 @@
       const ny=f.y+f.vy; if(fragSolid(f.x,ny)){ if(f.vy>0){ f.vx*=FRAG.FRIC; f.vr*=0.7; } f.vy*=-FRAG.BOUNCE; if(Math.abs(f.vy)<0.6) f.vy=0; } else f.y=ny;
       f.rot+=f.vr;
       if(f.t>=FRAG.LIVE) continue;
+      // T493 (Paulo, Nov 11): a live frag in water fries it: the water where it is boils off
+      if(B.inWater&&B.inWater(f.x,f.y)&&B.boilAt&&f.t%4===0){ B.boilAt(f.x,f.y,0.25); B.fragBoils=(B.fragBoils|0)+1; }
       if(f.t%5===0) PFXS.push({x:f.x+(Math.random()-0.5)*6,y:f.y+(Math.random()-0.5)*6,vx:(Math.random()-0.5)*2,vy:-Math.random()*1.5,life:8,maxLife:8,r:1.2,col:Math.random()<0.5?'#fff6a0':'#ffd040'});
       // MIND (the Isolator stops the shock)
       if(p&&f.pcd<=0&&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)){
         const d=Math.hypot(p.x+SW/2-f.x,p.y+FEET_OFF-40-f.y);
         if(d<FRAG.R+20){
           f.pcd=FRAG.CD;
-          if(!B.hasIsolator&&typeof applyPlayerHit==='function'){ applyPlayerHit(Math.sign(p.x+SW/2-f.x||1)*3,-2,FRAG.DMG); B.shortT=Math.max(B.shortT||0,20); try{ sfx('hit',0.6); }catch(e){} }
+          if(!B.hasIsolator&&typeof applyPlayerHit==='function'){ applyPlayerHit(Math.sign(p.x+SW/2-f.x||1)*3,-2,FRAG.DMG); B.shortT=Math.max(B.shortT||0,20); if(B.electrify) B.electrify(); else try{ sfx('hit',0.6); }catch(e){} }   // T485: charged for 16 s
         }
       }
       if(f.pcd>0) f.pcd--;

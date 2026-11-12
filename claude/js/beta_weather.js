@@ -173,7 +173,7 @@
           const dmg=Math.round(62*(1-0.55*clamp((d-30)/80,0,1)));      // a direct hit: ~60 HP
           S.static=0;
           if(typeof applyPlayerHit==='function') applyPlayerHit((Math.sign(c.x-x)||1)*6,-7,dmg);
-          if(B) B.shortT=40;
+          if(B){ B.shortT=40; if(B.electrify) B.electrify(); }   // T485: a bolt leaves him charged
           try{ if(typeof uiShowToast==='function'&&!S._toldBolt){ S._toldBolt=true; uiShowToast('STRUCK BY LIGHTNING! STAY LOW, GET UNDER COVER'); } }catch(e){}
         }
       }

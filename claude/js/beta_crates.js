@@ -241,12 +241,13 @@
   function drawItem(c){
     const it=box(c).item; if(!it) return;
     const D=window.MV_BETA_DECOR;
-    if(D&&D.glow) D.glow(it.x,it.y,40,0.3+0.1*Math.sin(fr*0.1),c.idx===4?'rgba(255,150,60,':c.enh?'rgba(80,255,150,':'rgba(255,230,160,');
+    // T491 (Paulo, Nov 11): the loose item is the same size as the jack on MIND's arm (it was drawn at
+    // 70%), with a steady glow (no pulsing) and no name under it: the item itself says what it is
+    if(D&&D.glow) D.glow(it.x,it.y,40,0.32,c.idx===4?'rgba(255,150,60,':c.enh?'rgba(80,255,150,':'rgba(255,230,160,');
     ctx.save(); ctx.translate(sx(it.x),sy(it.y)); ctx.rotate(it.rot);
-    if(c.idx===4){ if(D&&D.isolatorIcon) D.isolatorIcon(0,0,0.55*sw(10)/10); }
-    else{ const k=0.7*sw(10)/10; ctx.scale(k,k); if(typeof drawConnectorTip==='function') drawConnectorTip(c.idx===3?-14:-16,0,0,0,c.idx,c.enh); }
+    if(c.idx===4){ if(D&&D.isolatorIcon) D.isolatorIcon(0,0,0.8*sw(10)/10); }
+    else{ const k=sw(10)/10; ctx.scale(k,k); if(typeof drawConnectorTip==='function') drawConnectorTip(c.idx===3?-14:-16,0,0,0,c.idx,c.enh); }
     ctx.restore();
-    if(it.og) (B.wtext||((f,...a)=>f(...a)))(drawTextC, NAMES[c.idx]||'?', sx(it.x), sy(it.y+16), c.enh?'#7dffcf':'#ffe8b0', 1);
   }
   B.drawCrate=function(o){
     const c=list().find(q=>q.o===o); if(!c) return;

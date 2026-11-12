@@ -1068,6 +1068,15 @@ function updateHook(){
     _aimHook(h.ex,h.ey);
     const px=h.ex, py=h.ey;
     const attach=ropePlayerEndWorld();
+    // T482 (Paulo, Nov 11): "like a yoyo": while the ball is still flying, the stick steers it — its
+    // path bends toward where you hold (the speed stays the same, so it curves, it doesn't stop)
+    if(!p._aiCompanion&&typeof isLf==='function'){
+      const ix=(isRt()?1:0)-(isLf()?1:0), iy=(isDn()?1:0)-(isUp()?1:0);
+      if(ix||iy){ const sp=Math.hypot(h.evx,h.evy)||1, il=Math.hypot(ix,iy);
+        let nvx=h.evx+ix/il*sp*0.12, nvy=h.evy+iy/il*sp*0.12; const nl=Math.hypot(nvx,nvy)||1;
+        h.evx=nvx/nl*sp; h.evy=nvy/nl*sp; h._steered=(h._steered|0)+1; }
+      h._upWas=!!isUp(); h._dnWas=!!isDn();                       // a direction held through the latch is not a fresh press (no surprise slack)
+    }
     h.ex+=h.evx; h.ey+=h.evy;
     if(Math.hypot(h.ex-attach.x,h.ey-attach.y)>CMAX){ if(h.st==='on') _releaseHookAim(h.ax,h.ay); _hookOff(); return; }
     let best=typeof _hookRayHit==='function'?_hookRayHit(px,py,h.ex,h.ey):null;
