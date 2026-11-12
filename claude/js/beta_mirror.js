@@ -76,6 +76,13 @@
     e.xlrOn=false; e.magOn=false; if(e.hook) e.hook.st='idle';
     if(Math.abs(e.vx||0)<0.12) e.vx=(e.spd||1)*(e.dir||1)*0.8;
     if(e.x<=e.mn||e.x+e.w>=e.mx){ e.dir=-(e.dir||1); e.vx=(e.spd||1)*e.dir*0.8; }
+    // Paulo, Nov 12: "enemies glitching when we get in the elevator (looping their movement)". The two D's
+    // on 1.3 share a floor; shut in a car MIND is out of sight, both go back to patrolling, walk into each
+    // other and push forever (1-3 px back and forth). A foe in the way, or no headway, turns it around.
+    { const d=e.dir||1; let blocked=(e._stuckF|0)>=10;
+      if(!blocked) for(const o of ENEMS){ if(!o||o===e||o._betaHeld||(o.alive===false&&!o.mind)) continue;
+        const gap=d>0?o.x-(e.x+e.w):e.x-(o.x+(o.w||32)); if(gap>-e.w*0.5&&gap<4&&Math.abs((o.y+(o.h||32))-(e.y+e.h))<48){ blocked=true; break; } }
+      if(blocked){ e.dir=-d; e.vx=(e.spd||1)*e.dir*0.8; e._stuckF=0; B.mirrorTurns=(B.mirrorTurns|0)+1; } }
     e.fc=e.vx>0; e.aimDX+=((e.fc?1:-1)-e.aimDX)*0.1; e.aimDY*=0.9;
     e.pupilX+=((e.fc?3:-3)-e.pupilX)*0.1; e.pupilY*=0.9;
     if(e.og&&typeof _enemyNeedStepJump==='function'&&_enemyNeedStepJump(e)&&typeof _enemyStartJump==='function') _enemyStartJump(e,18);
@@ -83,6 +90,7 @@
     e.vy=Math.min((e.vy||0)+GRAV*0.55,11);
     _applyMindEnemyPhysics(e);
     e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x));
+    e._stuckF=Math.abs(e.x-ex0)<0.05?(e._stuckF|0)+1:0;
     if(e.og){ const edx=e.x-ex0; if(Math.abs(edx)>=0.01) e.wheelAngle=(e.wheelAngle||0)+edx/WHEEL_R; }
     e._armPose=computeConnectorArmPose(e);
   }

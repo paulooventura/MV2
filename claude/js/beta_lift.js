@@ -187,6 +187,11 @@
   // looping shaft the street floor is a platform: drop through it (DOWN + JUMP) and he comes in at
   // the top of the shaft and falls until he lands on the roof of the first car below.
   S.shafts=[];
+  // Paulo, Nov 12: the space cut for the cars is "just to be simulated ... the actual level shouldn't be
+  // affected by it". Every rock cell the cut opens is remembered: water treats it as rock (it was filling
+  // the shaft), and MIND can't climb into the slot cut through the ceiling unless he rides in a car.
+  S.cut=new Set();
+  S.isCut=(c,r)=>S.cut.size>0&&S.cut.has(r*4096+c);
   function cutShafts(){
     if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready||!B.platforms||!B.platforms.length) return false;
     const groups=new Map();
@@ -194,7 +199,7 @@
       const k=m.x+':'+m.w; let g=groups.get(k);
       if(!g){ g={c0:Math.floor(m.x/T), c1:Math.floor((m.x+m.w-1)/T), top:1e9, bot:-1e9, loop:false}; groups.set(k,g); }
       g.top=Math.min(g.top,Math.min(m.ya,m.yb)-CAB); g.bot=Math.max(g.bot,Math.max(m.ya,m.yb)); if(m.loop) g.loop=true; }
-    const R=MV_GRID.rows, air=(c,r)=>{ if(r<0||r>=R) return; const t=gridCell(c,r); if(t!==MV_GRID_AIR&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r))) gridSet(c,r,MV_GRID_AIR); };
+    const R=MV_GRID.rows, air=(c,r)=>{ if(r<0||r>=R) return; const t=gridCell(c,r); if(t!==MV_GRID_AIR&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r))){ S.cut.add(r*4096+c); gridSet(c,r,MV_GRID_AIR); } };
     S.shafts=[];
     for(const g of groups.values()){
       const r0=Math.max(0,Math.floor(g.top/T)), rb=Math.floor(g.bot/T);
@@ -204,9 +209,11 @@
       }
       for(let c=g.c0;c<=g.c1;c++){
         for(let r=r0;r<=rb;r++){ if(r===street) continue; air(c,r); }
-        if(street!=null){ gridSet(c,street,MV_GRID_ONEWAY); air(c,street+1); air(c,street+2); }
+        if(street!=null){ S.cut.add(street*4096+c); gridSet(c,street,MV_GRID_ONEWAY); air(c,street+1); air(c,street+2); }
       }
-      S.shafts.push({x0:g.c0*T, x1:(g.c1+1)*T, top:r0*T, street:street!=null?street*T:null, loop:g.loop});
+      // the ceiling slot: the run of cut rows from the top of the shaft down (rock in the level)
+      let cr=r0; while(cr<rb&&S.isCut(g.c0,cr)&&S.isCut(g.c1,cr)) cr++;
+      S.shafts.push({x0:g.c0*T, x1:(g.c1+1)*T, top:r0*T, street:street!=null?street*T:null, loop:g.loop, ceil:cr>r0?cr*T:null});
     }
     yCache.clear();
     return true;
@@ -227,6 +234,24 @@
     }
   }
   S.cutShafts=cutShafts;
+  // outside a car MIND can't go up into the ceiling slot: his head stops at the rock line, and a car roof
+  // he rides on puts him off at the side before it goes in
+  function ceilingSlot(){
+    if(!p||S.sealed||S.hold||inClosedCab(p)) return;
+    const x=p.x+SW/2, FO=typeof FEET_OFF==='number'?FEET_OFF:88, head=p.y+FO-(typeof STAND_H==='number'?STAND_H:70)-(typeof WHEEL_R==='number'?WHEEL_R:12);
+    for(const s of S.shafts){
+      if(s.ceil==null||x<s.x0-2||x>s.x1+2) continue;
+      if(head>=s.ceil) continue;
+      const roof=B.roofPlat&&B.roofPlat.x>=s.x0-T&&B.roofPlat.x<s.x1;
+      if(roof||head<s.ceil-T){                       // carried in on a roof, or got in some other way: out at the side
+        const left=x-s.x0<s.x1-x, nx=left?s.x0-SW/2-6:s.x1-SW/2+6;
+        p.x=nx; p.vx=left?-2:2; p.og=false; B.roofPlat=null; if(B.ridePlat&&B.ridePlat.vert) B.ridePlat=null;
+        if(head<s.ceil) p.y+=s.ceil-head;
+      }else{ p.y+=s.ceil-head; if((p.vy||0)<0) p.vy=0; }
+      if(p.hook&&p.hook.st&&p.hook.st!=='idle'&&p.hook.ey<s.ceil&&p.hook.ex>s.x0&&p.hook.ex<s.x1&&typeof _detachPlayerRope==='function') _detachPlayerRope(p.hook,'snap');
+      S.ceilBlocks=(S.ceilBlocks|0)+1;
+    }
+  }
   function resume(m){
     m.phase='run'; m._lift=null; m.destY=null; m.lockY=null; m.locked=false;
     m._used=false; m._called=false; m.doorT=0; m._linkLeft=null; m._flash=0;
@@ -390,7 +415,7 @@
     if(id!==S.stage){
       S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0;
       S.cab=null; S.inside=false; S.ask=false; S.sealed=false; S.laid=false; S.near=false;
-      yCache.clear();
+      yCache.clear(); S.cut.clear();
       for(const m of B.platforms){ m.phase=null; m._lift=null; m.door=0; m._used=false; }
     }
     if(!live()){
@@ -402,6 +427,7 @@
     layLedges();
     if(S._cutFor!==B.platforms&&cutShafts()) S._cutFor=B.platforms;
     shaftWrap();
+    ceilingSlot();
     // a car that just wrapped takes the foes standing in it along (MIND is carried by beta_water)
     if(typeof ENEMS!=='undefined') for(const m of B.platforms){
       if(!m.vert||!m.wrapped||!m.loop) continue;

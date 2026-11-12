@@ -77,7 +77,7 @@ canvas:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script src="js/beta_city.js?v=348"></script>
 <script src="js/beta_music.js?v=289"></script>
 <script src="js/console16.js?v=248"></script>
-<script src="js/beta_telemetry.js?v=276"></script>
+<!-- beta_telemetry.js off (Paulo, Nov 12: no telemetry, only the save slots, which stay on the player's machine) -->
 <script>
   // stage buttons: load in place (keeps the page and its music unlocked); give focus back to the game
   const go=(id,mask)=>{ if(window.MV_BETA){ MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; MV_BETA.saves={}; MV_BETA.isoOwned=false; } startBetaLab(id,mask,{fresh:true}).then(()=>document.getElementById('c').focus()); };

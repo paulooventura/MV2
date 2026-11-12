@@ -31,6 +31,7 @@
   const motes=[];
   function depthOverlay(){
     if(typeof _gameState==='undefined'||_gameState!=='game'||!(window.MV_BETA&&MV_BETA.on&&MV_BETA.stageId==='1.3')) return;
+    if(MV_BETA.results||MV_BETA.popup||MV_BETA.ending||MV_BETA.trans) return;          // not over a full-screen window
     const W0=ctx.canvas.width, H0=ctx.canvas.height, t=(typeof fr!=='undefined'?fr:0);
     const creep=deepAmt();
     if(creep>0.01){
@@ -238,6 +239,9 @@
   }
   function drawBlood(){
     if(!playing()||typeof sx!=='function') return;
+    // Paulo, Nov 12: "the blood sprites are showing through the level clear screen". Blood is painted after
+    // the frame, over everything: never while a full-screen window is up (item, results, ending, ...).
+    { const Bq=window.MV_BETA; if(Bq&&(Bq.results||Bq.popup||Bq.ending||Bq.trans||Bq.contScreen||Bq.overT>0)) return; }
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawPuddles(); }catch(e){}
     for(const s of stains){

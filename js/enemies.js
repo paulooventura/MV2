@@ -229,6 +229,7 @@ function _enemyPunchable(e){
 }
 function _nudgeEnemyBody(e,nx,ny){
   if(!e||!_enemyBodyPresent(e)) return;
+  if(!isFinite(nx)||!isFinite(ny)||!isFinite(e.w)) return;                 // never write NaN into a body
   if(e.mn!=null) e.x=Math.max(e.mn,Math.min(e.mx-e.w,e.x+nx));
   else e.x=Math.max(0,Math.min(WW-e.w,e.x+nx));
   e.y+=ny;
@@ -285,7 +286,12 @@ function _applyPunchImpact(attacker,defender,angle,opts={}){
     attacker.vy=(attacker.vy||0)-uy*(pRecoil*0.35);
     if(attacker._pRecoil!=null) attacker._pRecoil=Math.max(attacker._pRecoil||0,charged?12:8);
   }
-  if(defender&&_enemyBodyPresent(defender)){
+  // Paulo, Nov 12: "fighting the mirror foes, we get teleported into a random wall and die." D's punch
+  // passed MIND here as the defender; MIND has no `alive` / `w`, so he took the downed-foe nudge, his x
+  // became NaN and the NaN guard dropped him at the stage start (inside rock). The player's knockback
+  // already comes from applyPlayerHit: a player is never nudged as an enemy body.
+  const isPlayer=defender&&(defender===p||(typeof p2!=='undefined'&&defender===p2)||defender.hero);
+  if(defender&&!isPlayer&&_enemyBodyPresent(defender)){
     if(defender.alive&&defender.vx!=null){
       defender.vx=(defender.vx||0)+ux*eBump;
       defender.vy=(defender.vy||0)+uy*(eBump*0.42);

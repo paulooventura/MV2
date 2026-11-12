@@ -125,11 +125,70 @@
       }
     });
   }
+  // ── Paulo, Nov 12: "enhance the background imagery quality for all levels, make it look more cool." ──
+  // Same pixel art, more depth and light: aurora curtains in the stage's glow, a middle layer between the
+  // mountains and the town, pixel clouds that drift across the moon, a moon with a real bloom and slow
+  // rays, haze between the layers (distance reads as air), low mist along the town, a shooting star now and then.
+  function mixHex(a,b,t){ const A=hex(a), B2=hex(b); return '#'+A.map((v,i)=>Math.round(v+(B2[i]-v)*t).toString(16).padStart(2,'0')).join(''); }
+  function glowRGB(th){ const m=/rgba\((\d+),(\d+),(\d+)/.exec(th.glow); return m?[+m[1],+m[2],+m[3]]:[200,200,255]; }
+  function auroraTex(th){
+    const w=Math.ceil(1024/PXS)*2, h=120, [r,g0,b]=glowRGB(th);
+    return mk(w,h,(g)=>{
+      const img=g.createImageData(w,h), d=img.data;
+      for(let x=0;x<w;x++){
+        const t=x/w*Math.PI*2;                         // tiles: whole periods across the strip
+        const top=18+Math.sin(t*2+0.6)*10+Math.sin(t*5+1.7)*5, len=50+Math.sin(t*3+2.1)*22+Math.sin(t*7)*8;
+        const str=0.55+0.45*Math.sin(t*4+0.3)*Math.sin(t*9+1.1);
+        for(let y=Math.max(0,Math.floor(top));y<Math.min(h,top+len);y++){
+          const k=(y-top)/len, a=Math.pow(1-k,1.6)*Math.min(1,(y-top)/4)*str;
+          const q=a*16>BAYER[y&3][x&3]+2?1:0; if(!q) continue;     // dithered, like the sky
+          const o=(y*w+x)*4, hi=k<0.18?1.35:1; d[o]=Math.min(255,r*hi); d[o+1]=Math.min(255,g0*hi); d[o+2]=Math.min(255,b*hi); d[o+3]=Math.round(150*Math.min(1,a+0.25));
+        }
+      }
+      g.putImageData(img,0,0);
+    });
+  }
+  function cloudTex(th){
+    const w=Math.ceil(1024/PXS)*3, h=46, base=mixHex(th.bands[2],th.bands[4],0.5), lit=mixHex(th.bands[4],th.star,0.35), dark=mixHex(th.bands[1],th.bands[2],0.5);
+    return mk(w,h,(g)=>{
+      for(let i=0;i<9;i++){
+        const cx=hash(i,81)*w, cy=12+hash(i,82)*20, L=40+hash(i,83)*90;
+        for(let k=0;k<7;k++){                          // a cloud: overlapping flat-bottomed puffs
+          const px=cx+(k-3)*L*0.13+hash(i*9+k,84)*8, pr=5+hash(i*9+k,85)*9*(1-Math.abs(k-3)/4);
+          for(let y=-pr;y<=pr*0.45;y++){ const half=Math.sqrt(Math.max(0,pr*pr-y*y))*1.6;
+            for(const dx of [0,-w,w]){ g.fillStyle=y<-pr*0.45?lit:y>pr*0.2?dark:base; g.fillRect(Math.round(px-half+dx),Math.round(cy+y),Math.round(half*2),1); } }
+        }
+      }
+    });
+  }
+  function midTex(th){
+    const w=Math.ceil(1024/PXS)*3, h=84, col=mixHex(th.far,th.town,0.55), hi=mixHex(th.farHi,th.town,0.4);
+    return mk(w,h,(g)=>{
+      if(th.city){                                     // 1.3: a nearer skyline, between the haze layers
+        let x=0, i=0;
+        while(x<w){ const bw=8+Math.floor(hash(i,91)*16), bh=26+Math.floor(hash(i,92)*52), top=h-bh;
+          g.fillStyle=col; g.fillRect(x,top,bw,bh); g.fillStyle=hi; g.fillRect(x,top,bw,1);
+          if(hash(i,93)<0.4){ g.fillStyle=col; g.fillRect(x+2,top-3,bw-4,3); }
+          for(let wy=top+4;wy<h-3;wy+=5) for(let wx=x+2;wx<x+bw-2;wx+=3) if(hash(wx*3+i,wy*11)>0.86){ g.fillStyle=th.winDim; g.fillRect(wx,wy,1,1); }
+          x+=bw+Math.floor(hash(i,94)*4); i++; }
+        return;
+      }
+      const hill=x=>h*0.42+Math.sin(x/w*Math.PI*2*3+0.7)*9+Math.sin(x/w*Math.PI*2*7+2)*4;
+      for(let x=0;x<w;x++){ const y=Math.round(hill(x)); g.fillStyle=col; g.fillRect(x,y,1,h-y); }
+      for(let i=0;i<Math.floor(w/9);i++){             // round tree clumps along the hills
+        const x=i*9+hash(i,95)*6, y=hill(x), R=3+hash(i,96)*5;
+        for(let yy=-R;yy<=R;yy++){ const half=Math.sqrt(R*R-yy*yy); g.fillStyle=yy<-R*0.5?hi:col; g.fillRect(Math.round(x-half),Math.round(y-R*0.6+yy),Math.round(half*2)+1,1); }
+      }
+      for(let i=0;i<14;i++){ const x=Math.floor(hash(i,97)*w), y=Math.round(hill(x)); g.fillStyle=col; g.fillRect(x-4,y-7,9,8); g.fillStyle=th.winDim; g.fillRect(x-1,y-5,2,2); }   // far cottages, one lamp each
+    });
+  }
   function get(id){
     const th=THEMES[id]||THEMES.default;
-    if(!cache[id]) cache[id]={th, sky:skyTex(th), far:farTex(th), town:townTex(th)};
+    if(!cache[id]) cache[id]={th, sky:skyTex(th), far:farTex(th), town:townTex(th), aurora:auroraTex(th), cloud:cloudTex(th), mid:midTex(th)};
     return cache[id];
   }
+  let shoot=null;
+  function haze(y,hgt,a,th){ const g=ctx.createLinearGradient(0,y-hgt,0,y+hgt); g.addColorStop(0,th.glow+'0)'); g.addColorStop(0.5,th.glow+a+')'); g.addColorStop(1,th.glow+'0)'); ctx.fillStyle=g; ctx.fillRect(0,y-hgt,W,hgt*2); }
   function tile(img,offX,y,scale){
     const w=img.width*scale, h=img.height*scale; let x=-(((offX%w)+w)%w);
     for(;x<W;x+=w) ctx.drawImage(img,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
@@ -153,23 +212,42 @@
       const s=i%4===0?2:1; ctx.fillRect(x-PXS*s,y,PXS*(2*s+1),PXS); ctx.fillRect(x,y-PXS*s,PXS,PXS*(2*s+1));
     }
     ctx.globalAlpha=1;
+    { ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.42+0.14*Math.sin(fr*0.012);
+      tile(L.aurora,cx*0.02+fr*0.18,Math.max(skyY+8,Math.min(H*0.06,horizon-L.aurora.height*PXS-160)),PXS); ctx.restore(); }
+    if(!shoot&&Math.random()<0.0025) shoot={x:W*(0.2+Math.random()*0.7), y:skyY+40+Math.random()*120, t:0, dx:-(5+Math.random()*4), dy:2+Math.random()*1.5};
+    if(shoot){ const s=shoot; s.t++; const a=Math.max(0,1-s.t/34);
+      ctx.save(); ctx.globalAlpha=a; ctx.strokeStyle=th.star; ctx.lineWidth=PXS*0.7; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(s.x+s.dx*s.t,s.y+s.dy*s.t); ctx.lineTo(s.x+s.dx*(s.t-7),s.y+s.dy*(s.t-7)); ctx.stroke();
+      ctx.fillStyle=th.star; ctx.fillRect(s.x+s.dx*s.t-PXS/2,s.y+s.dy*s.t-PXS/2,PXS,PXS); ctx.restore(); if(s.t>34) shoot=null; }
     // the moon (m.late: hung in front of the far ridge, behind the town, when the ridge fills the sky)
     const moon=()=>{
       const m=th.moon, mx=W*m.x-cx*0.01, my=skyY+L.sky.height*PXS*m.y, R=m.r*PXS/1.5;
       const g=ctx.createRadialGradient(mx,my,R*0.6,mx,my,R*2.6); g.addColorStop(0,th.glow+'0.35)'); g.addColorStop(1,th.glow+'0)');
       ctx.fillStyle=g; ctx.fillRect(mx-R*2.6,my-R*2.6,R*5.2,R*5.2);
+      { const g2=ctx.createRadialGradient(mx,my,R,mx,my,R*7); g2.addColorStop(0,th.glow+'0.16)'); g2.addColorStop(1,th.glow+'0)');   // the wide bloom
+        ctx.fillStyle=g2; ctx.fillRect(mx-R*7,my-R*7,R*14,R*14);
+        ctx.save(); ctx.translate(mx,my); ctx.rotate(fr*0.0012); ctx.globalCompositeOperation='lighter';      // slow rays
+        for(let k=0;k<8;k++){ ctx.rotate(Math.PI/4); const L2=R*(5+2*Math.sin(fr*0.01+k)), rg=ctx.createLinearGradient(0,0,0,-L2); rg.addColorStop(0,th.glow+'0.10)'); rg.addColorStop(1,th.glow+'0)');
+          ctx.fillStyle=rg; ctx.beginPath(); ctx.moveTo(-R*0.25,0); ctx.lineTo(-R*0.9,-L2); ctx.lineTo(R*0.9,-L2); ctx.lineTo(R*0.25,0); ctx.closePath(); ctx.fill(); }
+        ctx.restore(); }
       ctx.fillStyle=m.edge; ctx.beginPath(); ctx.arc(mx,my,R,0,Math.PI*2); ctx.fill();
       ctx.fillStyle=m.col; ctx.beginPath(); ctx.arc(mx-PXS,my-PXS,R-PXS*2,0,Math.PI*2); ctx.fill();
       ctx.fillStyle=m.crater||'rgba(120,100,180,0.35)'; for(const [ox,oy,rr] of [[-0.3,-0.2,0.18],[0.25,0.1,0.12],[-0.05,0.35,0.1],[0.35,-0.35,0.08]]){ ctx.beginPath(); ctx.arc(mx+ox*R,my+oy*R,rr*R,0,Math.PI*2); ctx.fill(); }
     };
     if(th.moon&&!th.moon.late) moon();
-    // horizon glow, then far mountains, then the town
+    { ctx.save(); ctx.globalAlpha=0.62; tile(L.cloud,cx*0.05+fr*0.1,skyY+L.sky.height*PXS*(th.moon?th.moon.y:0.2)-30,PXS); ctx.restore(); }   // clouds drifting across the moon
+    // horizon glow, then far mountains, haze, the middle layer, haze, then the town and its mist
     const hg=ctx.createLinearGradient(0,horizon-140,0,horizon+20); hg.addColorStop(0,th.glow+'0)'); hg.addColorStop(1,th.glow+'0.18)');
     ctx.fillStyle=hg; ctx.fillRect(0,horizon-140,W,160);
     tile(L.far,cx*0.12,horizon-L.far.height*PXS+40,PXS);
     if(th.moon&&th.moon.late) moon();
+    haze(horizon-60,70,0.16,th);
+    tile(L.mid,cx*0.2,horizon-L.mid.height*PXS+56,PXS);
+    haze(horizon+10,50,0.12,th);
     tile(L.town,cx*0.3,horizon-L.town.height*PXS+70,PXS);
     ctx.fillStyle=th.town; ctx.fillRect(0,horizon+70,W,Math.max(0,H-horizon-70));
+    { const mg=ctx.createLinearGradient(0,horizon+10,0,horizon+90); mg.addColorStop(0,th.glow+'0)'); mg.addColorStop(0.6,th.glow+'0.10)'); mg.addColorStop(1,th.glow+'0)');   // low mist along the town
+      ctx.fillStyle=mg; ctx.fillRect(0,horizon+10,W,80); }
     if(window.MV_WEATHER) try{ MV_WEATHER.sky(horizon); }catch(e){}            // clouds from the boiled-off water (beta_weather.js)
     if(window.MV_FIREWORKS) try{ MV_FIREWORKS.draw(); }catch(e){}              // the full set, behind the town
     ctx.restore();

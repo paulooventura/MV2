@@ -2393,6 +2393,7 @@
     ctx.save(); ctx.translate(cx,cy-R*0.18+drop+bob); ctx.rotate(-0.28+Math.sin(fr*0.03)*0.04); ctx.globalAlpha=a;
     if(P.item<=3&&typeof drawConnectorTip==='function'){ ctx.scale(k,k); drawConnectorTip(P.item===3?-14:-16,0,0,0,P.item,false); }
     else if(P.item===4&&window.MV_BETA_DECOR&&MV_BETA_DECOR.isolatorIcon){ MV_BETA_DECOR.isolatorIcon(0,0,k*0.6); }
+    else if(P.item===5&&B.drawKnifeArt){ ctx.rotate(0.12); const s=k*1.25; B.drawKnifeArt(-18.5*s,0,s,0.12+0.1*Math.sin(fr*0.06)); }   // Paulo, Nov 12: the kiritsuke on its own, no crate
     else if(window.MV_BETA_DECOR&&MV_BETA_DECOR.itemCrateScreen){ ctx.scale(1.6,1.6); MV_BETA_DECOR.itemCrateScreen(P.item,0,20,true); }
     ctx.restore();
     if(P.t<40){ const sw0=(P.t/40)*W*1.4-W*0.2; const lg=ctx.createLinearGradient(sw0-80,0,sw0+80,0); lg.addColorStop(0,'rgba(255,255,255,0)'); lg.addColorStop(0.5,'rgba(255,255,255,'+(0.18*(1-P.t/40))+')'); lg.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=lg; ctx.fillRect(0,cy-R*1.2,W,R*2.2); }   // the light sweep

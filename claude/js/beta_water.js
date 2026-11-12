@@ -95,10 +95,11 @@
   // terrain → BLK (1). Slopes: a cell is solid where its centre is under the ramp.
   function terrain(){
     const NX=F.NX, CS=F.CS, BLK=F.BLK, rows=MV_GRID.rows, cols=MV_GRID.cols;
+    const L=window.MV_LIFT, cut=L&&L.isCut&&L.cut&&L.cut.size&&B.stageId==='1.3'?L.isCut:null;   // the elevator cut is rock to water
     if(!F.slopes){ F.slopes=[]; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(!gridSolid(c,r)&&gridSlopeKind(c,r)){   // T452: the ramps, and which way is down
       const yl=gridSlopeY(c,r,c*MV_GRID.tile+1), yr=gridSlopeY(c,r,(c+1)*MV_GRID.tile-1); if(yl!=null&&yr!=null&&yl!==yr) F.slopes.push(c,r,yr>yl?1:-1); } }
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      const solid=gridSolid(c,r), sk=solid?null:gridSlopeKind(c,r);
+      const solid=gridSolid(c,r)||!!(cut&&cut(c,r)), sk=solid?null:gridSlopeKind(c,r);
       for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){
         const x=c*2+dx, y=r*2+dy; let v=solid?1:0;
         if(sk){ const wy=y*CS+CS/2, s=gridSlopeY(c,r,x*CS+CS/2); if(s!=null&&wy>s) v=1; }

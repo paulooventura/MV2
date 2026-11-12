@@ -90,14 +90,14 @@
     if(!a||a.paused) return;
     if(vinylFrom==null) vinylFrom=a.playbackRate||1;
     const t=Math.max(0,Math.min(1,fracLeft));
-    a.playbackRate=Math.max(0.04, vinylFrom*Math.pow(t,1.55));
+    try{ a.playbackRate=Math.max(0.0625, vinylFrom*Math.pow(t,1.55)); }catch(e){}   // Chrome refuses < 1/16 (it threw out of update())
     window._mvVinyl=true;
   }
   function vinylSpinUp(){
     window._mvVinyl=false;
     if(octaved||window._mvOctave){ vinylFrom=null; return; }
     const a=current&&els[current];
-    if(a&&!a.paused) a.playbackRate=Math.max(0.08, vinylFrom||a.playbackRate||0.2);
+    if(a&&!a.paused) try{ a.playbackRate=Math.max(0.08, vinylFrom||a.playbackRate||0.2); }catch(e){}
     vinylFrom=null;
     window._mvVinylSpin=1;
   }
@@ -685,6 +685,24 @@
       if(cab.timer){ clearInterval(cab.timer); cab.timer=null; }
     }
   }
+  // Paulo, Nov 12: phasing from one filter to another on the elevator ride, "the original theme song [should]
+  // fade down in volume and fit its tempo to adapt to the new one that's being smoothly introduced." Tempos
+  // (BPM, measured from the files with an onset autocorrelation) let the two songs meet at one tempo: the
+  // old one slides toward the new one's beat as it fades, the new one comes in at the old beat and settles
+  // to its own as it takes over. Ratios are folded by octaves (x2 / /2) to stay near 1; pitch is kept.
+  const BPM={'canopy-quest-gold':99.2,'crystal-cavern-drift-gold':100.2,'pixel-quasar-gold-boss':129.2,'chaos-theory':130.8,'chaos-theory-2':94,
+    'kiyoki-senritsu-1go':143.5,'kiyoki-senritsu-stori':91.5,'snes-awdjoo':105.5,'snes-awdjoo-2':107.8,'genesis-awdjoo':145.5,'crystal-memory-gate':92.2,'lost-save-shrine-diam':136};
+  function bpmOf(path){ const m=/([^/]+)\.mp3/.exec(path||''); return m&&BPM[m[1]]||null; }
+  function tempoRatio(from,to){ const a=bpmOf(from), b=bpmOf(to); if(!a||!b) return 1; let r=b/a; while(r>1.41) r/=2; while(r<0.71) r*=2; return r; }
+  function setRate(el,r){ if(!el) return; try{ if('preservesPitch' in el) el.preservesPitch=true; const v=Math.max(0.5,Math.min(2,r)); if(Math.abs((el.playbackRate||1)-v)>0.002) el.playbackRate=v; }catch(e){} }
+  function liftTempo(stage,t){
+    if(!stage||!liftBed) return;
+    const r=tempoRatio(stage._path||stage.src,liftBed.src), e=t*t*(3-2*t);   // smoothstep
+    if(!window._mvVinyl&&!octaved&&!window._mvOctave){ setRate(stage,1+(r-1)*e); stage._liftRate=true; }
+    setRate(liftBed,(1/r)+(1-1/r)*e);
+    if(window.MV_BETA) MV_BETA.liftTempo={r:+r.toFixed(3), old:+(stage.playbackRate||1).toFixed(3), now:+(liftBed.playbackRate||1).toFixed(3)};
+  }
+  function liftTempoOff(stage){ if(stage&&stage._liftRate){ stage._liftRate=false; if(!window._mvVinyl&&!octaved&&!window._mvOctave) setRate(stage,1); } }
   function liftMix(){
     const L=window.MV_LIFT, pull=L?L.pull||0:0, inside=!!(L&&L.inside);
     const v=vol();
@@ -703,6 +721,7 @@
     cabin(false);
     const t=Math.max(0,Math.min(1,Math.abs(pull)));
     if(t<0.02||!stage){
+      liftTempoOff(stage);
       if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
       if(stage&&stage._liftDuck){ const m=stage._mix!=null?stage._mix:1; stage.volume=v*base*m; stage.muted=v<=0; stage._liftDuck=false; }
       return;
@@ -713,6 +732,7 @@
     const down=pull<0;
     const path=down?GORE_TRACK:INK_1GO;
     if(stage._path===path){
+      liftTempoOff(stage);
       stage.volume=v*base;
       stage.muted=v<=0;
       if(liftBed){ liftBed.volume=0; liftBed.muted=true; }
@@ -729,6 +749,7 @@
     }
     liftBed.volume=v*t;
     liftBed.muted=v<=0;
+    liftTempo(stage,t);
   }
   window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();

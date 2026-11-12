@@ -923,6 +923,14 @@
         for(let d=1;d<=10&&!best;d++) for(const rr of [r-d,r+d]) if(rr>=0&&rr<R&&skin[rr][c]>=7&&skin[rr][c]<=9){ best=skin[rr][c]; break; }
         if(best) fx[r][c]=best;
       }
+      // Paulo, Nov 12: "the area under the 3rd building on 1.3 ... has to also look like it's a building, not
+      // air ... now it looks like that building is floating". Open air under a tower's base, with ground
+      // within 12 rows, is that tower's ground floor: its interior (skin 7/8/9 -> 10/11/12) down to the ground.
+      for(let c=0;c<C;c++) for(let r=0;r<R-1;r++){
+        const s=fx[r][c]; if(!cells[r]||!cells[r][c]||s<7||s>9||cells[r+1][c]||fx[r+1][c]) continue;
+        let rr=r+1; while(rr<R&&rr<r+13&&!cells[rr][c]&&!fx[rr][c]) rr++;
+        if(rr<R&&rr<r+13&&cells[rr][c]) for(let k=r+1;k<rr;k++) fx[k][c]=s+3;
+      }
     }
     const skinUse=(skin&&B.stageId==='1.3'&&B._skinFix)?B._skinFix:skin;
     const sk=(c,r)=>skinUse?skinUse[r][c]:0;
