@@ -464,13 +464,13 @@
     const one=window.uiLayout&&uiLayout().oneCol;
     if(_selectStep===0){
       if(one){
-        const d=(dy||dx)>0?1:3;
-        _playModeIdx=(_playModeIdx+d)%4;
+        const d=(dy||dx)>0?1:MV_MODE_N-1;
+        _playModeIdx=(_playModeIdx+d)%MV_MODE_N;
       }else{
         let col=_playModeIdx%2, row=(_playModeIdx/2)|0;
         if(dx) col=(col+(dx>0?1:-1)+2)%2;
         if(dy) row=(row+(dy>0?1:-1)+2)%2;
-        _playModeIdx=row*2+col;
+        _playModeIdx=Math.min(MV_MODE_N-1,row*2+col);
       }
       try{ sfx('menu'); }catch(e2){}
       return true;
@@ -535,7 +535,7 @@
     const want=one?112:200;
     const fit=Math.max(1, Math.min(one?4:2, Math.floor((bottom-top+gap)/(want+gap))));
     const vis=one?fit:4;
-    const start=one?Math.max(0, Math.min(_playModeIdx, MODES.length-vis)):0;
+    const NM=MV_MODE_N, start=one?Math.max(0, Math.min(_playModeIdx, NM-vis)):0;
     const cols=one?1:2;
     const cw=one?L.panelW:Math.min(360, Math.floor((W-80-gap)/2));
     const ch=Math.min(one?140:220, Math.floor((bottom-top-(Math.max(1,one?vis:2)-1)*gap)/(one?vis:2)));
@@ -544,8 +544,9 @@
     modeRects=[];
     if(one&&start>0) drawTextC('^', W/2, top-8, '#d8ffc8', 2);
     MODES.forEach((m,i)=>{
+      if(i>=NM) return;                                                     // T137: store build hides 2P ONLINE
       if(one&&(i<start||i>=start+vis)) return;
-      const col=one?0:i%2, row=one?(i-start):(i/2)|0;
+      const col=one?0:(i===NM-1&&NM%2?0.5:i%2), row=one?(i-start):(i/2)|0;  // an odd last card sits centred
       const sel=_playModeIdx===i, key='m'+i; anim[key]=ease(anim[key],sel?1:0,0.2);
       const k=anim[key], sc=0.96+0.04*k, w=cw*sc, h=ch*sc;
       const cx=x0+col*(cw+gap)+cw/2, x=cx-w/2, y=y0+row*(ch+gap)+(1-k)*8+(sel?Math.sin(fr*0.08)*2:0), sk=one?8:14;
@@ -562,7 +563,7 @@
       ctx.restore();
       if(sel&&!m.locked&&fr%4===0) spark(x+Math.random()*w,y+h-20-Math.random()*h*0.5,m.col);
     });
-    if(one&&start+vis<MODES.length) drawTextC('v', W/2, bottom-4, '#d8ffc8', 2);
+    if(one&&start+vis<NM) drawTextC('v', W/2, bottom-4, '#d8ffc8', 2);
     sparkTick();
     hints();
   }

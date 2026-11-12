@@ -2,6 +2,8 @@
 
 Collaborator / Claude handoff: **`GAME-BRIEF.md`** (lore, physics, sprites, maps, how far we are). This file is the module map and QA loop.
 
+Long references: **`docs/lore/`** (Sonnata lore bible and the Oct 31 business plan, PDF + text). `docs/` is gitignored (public repo), so it is local only; the source copy is Homebase `staging/mv2-lore`.
+
 ## Module map (read this BEFORE grepping the whole tree)
 
 Browser 2D platformer. `index.html` is a loader only — all logic is split into

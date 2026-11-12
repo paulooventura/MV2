@@ -201,8 +201,8 @@ function readGamepad(){
     GP.selX=sx; GP.selY=sy2;
     const dX=(rose(14)||stL)?-1:(rose(15)||stR)?1:0, dY=(rose(12)||(stV&&sy2<0))?-1:(rose(13)||(stV&&sy2>0))?1:0;
     if((dX||dY)&&!(window.MV_SELECT_NAV&&MV_SELECT_NAV(dX,dY))){
-      if(dX<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
-      if(dX>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+      if(dX<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+MV_MODE_N-1)%MV_MODE_N; else _heroChoice='mind'; }
+      if(dX>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; }
     }
   }
   // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the

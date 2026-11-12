@@ -37,3 +37,9 @@ Desktop.ini
 # Node test runner
 node_modules/
 test-results/
+
+# build output and scratch (itch upload, ship message, sprite sheets)
+.deploy-msg.txt
+Mind-and-Venture-itch.zip
+Mind-and-Venture-itch-cover.png
+_sheet-*.png

@@ -617,7 +617,19 @@
     const y=e.y+e.h*0.42;
     return solidAt(e.x+e.w*0.5,y)||solidAt(e.x+6,y)||solidAt(e.x+e.w-6,y);
   }
+  // T424 (1.2: foe A buried in rock now and then): a foe rolling up to a step could stand with its side
+  // over the step's edge; settling a few px lower put that side inside the rock. If one side of the
+  // body is in rock and the other is free, it slides clear sideways (liftOut only lifted it up).
+  function sideOut(e){
+    if(!e||e._betaHeld||ropeOf(e)) return;
+    const ys=[e.y+e.h*0.42,e.y+e.h*0.7], L=x=>ys.some(y=>solidAt(x,y));
+    const l=L(e.x+6), r=L(e.x+e.w-6), mid=L(e.x+e.w*0.5);
+    if(mid||l===r) return;
+    const dir=l?1:-1;
+    for(let i=1;i<=16;i++){ const x=e.x+dir*i; if(!(ys.some(y=>solidAt(x+6,y))||ys.some(y=>solidAt(x+e.w-6,y)))){ e.x=x; if(Math.sign(e.vx||0)===-dir) e.vx=0; B.sideOuts=(B.sideOuts|0)+1; return; } }
+  }
   function liftOut(e){
+    sideOut(e);
     if(!e||e._betaHeld||ropeOf(e)||!bodyBuried(e)) return;
     const y0=e.y, x0=e.x;
     for(let i=1;i<=e.h+T*3;i++){

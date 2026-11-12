@@ -62,8 +62,8 @@ function _driveMenusFromPads(){
     const nX=lf?-1:rt?1:0, nY=up?-1:dn?1:0;
     if((nX||nY)&&window.MV_SELECT_NAV&&MV_SELECT_NAV(nX,nY)){ /* hero screen: rows + switches (ui_select.js) */ }
     else {
-      if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; }
-      if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; }
+      if(lf){ if(_selectStep===0)_playModeIdx=(_playModeIdx+MV_MODE_N-1)%MV_MODE_N; else _heroChoice='mind'; }
+      if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; }
     }
     if(ok) startGame();
     if(back){ if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
@@ -143,6 +143,10 @@ let _playerCount=1;
 let _heroChoice='mind';
 let _selectStep=0;
 let _playModeIdx=0;
+// T137 (store gate A): the Steam build (served from app://) does not show the 2P ONLINE "coming soon"
+// card: it has 3 modes, the web build keeps all 4. ?store=1 shows the store menu in a browser.
+const MV_STORE_BUILD=(()=>{ try{ return location.protocol==='app:'||/[?&]store=1\b/.test(location.search); }catch(e){ return false; } })();
+const MV_MODE_N=MV_STORE_BUILD?3:4;
 
 const GAME_BEATEN_KEY='mv_game_beaten';
 const CUSTOM_STAGES_KEY='mv_custom_stages';
