@@ -191,7 +191,8 @@
     for(let i=shots.length-1;i>=0;i--){
       const s=shots[i]; if(!s||s._fizzle) continue;
       for(const c of L){
-        const b=box(c), R=b.broken&&b.item?{x:b.item.x-18,y:b.item.y-14,w:36,h:28}:rectOf(c);
+        const b=box(c); if(b.broken) continue;                  // T490: a loose item doesn't stop shots (only a closed crate does)
+        const R=rectOf(c);
         if(s.x>R.x&&s.x<R.x+R.w&&s.y>R.y&&s.y<R.y+R.h){
           damage(c, s.charged?CR.LASER_LOADED:CR.LASER, Math.atan2(s.vy||0,s.vx||1), s.charged?8:5, 'laser');
           try{ if(typeof spawnHitBurst==='function') spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ffcc66',10); }catch(e){}

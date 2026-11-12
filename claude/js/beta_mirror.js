@@ -132,9 +132,11 @@
     // hold the next jack he still has (top bar order), or nothing
     let next=-1; for(const i of [2,1,0,3]) if(_itemUnlocked(i)){ next=i; break; }
     ITEM=next;
-    const cx=p.x+SW/2, cy=p.y+FEET_OFF-50, dir=Math.sign(cx-(e.x+(e.w||SW)/2))||1;
+    // T490 (Paulo, Nov 12): the knocked-loose jack used to land between MIND and D, where it caught the
+    // lasers shot at D. Now it arcs over D and lands on D's far side (behind him), out of the line of fire.
+    const cx=p.x+SW/2, cy=p.y+FEET_OFF-50, dir=Math.sign((e.x+(e.w||SW)/2)-cx)||1;
     const d={item:idx, enhanced:enh, x:cx-16, y:cy-16, w:32, h:32, got:false, bob:0, _knocked:true,
-      _box:{hp:0, broken:true, shake:0, glow:0, item:{x:cx, y:cy, vx:dir*(3+Math.random()*1.5), vy:-6, rot:0, vr:dir*0.3, og:false, noPick:45}}};
+      _box:{hp:0, broken:true, shake:0, glow:0, item:{x:cx, y:cy, vx:dir*(6.5+Math.random()*1.5), vy:-9, rot:0, vr:dir*0.3, og:false, noPick:45}}};
     ITEM_DROPS.push(d); lost.add(idx);
     try{ sfxAt(e,'item_clink'); sfxAt(e,'enemy_alert'); }catch(_e){}
     for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2; PFXS.push({x:cx,y:cy,vx:Math.cos(a)*3,vy:Math.sin(a)*3-1,life:16,maxLife:16,r:2,col:'#ffd070'}); }
