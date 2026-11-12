@@ -46,7 +46,7 @@
 
   // ── Level hooks ────────────────────────────────────────────────
   B.onLevelStart=function(){ B.torrents=[]; B.platforms=[]; B.waters=[]; B.isoPickup=null; B.hasIsolator=false; B.isoT=0; B.isoLoose=null; B.bubbles=[]; B.ridePlat=null; B.xBub=null; B.magCore=null; B.wRings=[];
-    B.drops=[]; B.steam=[]; F.ready=false; F.rects=[]; F.M=null; };
+    B.drops=[]; B.steam=[]; F.ready=false; F.rects=[]; F.M=null; F.slopes=null; };
   B.onEntities=function(ents, Fd, cell){
     for(const e of ents){
       const g=cell(e), id=e.__identifier;
@@ -95,6 +95,8 @@
   // terrain → BLK (1). Slopes: a cell is solid where its centre is under the ramp.
   function terrain(){
     const NX=F.NX, CS=F.CS, BLK=F.BLK, rows=MV_GRID.rows, cols=MV_GRID.cols;
+    if(!F.slopes){ F.slopes=[]; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(!gridSolid(c,r)&&gridSlopeKind(c,r)){   // T452: the ramps, and which way is down
+      const yl=gridSlopeY(c,r,c*MV_GRID.tile+1), yr=gridSlopeY(c,r,(c+1)*MV_GRID.tile-1); if(yl!=null&&yr!=null&&yl!==yr) F.slopes.push(c,r,yr>yl?1:-1); } }
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
       const solid=gridSolid(c,r), sk=solid?null:gridSlopeKind(c,r);
       for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){
@@ -1095,6 +1097,34 @@
     }
   }
 
+  // T452 (Paulo, Nov 11): "the water pixels on the slopes look like straight horizontal lines ... we want
+  // the water effects, look, and physics to be as close to real life's as possible." A ramp is a
+  // staircase of water cells, so water used to rest on its steps as flat bands. Water standing in a
+  // ramp's cells now runs downhill (to the next cell down the slope, or down and along), so it
+  // sheets down ramps and pools at the bottom; the drawing is clipped to the ramp's line.
+  function slopeSlide(){
+    const S2=F.slopes; if(!S2||!S2.length) return;
+    const {NX,NY,M,BLK}=F;
+    for(let k=0;k<S2.length;k+=3){
+      const c=S2[k], r=S2[k+1], dir=S2[k+2];
+      for(let dy=1;dy>=0;dy--) for(let dx=0;dx<2;dx++){
+        const x=c*2+dx, y=r*2+dy, i=y*NX+x; if(BLK[i]||M[i]<0.002) continue;
+        const nx=x+dir; if(nx<0||nx>=NX) continue;
+        let j=y*NX+nx; if(BLK[j]&1){ if(y+1<NY&&!(BLK[j+NX]&1)) j+=NX; else continue; }
+        else if(y+1<NY&&!(BLK[j+NX]&1)&&M[j+NX]<0.9) j+=NX;                 // down and along: it sheets down
+        const room=Math.max(0,1-M[j]), t=Math.min(M[i]*0.35,room,0.2); if(t<=0) continue;
+        M[i]-=t; M[j]+=t;
+      }
+    }
+  }
+  function slopeClip(){                                    // a clip that leaves the ramps' solid triangles out of the water
+    const S2=F.slopes; if(!S2||!S2.length) return null;
+    const path=new Path2D(); path.rect(-10,-10,W+20,H+20); const t=MV_GRID.tile;
+    for(let k=0;k<S2.length;k+=3){ const c=S2[k], r=S2[k+1], x0=c*t, x1=x0+t, y0=r*t, y1=y0+t; if(sx(x1)<-8||sx(x0)>W+8||sy(y1)<-8||sy(y0)>H+8) continue;
+      const yl=gridSlopeY(c,r,x0+0.01), yr=gridSlopeY(c,r,x1-0.01);
+      path.moveTo(sx(x0),sy(yl)); path.lineTo(sx(x1),sy(yr)); path.lineTo(sx(x1),sy(y1)); path.lineTo(sx(x0),sy(y1)); path.closePath(); }
+    return path;
+  }
   function waterTick(){
     platformTick();
     isolatorTick();
@@ -1103,6 +1133,7 @@
     occupy();
     hookWaterTick(); magnetWater(); magWaterTick(); itemWater(); magCoreTick(); airBubbleTick(); ringsTick();
     for(let s=0;s<SUB;s++) step(!(s&1));
+    slopeSlide();
     displace();
     dropsTick(); wavesTick(); elecTick(); filmTick(); steamTick(); plugTick(); pourFx();
     const list=bodies();
@@ -1390,6 +1421,7 @@
       g.addColorStop(0,elec?'rgba(150,215,240,0.5)':'rgba(96,150,178,0.34)'); g.addColorStop(0.35,elec?'rgba(80,140,210,0.62)':'rgba(34,82,118,0.56)'); g.addColorStop(1,elec?'rgba(40,80,170,0.8)':'rgba(8,26,48,0.84)');
       const ab=B.xBub;
       ctx.fillStyle=g;
+      const sc=slopeClip(); ctx.save(); if(sc) ctx.clip(sc,'evenodd');
       if(ab){                                               // the air pocket: a hole in the water
         const wob=b2=>sw(ab.r)*(1+0.05*Math.sin(fr*0.4+b2));
         ctx.save(); const cut=new Path2D(); cut.rect(-10,-10,W+20,H+20);
@@ -1402,6 +1434,7 @@
         ctx.beginPath(); ctx.arc(sx(ab.x),sy(ab.y),sw(ab.r)*0.7,Math.PI*1.1,Math.PI*1.45); ctx.stroke();
         ctx.restore();
       }else ctx.fill(pool);
+      ctx.restore();
       // ripples running out through the water
       if(B.wRings.length){ ctx.save(); ctx.clip(pool);
         for(const g2 of B.wRings){ const a=(g2.life/60)*Math.min(1,0.35+0.4*g2.k);

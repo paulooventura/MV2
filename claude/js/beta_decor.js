@@ -904,7 +904,21 @@
     sky();
     const c0=Math.max(0,Math.floor(camX/T)-1), c1=Math.min(lv.cols-1,Math.ceil((camX+W/Z)/T)+1);
     const r0=Math.max(0,Math.floor(camY/T)-1), r1=Math.min(lv.rows-1,Math.ceil((camY+H/Z)/T)+1);
-    const sk=(c,r)=>skin?skin[r][c]:0;
+    // T460 (Paulo, Nov 11): "There should be no dirt blocks on that building on the right in 1.3.
+    // it's supposed to look like a building all the way." Above the street, a block left on the
+    // default (dirt) skin takes the nearest tower skin beside it (same row, then same column).
+    if(skin&&B.stageId==='1.3'&&B._skinFixFor!==skin){
+      B._skinFixFor=skin; const fx=B._skinFix=skin.map(row=>row.slice()), R=skin.length, C=skin[0].length;
+      for(let r=0;r<Math.min(R,60);r++) for(let c=0;c<C;c++){
+        if(!cells[r]||!cells[r][c]||skin[r][c]) continue;
+        let best=0, bd=99;
+        for(let d=1;d<=6&&!best;d++) for(const cc of [c-d,c+d]) if(cc>=0&&cc<C&&skin[r][cc]>=7&&skin[r][cc]<=9&&d<bd){ best=skin[r][cc]; bd=d; }
+        for(let d=1;d<=10&&!best;d++) for(const rr of [r-d,r+d]) if(rr>=0&&rr<R&&skin[rr][c]>=7&&skin[rr][c]<=9){ best=skin[rr][c]; break; }
+        if(best) fx[r][c]=best;
+      }
+    }
+    const skinUse=(skin&&B.stageId==='1.3'&&B._skinFix)?B._skinFix:skin;
+    const sk=(c,r)=>skinUse?skinUse[r][c]:0;
     // underground air: stone (basement) or cave
     for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
       if(cells[r][c]) continue;

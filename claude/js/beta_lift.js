@@ -66,7 +66,39 @@
       return _dc.apply(this,arguments);
     }; }
   { const _de=window._damageEnemy;
-    if(typeof _de==='function') window._damageEnemy=function(e){ if(e&&e._inCab&&!(S.sealed&&S.cab===S.cabOf(e))) return; return _de.apply(this,arguments); }; }
+    if(typeof _de==='function') window._damageEnemy=function(e){ if(e&&e._inCab&&!(S.sealed&&S.cab===S.cabOf(e))) return; if(e) e._provoked=provokeFr(); return _de.apply(this,arguments); }; }
+  // T457 (Paulo, Nov 11): "when you're on the 17th level the foes only attack you reactively, and the
+  // higher you go ... more and more reluctant to attack you. and ... the other way around (enemies
+  // will become more aggressive at the lower levels). Let's have the damage affect us following that
+  // pattern too (33rd level up - really easy, 33rd level down - really difficult)." Floors = the
+  // elevator's count (S.vibe, -33..33), 1.3 only.
+  const floorsNow=()=>(B.on&&B.stageId==='1.3')?(S.vibe||0):0;
+  function provokeFr(){ const f=floorsNow(); return f>=17?Math.round(600*(1-0.75*Math.min(1,(f-17)/16))):600; }   // the grudge after a hit shortens going up
+  function dmgScale(){ const f=floorsNow(); return f>=0?1-0.75*Math.min(1,f/33):1+1.5*Math.min(1,-f/33); }
+  S.dmgScale=dmgScale; S.floorsNow=floorsNow;
+  { const _h=window.applyPlayerHit;
+    window.applyPlayerHit=function(kx,ky,dmg){ if(S.sealed) return; const k=dmgScale(); if(k!==1&&dmg!=null&&dmg<9000) dmg=Math.max(1,Math.round(dmg*k)); return _h.call(this,kx,ky,dmg); }; }
+  { const _ai=B.enemyAITick;
+    B.enemyAITick=function(){
+      const f=floorsNow(), list=typeof ENEMS!=='undefined'?ENEMS:[];
+      const snap=f!==0?list.map(e=>e?[e.heat||0,e.cd||0,e.cool||0]:null):null;
+      const r=_ai?_ai.apply(this,arguments):undefined;
+      if(!f) return r;
+      const up=f>0, calm=up?Math.min(1,f/17):0, aggr=up?0:Math.min(1,-f/33);
+      list.forEach((e,i)=>{ if(!e||!e.alive||e._boss) return; const s=snap[i]; if(!s) return;
+        if(e._provoked>0) e._provoked--;
+        const reactive=up&&f>=17&&!(e._provoked>0);
+        if(reactive){ e.heat=0; e.fuse=0; if((e.cd||0)<20) e.cd=20; }
+        else if(up){ if((e.heat||0)>s[0]) e.heat=s[0]+(e.heat-s[0])*(1-0.6*calm); }     // slower to warm up on the way there
+        else{                                                                               // going down: faster to heat up, fire and recover
+          if((e.heat||0)>s[0]) e.heat+=(e.heat-s[0])*1.2*aggr;
+          if(e.cd>0&&e.cd<s[1]) e.cd=Math.max(0,e.cd-1.2*aggr);
+          if(e.cool>0&&e.cool<s[2]) e.cool=Math.max(0,e.cool-1.2*aggr);
+        }
+      });
+      if(up&&f>=17&&B.ropes) for(let i=B.ropes.length-1;i>=0;i--){ const q=B.ropes[i]; if(q&&q.e&&!(q.e._provoked>0)&&q.st==='fly') B.ropes.splice(i,1); }   // no unprovoked rope throws
+      return r;
+    }; }
   { const _fx=window._applyEnemyItemFx;
     if(typeof _fx==='function') window._applyEnemyItemFx=function(){ if(S.sealed) return; return _fx.apply(this,arguments); }; }
   const yCache=new Map();

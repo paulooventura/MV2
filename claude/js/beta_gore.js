@@ -16,10 +16,50 @@
     return L?Math.max(0,Math.min(1,L.pull||0)):0;
   }
   // Full gore is 33 floors down. A chosen GORE filter fades as the ride climbs.
+  // T456 (Paulo, Nov 11): "the blood fx must only be activated when we reach the 17th bottom level OR
+  // switch to gore filter in the options menu. And the lower we get, the more gorey and creepy it
+  // gets. same goes for the ink & vinyl but the other way around, the more up we go, the more
+  // heavenly it gets." Floors from MV_LIFT.pull (33 floors = 1).
+  const floorsDown=()=>Math.max(0,rideGore()*33), floorsUp=()=>Math.max(0,rideInk()*33);
+  function deepAmt(){ const f=floorsDown(); return f<16.5?0:Math.min(1,0.15+0.85*(f-17)/16); }
   function goreAmt(){
     const base=((window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')||(window.MV_BETA&&MV_BETA.bloodOn))?1:0;   // the GORE code keeps blood on in every filter (build 362)
-    return Math.max(0,Math.min(1,Math.max(base*(1-rideInk()), rideGore())));
+    const chosen=base?(0.55+0.45*Math.min(1,floorsDown()/33))*(1-rideInk()):0;                          // picked in Options: on, gorier as he goes down
+    return Math.max(0,Math.min(1,Math.max(chosen, deepAmt())));
   }
+  // the creepy look below 17 floors down, the heavenly one going up (drawn over the world, under the HUD)
+  const motes=[];
+  function depthOverlay(){
+    if(typeof _gameState==='undefined'||_gameState!=='game'||!(window.MV_BETA&&MV_BETA.on&&MV_BETA.stageId==='1.3')) return;
+    const W0=ctx.canvas.width, H0=ctx.canvas.height, t=(typeof fr!=='undefined'?fr:0);
+    const creep=deepAmt();
+    if(creep>0.01){
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+      const pulse=0.85+0.15*Math.sin(t*0.035);
+      const vg=ctx.createRadialGradient(W0/2,H0/2,H0*(0.42-0.18*creep),W0/2,H0/2,H0*0.85);
+      vg.addColorStop(0,'rgba(40,0,6,0)'); vg.addColorStop(1,'rgba(40,0,6,'+(0.78*creep*pulse).toFixed(3)+')');
+      ctx.fillStyle=vg; ctx.fillRect(0,0,W0,H0);
+      ctx.globalCompositeOperation='multiply'; ctx.fillStyle='rgba(255,'+(200-90*creep|0)+','+(200-110*creep|0)+',1)'; ctx.globalAlpha=0.35*creep; ctx.fillRect(0,0,W0,H0);
+      ctx.restore();
+    }
+    const heav=Math.min(1,floorsUp()/33);
+    if(heav>0.01){
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='lighter';
+      const top=ctx.createLinearGradient(0,0,0,H0*0.8); top.addColorStop(0,'rgba(255,240,200,'+(0.32*heav).toFixed(3)+')'); top.addColorStop(1,'rgba(255,240,200,0)');
+      ctx.fillStyle=top; ctx.fillRect(0,0,W0,H0);
+      for(let i=0;i<5;i++){                                                                              // soft light rays from above
+        const x=W0*(0.12+i*0.19)+Math.sin(t*0.004+i*1.7)*W0*0.05, w=W0*0.07*(1+0.4*Math.sin(t*0.01+i)), a=0.09*heav*(0.6+0.4*Math.sin(t*0.013+i*2.1));
+        const rg=ctx.createLinearGradient(0,0,0,H0); rg.addColorStop(0,'rgba(255,248,220,'+a.toFixed(3)+')'); rg.addColorStop(1,'rgba(255,248,220,0)');
+        ctx.fillStyle=rg; ctx.beginPath(); ctx.moveTo(x-w*0.3,0); ctx.lineTo(x+w*0.3,0); ctx.lineTo(x+w*1.6,H0); ctx.lineTo(x-w*0.6,H0); ctx.closePath(); ctx.fill();
+      }
+      if(motes.length<Math.round(40*heav)&&Math.random()<0.5) motes.push({x:Math.random()*W0,y:H0+10,v:0.4+Math.random()*0.9,r:1+Math.random()*2.2,ph:Math.random()*6.3});
+      for(let i=motes.length-1;i>=0;i--){ const m=motes[i]; m.y-=m.v; m.x+=Math.sin(t*0.02+m.ph)*0.4; if(m.y<-10){ motes.splice(i,1); continue; }
+        ctx.fillStyle='rgba(255,246,210,'+(0.55*heav).toFixed(3)+')'; ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,6.283); ctx.fill(); }
+      ctx.restore();
+    }else motes.length=0;
+  }
+  window.MV_DEPTH={floorsDown, floorsUp, deepAmt, goreAmt:()=>goreAmt()};
+  window.addEventListener('load',()=>{ const _o=window.drawDamageOverlay; window.drawDamageOverlay=function(){ const r=typeof _o==='function'?_o.apply(this,arguments):undefined; try{ depthOverlay(); }catch(e){} return r; }; });
   function gore(){ return goreAmt()>0.04; }
   function playing(){ return gore()&&typeof _gameState!=='undefined'&&_gameState==='game'; }
   function spray(x,y,n,bias){

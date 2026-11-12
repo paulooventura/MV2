@@ -1113,7 +1113,99 @@
     ctx.restore();
   }
   window.drawEnemy=function(e){ if(e&&e._foe&&B.foeDraw){ const r=B.foeDraw(e); drawMark(e); return r; } if(e&&e._ai){ const r=drawAi(e); drawMark(e); return r; } return _origDrawEnemy.apply(this, arguments); };
-  B.drawEnemyFx=function(){ drawRopes(); drawFrags(); };
+  // ── T444 (Paulo, Nov 11): "the foe's hit box has to be the same as their shape." Shots and punches
+  //    were tested against the foe's bounding box (so the empty corners around a circle or a triangle
+  //    counted). Now: A a circle, B a triangle (point up), C its square, E / the water hexagon / the
+  //    boss a near-circle. A hit counts only if some of the shot / fist is inside the shape.
+  function shapeOf(e){ const id=e&&(e._ai||e._foe); return id==='circle'||id==='eye'||id==='cube'||id==='boss'?'round':id==='tri'?'tri':null; }
+  function inShape(e,x,y){
+    const kind=shapeOf(e); if(!kind) return true;
+    const cx=e.x+e.w/2, cy=e.y+e.h/2;
+    if(kind==='round'){ const r=Math.min(e.w,e.h)*0.5; return (x-cx)*(x-cx)+(y-cy)*(y-cy)<=r*r; }
+    const ax=cx, ay=e.y, bx=e.x, by=e.y+e.h, qx=e.x+e.w, qy=e.y+e.h;                       // apex, bottom left, bottom right
+    const s=(x1,y1,x2,y2,x3,y3)=>(x1-x3)*(y2-y3)-(x2-x3)*(y1-y3);
+    const d1=s(x,y,ax,ay,bx,by), d2=s(x,y,bx,by,qx,qy), d3=s(x,y,qx,qy,ax,ay);
+    return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));
+  }
+  function rectHitsShape(e,rx,ry,rw,rh){
+    if(!shapeOf(e)) return true;
+    const cx=e.x+e.w/2, cy=e.y+e.h/2;
+    if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh) return true;
+    for(const fx of [0,0.5,1]) for(const fy of [0,0.5,1]) if(inShape(e,rx+rw*fx,ry+rh*fy)) return true;
+    return false;
+  }
+  B.inFoeShape=inShape;
+  { const _hb=window._enemyItemHB;
+    if(typeof _hb==='function') window._enemyItemHB=function(e){ const r=_hb.apply(this,arguments); if(r&&e&&B.on&&shapeOf(e)) r._e=e; return r; }; }
+  { const _f=window._fistHitsHB;
+    if(typeof _f==='function') window._fistHitsHB=function(fx,fy,fw,fh,hb){ if(!_f.apply(this,arguments)) return false; return !(hb&&hb._e)||rectHitsShape(hb._e,fx,fy,fw,fh); }; }
+  { const _s=window._shotHitsEnemy;
+    if(typeof _s==='function') window._shotHitsEnemy=function(sx,sy,sw,sh,e){ if(!_s.apply(this,arguments)) return false; return !B.on||rectHitsShape(e,sx,sy,sw,sh); }; }
+  // ── T449 (Paulo, Nov 11): "more SFX for the foes ... falling down the pit, let's make them express a
+  //    falling sound ... a getting hit or hitting you reaction animation and sfx too. be creative." ──
+  //  hit: a comic impact star and a dizzy swirl over it, and a cry in its own voice
+  //  (A squeaks, B chirps, C bonks low, E buzzes); hitting MIND: it gloats (a "!" pops, a cocky
+  //  two-note blip); falling with nothing under it: a falling slide-whistle wail.
+  const VOICE={circle:{f:880,type:'sine'}, tri:{f:1180,type:'triangle'}, square:{f:240,type:'square'}, eye:{f:520,type:'sawtooth'}, cube:{f:360,type:'triangle'}};
+  function foeAc(){ try{ const a=typeof ga==='function'?ga():null; return a&&a.state==='running'?a:null; }catch(_e){ return null; } }
+  function foeOut(a,e,g0){ const g=a.createGain(); let k=1; try{ const m=mindCenter(), c=center(e), d=Math.hypot(m.x-c.x,m.y-c.y); k=Math.max(0.15,1-d/900); }catch(_e){}
+    g.gain.value=g0*k*((typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1); g.connect(a.destination); return g; }
+  function cry(e){
+    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, o=a.createOscillator(), g=a.createGain(), out=foeOut(a,e,0.22);
+    o.type=v.type; o.frequency.setValueAtTime(v.f*1.4,t); o.frequency.exponentialRampToValueAtTime(v.f*0.7,t+0.16);
+    if(v.type==='sawtooth'){ const lfo=a.createOscillator(), lg=a.createGain(); lfo.frequency.value=38; lg.gain.value=v.f*0.3; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t+0.2); }
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(1,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t+0.22);
+  }
+  function gloatSfx(e){
+    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, out=foeOut(a,e,0.16);
+    [[1,0],[1.5,0.09]].forEach(([m,dt])=>{ const o=a.createOscillator(), g=a.createGain(); o.type=v.type==='square'?'square':'triangle'; o.frequency.value=v.f*m*(v.f<400?2:1);
+      g.gain.setValueAtTime(0.0001,t+dt); g.gain.exponentialRampToValueAtTime(1,t+dt+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dt+0.12); o.connect(g); g.connect(out); o.start(t+dt); o.stop(t+dt+0.14); });
+  }
+  function fallSfx(e){
+    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, out=foeOut(a,e,0.2);
+    const o=a.createOscillator(), g=a.createGain(), vib=a.createOscillator(), vg=a.createGain(); o.type='sine';
+    o.frequency.setValueAtTime(Math.max(600,v.f*1.6),t); o.frequency.exponentialRampToValueAtTime(110,t+1.3);   // the slide whistle down
+    vib.frequency.value=7; vg.gain.value=22; vib.connect(vg); vg.connect(o.frequency);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.9,t+0.06); g.gain.setValueAtTime(0.9,t+0.9); g.gain.exponentialRampToValueAtTime(0.0001,t+1.35);
+    o.connect(g); g.connect(out); o.start(t); vib.start(t); o.stop(t+1.4); vib.stop(t+1.4);
+  }
+  { const _dmg=window._damageEnemy;
+    if(typeof _dmg==='function') window._damageEnemy=function(e,dmg,fx,fy){
+      const was=e&&e.alive; const r=_dmg.apply(this,arguments);
+      try{ if(e&&was&&!e._boss&&(e._ouchCd||0)<=(typeof fr!=='undefined'?fr:0)){ e._ouchCd=(typeof fr!=='undefined'?fr:0)+10; e._ouchT=24; e._ouchX=fx; e._ouchY=fy; cry(e); B.foeCries=(B.foeCries|0)+1; } }catch(_e){}
+      return r; }; }
+  { const _hit=window.applyPlayerHit;
+    if(typeof _hit==='function') window.applyPlayerHit=function(){
+      const h0=typeof p!=='undefined'&&p?p.hp:0; const r=_hit.apply(this,arguments);
+      try{ if(B.on&&p&&p.hp<h0&&typeof ENEMS!=='undefined'){ const m=mindCenter(); let best=null, bd=180;
+        for(const e of ENEMS){ if(!e||!e.alive||e._boss||e._hidden) continue; const c=center(e), d=Math.hypot(c.x-m.x,c.y-m.y); if(d<bd){ bd=d; best=e; } }
+        if(best&&(best._gloatCd||0)<=fr){ best._gloatCd=fr+60; best._gloatT=40; gloatSfx(best); B.foeGloats=(B.foeGloats|0)+1; } } }catch(_e){}
+      return r; }; }
+  setInterval(()=>{ try{
+    if(!B.on||typeof ENEMS==='undefined'||typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready) return;
+    for(const e of ENEMS){ if(!e||!e.alive||e._betaHeld||e._boss) continue;
+      if(e.og){ e._fallSfx=false; continue; }
+      if(e._fallSfx||(e.vy||0)<4) continue;
+      const c=Math.floor((e.x+e.w/2)/T); let floor=false;                     // nothing under it, all the way down: the pit
+      for(let r=Math.floor((e.y+e.h)/T);r<MV_GRID.rows;r++) if(gridSolid(c,r)||(typeof gridIsSlope==='function'&&gridIsSlope(c,r))){ floor=true; break; }
+      if(!floor){ e._fallSfx=true; fallSfx(e); B.foeFalls=(B.foeFalls|0)+1; }
+    } }catch(_e){} },60);
+  function drawReactions(){
+    if(typeof ENEMS==='undefined') return;
+    for(const e of ENEMS){ if(!e) continue;
+      if(e._ouchT>0){ e._ouchT--; const k=e._ouchT/24, c=center(e), x=sx(e._ouchX!=null?e._ouchX:c.x), y=sy(e._ouchY!=null?e._ouchY:c.y);
+        ctx.save(); ctx.translate(x,y); ctx.rotate((1-k)*0.6); const R=sw(10+14*(1-k));                   // the impact star
+        ctx.globalAlpha=Math.min(1,k*1.6); ctx.fillStyle='#fff6c0'; ctx.strokeStyle='#2a1a10'; ctx.lineWidth=2; ctx.beginPath();
+        for(let i=0;i<16;i++){ const rr=i%2?R*0.45:R; ctx.lineTo(Math.cos(i*Math.PI/8)*rr,Math.sin(i*Math.PI/8)*rr); } ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+        const hx=sx(c.x), hy=sy(e.y)-sw(10);                                                              // dizzy swirl over it
+        ctx.save(); ctx.globalAlpha=Math.min(1,k*2); ctx.fillStyle='#ffe060'; for(let i=0;i<3;i++){ const a=fr*0.25+i*2.09; ctx.beginPath(); ctx.arc(hx+Math.cos(a)*sw(14),hy+Math.sin(a)*sw(5),Math.max(2,sw(3)),0,6.283); ctx.fill(); } ctx.restore(); }
+      if(e._gloatT>0){ e._gloatT--; const k=e._gloatT/40, c=center(e), x=sx(c.x), y=sy(e.y)-sw(18)-sw(10)*(1-k);
+        ctx.save(); ctx.globalAlpha=Math.min(1,k*2.5); ctx.fillStyle='#ff4a5a'; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,Math.max(8,sw(11)),0,6.283); ctx.fill(); ctx.stroke();
+        if(typeof drawTextC==='function') drawTextC('!',x,y-sw(8),'#ffffff',2); ctx.restore(); }
+    }
+  }
+  B.drawEnemyFx=function(){ drawRopes(); drawFrags(); try{ drawReactions(); }catch(_e){} };
 
   // ── difficulty switch under the screen (next to the console buttons) ──
   function diffUi(tries){
