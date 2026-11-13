@@ -1067,6 +1067,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       if(window.MV_LIFT&&typeof MV_LIFT.fist==='function'&&MV_LIFT.fist(_wx,_wy,_wr)){
         p._hitDone=true;
       }
+      if(!p._hitDone&&window.MV_DOORS&&typeof MV_DOORS.fist==='function'&&MV_DOORS.fist(_wx,_wy,_wr,(p.pCharge||0)>HP.loadF)) p._hitDone=true;   // 1.1 doors / trap doors / attic crates (beta_doors.js)
       const _charged=(p.pCharge||0)>HP.loadF;
       let _hit=false, _hitKind='';
 

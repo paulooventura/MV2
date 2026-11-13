@@ -542,15 +542,17 @@ function updatePlayerShots(){
       s._fizzle--; s.vx*=0.86; s.vy*=0.86;
       if(s._fizzle<=0){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }else if(bnc>0&&!enh){
-      const drag=0.984-bnc*0.004; s.vx*=drag; s.vy*=drag;
-      s.vy+=0.07+bnc*0.014; s._airAge=(s._airAge||0)+1;
+      const drag=s.charged?0.994-bnc*0.002:0.984-bnc*0.004; s.vx*=drag; s.vy*=drag;
+      s.vy+=s.charged?0.035+bnc*0.008:0.07+bnc*0.014; s._airAge=(s._airAge||0)+1;
       if(Math.hypot(s.vx,s.vy)<0.42){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
     }else if(enh){
       s._airAge=(s._airAge||0)+1;
       if(s._airAge>14){ s.vy+=0.022; s.vx*=0.9992; s.vy*=0.9992; }
     }else if(!enh){
       s._airAge=(s._airAge||0)+1;
-      if(s._airAge>8){ s.vy+=0.05; s.vx*=0.997; s.vy*=0.997; }
+      // Paulo, Nov 13: the loaded shot has "more air-time before it loses momentum" than a plain one
+      if(s.charged){ if(s._airAge>40){ s.vy+=0.02; s.vx*=0.9993; s.vy*=0.9993; } }
+      else if(s._airAge>8){ s.vy+=0.05; s.vx*=0.997; s.vy*=0.997; }
     }
     s.x+=s.vx; s.y+=s.vy; s.life--;
     _trsTraceShot(s);

@@ -672,7 +672,7 @@ function MV_SPATIAL_from(o){ try{ if(o&&isFinite(o.x)&&isFinite(o.y)) window._sf
 function sfxAt(o){ MV_SPATIAL_from(o); return sfx.apply(this,Array.prototype.slice.call(arguments,1)); }
 function sfx(t){
   if(!_audioUnlocked) return;
-  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed';
+  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed'||t==='enemy_shut'||t==='enemy_dead';   // (build 405) foe shutdowns are pitched by how many times it's gone down
   const pitch=(pitchable&&typeof arguments[1]==='number')?arguments[1]:1;
   const sampleAlias={
     jump:'jump_reg',

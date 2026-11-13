@@ -1010,7 +1010,7 @@ function fireItem(charged=false){
     const enh=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[0];
     const recoilAmt=charged?(enh?26:11):(enh?8:6);
     p._lastRecoilMax=recoilAmt;
-    const spd=charged?(enh?13:11):(enh?22:19);
+    const spd=charged?(enh?27:24):(enh?22:19);                     // (build 405, Paulo) the loaded shot flies faster than a plain one
     const pow=charged?(enh?3.6:3.0):(enh?1.28:1.0);
     const pitch=enh?0.58:1;
     if(_itemDownAim(p)){

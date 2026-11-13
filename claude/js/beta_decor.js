@@ -967,7 +967,11 @@
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
     for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
     for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
-    for(const d of B.decor) if(d.kind==='chimney') chimney(d.x+d.dx, d.y+d.dy, d.y+d.dy+d.len);
+    // Paulo, Nov 13: "that chimney on top of our house looks like it's floating". It goes down to the roof under it now
+    // (the deeper of its two edges, so the stepped roof never shows a gap under one side)
+    for(const d of B.decor) if(d.kind==='chimney'){
+      if(d._len==null){ const top=d.y+d.dy; let bot=top+d.len; if(typeof gridSolid==='function') for(const ex of [4,36]){ const c=Math.floor((d.x+d.dx+ex)/T); let r=Math.floor(top/T); while(r<Math.floor(top/T)+12&&!gridSolid(c,r)) r++; bot=Math.max(bot,r*T+10); } d._len=bot-top; }
+      chimney(d.x+d.dx, d.y+d.dy, d.y+d.dy+d._len); }
     const SOLID=1, ONEWAY=2, SL=4, SR=5;
     for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
       const t=cells[r][c]; if(!t) continue;
@@ -995,6 +999,7 @@
     }
     edges(B,cells,r0,r1,c0,c1);
     if(window.MV_CITY) MV_CITY.over(B);
+    if(window.MV_DOORS&&MV_DOORS.over) try{ MV_DOORS.over(B); }catch(e){}   // 1.1: doors, trap doors, the attic, the tree's glow (beta_doors.js)
     for(const d of B.decor){
       if(d.kind==='attic') atticWindow(d.x, d.y+12);
       else if(d.kind==='lamp') lampPost(d.x, d.y);

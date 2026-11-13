@@ -211,6 +211,21 @@
   //    away by the end; while charged a foe that touches him gets shocked, and going into the water
   //    without the Isolator shorts him out at once.
   const CHARGE_FR=16*60;
+  // a foe shut down for good: the power dies with a long falling whine, a low thud and a crackle (build 405)
+  window.MV_PERM_OFF_SFX=function(e){
+    let a=null; try{ a=typeof ga==='function'?ga():null; }catch(er){} if(!a||a.state!=='running') return;
+    const v=(typeof OPT!=='undefined'&&OPT.sfxVol!=null?OPT.sfxVol:1), t=a.currentTime+0.02;
+    const out=a.createGain(); out.gain.value=0.42*v; out.connect(a.destination);
+    const o=a.createOscillator(), lp=a.createBiquadFilter(), g=a.createGain();
+    o.type='sawtooth'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(38,t+1.1);
+    lp.type='lowpass'; lp.frequency.setValueAtTime(5000,t); lp.frequency.exponentialRampToValueAtTime(160,t+1.1);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.55,t+0.03); g.gain.setValueAtTime(0.55,t+0.6); g.gain.exponentialRampToValueAtTime(0.0001,t+1.2);
+    o.connect(lp); lp.connect(g); g.connect(out); o.start(t); o.stop(t+1.25);
+    const o2=a.createOscillator(), g2=a.createGain(); o2.type='sine'; o2.frequency.setValueAtTime(120,t+0.05); o2.frequency.exponentialRampToValueAtTime(32,t+0.5);
+    g2.gain.setValueAtTime(0.0001,t+0.05); g2.gain.exponentialRampToValueAtTime(0.9,t+0.07); g2.gain.exponentialRampToValueAtTime(0.0001,t+0.6); o2.connect(g2); g2.connect(out); o2.start(t+0.05); o2.stop(t+0.65);
+    try{ tzzz(0.55); }catch(er){}
+    B.permOffSfx=(B.permOffSfx|0)+1;
+  };
   B.electrify=function(){ if(!p) return; B.chargeT=CHARGE_FR; tzzz(0.8); };
   function chargeTick(){
     if(!on()||!p) { if(!on()) B.chargeT=0; return; }

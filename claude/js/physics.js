@@ -3405,8 +3405,11 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     const perm=!!e._shorted
       ||(!!(e._betaEnemy||e._ai)&&((e._downs||0)+1)>=3)
       ||(!!e.mind&&!e._battleAi&&((e._shutCount||0)+1)>=SHUT_LIMIT);
-    if(perm) sfx('enemy_dead');
-    else sfx('enemy_shut', powerPitch);
+    // Paulo, Nov 13: a sonic cue for how far gone a foe is. 1st shutdown: the shutdown sound as it is; 2nd: the
+    // same, lower; 3rd (off for good): a big power-down on top of the death sound (beta_impact MV_PERM_OFF_SFX).
+    const beta=!!(e._betaEnemy||e._ai), dn=e._downs||0;
+    if(perm){ sfx('enemy_dead'); try{ if(beta&&window.MV_PERM_OFF_SFX) MV_PERM_OFF_SFX(e); }catch(_e){} }
+    else sfx('enemy_shut', beta?(dn>=1?0.7:1):powerPitch);
     if(p&&p.hook&&p.hook.tgt===e){
       if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);
       p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};

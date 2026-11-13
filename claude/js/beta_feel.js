@@ -194,15 +194,23 @@
     const resist=grounded&&Math.abs(a.x)>0.45&&a.y>-0.6&&inDir!==0&&inDir===Math.sign(a.x);
     if(resist){
       const thrust=(1.35+Math.min(1,held/6)*0.7)*enh;
-      const creep=-Math.sign(a.x)*thrust*(1-FEEL.XLR_GRIP)*2.2;
+      // Paulo, Nov 13: smoke from where the tire meets the floor and a real screech, and the surface matters:
+      // dirt grips less (he slides back more, a softer scrape, a few dirt chips kicked up), brick / stone /
+      // wood / metal / the city's street grip hard (more counter-force, more smoke, a near-constant screech).
+      const mat=floorMat(), solidM=mat!=='dirt', grip=solidM?0.9:0.62;
+      const creep=-Math.sign(a.x)*thrust*(1-grip)*2.2;
       p.vx+=(creep-p.vx)*0.72; p._xlrResistV=creep; p._xlrResistFr=fr; if(a.y>0.2) p.vy-=a.y*thrust*0.35;
       const slip=Math.abs(a.x)*thrust;
       p._tireHeat=Math.min(1,(p._tireHeat||0)+0.006*slip);
       p.wheelAngle=(p.wheelAngle||0)+inDir*0.7;
       p._burnout=6;
-      const n=Math.random()<0.25+0.45*p._tireHeat?1:0;
-      if(n&&p.smoke&&p.smoke.length<26) p.smoke.push({x:p.x+SW/2-inDir*10+(Math.random()-0.5)*8,y:p.y+FEET_OFF-3,vx:-inDir*(0.6+Math.random())+(Math.random()-0.5)*0.6,vy:-0.5-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*3});
-      if(fr%14===0) try{ sfx('tire_squeal',0.35+0.65*p._tireHeat); }catch(e){}
+      const cx0=p.x+SW/2-inDir*(typeof WHEEL_R==='number'?WHEEL_R*0.55:8), cy0=p.y+FEET_OFF-1;     // the contact patch
+      const n=Math.random()<(solidM?0.45:0.2)+0.45*p._tireHeat?1:0;
+      if(n&&p.smoke&&p.smoke.length<(solidM?32:20)) p.smoke.push({x:cx0+(Math.random()-0.5)*6,y:cy0-2,vx:-inDir*(0.8+Math.random()*1.2)+(Math.random()-0.5)*0.6,vy:-0.4-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*(solidM?4:2)});
+      if(solidM){ if(fr%7===0) try{ sfx('tire_squeal',0.55+0.45*p._tireHeat); }catch(e){} }
+      else{ if(fr%16===0) try{ sfx('tire_squeal',0.2+0.25*p._tireHeat); }catch(e){}
+        if(Math.random()<0.35) PFXS.push({x:cx0,y:cy0-2,vx:-inDir*(1.5+Math.random()*2.5),vy:-1.5-Math.random()*2.2,life:16+(Math.random()*10|0),maxLife:26,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#7a5236':'#5a3a24',grav:true}); }
+      p._tireMat=mat;
       if(fr%3===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
       return;
     }
@@ -268,6 +276,17 @@
     capSpeed(7+charge*5.5);
     if(fr%4===0) PFXS.push({x:p.x+SW/2-a.x*16,y:p.y+FEET_OFF-36-a.y*16,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#e0c070'});
   }
+  // what the wheel is on: 'dirt' (dirt, grass, cave) or a firm surface (brick, stone, roof tiles, wood, metal, the city)
+  function floorMat(){
+    const T0=typeof T==='number'?T:32, x=p.x+SW/2, y=p.y+FEET_OFF+6, c=Math.floor(x/T0), r=Math.floor(y/T0);
+    if(B.ridePlat||B.roofPlat) return 'metal';
+    for(const bw of (typeof BWALLS!=='undefined'?BWALLS:[])){ if(bw&&bw.hp>0&&x>=bw.x&&x<=bw.x+(bw.w||32)&&y>=bw.y&&y<=bw.y+(bw.h||32)) return 'wood'; }
+    try{ if(typeof gridCell==='function'&&typeof MV_GRID_ONEWAY!=='undefined'&&gridCell(c,r)===MV_GRID_ONEWAY) return 'wood'; }catch(e){}
+    const sk=(B.stageId==='1.3'&&B._skinFix)?B._skinFix:B.skin, s=sk&&sk[r]?sk[r][c]|0:0;
+    if(B.stageId==='1.3'&&r>=58) return 'asphalt';
+    return s===0||s===5?'dirt':s===2?'brick':s===3?'wood':s>=7?'metal':'stone';
+  }
+  B.floorMat=floorMat;
   // the tire cools when it isn't fighting (called from feelTick)
   function tireCool(){ if(p._burnout>0) p._burnout--; else if(p._tireHeat>0) p._tireHeat=Math.max(0,p._tireHeat*0.985-0.0008); }
   B.onXlrRelease=function(held){
@@ -697,7 +716,7 @@
         }
       }
       // a taut web may settle a hair toward the span; it is not yanked into a rod
-      const lift=loaded?0.55:0;
+      const lift=loaded&&!(B.ropeYank&&fr-B.ropeYank.fr<45)?0.55:loaded?0.06:0;   // a yank (below) lets the whip show
       if(lift>0.01){
         for(let i=1;i<n-1;i++){
           const q=P[i], tp=typeof _pathPointAt==='function'?_pathPointAt(path,plen,plen*i/(n-1)):{x:A.x+(E.x-A.x)*i/(n-1),y:A.y+(E.y-A.y)*i/(n-1)};
@@ -710,8 +729,33 @@
   window._ropeSlackDrawPts=function(path,rl){ if(on()&&p.hook&&p.hook.st==='on') return cordPts(path,rl); return _origSlack.apply(this, arguments); };
 
   window.MV_FEEL_BOUNCING=()=>on()&&st.bounceT>0;           // the landing bounce takes a jump press as a ground jump
+  // Paulo, Nov 13: stuck to a surface with the MAG and the RCA latched somewhere, left / right must not turn MIND
+  // (the magnet holds him); it swings his arm and lashes the cord that way — a kite string tugged, a lasso
+  // pulled to one side. Each press sends a whip down the cord from the hand; held, it keeps tugging.
+  function yankTick(){
+    const P=B.magPark, h=p&&p.hook;
+    if(!(P&&P.st==='parked'&&h&&h.st==='on'&&ITEM===1)){ B._yankFc=null; B._yankWas=0; return; }
+    if(B._yankFc==null) B._yankFc=p.fc;
+    p.fc=B._yankFc;                                                   // the magnet holds him facing where he was
+    const dir=(typeof isRt==='function'&&isRt()?1:0)-(typeof isLf==='function'&&isLf()?1:0);
+    const c=h._cord, A={x:h.ax,y:h.ay}, E=typeof hookAttachWorld==='function'?hookAttachWorld():{x:p.x+SW/2,y:p.y};
+    const fresh=dir&&dir!==B._yankWas, held=dir&&!fresh&&fr%8===0;
+    if((fresh||held)&&c&&c.pts&&c.pts.length>2){
+      const len=Math.hypot(E.x-A.x,E.y-A.y)||1; let nx=-(E.y-A.y)/len, ny=(E.x-A.x)/len;
+      if(nx*dir<0||(Math.abs(nx)<0.05&&ny*dir<0)){ nx=-nx; ny=-ny; }
+      const imp=fresh?7:2.4, n=c.pts.length;
+      for(let i=1;i<n-1;i++){ const t=i/(n-1), w=Math.pow(t,1.3)*(1-t)*4.2; const q=c.pts[i]; q.px-=nx*imp*w; q.py-=ny*imp*w; }
+      B.ropeYank={dir,fr}; if(fresh){ try{ sfx('punch_whiff',1.5); }catch(e){} B.ropeYanks=(B.ropeYanks|0)+1; }
+    }
+    if(B.ropeYank&&fr-B.ropeYank.fr<18){                              // the arm swings out that way and back
+      const k=1-(fr-B.ropeYank.fr)/18, base=Math.atan2(A.y-E.y,A.x-E.x), a=base+B.ropeYank.dir*0.6*Math.sin(k*Math.PI);
+      p.aimDX=Math.cos(a); p.aimDY=Math.sin(a);
+    }
+    B._yankWas=dir;
+  }
   B.feelTick=function(){
     if(!on()) return;
+    try{ yankTick(); }catch(e){}
     tireCool();
     if(p._plugArchT>0) p._plugArchT--;
     if(p.hook&&p.hook.st!=='on'&&p.hook._cord) p.hook._cord=null;
