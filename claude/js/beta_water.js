@@ -1474,7 +1474,10 @@
     const elec=live.length>0;
     if(bMax>tMin){
       const g=ctx.createLinearGradient(0,sy(tMin),0,sy(Math.min(bMax,tMin+12*T)));
-      g.addColorStop(0,elec?'rgba(150,215,240,0.5)':'rgba(96,150,178,0.34)'); g.addColorStop(0.35,elec?'rgba(80,140,210,0.62)':'rgba(34,82,118,0.56)'); g.addColorStop(1,elec?'rgba(40,80,170,0.8)':'rgba(8,26,48,0.84)');
+      // (build 409, Paulo) blood / ink washed into the water stains it: redder (black in Ink & Vinyl) the more there is
+      const st=Math.min(0.75,B.waterStain||0), inkW=!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink'), tc=inkW?[14,12,18]:[150,8,20];
+      const wc=(r,g2,b,a)=>'rgba('+Math.round(r+(tc[0]-r)*st)+','+Math.round(g2+(tc[1]-g2)*st)+','+Math.round(b+(tc[2]-b)*st)+','+Math.min(0.92,a+0.12*st).toFixed(3)+')';
+      g.addColorStop(0,elec?wc(150,215,240,0.5):wc(96,150,178,0.34)); g.addColorStop(0.35,elec?wc(80,140,210,0.62):wc(34,82,118,0.56)); g.addColorStop(1,elec?wc(40,80,170,0.8):wc(8,26,48,0.84));
       const ab=B.xBub;
       ctx.fillStyle=g;
       const sc=slopeClip(); ctx.save(); if(sc) ctx.clip(sc,'evenodd');

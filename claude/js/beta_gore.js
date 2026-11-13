@@ -162,7 +162,7 @@
   //   flat, glossy puddle on that floor; it spreads a little, and where it reaches the edge of
   //   the platform it runs over the lip: a drip swells under the edge, lets go, and falls to
   //   the platform below, where it pools again. (Blood that hits a wall still stains it.)
-  const puddles=[], hang=[], seeps=[];
+  const puddles=[], hang=[], seeps=[], clouds=[];
   const TS=()=>(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
   function floorTop(x,y){ const t=TS(); return hitFloor(x,y+2)?Math.floor((y+2)/t)*t:null; }
   function onFloor(x,fy){ return hitFloor(x,fy+3)&&!hitFloor(x,fy-3); }
@@ -255,7 +255,7 @@
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
+    if(id!==stage){ stage=id; clouds.length=0; if(window.MV_BETA) MV_BETA.waterStain=0; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
     if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
@@ -268,10 +268,19 @@
       spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
     }
     puddleTick();
+    const B0=window.MV_BETA||{};
+    if(B0.waterStain>0) B0.waterStain=Math.max(0,B0.waterStain-0.00003);
+    for(let i=clouds.length-1;i>=0;i--){ const c=clouds[i]; c.t++; c.r+=0.25; c.y-=0.05; if(c.t>90) clouds.splice(i,1); }
+    // stains on a body under water wash off (and colour the water)
+    for(const q of estains){ const e=q.e; if(!e||!B0.inWater) continue; let x, y;
+      if(q.me){ const b=bodyBox(e); x=b.x+q.u*b.w; y=b.y+q.v*b.h; } else { x=e.x+q.ox; y=e.y+q.oy; }
+      if(B0.inWater(x,y)){ q.t+=25; B0.waterStain=Math.min(1,(B0.waterStain||0)+0.0015); if(Math.random()<0.2) clouds.push({x,y,r:3,t:0}); } }
     for(let i=drops.length-1;i>=0;i--){
       const d=drops[i];
       d.px=d.x; d.py=d.y;
       d.vy+=0.32; d.x+=d.vx; d.y+=d.vy; d.vx*=0.985; d.t++;
+      // (Paulo, Nov 13) into the water it dilutes: no splat, a little cloud, and the water takes the colour
+      if(B0.inWater&&B0.inWater(d.x,d.y)){ B0.waterStain=Math.min(1,(B0.waterStain||0)+0.004*Math.max(0.5,d.r)); clouds.push({x:d.x,y:d.y,r:3+d.r*2,t:0}); if(clouds.length>60) clouds.shift(); drops.splice(i,1); continue; }
       // (Paulo, Nov 13) flying at MIND, it lands on him: a stain on his body that runs down
       if(d.t>3&&typeof p!=='undefined'&&p&&!d.drip&&!d.own){ for(const pl of [p, window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null]){ if(!pl) continue;
         const b=bodyBox(pl); if(d.x>b.x&&d.x<b.x+b.w&&d.y>b.y&&d.y<b.y+b.h){ const u=(d.x-b.x)/b.w, v=(d.y-b.y)/b.h; estains.push({e:pl, u:Math.max(0.08,Math.min(0.92,u)), v:Math.max(0.05,Math.min(0.85,v)), r:1.4+Math.random()*2, len:0, max:4+Math.random()*14, t:0, me:true}); if(estains.length>90) estains.shift(); drops.splice(i,1); d._gone=true; break; } }
@@ -319,6 +328,7 @@
     const zOwn=!(typeof _zoomSaved!=='undefined'&&_zoomSaved);                 // (inside the world pass the zoom may already be on)
     if(zOwn&&typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawSeeps(); drawPuddles(); }catch(e){}
+    for(const c of clouds){ const a=0.35*(1-c.t/90); ctx.fillStyle=IC('rgba(140,0,16,'+a.toFixed(3)+')'); ctx.beginPath(); ctx.arc(sx(c.x),sy(c.y),Math.max(1,sw(c.r)),0,Math.PI*2); ctx.fill(); }
     try{ if(INK()) drawDreams(); }catch(e){}
     for(const s of stains){
       if(s.drip>0){ if(s.side){ if(s.ly!=null) s.y=s.ly; } s.drip--; }   // (a wall stain's run is moved in tick(); floor stains don't run)

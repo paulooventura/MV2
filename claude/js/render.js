@@ -407,7 +407,8 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   }
   // the Isolator (Paulo, Oct 22): a glossy orange rubber skin over the speaker box only —
   // the arms, the wheel and the head stay outside it
-  if(!status&&window.MV_BETA&&MV_BETA.on&&MV_BETA.hasIsolator&&!p._betaSib&&!p._aiCompanion){
+  // (build 409) the companion wears its OWN Isolator the same way once it has one (it used to look bare in the water)
+  if(!status&&window.MV_BETA&&MV_BETA.on&&((MV_BETA.hasIsolator&&!p._betaSib&&!p._aiCompanion)||(p._aiCompanion&&p._hasIso))){
     const wet=MV_BETA.mindWet||0, a=0.3+0.25*wet+0.06*Math.sin(fr*0.12);
     const ix=x-3, iy=top-3, iw=bw+6, ih=y+bh-top+6;
     ctx.save();

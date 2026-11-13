@@ -888,7 +888,8 @@
   B.enemySlopeRest=slopeRest;
   function deadTick(e){
     if(e.shutF>0) e.shutF--;
-    if(e._boss&&B.bossRest){ B.bossRest(e); return; }                 // (build 407) the heptagon settles on a flat side (beta_foes)
+    if(e._boss&&B.bossRest){ B.bossRest(e); return; }
+    if(e._foe==='cube'&&B.cubeFlat) B.cubeFlat(e);                     // shut down, the hexagon lies on a face                 // (build 407) the heptagon settles on a flat side (beta_foes)
     if(bodyTick(e)) return;
     if(e._betaHeld||(e._thrownF||0)>0) return;
     // on a slope: a round body rolls down it; the others rest tilted on it

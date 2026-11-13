@@ -1115,8 +1115,9 @@ function update(){
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     // T443: holding DOWN in the air loads the jump too; it's ready the moment he lands
     // (Paulo, Nov 13) not once the double jump is spent: that charge used to fire off the landing bounce as a 3rd jump in the air
-    else if(isDn()&&!p.magOn&&!p.xlrOn&&!(p._airJumps>0)){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
+    else if(isDn()&&!p.magOn&&!p.xlrOn&&!(p._airJumps>0)){p._airLoaded=true;p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else{p.duckCharge=0;p.duckBoostReady=false;}
+    p._groundFr=_grounded?(p._groundFr||0)+1:0; if(_grounded&&p._groundFr>=8&&!isDn()) p._airLoaded=false;
     const _springOn=_grounded&&!!p.duckBoostReady;
     p._springFloat=(p._springFloat||0)+((_springOn?1:0)-(p._springFloat||0))*(_springOn?0.055:0.12);
     if(p._springFloat<0.01) p._springFloat=0;
@@ -1169,7 +1170,11 @@ function update(){
     if(_platLaunch||(isJumpJ()&&p._jumpArmed&&_playerOnGround(p))){
       p._jumpArmed=false; p._jumpFr=fr;
       if(measureHeadroom(p)<6) p._autoHeadTuck=1;
-      const _ch=_platLaunch?1:Math.max(0,Math.min(1,(p.duckCharge||0)/60));
+      // (build 409, Paulo: "the triple jump ... is not working") a charge loaded in the AIR only counts once he has
+      // really landed: 8 frames on the ground and out of the landing bounce. A jump out of the bounce (which read as
+      // a 3rd jump in the air) is a plain one.
+      const _airGate=!p._airLoaded||((p._groundFr||0)>=8&&!(typeof MV_FEEL_BOUNCING==='function'&&MV_FEEL_BOUNCING()));
+      const _ch=_platLaunch?1:(_airGate?Math.max(0,Math.min(1,(p.duckCharge||0)/60)):0);
       p.vy=JI*(1+1.05*_ch); p.jf=Math.round(JMH+10*_ch);
       if(_platLaunch) p._autoJump=p.jf;
       p.duckBoostReady=false; p.duckCharge=0;

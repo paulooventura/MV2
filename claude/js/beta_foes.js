@@ -269,9 +269,14 @@
       ctx.save(); ctx.globalAlpha=Math.min(1,k); try{ drawCube(e,true); }catch(er){} ctx.restore(); }
   };
   B.cubeHurtable=cubeHurtable;
+  // (build 409, Paulo: "it doesn't lay on one of its sides and balances off one of the notches") at rest, alive or
+  // shut down, the hexagon eases down onto its nearest flat face (its collision is its shape)
+  function cubeFlat(e){ const seg=Math.PI/3, a=(e.ang||0)+(e.spin||0), want=Math.round((a-seg/2)/seg)*seg+seg/2; e.ang=a+(want-a)*0.2; e.spin=0; if(e._lift>0) e._lift*=0.7; }
+  B.cubeFlat=cubeFlat;
   // (build 370) waking is something you see and hear: a boot chime and a crackle, a flash, it
   // swells and its eyes light; for the 3 s it can be hurt its rim glows gold and sparks
   function cubeWake(e){
+    if(!(e._wakeT>0)) cubeBubbles(e);                              // (build 409, Paulo) every wake sends up its 6 spark bubbles (a hit from afar too)
     e.fVulnT=CUBE_VULN; e._wakeT=30;
     const c={x:e.x+e.w/2, y:e.y+e.h/2};
     try{ if(typeof sfxAt==='function'){ sfxAt(e,'enemy_boot',1.5); sfxAt(e,'zap',0.7); } else { S('enemy_boot',1.5); S('zap',0.7); } }catch(er){}
@@ -296,12 +301,12 @@
       const seg=Math.PI/3, ph=((e.ang%seg)+seg)%seg-seg/2;                  // -30°..30° from lying flat on a face
       e._lift=R*(1-Math.cos(ph))*0.9;
       if(Math.abs(ph)<0.04&&Math.abs(e.vx)>0.6&&(e._thudCd||0)<=fr){ e._thudCd=fr+10; try{ if(typeof sfxAt==='function') sfxAt(e,'land',0.7); }catch(er){} }   // a face lands
-    }else if(e._lift>0) e._lift*=0.8;
+    }else{ if(e._lift>0) e._lift*=0.8; if(e.og) cubeFlat(e); }      // resting: down onto its nearest flat face
     const close=d<260;
     // Paulo, Nov 4 (build 368): waking up (MIND comes close, or a hit) opens a 3 s window in
     // which it can be hurt, and only by a loaded punch, a loaded TRS shot or the kiritsuke
     if((e.fVulnT||0)>0) e.fVulnT--;
-    if(close&&!e._wasClose){ cubeWake(e); cubeBubbles(e); }
+    if(close&&!e._wasClose){ cubeWake(e); }
     if(close&&e.alive) e.fVulnT=Math.max(e.fVulnT||0,2);           // T434: solid and open to damage while MIND is close
     e._wasClose=close;
     e.fSolidK=(e.fSolidK||0)+((close&&e.alive?1:0)-(e.fSolidK||0))*0.12;

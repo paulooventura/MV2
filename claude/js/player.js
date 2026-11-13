@@ -276,7 +276,9 @@ function _updateRunEntry(pl){
   // Paulo, Nov 4 (build 370): turbo (sports mode) flips on a fast double tap of the item button
   // only after half a second standing still, on and off alike (a jack in hand or not). Running
   // around spamming the button never touches it.
-  if(standing&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
+  // (build 409, Paulo: "after 1.5 s of COMPLETE idleness") any input but the item button itself resets the count
+  let _otherKey=false; try{ const sw=(OPT&&OPT.binds&&OPT.binds.swap)||[]; for(const k in K){ if(K[k]&&sw.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
+  if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
   if(btn&&!was&&standing){
     if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
     else if((pl._stillT||0)>=90) pl._standTapT=16;   // (build 407, Paulo) only after 1.5 s standing still (was 0.5 s)
@@ -625,7 +627,8 @@ function _updatePlayerMoveX(pl){
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
   // (build 407, Paulo) spamming the TRS while driving: the forward speed drops so you can place your shots
-  if(pl===p&&ITEM===0&&fr-(pl._trsLastFr||-999)<22&&grounded){ cap=Math.min(cap,MOVE_WALK_TOP*0.45); if(Math.abs(pl.vx)>cap) pl.vx*=0.9; }
+  // (build 409, Paulo: "we should basically stay on the same spot ... almost anchoring us") any shot in the last ~0.4 s
+  if(pl===p&&grounded&&(fr-(pl._trsLastFr||-999)<24||(pl.shots&&pl.shots.some(s=>s&&s.born!=null&&fr-s.born<24)))){ cap=Math.min(cap,MOVE_WALK_TOP*0.12); pl.vx*=0.75; }
   pl._moveCap=cap;
   let accel=(sprint?MOVE_RUN_ACCEL:MOVE_ACCEL)*HS.accel;
   accel*=0.45+0.55*Math.min(1,spin*1.6);              // the wheel takes a moment to bite
