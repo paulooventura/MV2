@@ -36,6 +36,9 @@
     const L=r/255; return 'rgba('+Math.round(8+22*L)+','+Math.round(7+20*L)+','+Math.round(12+28*L)+','+a+')';
   }
   const estains=[];                                                             // ink stuck on foes
+  // a character's speaker box (where a splash can stick): above the wheel, the box's width; Venture is drawn at 92%
+  function bodyBox(pl){ const WR=typeof WHEEL_R==='number'?WHEEL_R:12, k=pl.hero==='venture'?0.92:1, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
+    const h=50*k, bot=feet-(2*WR+6)*k, w=40*k; return {x:cx-w/2, y:bot-h, w, h}; }
   // (build 407 fix) Ink & Vinyl has blood (bloodAmt) but none of GORE's look or sound: goreAmt is GORE's alone —
   // it drove the red grade and the metal hit layer, which turned I&V red and made the shutdowns loud
   function bloodAmt(){ return INK()?0.85:goreAmt(); }
@@ -150,6 +153,7 @@
   function hitFloor(x,y){
     try{
       if(typeof gridSolid!=='function'||typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.tile) return false;
+      if(typeof gridWorldSolid==='function') return !!gridWorldSolid(x,y);      // (build 408) the exact shape, ramps included
       const t=MV_GRID.tile;
       return gridSolid(Math.floor(x/t), Math.floor(y/t));
     }catch(e){ return false; }
@@ -158,7 +162,7 @@
   //   flat, glossy puddle on that floor; it spreads a little, and where it reaches the edge of
   //   the platform it runs over the lip: a drip swells under the edge, lets go, and falls to
   //   the platform below, where it pools again. (Blood that hits a wall still stains it.)
-  const puddles=[], hang=[];
+  const puddles=[], hang=[], seeps=[];
   const TS=()=>(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
   function floorTop(x,y){ const t=TS(); return hitFloor(x,y+2)?Math.floor((y+2)/t)*t:null; }
   function onFloor(x,fy){ return hitFloor(x,fy+3)&&!hitFloor(x,fy-3); }
@@ -168,7 +172,7 @@
     puddles.push({x0:x-3,x1:x+3,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6});
     if(puddles.length>90) puddles.shift();
   }
-  window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }};
+  window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }, spray:(x,y,n,b)=>spray(x,y,n,b), state:()=>({drops:drops.length, seeps:seeps.length, seepsDone:seeps.filter(q=>q.done).length, onChars:estains.filter(q=>q.me).length, puddles:puddles.length})};
   // Paulo, Nov 13: blood (and ink) never hangs in the air or sits inside a wall: it lands on a surface; on a wall
   // it slides down in a little line, and where the wall ends it lets go as a drop that falls to the next surface
   function splat(x,y,r){
@@ -190,6 +194,7 @@
       for(const side of [-1,1]){
         const ex=side<0?q.x0:q.x1;
         if(onFloor(ex,q.y)) continue;
+        if(hitFloor(ex,q.y-3)){ let k=ex; for(let n=0;n<64&&hitFloor(k,q.y-3);n++) k-=side; if(side<0) q.x0=k; else q.x1=k; continue; }   // a slope / wall rises here: the edge stops, nothing runs into it
         let k=ex; for(let n=0;n<64&&!onFloor(k,q.y);n++) k-=side;     // back to the last floor under it
         if(side<0) q.x0=k; else q.x1=k;
         const key=side<0?'dl':'dr';
@@ -200,12 +205,21 @@
         }
       }
     }
+    // (Paulo, Nov 13) blood on the ground soaks down: a thin line works its way down through it, and where the
+    // solid ends (a cave's ceiling under it) it beads up and drips
+    for(const q of puddles){ if(q.age>150&&q.m>0.6&&seeps.length<40&&Math.random()<0.004){ const x=q.x0+Math.random()*(q.x1-q.x0); if(hitFloor(x,q.y+4)){ seeps.push({x,y:q.y+1,len:0,done:false,a:0.55+Math.random()*0.3}); q.m-=0.15; } } }
+    for(const s of seeps){ if(s.done) continue; s.len+=INK()?0.22:0.12;
+      if(!hitFloor(s.x,s.y+s.len+1)){ s.done=true; hang.push({x:s.x,y:s.y+s.len-4,g:0,m:0.2}); hang.push({x:s.x,y:s.y+s.len-4,g:-0.6,m:0.2}); } }
     // drips swell under the lip, then let go
     for(let i=hang.length-1;i>=0;i--){
       const h=hang[i]; h.g+=INK()?0.06:0.03;                            // ink runs thinner: drips form twice as fast
       if(h.g>=1){ drops.push({x:h.x,y:h.y+4,px:h.x,py:h.y+4,vx:0,vy:0.6,r:1.6,t:5,max:400,chunk:false,drip:true}); hang.splice(i,1); }
     }
     if(hang.length>80) hang.splice(0,hang.length-80);
+  }
+  function drawSeeps(){
+    for(const s of seeps){ const a=s.a; ctx.fillStyle=IC('rgba(100,0,12,'+a.toFixed(2)+')'); ctx.fillRect(sx(s.x)-Math.max(0.6,sw(0.7)),sy(s.y),Math.max(1,sw(1.4)),Math.max(1,sw(s.len)));
+      if(!s.done){ ctx.beginPath(); ctx.arc(sx(s.x),sy(s.y+s.len),Math.max(1,sw(1.2)),0,Math.PI*2); ctx.fill(); } }
   }
   function drawPuddles(){
     for(const q of puddles){
@@ -241,7 +255,7 @@
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; burstN=0; splashN=0; }
+    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
     if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
@@ -249,7 +263,7 @@
     if(burstT>0) burstT--; else burstN=0;
     if(deep&&burstN>=3){ screenBurst(burstN); burstN=0; burstT=0; }
     else if(!deep){ burstN=0; burstT=0; }
-    if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%36===0&&Math.abs(p.vx||0)>0.4){
+    if(typeof p!=='undefined'&&p&&typeof fr==='number'&&fr%36===0&&Math.abs(p.vx||0)>0.4&&fr-(p._bledFr||-9999)<300){   // (build 408) a trail only for a few seconds after he's been hit
       const x=p.x+(typeof SW==='number'?SW:40)*0.5, y=p.y+(typeof FEET_OFF==='number'?FEET_OFF:48)-8;
       spray(x+(p.fc?6:-6), y, 1, Math.PI/2+0.2);
     }
@@ -260,7 +274,7 @@
       d.vy+=0.32; d.x+=d.vx; d.y+=d.vy; d.vx*=0.985; d.t++;
       // (Paulo, Nov 13) flying at MIND, it lands on him: a stain on his body that runs down
       if(d.t>3&&typeof p!=='undefined'&&p&&!d.drip&&!d.own){ for(const pl of [p, window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null]){ if(!pl) continue;
-        const bx=pl.x+SW/2-22, by=pl.y+FEET_OFF-100; if(d.x>bx&&d.x<bx+44&&d.y>by&&d.y<by+80){ estains.push({e:pl, ox:d.x-pl.x, oy:d.y-pl.y, r:1.5+Math.random()*2.5, len:0, max:8+Math.random()*22, t:0, me:true}); if(estains.length>90) estains.shift(); drops.splice(i,1); d._gone=true; break; } }
+        const b=bodyBox(pl); if(d.x>b.x&&d.x<b.x+b.w&&d.y>b.y&&d.y<b.y+b.h){ const u=(d.x-b.x)/b.w, v=(d.y-b.y)/b.h; estains.push({e:pl, u:Math.max(0.08,Math.min(0.92,u)), v:Math.max(0.05,Math.min(0.85,v)), r:1.4+Math.random()*2, len:0, max:4+Math.random()*14, t:0, me:true}); if(estains.length>90) estains.shift(); drops.splice(i,1); d._gone=true; break; } }
         if(d._gone) continue; }
       if(d.t>4&&(hitFloor(d.x,d.y+2)||hitFloor(d.x,d.y))){ splat(d.px,d.py,d.r*0.4); drops.splice(i,1); continue; }
       if(d.t>=Math.max(d.max,600)||d.y>(typeof MV_GRID!=='undefined'&&MV_GRID?MV_GRID.rows*MV_GRID.tile:1e5)){ drops.splice(i,1); }   // (out of the world or very old: gone, never a stain in the air)
@@ -275,7 +289,7 @@
   // (Paulo, Nov 13) "We also bleed if we get hit": a spray off MIND on every hit that hurts him
   window.addEventListener('load',()=>{ const _h=window.applyPlayerHit; if(typeof _h!=='function') return;
     window.applyPlayerHit=function(kx,ky,dmg){ const hp0=typeof p!=='undefined'&&p?p.hp:0; const r=_h.apply(this,arguments);
-      try{ if(p&&p.hp<hp0&&playing()){ const n=Math.min(22,4+Math.round((hp0-p.hp)*0.5)); const k0=drops.length; spray(p.x+SW/2,p.y+FEET_OFF-55,n,Math.atan2((ky||-1),(kx||0))||-Math.PI/2); for(let j=k0;j<drops.length;j++) drops[j].own=true; } }catch(e){}
+      try{ if(p&&p.hp<hp0) p._bledFr=fr; if(p&&p.hp<hp0&&playing()){ const n=Math.min(22,4+Math.round((hp0-p.hp)*0.5)); const k0=drops.length; spray(p.x+SW/2,p.y+FEET_OFF-55,n,Math.atan2((ky||-1),(kx||0))||-Math.PI/2); for(let j=k0;j<drops.length;j++) drops[j].own=true; } }catch(e){}
       return r; }; });
   // Paulo, Nov 13: Ink & Vinyl gets its own words, wholesome ones, in a dreamy cloud: a soft good-night when a foe
   // is off for good, a sleepy "not yet" on a 1st / 2nd shutdown
@@ -302,8 +316,9 @@
     // Paulo, Nov 12: "the blood sprites are showing through the level clear screen". Blood is painted after
     // the frame, over everything: never while a full-screen window is up (item, results, ending, ...).
     { const Bq=window.MV_BETA; if(Bq&&(Bq.results||Bq.popup||Bq.ending||Bq.trans||Bq.contScreen||Bq.overT>0)) return; }
-    if(typeof _worldZoomBegin==='function') _worldZoomBegin();
-    try{ drawPuddles(); }catch(e){}
+    const zOwn=!(typeof _zoomSaved!=='undefined'&&_zoomSaved);                 // (inside the world pass the zoom may already be on)
+    if(zOwn&&typeof _worldZoomBegin==='function') _worldZoomBegin();
+    try{ drawSeeps(); drawPuddles(); }catch(e){}
     try{ if(INK()) drawDreams(); }catch(e){}
     for(const s of stains){
       if(s.drip>0){ if(s.side){ if(s.ly!=null) s.y=s.ly; } s.drip--; }   // (a wall stain's run is moved in tick(); floor stains don't run)
@@ -322,7 +337,11 @@
     for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.t++;
       if(!e||!isFinite(e.x)||e._gone||e._hidden||q.t>1500||(!q.me&&ENEMS.indexOf(e)<0)){ estains.splice(i,1); continue; }
       if(q.len<q.max) q.len+=0.25;
-      const X0=sx(e.x+q.ox), Y0=sy(e.y+q.oy), al=Math.min(1,(1500-q.t)/200);
+      let X0, Y0;
+      if(q.me){ if(window.MV_LIFT&&MV_LIFT.inClosedCab&&MV_LIFT.inClosedCab(e)) continue;   // hidden with him in a closed car
+        const b=bodyBox(e); q.len=Math.min(q.len,(1-q.v)*b.h-2); X0=sx(b.x+q.u*b.w); Y0=sy(b.y+q.v*b.h); }
+      else { X0=sx(e.x+q.ox); Y0=sy(e.y+q.oy); }
+      const al=Math.min(1,(1500-q.t)/200);
       ctx.fillStyle=IC('rgba(120,0,14,'+(0.85*al).toFixed(3)+')'); ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
       ctx.fillRect(X0-Math.max(0.6,sw(0.7)),Y0,Math.max(1,sw(1.4)),sw(q.len)); ctx.beginPath(); ctx.arc(X0,Y0+sw(q.len),Math.max(1,sw(1.3)),0,Math.PI*2); ctx.fill();
       ctx.fillStyle=IC('rgba(255,170,180,'+(0.35*al).toFixed(3)+')'); ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
@@ -334,7 +353,10 @@
       ctx.fillStyle=IC('#8f0014');
       ctx.beginPath(); ctx.arc(sx(d.x),sy(d.y),Math.max(1,sw(d.r*0.45)),0,Math.PI*2); ctx.fill();
     }
-    if(typeof _worldZoomEnd==='function') _worldZoomEnd();
+    if(zOwn&&typeof _worldZoomEnd==='function') _worldZoomEnd();
+  }
+  function drawGlass(){
+    if(!playing()) return;
     for(let i=glass.length-1;i>=0;i--){
       const s=glass[i];
       s.life-=s.fade;
@@ -400,9 +422,14 @@
     tick();
     return r;
   };
+  // (Paulo, Nov 13: "the blood shouldn't appear in front of dialog boxes, like the pause menu") the world's blood is
+  // painted with the foreground (over the characters, under the HUD, the menus and the dialogs); the splats on the
+  // screen glass after the frame, but never over a pause menu or a dialog
+  { const _fg=window.drawTmjForeground; window.drawTmjForeground=function(){ const r=_fg?_fg.apply(this,arguments):undefined; try{ if(typeof ctx!=='undefined') drawBlood(true); }catch(e){} return r; }; }
   window.draw=function(){
     if(_draw) _draw.apply(this,arguments);
-    if(typeof ctx!=='undefined') drawBlood();
+    const B2=window.MV_BETA, quiet=(typeof _paused!=='undefined'&&_paused)||(B2&&(B2.talking||B2.popup||B2.results||B2.ending))||(typeof _gameState!=='undefined'&&_gameState!=='game');
+    if(typeof ctx!=='undefined'&&!quiet) try{ drawGlass(); }catch(e){}
   };
 
   // Greens become bright glowing red. Every other hue is pulled toward

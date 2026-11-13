@@ -64,13 +64,14 @@
     ].map(d=>Object.assign(d,{st:'shut', t:0}));
     // the attic: rows 13-17 inside the roof — its floor is the bedroom's ceiling (row 18), one block thick
     // (Paulo, Nov 13: "looks crammed, make its floor lower")
-    S.attic={cells:[], x0:5*T, x1:26*T, y0:13*T, y1:18*T};
-    const carve=[[13,12,18],[14,10,20],[15,9,21],[16,7,23],[17,5,25]];
+    S.attic={cells:[], x0:5*T, x1:26*T, y0:12*T, y1:18*T};
+    const carve=[[12,13,17],[13,12,18],[14,10,20],[15,9,21],[16,7,23],[17,5,25]];   // (build 408) the ridge one row taller: MIND stands upright under it
     for(const [r,a,b] of carve) for(let c=a;c<=b;c++) S.attic.cells.push([c,r]);
     S.crates=[
       {c:6.4,  r:18, stuff:'books'}, {c:7.5, r:18, stuff:'pots'}, {c:7.0, r:17.15, stuff:'teddy', small:true}, {c:9.6, r:18, stuff:'books'},
       {c:12.4, r:18, stuff:'spoons'}, {c:20.4, r:18, stuff:'life', hp:1}, {c:22.0, r:18, stuff:'lamp'}, {c:21.3, r:17.15, stuff:'books', small:true}, {c:23.6, r:18, stuff:'pots'},
-    ].map(k=>Object.assign(k,{broken:false, shake:0}));
+    ].map(k=>Object.assign(k,{broken:false, shake:0, hp:k.stuff==='life'?1:2}));
+    S.junk=[];
     S.life=null; S.found=!!B._atticFound; S.reveal=S.found?1:0; S.puffs=[];
   }
   function apply(){
@@ -82,6 +83,7 @@
       for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID); }
     for(const t of S.traps) for(let c=t.c0;c<=t.c1;c++) gridSet(c,t.r,MV_GRID_SOLID);
     for(const [c,r] of S.attic.cells) gridSet(c,r,MV_GRID_AIR);
+    for(let c=13;c<=17;c++){ gridSet(c,11,MV_GRID_SOLID); try{ if(B.level&&B.level.cells&&B.level.cells[11]) B.level.cells[11][c]=1; if(B.skin&&B.skin[11]) B.skin[11][c]=1; }catch(e){} }   // the new ridge cap (drawn as roof)
     // a shelf in the bedroom under the attic hatch (a one-way plank you can stand on)
     for(let c=13;c<=19;c++) if(gridCell(c,22)===MV_GRID_AIR) gridSet(c,22,MV_GRID_ONEWAY);
     // the shaft under the trap door is cave, not cellar brick
@@ -89,6 +91,15 @@
     if(typeof gridYCacheClear==='function') try{ gridYCacheClear(); }catch(e){}
   }
 
+  // the attic is carved in the grid, not in the level's collision segments that measureHeadroom reads (they still
+  // have the old roof): inside it, the room over his head is measured on the grid (the real ceiling, slopes too)
+  S.headroom=function(pl,orig){
+    if(!on()||!S.attic||!pl) return orig(pl);
+    const cx=pl.x+SW/2, feet=pl.y+FEET_OFF; if(cx<S.attic.x0||cx>S.attic.x1||feet<S.attic.y0||feet>S.attic.y1+T) return orig(pl);
+    const body=playerCoreHB(pl), top=body.y; let gap=999;
+    for(const dx of [-16,0,16]) for(let y=top;y>top-200;y-=2){ if(gridWorldSolid(cx+dx,y)){ gap=Math.min(gap,top-y); break; } }
+    return gap;
+  };
   // ── punches (render.js asks here when a fist lands) ──
   S.fist=function(wx,wy,wr,charged){
     if(!on()) return false;
@@ -102,11 +113,16 @@
         t.hits+=charged?3:1; t.shake=10; thud(t.hits>=3?1.3:1); dust((x0+x1)/2,t.dir==='down'?y0:y1,6);
         if(t.hits>=3){ t.st='opening'; t.t=0; creak(0.35); B.shake=Math.max(B.shake||0,7); B.trapsOpened=(B.trapsOpened|0)+1; dust((x0+x1)/2,(y0+y1)/2,18,'#6a5038'); }
         return true; } }
+    // (Paulo, Nov 13) the crates break to a punch at chest height (two hits; one, loaded), their planks fly and
+    // what was in them tumbles out onto the floor; the life crate's 1UP pops out of it
     for(const k of S.crates){ if(k.broken||!S.found) continue;
       const kx=k.c*T, ky=k.r*T, w=k.small?22:28, h=k.small?18:24;
-      if(wx>kx-wr&&wx<kx+w+wr&&wy>ky-h-wr&&wy<ky+wr){
-        k.shake=8; thud(1.6);
-        if(k.stuff==='life'){ k.broken=true; dust(kx+w/2,ky-h/2,16,'#a07040'); S.life={x:kx+w/2, y:ky-h/2, t:0, got:false}; try{ sfx('item_clink'); }catch(e){} }
+      if(wx>kx-wr-8&&wx<kx+w+wr+8&&wy>ky-h-70&&wy<ky+wr){
+        k.shake=8; thud(1.6); k.hp-=charged?2:1;
+        if(k.hp<=0){ k.broken=true; dust(kx+w/2,ky-h/2,16,'#a07040'); try{ sfx('omniblock_break'); }catch(e){}
+          for(let i=0;i<5;i++) S.junk.push({kind:'plank', x:kx+w/2, y:ky-h/2, vx:(Math.random()-0.5)*5, vy:-2-Math.random()*3, rot:Math.random()*6, vr:(Math.random()-0.5)*0.4, floor:ky});
+          if(k.stuff==='life'){ S.life={x:kx+w/2, y:ky-h/2, t:0, got:false}; try{ sfx('item_clink'); }catch(e){} }
+          else S.junk.push({kind:k.stuff, x:kx+w/2, y:ky-h, vx:(Math.random()-0.5)*3, vy:-3.5, rot:0, vr:(Math.random()-0.5)*0.25, floor:ky}); }
         return true; } }
     return false;
   };
@@ -120,6 +136,8 @@
       if(t.shake>0) t.shake--;
       if(t.st==='opening'){ t.t++; if(t.t===4) for(let c=t.c0;c<=t.c1;c++){ gridSet(c,t.r,MV_GRID_AIR); if(t.id==='attic') gridSet(c,t.r-1,MV_GRID_AIR); } if(t.t>=22){ t.st='open'; thud(0.7); } } }
     for(const k of S.crates) if(k.shake>0) k.shake--;
+    for(const j of S.junk||[]){ if(j.rest) continue; j.vy+=0.35; j.x+=j.vx; j.y+=j.vy; j.rot+=j.vr; j.vx*=0.98;
+      if(j.y>=j.floor-3){ j.y=j.floor-3; if(Math.abs(j.vy)>1.5){ j.vy*=-0.35; j.vx*=0.6; j.vr*=0.5; } else { j.vy=0; j.vx*=0.7; if(Math.abs(j.vx)<0.1){ j.rest=true; j.rot=Math.round(j.rot/(Math.PI/2))*(Math.PI/2); } } } }
     // the attic shows itself when you're in it
     if(p&&!S.found){ const cx=p.x+SW/2, cy=p.y+FEET_OFF-40; if(cx>S.attic.x0&&cx<S.attic.x1&&cy>S.attic.y0&&cy<S.attic.y1+T){ S.found=true; B._atticFound=true; chime(); try{ uiShowToast('A SECRET ATTIC!'); }catch(e){} } }
     if(S.found&&S.reveal<1) S.reveal=Math.min(1,S.reveal+1/30);
@@ -177,6 +195,15 @@
     if(t.st==='shut'&&t.hits>0){ ctx.fillStyle='rgba(255,230,180,0.5)'; for(let i=0;i<t.hits;i++) ctx.fillRect(X(x0+half-12+i*10),Y(y+(down?-4:T)),W2(6),W2(3)); }   // cracks: how many hits so far
     ctx.restore();
   }
+  function stuffAt(kind,tx,ty){
+    if(kind==='books'){ for(const [o,c] of [[-8,'#a03030'],[-3,'#3060a0'],[2,'#c09030'],[7,'#407040']]){ ctx.fillStyle=c; ctx.fillRect(X(tx+o),Y(ty-9),W2(4),W2(9)); } }
+    else if(kind==='pots'){ ctx.fillStyle='#606870'; ctx.beginPath(); ctx.arc(X(tx),Y(ty-3),W2(7),Math.PI,0); ctx.fill(); ctx.fillRect(X(tx+6),Y(ty-6),W2(8),W2(2)); }
+    else if(kind==='spoons'){ ctx.strokeStyle='#c8ccd4'; ctx.lineWidth=Math.max(1,W2(1.5)); for(const o of [-5,0,5]){ ctx.beginPath(); ctx.moveTo(X(tx+o),Y(ty)); ctx.lineTo(X(tx+o+o*0.4),Y(ty-12)); ctx.stroke(); } }
+    else if(kind==='teddy'){ ctx.fillStyle='#a0703c'; ctx.beginPath(); ctx.arc(X(tx),Y(ty-6),W2(6),0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(X(tx-5),Y(ty-11),W2(2.5),0,Math.PI*2); ctx.arc(X(tx+5),Y(ty-11),W2(2.5),0,Math.PI*2); ctx.fill(); }
+    else if(kind==='lamp'){ ctx.fillStyle='#d8c070'; ctx.fillRect(X(tx-2),Y(ty-14),W2(4),W2(14)); ctx.fillStyle='#e8d8a0'; ctx.beginPath(); ctx.moveTo(X(tx-7),Y(ty-14)); ctx.lineTo(X(tx+7),Y(ty-14)); ctx.lineTo(X(tx+4),Y(ty-22)); ctx.lineTo(X(tx-4),Y(ty-22)); ctx.fill(); }
+    else if(kind==='plank'){ ctx.fillStyle='#8a5a30'; ctx.fillRect(X(tx-8),Y(ty-2),W2(16),W2(4)); }
+  }
+  function drawJunk(){ for(const j of S.junk||[]){ ctx.save(); ctx.translate(X(j.x),Y(j.y)); ctx.rotate(j.rot); ctx.translate(-X(j.x),-Y(j.y)); stuffAt(j.kind,j.x,j.y+3); ctx.restore(); } }
   function crate(k){
     const w=k.small?22:28, h=k.small?18:24, x=k.c*T+(k.shake>0?(Math.random()-0.5)*2:0), y=k.r*T-h;
     if(k.broken){ ctx.fillStyle='#6a4426'; for(let i=0;i<4;i++) ctx.fillRect(X(x+i*8),Y(k.r*T-4-(i%2)*2),W2(9),W2(3)); return; }
@@ -211,6 +238,7 @@
     ctx.strokeStyle='rgba(220,220,230,0.35)'; ctx.lineWidth=Math.max(1,W2(0.8));
     for(const [cx,cy,s] of [[9.3*T,15.2*T,1],[21.7*T,15.2*T,-1]]){ for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(X(cx),Y(cy)); ctx.lineTo(X(cx+s*(10+i*6)),Y(cy+18-i*4)); ctx.stroke(); } }
     for(const k of S.crates) crate(k);
+    drawJunk();
     // dust motes in the lantern light
     for(let i=0;i<18;i++){ const t=(fr*0.004+hash(i,7))%1, mx=6.5*T+hash(i,8)*18*T+Math.sin(fr*0.01+i)*8, my=17.8*T-t*4.4*T; ctx.fillStyle='rgba(255,230,190,'+(0.5*(1-Math.abs(t-0.5)*2))+')'; ctx.fillRect(X(mx),Y(my),W2(2),W2(2)); }
     ctx.restore();
