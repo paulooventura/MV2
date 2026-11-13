@@ -15,7 +15,7 @@
     stage:'assets/bgm/canopy-quest-gold.mp3',
     stage2:'assets/bgm/crystal-cavern-drift-gold.mp3',
     item:'assets/bgm/lost-save-shrine-diam.mp3',
-    results:'assets/bgm/crystal-memory-gate.mp3',
+    results:'assets/bgm/the-knowl-tree.mp3',               // (build 406) its own stage-complete song (it was the 1.2 gate's calm track, so nothing changed)
     boss:'assets/bgm/pixel-quasar-gold-boss.mp3',        // 1.3: the heptagon's arena
     calm:'assets/bgm/crystal-memory-gate.mp3'            // the slow, smooth track the exit gate plays once the level's source is down
   };

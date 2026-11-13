@@ -406,7 +406,7 @@ const PROBES = {
     for (let r = 4; r < MV_GRID.rows - 1; r++) for (let c = 2; c < MV_GRID.cols - 2; c++) {
       if (gridSolid(c, r) && [1, 2, 3].every((d) => gridCell(c, r - d) === MV_GRID_AIR)) spots.push([c, r]);
     }
-    const stride = Math.max(1, Math.floor(spots.length / 28));
+    const stride = Math.max(1, Math.floor(spots.length / 80));   // (build 406) ~80 spots: a few new rooftop spots (the 1.1 attic) had skewed a 28-spot sample to open sky
     const dirs = [[0, -1], [0.7, -0.7], [-0.7, -0.7], [1, -0.25], [-1, -0.25]];
     for (let i = 0; i < spots.length; i += stride) {
       const [c, r] = spots[i];
@@ -414,7 +414,7 @@ const PROBES = {
       for (const [ax, ay] of dirs) {
         H.put((c + 0.5) * T, r * T); H.step(8);
         if (!p.og) break;
-        ITEM = 1; p.aimDX = ax; p.aimDY = ay; p.tAimDX = ax; p.tAimDY = ay; p.fc = ax >= 0;
+        _unlockedMask |= 2; ITEM = 1; p.aimDX = ax; p.aimDY = ay; p.tAimDX = ax; p.tAimDY = ay; p.fc = ax >= 0;   // (a shock from an electro box knocks the jack loose: hand it back)
         fireItem();
         let flewIn = 0, lx = p.hook.ex, ly = p.hook.ey;
         H.step(60, () => {

@@ -1104,7 +1104,8 @@ function update(){
     if(_grounded&&isDn()&&!p.magOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     // T443: holding DOWN in the air loads the jump too; it's ready the moment he lands
-    else if(isDn()&&!p.magOn&&!p.xlrOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
+    // (Paulo, Nov 13) not once the double jump is spent: that charge used to fire off the landing bounce as a 3rd jump in the air
+    else if(isDn()&&!p.magOn&&!p.xlrOn&&!(p._airJumps>0)){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     const _springOn=_grounded&&!!p.duckBoostReady;
     p._springFloat=(p._springFloat||0)+((_springOn?1:0)-(p._springFloat||0))*(_springOn?0.055:0.12);

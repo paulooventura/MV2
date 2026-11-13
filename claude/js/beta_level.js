@@ -1088,7 +1088,7 @@
     else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
     else if(h.kind==='enemy'){
       const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy; e._tossT=14;
-      e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true;
+      e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true; e._newHome=true;   // (Paulo, Nov 13) it stays where you drop it
       if(!e.alive) e._shutSettled=false;
       if(typeof _markEnemyItemForce==='function') _markEnemyItemForce(e,40);
     }else { h.ref._betaHeld=false; h.ref.vx=v.vx; h.ref.vy=v.vy; }
@@ -1231,7 +1231,8 @@
     for(const e of ENEMS){
       if(!e||!e.alive||e._betaHeld||e._hidden) continue;
       const f=_tipField({x:tip.x,y:tip.y},a,e.x+e.w/2,e.y+e.h/2,range); if(!f) continue;
-      const s=f.prox*f.cone*1.4*(0.25+0.75*powNow())*itemFx(foeWeight(e));
+      // (Paulo, Nov 13) foes feel the XLR: stronger, and it builds the longer you hold it (charge) on top of its power; light ones fly, heavy ones budge
+      const held=Math.min(1,(p.magHeld||0)/45), s=f.prox*f.cone*2.3*(0.25+0.75*powNow())*(0.6+0.7*held)*itemFx(foeWeight(e));
       _applyItemForceToEnemy(e,f.ux*s,f.uy*s);
       // (build 370) the walk / roll AI used to overwrite that every frame, so the air never moved
       // them: while the blow is on them they're carried like something thrown (its own physics)
@@ -1257,7 +1258,7 @@
       if(!f||typeof _applyItemForceToEnemy!=='function') continue;
       const wf=itemFx(foeWeight(e));
       if(e.alive){ const k=Math.min(1,f.s*3), sp=(4+10*k)*(0.3+0.7*powNow())*wf, n=Math.hypot(f.fx,f.fy)||1, tvx=f.fx/n*sp, tvy=f.fy/n*sp-0.6*k*wf;
-        _applyItemForceToEnemy(e,(tvx-(e.vx||0))*0.6*Math.max(0.35,k)*wf,(tvy-(e.vy||0))*0.6*Math.max(0.35,k)*wf); }
+        _applyItemForceToEnemy(e,(tvx-(e.vx||0))*0.85*Math.max(0.35,k)*wf,(tvy-(e.vy||0))*0.85*Math.max(0.35,k)*wf); }   // (build 406) a firmer pull
       else _applyItemForceToEnemy(e,f.fx*2.2*wf,f.fy*2.2*wf);
     }
     for(const bw of BWALLS){
@@ -1371,6 +1372,9 @@
     for(let k=0;k<10;k++) PFXS.push({x:L.cx,y:L.cy,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:12,maxLife:12,r:1.6,col:k%2?'#ff5050':'#5080ff'});
   }
   B.parkInput=function(){                                  // runs before the game's own jump
+    // (build 406) DOWN + JUMP on a moving car / platform: a drop, not a jump (beta_water acts on B._dropReq)
+    if((B.ridePlat||B.roofPlat)&&typeof isJumpJ==='function'&&isJumpJ()&&typeof isDn==='function'&&isDn()&&!(window.MV_LIFT&&MV_LIFT.sealed)){
+      B._dropReq=true; OPT.binds.jump.forEach(c=>delete Kj[c]); return; }
     if(!(B.magPark||B.magLock)||typeof isJumpJ!=='function'||!isJumpJ()) return;
     const dn=typeof isDn==='function'&&isDn();
     if(dn){ if(B.magPark) parkRelease(); else lockRelease(); }
@@ -1538,6 +1542,7 @@
       }
       // patrol range follows a thrown enemy once it settles
       if(e._reCenter&&(e._thrownF||0)<=0&&e.alive&&e.og){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
+      if(e._newHome&&(e._thrownF||0)<=0&&e.og){ e._newHome=false; e.homeX=e.x+e.w/2; e._spawnAt={x:e.x, y:e.y, mn:e.mn, mx:e.mx, dir:e.dir, hp:e.mhp||e.hp}; }   // dropped by the MAG: home is here now
       if(e._reCenter&&!e.alive&&e._shutSettled&&(e._thrownF||0)<=0){ e.mn=Math.floor(e.x-110); e.mx=Math.floor(e.x+e.w+110); e._reCenter=false; }
       if(tree&&Math.hypot(e.x+e.w/2-tx,e.y+e.h/2-ty)<TREE_R&&(!e.alive||e.hp<e.mhp||e._downs)) energize(e,'tree');
     }
@@ -2440,7 +2445,9 @@
   }
   function openResults(){
     B.results={t:0, sc:score(), music:true};
-    if(window.MV_BETA_AUDIO){ if(MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('results',true); MV_BETA_AUDIO.fanfare(); }
+    // Paulo, Nov 13: "I passed 1.2 to 1.3 but the music didn't stop to make that level complete theme song start".
+    // The stage clear only ducked the stage song; now it stops and the stage-complete song plays (after the fanfare)
+    if(window.MV_BETA_AUDIO){ MV_BETA_AUDIO.fanfare(); if(MV_BETA_AUDIO.play) MV_BETA_AUDIO.play('results',{restart:true}); }
   }
   function drawResults(){
     const R=B.results, a=Math.min(1,R.t/20), sc=R.sc;

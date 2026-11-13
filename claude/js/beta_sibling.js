@@ -745,7 +745,7 @@
     // isolator, they can't go underwater because they will short circuit." Head under, no Isolator:
     // it shorts like MIND does (its charge drains, sparks, a crackle) and shuts down at zero.
     isoTick(b);
-    const wetNow=!sibIso()&&B.inWater&&B.inWater(c.x,c.y-14);
+    const wetNow=!sibIso()&&B.inWater&&B.inWater(b.x+SW/2,b.y+FEET_OFF-2*(typeof WHEEL_R==='number'?WHEEL_R:12)-4);   // (build 406) up to its box, not just its wheel
     if(wetNow&&!(b._downT>0)) escapeWater(b);
     if(wetNow&&!(b._downT>0)){
       b.sibHp=(b.sibHp==null?100:b.sibHp)-0.55; b._hurtFr=fr; b._shorting=true;

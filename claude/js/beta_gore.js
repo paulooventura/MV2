@@ -22,7 +22,22 @@
   // heavenly it gets." Floors from MV_LIFT.pull (33 floors = 1).
   const floorsDown=()=>Math.max(0,rideGore()*33), floorsUp=()=>Math.max(0,rideInk()*33);
   function deepAmt(){ const f=floorsDown(); return f<16.5?0:Math.min(1,0.15+0.85*(f-17)/16); }
+  // Paulo, Nov 13: "the same blood effect we have for the gore filter, let's have for the ink & vinyl, but black
+  // (ink), less viscous: dripping more from objects, a cool stain on enemies and surfaces". In Ink & Vinyl the
+  // blood is on, every red is turned into ink (IC), it runs thinner, and splashes that land on a foe stick to it.
+  const INK=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
+  function IC(c){
+    if(typeof c!=='string'||!INK()) return c;
+    let r,g,b,a=1; const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c), n=/rgba?\(([^)]+)\)/.exec(c);
+    if(m){ r=parseInt(m[1],16); g=parseInt(m[2],16); b=parseInt(m[3],16); }
+    else if(n){ const q=n[1].split(',').map(Number); r=q[0]; g=q[1]; b=q[2]; if(q.length>3) a=q[3]; } else return c;
+    if(!(r>g*1.5&&r>b*1.5)&&!(r>200&&g>110&&b>110)) return c;                  // only the reds (and their pink gloss)
+    if(r>200&&g>110) return 'rgba(150,160,185,'+(a*0.55).toFixed(3)+')';         // the gloss on wet ink
+    const L=r/255; return 'rgba('+Math.round(8+22*L)+','+Math.round(7+20*L)+','+Math.round(12+28*L)+','+a+')';
+  }
+  const estains=[];                                                             // ink stuck on foes
   function goreAmt(){
+    if(INK()) return 0.85;
     const base=((window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')||(window.MV_BETA&&MV_BETA.bloodOn))?1:0;   // the GORE code keeps blood on in every filter (build 362)
     const chosen=base?(0.55+0.45*Math.min(1,floorsDown()/33))*(1-rideInk()):0;                          // picked in Options: on, gorier as he goes down
     return Math.max(0,Math.min(1,Math.max(chosen, deepAmt())));
@@ -75,6 +90,9 @@
       drops.push({x,y,px:x,py:y,vx:Math.cos(a)*sp*(chunk?0.7:1),vy:Math.sin(a)*sp-1.4,r:(chunk?3.2:1.1)+Math.random()*(chunk?3.4:2.2),t:0,max:(chunk?40:18)+Math.random()*24|0,chunk});
     }
     if(n>=8){ splashN+=n; burstN++; burstT=22; }
+    if(INK()&&typeof ENEMS!=='undefined'){ for(const e of ENEMS){ if(!e||!isFinite(e.x)||x<e.x-6||x>e.x+(e.w||32)+6||y<e.y-6||y>e.y+(e.h||32)+6) continue;
+      for(let k=0;k<2;k++) estains.push({e, ox:Math.max(2,Math.min((e.w||32)-2,x-e.x+(Math.random()-0.5)*14)), oy:Math.max(2,Math.min((e.h||32)-4,y-e.y+(Math.random()-0.5)*10)), r:2+Math.random()*3, len:0, max:10+Math.random()*28, t:0});
+      if(estains.length>90) estains.splice(0,estains.length-90); break; } }
     if(drops.length>520) drops.splice(0,drops.length-520);
   }
   // A pile of hits in the same moment throws blood on the glass.
@@ -152,7 +170,7 @@
   function splat(x,y,r){
     const fy=floorTop(x,y);
     if(fy!=null&&onFloor(x,fy)){ pour(x,fy,0.35+r*0.25); return; }
-    stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:8+Math.random()*18,bits:2+Math.random()*3|0});
+    stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:INK()?30+Math.random()*50:8+Math.random()*18,bits:2+Math.random()*3|0});
     if(stains.length>220) stains.splice(0,stains.length-220);
   }
   function puddleTick(){
@@ -177,7 +195,7 @@
     }
     // drips swell under the lip, then let go
     for(let i=hang.length-1;i>=0;i--){
-      const h=hang[i]; h.g+=0.03;
+      const h=hang[i]; h.g+=INK()?0.06:0.03;                            // ink runs thinner: drips form twice as fast
       if(h.g>=1){ drops.push({x:h.x,y:h.y+4,px:h.x,py:h.y+4,vx:0,vy:0.6,r:1.6,t:5,max:400,chunk:false,drip:true}); hang.splice(i,1); }
     }
     if(hang.length>80) hang.splice(0,hang.length-80);
@@ -190,17 +208,17 @@
       ctx.save(); ctx.globalAlpha=a;
       // the body: a flat sheet with rounded, slightly bulging ends
       const g=ctx.createLinearGradient(0,y-h,0,y+1);
-      g.addColorStop(0,'#a3061e'); g.addColorStop(0.5,'#6e0010'); g.addColorStop(1,'#3a0006');
-      ctx.fillStyle=g; ctx.beginPath();
+      g.addColorStop(0,IC('#a3061e')); g.addColorStop(0.5,IC('#6e0010')); g.addColorStop(1,IC('#3a0006'));
+      ctx.fillStyle=IC(g); ctx.beginPath();
       ctx.moveTo(x0,y+0.5);
       ctx.quadraticCurveTo(x0-h*0.6,y-h*0.2,x0+h*0.9,y-h);
       for(let k=1;k<=6;k++){ const xx=x0+h*0.9+(w-h*1.8)*k/6, wob=Math.sin(q.ph+k*1.7+(typeof fr==='number'?fr*0.02:0))*h*0.12; ctx.lineTo(xx,y-h+wob); }
       ctx.quadraticCurveTo(x1+h*0.6,y-h*0.2,x1,y+0.5);
       ctx.closePath(); ctx.fill();
       // the shine: a thin highlight along the top and a couple of glints
-      ctx.strokeStyle='rgba(255,140,150,0.55)'; ctx.lineWidth=Math.max(1,sw(0.8));
+      ctx.strokeStyle=IC('rgba(255,140,150,0.55)'); ctx.lineWidth=Math.max(1,sw(0.8));
       ctx.beginPath(); ctx.moveTo(x0+w*0.12,y-h*0.78); ctx.lineTo(x0+w*0.55,y-h*0.82); ctx.stroke();
-      ctx.fillStyle='rgba(255,220,225,0.7)';
+      ctx.fillStyle=IC('rgba(255,220,225,0.7)');
       ctx.fillRect(x0+w*0.2,y-h*0.85,Math.max(1,sw(1.4)),Math.max(1,sw(0.7)));
       if(w>sw(30)) ctx.fillRect(x0+w*0.66,y-h*0.7,Math.max(1,sw(1)),Math.max(1,sw(0.6)));
       ctx.restore();
@@ -208,15 +226,15 @@
     // a drip hanging from the lip: a thin neck and a swelling bead
     for(const h of hang){
       const X=sx(h.x), Y=sy(h.y), len=sw(2+h.g*7), r=Math.max(1,sw(1+h.g*1.4));
-      ctx.fillStyle='#7a0012';
+      ctx.fillStyle=IC('#7a0012');
       ctx.fillRect(X-Math.max(0.6,sw(0.5)),Y,Math.max(1.2,sw(1)),len);
       ctx.beginPath(); ctx.ellipse(X,Y+len,r,r*1.25,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(255,170,180,0.6)'; ctx.fillRect(X-r*0.4,Y+len-r*0.5,Math.max(1,r*0.35),Math.max(1,r*0.35));
+      ctx.fillStyle=IC('rgba(255,170,180,0.6)'); ctx.fillRect(X-r*0.4,Y+len-r*0.5,Math.max(1,r*0.35),Math.max(1,r*0.35));
     }
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; burstN=0; splashN=0; }
+    if(id!==stage){ stage=id; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; burstN=0; splashN=0; }
     if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
@@ -245,23 +263,31 @@
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawPuddles(); }catch(e){}
     for(const s of stains){
-      if(s.drip>0){ s.y+=0.35; s.drip--; }
+      if(s.drip>0){ s.y+=INK()?0.6:0.35; s.drip--; }
       ctx.save();
       ctx.translate(sx(s.x),sy(s.y)); ctx.rotate(s.rot);
       for(let b=0;b<(s.bits||3);b++){
         const ox=((b*5)%7)-3, oy=((b*3)%5)-1;
-        ctx.fillStyle='rgba('+(90+b*20)+',0,10,'+s.a.toFixed(2)+')';
+        ctx.fillStyle=IC('rgba('+(90+b*20)+',0,10,'+s.a.toFixed(2)+')');
         ctx.beginPath(); ctx.arc(sw(ox),sw(oy+ (s.drip?0:b)),Math.max(1,sw(s.r*(0.7+b*0.15))),0,Math.PI*2); ctx.fill();
       }
-      if(s.drip>0){ ctx.fillStyle='rgba(120,0,12,'+s.a.toFixed(2)+')'; ctx.fillRect(-0.6,0,1.2,sw(3)); }
+      if(s.drip>0){ ctx.fillStyle=IC('rgba(120,0,12,'+s.a.toFixed(2)+')'); ctx.fillRect(-0.6,0,1.2,sw(3)); }
       ctx.restore();
     }
+    // ink on the foes: blots stuck to their bodies, each running down in a thin line
+    for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.t++;
+      if(!e||!isFinite(e.x)||e._gone||e._hidden||q.t>1500||ENEMS.indexOf(e)<0){ estains.splice(i,1); continue; }
+      if(q.len<q.max) q.len+=0.25;
+      const X0=sx(e.x+q.ox), Y0=sy(e.y+q.oy), al=Math.min(1,(1500-q.t)/200);
+      ctx.fillStyle='rgba(10,9,14,'+(0.85*al).toFixed(3)+')'; ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
+      ctx.fillRect(X0-Math.max(0.6,sw(0.7)),Y0,Math.max(1,sw(1.4)),sw(q.len)); ctx.beginPath(); ctx.arc(X0,Y0+sw(q.len),Math.max(1,sw(1.3)),0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(150,160,185,'+(0.35*al).toFixed(3)+')'; ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
     ctx.lineCap='round';
     for(const d of drops){
-      ctx.strokeStyle=d.r>2.4?'#6e0010':'#c4001c';
+      ctx.strokeStyle=IC(d.r>2.4?'#6e0010':'#c4001c');
       ctx.lineWidth=Math.max(1,sw(d.r*0.7));
       ctx.beginPath(); ctx.moveTo(sx(d.px),sy(d.py)); ctx.lineTo(sx(d.x),sy(d.y)); ctx.stroke();
-      ctx.fillStyle='#8f0014';
+      ctx.fillStyle=IC('#8f0014');
       ctx.beginPath(); ctx.arc(sx(d.x),sy(d.y),Math.max(1,sw(d.r*0.45)),0,Math.PI*2); ctx.fill();
     }
     if(typeof _worldZoomEnd==='function') _worldZoomEnd();
@@ -272,11 +298,11 @@
       if(s.life<=0){ glass.splice(i,1); continue; }
       const a=s.a*s.life;
       ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.rot);
-      ctx.fillStyle='rgba(90,0,12,'+a.toFixed(3)+')';
+      ctx.fillStyle=IC('rgba(90,0,12,'+a.toFixed(3)+')');
       ctx.beginPath(); ctx.ellipse(0,0,s.r,s.r*0.42,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(150,4,16,'+(a*0.75).toFixed(3)+')';
+      ctx.fillStyle=IC('rgba(150,4,16,'+(a*0.75).toFixed(3)+')');
       ctx.beginPath(); ctx.ellipse(s.r*0.15,-s.r*0.05,s.r*0.45,s.r*0.22,0.4,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(110,0,14,'+(a*0.9).toFixed(3)+')';
+      ctx.fillStyle=IC('rgba(110,0,14,'+(a*0.9).toFixed(3)+')');
       ctx.fillRect(-1.1,s.r*0.15,2.2,s.drip);
       ctx.beginPath(); ctx.ellipse(0,s.r*0.15+s.drip,2.4+s.r*0.04,3.2,0,0,Math.PI*2); ctx.fill();
       ctx.restore();

@@ -202,6 +202,12 @@
     // after the tiles: the lobby, and the vault's cover
     over(B){
       if(B.stageId!=='1.3') return;
+      // the tower's floors (beta_lift lays them): one beam per cell, the same everywhere, so they read as one line
+      const L=window.MV_LIFT; if(L&&L.ledges&&typeof gridCell==='function') for(const [c,r] of L.ledges){
+        if(gridCell(c,r)!==MV_GRID_ONEWAY) continue;
+        const x=sx(c*T), y=sy(r*T), w=sw(T)+1;
+        ctx.fillStyle='#1c1a20'; ctx.fillRect(x,y,w,sw(8)); ctx.fillStyle='rgba(255,192,112,0.55)'; ctx.fillRect(x,y,w,Math.max(1,sw(1.5)));
+        ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(x,y+sw(8),w,sw(3)); }
       for(const d of B.decor){
         if(d.kind==='lobby') lobby(d);
         else if(d.kind==='cube') cube(d);

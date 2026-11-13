@@ -189,15 +189,13 @@
   function layLedges(){
     if(S.laid||typeof gridSet!=='function'||typeof gridCell!=='function'||typeof MV_GRID_AIR==='undefined'||typeof MV_GRID_ONEWAY==='undefined') return;
     if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready) return;
-    const spots=[[8,6],[19,17]];
+    // Paulo, Nov 13: the floor lines beside the elevators are platforms you can walk on, jump up through and drop
+    // off, the same all the way across the tower (they were 2-tile ledges beside each shaft, with gaps). Every stop
+    // row gets a one-way floor over the building's whole width; the shafts are cut clear again right after.
+    S.ledges=[];
     for(const fl of LEVELS){
       if(fl.n===1) continue;
-      for(const pair of spots){
-        for(let k=0;k<2;k++){
-          const c=pair[1]+k;
-          if(gridCell(c, fl.row)===MV_GRID_AIR) gridSet(c, fl.row, MV_GRID_ONEWAY);
-        }
-      }
+      for(let c=1;c<=22;c++) if(gridCell(c, fl.row)===MV_GRID_AIR){ gridSet(c, fl.row, MV_GRID_ONEWAY); S.ledges.push([c,fl.row]); }
     }
     S.laid=true;
   }
@@ -210,7 +208,7 @@
   // Paulo, Nov 12: the space cut for the cars is "just to be simulated ... the actual level shouldn't be
   // affected by it". Every rock cell the cut opens is remembered: water treats it as rock (it was filling
   // the shaft), and MIND can't climb into the slot cut through the ceiling unless he rides in a car.
-  S.cut=new Set();
+  S.cut=new Set(); S.cutOrig=new Map(); S.cutOpen=true;
   S.isCut=(c,r)=>S.cut.size>0&&S.cut.has(r*4096+c);
   function cutShafts(){
     if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready||!B.platforms||!B.platforms.length) return false;
@@ -219,7 +217,7 @@
       const k=m.x+':'+m.w; let g=groups.get(k);
       if(!g){ g={c0:Math.floor(m.x/T), c1:Math.floor((m.x+m.w-1)/T), top:1e9, bot:-1e9, loop:false}; groups.set(k,g); }
       g.top=Math.min(g.top,Math.min(m.ya,m.yb)-CAB); g.bot=Math.max(g.bot,Math.max(m.ya,m.yb)); if(m.loop) g.loop=true; }
-    const R=MV_GRID.rows, air=(c,r)=>{ if(r<0||r>=R) return; const t=gridCell(c,r); if(t!==MV_GRID_AIR&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r))){ S.cut.add(r*4096+c); gridSet(c,r,MV_GRID_AIR); } };
+    const R=MV_GRID.rows, air=(c,r)=>{ if(r<0||r>=R) return; const t=gridCell(c,r); if(t!==MV_GRID_AIR&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r))){ S.cut.add(r*4096+c); if(!S.cutOrig.has(r*4096+c)) S.cutOrig.set(r*4096+c,t); gridSet(c,r,MV_GRID_AIR); } };
     S.shafts=[];
     for(const g of groups.values()){
       const r0=Math.max(0,Math.floor(g.top/T)), rb=Math.floor(g.bot/T);
@@ -229,15 +227,27 @@
       }
       for(let c=g.c0;c<=g.c1;c++){
         for(let r=r0;r<=rb;r++){ if(r===street) continue; air(c,r); }
-        if(street!=null){ S.cut.add(street*4096+c); gridSet(c,street,MV_GRID_ONEWAY); air(c,street+1); air(c,street+2); }
+        if(street!=null){ S.cut.add(street*4096+c); if(!S.cutOrig.has(street*4096+c)) S.cutOrig.set(street*4096+c,gridCell(c,street)); gridSet(c,street,MV_GRID_ONEWAY); air(c,street+1); air(c,street+2); }
       }
       // the ceiling slot: the run of cut rows from the top of the shaft down (rock in the level)
       let cr=r0; while(cr<rb&&S.isCut(g.c0,cr)&&S.isCut(g.c1,cr)) cr++;
       S.shafts.push({x0:g.c0*T, x1:(g.c1+1)*T, top:r0*T, street:street!=null?street*T:null, loop:g.loop, ceil:cr>r0?cr*T:null});
     }
     yCache.clear();
+    S.cutOpen=true; lockCut(!S.sealed);                         // shut until you ride through it
     return true;
   }
+  // Paulo, Nov 13: "the gap doesn't exist, I only want the elevator to be able to go through it with us inside
+  // ... make that area always locked, and only open when we're inside the elevator going through it, and it
+  // closes again when the elevator door opens". The cut (under the street, through the roof) is rock again
+  // except while MIND rides sealed in a car — nothing (an item, a foe) can fall in it.
+  function lockCut(lock){
+    if(typeof gridSet!=='function') return;
+    const open=!lock; if(S.cutOpen===open) return; S.cutOpen=open;
+    for(const k of S.cut){ const c=k%4096, r=Math.floor(k/4096); gridSet(c,r,open?MV_GRID_AIR:(S.cutOrig.get(k)!=null?S.cutOrig.get(k):MV_GRID_SOLID)); }
+    yCache.clear();
+  }
+  S.lockCut=lockCut;
   // under the street platform: in again at the top of the shaft, falling
   function shaftWrap(){
     if(!p) return;
@@ -436,7 +446,7 @@
     if(id!==S.stage){
       S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0; S.musicT=0; S.barT=0;
       S.cab=null; S.inside=false; S.ask=false; S.sealed=false; S.laid=false; S.near=false;
-      yCache.clear(); S.cut.clear();
+      yCache.clear(); S.cut.clear(); S.cutOrig.clear(); S.cutOpen=true;
       for(const m of B.platforms){ m.phase=null; m._lift=null; m.door=0; m._used=false; }
     }
     if(!live()){
@@ -502,6 +512,7 @@
       }
     }
     S.cab=sealed; S.sealed=!!sealed; S.inside=!!sealed; S.hold=hold;
+    if(S.cut.size) lockCut(!sealed);
     companionRide(sealed);
     if(sealed){
       const left=sealed.x+6, right=sealed.x+sealed.w-6-(typeof SW==='number'?SW:40);
@@ -634,28 +645,26 @@
   }
   hookStops();
 
-  const buf=document.createElement('canvas'), bg=buf.getContext('2d');
+  const buf=document.createElement('canvas'), bg=buf.getContext('2d'), small=document.createElement('canvas'), sg=small.getContext('2d');
   function screenCab(m){
     const z=(typeof camZoom==='number'&&camZoom)||1;
     return {x:sx(m.x)*z, y:sy(m.y-CAB)*z, w:Math.max(12,sw(m.w)*z), h:Math.max(12,sw(CAB)*z)};
   }
   function veil(){
     if(!S.sealed||!S.cab||typeof ctx==='undefined'||typeof sx!=='function') return;
-    const cv=ctx.canvas;
-    if(buf.width!==cv.width||buf.height!==cv.height){ buf.width=cv.width; buf.height=cv.height; }
-    bg.drawImage(cv,0,0);
-    const cab=screenCab(S.cab);
-    const blur=4+3*Math.min(1,S.zoom||0);
-    ctx.save();
-    try{ ctx.filter='blur('+blur.toFixed(1)+'px)'; }catch(e){}
-    ctx.drawImage(buf,0,0);
-    ctx.filter='none';
-    ctx.fillStyle='rgba(4,2,8,0.62)';
-    ctx.fillRect(0,0,cv.width,cv.height);
-    const pad=6;
-    const x=Math.max(0,cab.x-pad), y=Math.max(0,cab.y-pad);
-    const w=Math.min(cv.width-x,cab.w+pad*2), h=Math.min(cv.height-y,cab.h+pad*2);
-    if(w>2&&h>2) ctx.drawImage(buf,x,y,w,h,x,y,w,h);
+    // (build 406, frame rate) no full-screen blur filter any more: the frame shrunk to a quarter and scaled back up
+    // smoothed reads as the same soft blur at a fraction of the cost; only the car's own patch is kept sharp
+    const cv=ctx.canvas, cab=screenCab(S.cab), pad=6;
+    const x=Math.max(0,Math.floor(cab.x-pad)), y=Math.max(0,Math.floor(cab.y-pad));
+    const w=Math.min(cv.width-x,Math.ceil(cab.w+pad*2)), h=Math.min(cv.height-y,Math.ceil(cab.h+pad*2));
+    if(w>2&&h>2){ if(buf.width<w||buf.height<h){ buf.width=Math.max(buf.width,w); buf.height=Math.max(buf.height,h); } bg.clearRect(0,0,w,h); bg.drawImage(cv,x,y,w,h,0,0,w,h); }
+    const k=Math.max(4,Math.round(5+3*Math.min(1,S.zoom||0))), sw0=Math.max(1,Math.round(cv.width/k)), sh0=Math.max(1,Math.round(cv.height/k));
+    if(small.width!==sw0||small.height!==sh0){ small.width=sw0; small.height=sh0; }
+    sg.imageSmoothingEnabled=true; sg.drawImage(cv,0,0,sw0,sh0);
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(small,0,0,cv.width,cv.height);
+    ctx.fillStyle='rgba(4,2,8,0.62)'; ctx.fillRect(0,0,cv.width,cv.height);
+    if(w>2&&h>2) ctx.drawImage(buf,0,0,w,h,x,y,w,h);
     ctx.restore();
   }
   // the 67 floors (-33 .. +33) as a column of dots on the right edge, heaven at the top, the depths below

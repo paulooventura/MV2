@@ -392,6 +392,15 @@
     // jump was caught again at once by the floor (or roof) coming up under him. Jumping off a car now
     // carries its lift into the jump, and that car can't catch him again for a moment.
     { const was=B.ridePlat||B.roofPlat;
+      // Paulo, Nov 13: "We're still not able to jump down from the moving elevators." DOWN + JUMP on a moving car /
+      // platform (outside a closed cab) drops him off it, the way it drops him through a one-way floor
+      const sealed=!!(window.MV_LIFT&&MV_LIFT.sealed);
+      if(was&&p&&!sealed&&typeof isDn==='function'&&isDn()&&((typeof isJumpJ==='function'&&isJumpJ())||B._dropReq)){
+        B._dropReq=false; B._jumpOff={q:was,t:26}; B.ridePlat=null; B.roofPlat=null;
+        p.y+=10; p.vy=Math.max(2.5,(was.dy||0)+2.5); p.og=false; p._groundHold=0; if(typeof _mvDropThru!=='undefined') _mvDropThru=16;
+        try{ if(OPT&&OPT.binds&&OPT.binds.jump) OPT.binds.jump.forEach(c=>delete Kj[c]); }catch(e){}
+        B.carDrops=(B.carDrops|0)+1;
+      }
       if(was&&p&&(p.vy||0)<-1){ B._jumpOff={q:was,t:20}; if((was.dy||0)<0) p.vy+=was.dy; B.ridePlat=null; B.roofPlat=null; B.carJumps=(B.carJumps|0)+1; }
       if(B._jumpOff&&--B._jumpOff.t<=0) B._jumpOff=null; }
     const jumpedOff=q=>!!(B._jumpOff&&B._jumpOff.q===q);
@@ -1203,8 +1212,12 @@
     // under water the whole mix is muffled (sound16.js), closing as his head goes under
     B.uwK=(B.uwK||0)+((dpt.f>0.55?Math.min(1,(dpt.f-0.55)/0.35):0)-(B.uwK||0))*0.12;
     if(window.MV_SOUND16&&MV_SOUND16.underwater) MV_SOUND16.underwater(B.uwK);
-    if(dpt.f>0.4){
-      const live=dpt.live;
+    // Paulo, Nov 13: "activate the short circuiting ... when the water level reaches the box body, and not the
+    // motorcycle wheel". The short starts when the water is up to the bottom of his box, not before.
+    const WR=typeof WHEEL_R==='number'?WHEEL_R:12, bx=p.x+SW/2, boxBot=p.y+FEET_OFF-2*WR-4;
+    const bodyWet=waterAt(bx,boxBot)||waterAt(bx-14,boxBot)||waterAt(bx+14,boxBot);
+    if(bodyWet){
+      const live=dpt.live||elecAt(bx,boxBot);
       if(!B.hasIsolator){
         const drain=live?1.6:0.55;
         p.hp=Math.max(0,p.hp-drain);
@@ -1216,6 +1229,7 @@
       }else if(live&&fr%4===0) spark(p.x+SW/2,p.y+FEET_OFF-50,34,'#8af');
     }
     if(B.shortT>0) B.shortT--;
+    if(surfSkid(bx,boxBot,bodyWet)) { if(B.kickCd>0) B.kickCd--; return; }
     // swimming: a kick on jump, a stronger one to hop out at the surface
     if(dpt.f>0.3&&typeof isJumpJ==='function'&&isJumpJ()&&(B.kickCd||0)<=0){
       const out=dpt.f<0.75;
@@ -1234,6 +1248,40 @@
     if(B.bubbles.length>320) B.bubbles.splice(0,B.bubbles.length-320);
   }
   B.waterTick=waterTick;
+  // Paulo, Nov 13: coming up out of the water, moving to a side (spamming jump), MIND skids on the surface like a
+  // stone skipping: the wheel rides the top of the water, throws a spray back, builds sideways speed, and doesn't
+  // sink back in; holding jump while skidding launches him off it. So you're never trapped in it, shorting out.
+  function surfSkid(bx,boxBot,bodyWet){
+    const feet=p.y+FEET_OFF, dir=(typeof isRt==='function'&&isRt()?1:0)-(typeof isLf==='function'&&isLf()?1:0);
+    let surfY=null;                                                                       // the water's top just clear of his body (it displaces the water under it)
+    for(const ox of [-52,52,-72,72]){ const sf=surfaceNear(bx+ox,feet); if(sf&&isFinite(sf.top)&&(surfY==null||sf.top<surfY)) surfY=sf.top; }
+    const wheelWet=surfY!=null&&feet>surfY-10&&feet<surfY+40;
+    if(typeof isJumpJ==='function'&&isJumpJ()) B.skidJumpFr=fr;
+    const S2=B.skid||(B.skid={on:false,t:0});
+    const want=dir!==0&&wheelWet&&!bodyWet&&!(p.hook&&p.hook.st==='on')&&(S2.on||fr-(B.skidJumpFr||-99)<24||Math.abs(p.vx||0)>3);
+    if(want) S2.grace=8; else if(S2.on&&dir!==0&&!bodyWet&&(S2.grace=(S2.grace|0)-1)>0){ /* a hop on the chop: keep skimming */ }
+    else { S2.on=false; return false; }
+    if((p.vy||0)<-6){ S2.on=false; return false; }
+    // the surface right under the wheel
+    const sy=surfY;
+    if(!S2.on){ S2.on=true; S2.t=0; S2.hold=0; try{ splash(bx,sy,1,true); }catch(e){} }
+    S2.t++;
+    p.y+=((sy+5)-feet)*0.5; p.vy=Math.min(0,(p.vy||0)*0.3); p.og=false; p._groundHold=0;
+    const top=(typeof MOVE_RUN==='number'?MOVE_RUN:12.4)*0.62;
+    p.vx+=(dir*top-(p.vx||0))*0.08; p.fc=dir>0;
+    p.wheelAngle=(p.wheelAngle||0)+dir*0.45;
+    // the wheel throws the water back: a spray (looks only) and a little of the water itself
+    for(let i=0;i<3;i++) PFXS.push({x:bx-dir*8+(Math.random()-0.5)*8,y:sy-2,vx:-dir*(2+Math.random()*3.5)+(Math.random()-0.5),vy:-2-Math.random()*3,life:16+(Math.random()*10|0),maxLife:26,r:1.6+Math.random()*1.6,col:Math.random()<0.5?'#bfe6ff':'#7fc8ff'});
+    if(S2.t%10===0&&B.drops&&B.drops.length<200) B.drops.push({x:bx-dir*14,y:sy-6,vx:-dir*3,vy:-3,m:0.15});
+    if(S2.t%14===1) try{ sfx('tire_squeal',0.25); }catch(e){}
+    if(S2.t%22===1) try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(0.5); }catch(e){}
+    // jump held while skidding: off the water
+    // taps keep him skimming; HOLDING jump (~1/3 s) launches him off the water
+    const held=typeof isJump==='function'?isJump():false; S2.hold=held?(S2.hold|0)+1:0;
+    if(S2.hold>=20){ p.vy=(typeof JI==='number'?JI:-9)*1.55; S2.on=false; S2.hold=0; B.kickCd=14; try{ sfx('jump_reg'); }catch(e){} try{ splash(bx,sy,1.2,true); }catch(e){} B.skidJumps=(B.skidJumps|0)+1; }
+    B.skids=(B.skids|0)+1;
+    return true;
+  }
 
   function spark(x,y,spread,col){
     for(let k=0;k<2;k++){ const a=Math.random()*Math.PI*2, r=Math.random()*spread;

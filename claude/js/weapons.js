@@ -568,7 +568,15 @@ function updatePlayerShots(){
         const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
         if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
-        window._shotHitNow=s; try{ _damageEnemy(e,ldmg,s.x,s.y); } finally{ window._shotHitNow=null; } dead=true; break;   // (which shot it was: enemy F only takes loaded ones)
+        window._shotHitNow=s; try{ _damageEnemy(e,ldmg,s.x,s.y); } finally{ window._shotHitNow=null; } dead=true;   // (which shot it was: enemy F only takes loaded ones)
+        // (Paulo, Nov 13) the shot shoves the foe back, a little harder than its recoil shoves MIND; light foes go further
+        if(e&&!e._boss&&!e._betaHeld&&typeof _applyItemForceToEnemy==='function'){
+          const sp=Math.hypot(s.vx,s.vy)||1, ux=s.vx/sp, uy=s.vy/sp, B2=window.MV_BETA;
+          const wf=B2&&B2.itemFx&&B2.weightOf?B2.itemFx(B2.weightOf('enemy',e)||6):1, kick=(s.charged?(s.enhanced?9:7.5):(s.enhanced?4:3.4))*wf;
+          _applyItemForceToEnemy(e,ux*kick,uy*kick*0.5-1.2*wf);
+          if(e._ai){ e._thrownF=Math.max(e._thrownF||0,s.charged?18:8); e.mn=-1e6; e.mx=1e6; e._reCenter=true; }
+        }
+        break;
       }
     }
     if(dead){p.shots.splice(i,1);continue;}

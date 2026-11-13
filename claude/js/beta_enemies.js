@@ -581,6 +581,12 @@
   // back at a ledge or a wall, and spins as it goes (its face turns with it)
   function rollTick(e,near,face){
     const wet=wetAt(e.x+e.w/2,e.y+e.h/2);
+    // Paulo, Nov 13: foe A dodges: it dribbles away like a basketball — a hop, then each bounce off the floor
+    // higher and faster than the last (it gains momentum), three of them, then it rolls on.
+    if(e._hopCd>0) e._hopCd--;
+    if(near&&!wet&&!(e._hopCd>0)&&e.alive){ const m=mindCenter(), c=center(e), adx=Math.abs(m.x-c.x);
+      if(adx<230&&Math.abs(m.y-c.y)<120&&Math.random()<(adx<120?0.06:0.02)){
+        const away=m.x<c.x?1:-1; e._hop={n:0,dir:away}; e.vy=-6.2; e.vx=away*3; e.og=false; e._falling=true; e._hopCd=170; try{ sfxAt(e,'land'); }catch(_e){} B.foeHops=(B.foeHops|0)+1; return; } }
     const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
     const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
     const lead=dir>0?nx+e.w-12:nx+12;
@@ -667,6 +673,7 @@
   }
   function fallTick(e){
     if(!e._iso&&shortIfWet(e)) return;
+    if(e._hop&&e.vx){ const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)){ e.x=nx; e.roll=(e.roll||0)+e.vx/(e.w/2); } else e.vx=-e.vx*0.5; }
     if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
     else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
@@ -686,8 +693,11 @@
     if(lp&&e.vy>=0){ e.y=lp.y-e.h; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; e._plat=lp; e._platOff=e.x-lp.x; return; }
     if(floorUnder(e.x,e.w,feet)){
       e.y=floorSnap(e,feet);
+      const vLand=e.vy;
       if(e._falling) land(e,e.vy);
       e.vy=0; e.og=true; e._falling=false; e.baseY=e.y;
+      if(e._hop&&e.alive){ const H=e._hop; if(H.n<2){ H.n++; e.vy=-(6.2+2.4*H.n); e.vx=H.dir*(3+1.2*H.n); e.og=false; e._falling=true; e._squash=6; } else { e._hop=null; e.vx=0; } }   // the dribble: each bounce higher
+      if(e._newHome&&e.alive!==undefined){ e._newHome=false; e.homeX=e.x+e.w/2; e._spawnAt={x:e.x, y:e.y, mn:e.mn, mx:e.mx, dir:e.dir, hp:e.mhp||e.hp}; }   // dropped by the MAG: it lives here now
     }else{ e.y=ny; e.og=false; }   // (out of the world: B.enemyRespawnTick brings it back)
   }
 

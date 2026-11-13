@@ -958,8 +958,24 @@
     const skinUse=(skin&&B.stageId==='1.3'&&B._skinFix)?B._skinFix:skin;
     const sk=(c,r)=>skinUse?skinUse[r][c]:0;
     // underground air: stone (basement) or cave
+    // Paulo, Nov 13: "some triangular blocks revealing the background ... those buildings should look solid". A ramp
+    // cell only paints its solid triangle; its open half showed the sky. Behind a ramp now goes what's on its open
+    // side: a tower's facade if that's solid, or the room / cellar / cave next to it (any stage).
+    const bgFor=(c,r)=>{ const t=cells[r]&&cells[r][c], s=sk(c,r); if(t===4||t===5) return null; return {solid:t===1, s}; };
     for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
-      if(cells[r][c]) continue;
+      const t0=cells[r][c];
+      if(t0===4||t0===5){
+        const open=t0===5?-1:1;                                      // SR rises to the right: its open half is up-left
+        for(const [dc,dr] of [[open,0],[0,-1],[open,-1],[-open,0],[0,1]]){ const n=bgFor(c+dc,r+dr); if(!n) continue;
+          if(n.solid&&n.s>=7&&window.MV_CITY){ const im=MV_CITY.img(c,r,n.s,false); if(im){ ctx.drawImage(im,X(c*T),Y(r*T),S(T)+1,S(T)+1); } break; }
+          if(!n.solid&&n.s===4){ blit(tex.stone[r%2],c,r); break; } if(!n.solid&&n.s===5){ blit(tex.cave[(c*7+r*3)&3],c,r); break; }
+          if(!n.solid&&n.s>=10&&window.MV_CITY){ MV_CITY.air(c,r,n.s); break; }
+          if(n.solid&&(n.s===2||n.s===1||n.s===3||n.s===6)){ blit(n.s===2?tex.brick[r&1]:n.s===3?tex.wood:n.s===6?tex.scales:tex.roof,c,r); break; }
+          if(!n.solid) break;                                         // open sky / plain air beside it: leave the sky
+        }
+        continue;
+      }
+      if(t0) continue;
       const s=sk(c,r);
       if(s===4) blit(tex.stone[r%2],c,r); else if(s===5) blit(tex.cave[(c*7+r*3)&3],c,r);
       else if(s>=10&&window.MV_CITY) MV_CITY.air(c,r,s);            // 1.3: inside the towers (beta_city.js)
