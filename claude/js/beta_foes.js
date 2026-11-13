@@ -369,10 +369,28 @@
   // projectiles/lasers should shoot more constantly, and they should gradually deal more damage the closer we
   // are from eliminating the boss." rage = how much of it is gone (0 full .. 1 nearly down).
   function bossRage(e){ return Math.max(0,Math.min(1,1-e.hp/(e.mhp||1))); }
+  // Paulo, Nov 13: down for good, the heptagon doesn't balance on a corner: it falls, turns onto its nearest flat
+  // side and sits flush on the floor (its collision is its shape), eyes "X X"
+  function bossRest(e){
+    const R=56, apo=R*Math.cos(Math.PI/NODES), cx=e.x+e.w/2;
+    let best=null, bd=1e9; for(let i=0;i<NODES;i++){ let t=Math.PI-(i+0.5)*Math.PI*2/NODES; while(t-e.rot>Math.PI) t-=Math.PI*2; while(t-e.rot<-Math.PI) t+=Math.PI*2; const dd=Math.abs(t-e.rot); if(dd<bd){ bd=dd; best=t; } }
+    e.rot+=(best-e.rot)*0.12;
+    let fy=null; for(let y=e.y+e.h/2;y<e.y+e.h/2+2000;y+=4){ if(solid(cx,y)||solid(cx-R*0.5,y)||solid(cx+R*0.5,y)){ fy=y; break; } }
+    if(fy==null){ e.vy=Math.min((e.vy||0)+0.5,12); e.y+=e.vy; return; }
+    const want=fy-apo-e.h/2;
+    if(e.y<want-1){ e.vy=Math.min((e.vy||0)+0.5,12); e.y=Math.min(want,e.y+e.vy); if(e.y>=want){ e.vy=0; B.shake=Math.max(B.shake||0,5); } }
+    else { e.y+=(want-e.y)*0.3; e.vy=0; }
+    e.vx=0; e.beams=null;
+  }
+  B.bossRest=bossRest;
   function bossTick(e){
+    if(!e.alive){ bossRest(e); return; }
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, d=Math.hypot(dx,P.y-c.y);
     const near=d<620, rage=bossRage(e);
-    const hm=(kx,ky,dmg)=>{ const ok=hurtMind(kx,ky,Math.round(dmg*(1+1.1*rage))); if(ok&&(e._laughCd||0)<fr){ e._laughCd=fr+200; e._mockT=60; e._mockLine=GLOAT[(e._gl=(e._gl|0)+1)%GLOAT.length]; try{ laugh(e); }catch(er){} } return ok; };
+    // Paulo, Nov 13: exact damage — a pellet like foe A's (12), a notch laser a third of the bar (33), the foe-E
+    // beam three quarters (75); the elevator's floor scaling doesn't touch them. A kiritsuke in a beam's path
+    // turns it: MIND takes nothing and the boss takes half of what he would have (once per firing).
+    const hm=(kx,ky,dmg)=>{ window._mvExactDmg=true; let ok=false; try{ ok=hurtMind(kx,ky,dmg); } finally{ window._mvExactDmg=false; } if(ok&&(e._laughCd||0)<fr){ e._laughCd=fr+200; e._mockT=60; e._mockLine=GLOAT[(e._gl=(e._gl|0)+1)%GLOAT.length]; try{ laugh(e); }catch(er){} } return ok; };
     // T466 (Paulo, Nov 11): three phases. 1: full to 2/3 HP, only the small ball projectiles.
     // 2: 2/3 to 1/3, balls + the notch lasers. 3: the last third, it gets really angry and moves
     // faster, with both of those AND foe E's powerful laser beam (aimed at MIND, then fired).
@@ -411,14 +429,14 @@
       const ux=e._eb.ux, uy=e._eb.uy, L=rayEnd(c.x,c.y,ux,uy,1100);
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
       if(e.stT===tel){ S('laser',0.35); S('zap',0.5); B.shake=Math.max(B.shake||0,7); }
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hm(ux*8,-5,24);
+      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34){ if(!beamTurned(e,c.x,c.y,ux,uy,L,75)) hm(ux*8,-5,75); }
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }
     else if(e.st==='corona'){                                      // a corona of 7 beams: telegraphed, then it fires and turns
       const tel=hard?34:46, fire=hard?70:55;
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[]};
       for(let i=0;i<NODES;i++){ const n=nodePos(e,i), ux=Math.cos(n.a), uy=Math.sin(n.a); const L=rayEnd(n.x,n.y,ux,uy,900); e.beams.list.push({x:n.x,y:n.y,ux,uy,L});
-        if(!e.beams.tel&&segDist(P.x,P.y,n.x,n.y,n.x+ux*L,n.y+uy*L)<22) hm(ux*6,-4,18); }
+        if(!e.beams.tel&&segDist(P.x,P.y,n.x,n.y,n.x+ux*L,n.y+uy*L)<22){ if(!beamTurned(e,n.x,n.y,ux,uy,L,33)) hm(ux*6,-4,33); } }
       if(e.stT===tel){ S('laser',0.5); B.shake=Math.max(B.shake||0,4); }
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }else if(e.st==='volley'){                                     // the nodes fire bolts at him, one after another
@@ -430,12 +448,24 @@
       const a=Math.PI*0.15+Math.PI*0.7*(e.stT/120)*(e.sweepDir||1);
       const ux=Math.cos(Math.PI/2+(e.sweepDir||1)*(-Math.PI*0.45+Math.PI*0.9*e.stT/120)), uy=Math.abs(Math.sin(Math.PI/2+(-Math.PI*0.45+Math.PI*0.9*e.stT/120)));
       const L=rayEnd(c.x,c.y,ux,uy,900); e.beams={tel:e.stT<30, k:e.stT<30?e.stT/30:1, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hm(ux*7,-5,22);
+      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34){ if(!beamTurned(e,c.x,c.y,ux,uy,L,33)) hm(ux*7,-5,33); }
       if(e.stT>=120){ e.st='gap'; e.stT=0; e.beams=null; e.sweepDir=-(e.sweepDir||1); }
     }
     for(let i=e.bolts.length-1;i>=0;i--){ const b=e.bolts[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
       if(b.life<=0||solid(b.x,b.y)){ burst(b.x,b.y,5,['#ff8080','#ffd0d0'],2); e.bolts.splice(i,1); continue; }
-      if(Math.hypot(b.x-P.x,b.y-P.y)<26){ hm(b.vx*0.8,-3,10); e.bolts.splice(i,1); } }
+      if(Math.hypot(b.x-P.x,b.y-P.y)<26){ hm(b.vx*0.8,-3,12); e.bolts.splice(i,1); } }
+  }
+  // the blade in a beam: the beam stops on it (MIND is shielded) and runs back into the boss at half strength
+  function beamTurned(e,x0,y0,ux,uy,L,dmg){
+    const bl=B.knifeBlade&&B.knifeBlade(); if(!bl) return false;
+    const ex=bl.hx+Math.cos(bl.aw)*60, ey=bl.hy+Math.sin(bl.aw)*60;
+    let hit=false; for(let k=0;k<=6&&!hit;k++){ const t=k/6, qx=bl.hx+(ex-bl.hx)*t, qy=bl.hy+(ey-bl.hy)*t; if(segDist(qx,qy,x0,y0,x0+ux*L,y0+uy*L)<14) hit=true; }
+    if(!hit) return false;
+    if(fr%3===0) burst(bl.hx+(ex-bl.hx)*0.5,bl.hy+(ey-bl.hy)*0.5,6,['#ffffff','#ffd060','#ff8080'],4);
+    const key=e.stT+'|'+e.st; if(e._turnedKey!==e.st+e.pat+'|'+Math.floor(fr/120)){ e._turnedKey=e.st+e.pat+'|'+Math.floor(fr/120);
+      knifeHit=true; window._knifeHitNow=true; try{ if(typeof _damageEnemy==='function') _damageEnemy(e,Math.round(dmg/2),x0,y0,0.2); } finally{ knifeHit=false; window._knifeHitNow=false; }
+      S('omniblock_chip',0.8); B.beamsTurned=(B.beamsTurned|0)+1; }
+    return true;
   }
   function bossDefeat(e){
     if(e._defeated) return; e._defeated=true; B.bossDown=true; B.bossOn=false;
@@ -499,7 +529,8 @@
       ctx.beginPath(); for(const s of [-1,1]){ ctx.moveTo(s*R*0.3,R*0.0); ctx.lineTo(s*R*0.22,-R*0.08); ctx.lineTo(s*R*0.14,R*0.0); } ctx.stroke();
     }else{
       const er=sw(5+5*sc);
-      ctx.fillStyle=off?'#5a5060':'#ffe0e0'; ctx.beginPath(); ctx.arc(-R*0.22,-R*0.02,er,0,Math.PI*2); ctx.arc(R*0.22,-R*0.02,er,0,Math.PI*2); ctx.fill();
+      if(off){ ctx.beginPath(); for(const s of [-1,1]){ const ex=s*R*0.22, ey=-R*0.02, k=R*0.1; ctx.moveTo(ex-k,ey-k); ctx.lineTo(ex+k,ey+k); ctx.moveTo(ex+k,ey-k); ctx.lineTo(ex-k,ey+k); } ctx.stroke(); }   // X X
+      else{ ctx.fillStyle='#ffe0e0'; ctx.beginPath(); ctx.arc(-R*0.22,-R*0.02,er,0,Math.PI*2); ctx.arc(R*0.22,-R*0.02,er,0,Math.PI*2); ctx.fill(); }
       if(sc>0.15&&!off){ ctx.fillStyle='#1a0a10'; const pr=Math.max(1.5,sw(3*(1-sc*0.6))), jx=Math.sin(fr*0.7)*sw(1.5)*sc; ctx.beginPath(); ctx.arc(-R*0.22+jx,-R*0.02,pr,0,Math.PI*2); ctx.arc(R*0.22+jx,-R*0.02,pr,0,Math.PI*2); ctx.fill(); }   // pinpoint pupils, darting
     }
     ctx.beginPath();

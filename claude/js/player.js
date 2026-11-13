@@ -279,7 +279,7 @@ function _updateRunEntry(pl){
   if(standing&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
   if(btn&&!was&&standing){
     if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
-    else if((pl._stillT||0)>=30) pl._standTapT=16;
+    else if((pl._stillT||0)>=90) pl._standTapT=16;   // (build 407, Paulo) only after 1.5 s standing still (was 0.5 s)
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)
@@ -624,6 +624,8 @@ function _updatePlayerMoveX(pl){
     }else cap=Math.max(cap,Math.abs(pl.vx)*0.92);
   }
   if(coast) cap=Math.max(cap, Math.abs(pl.vx));
+  // (build 407, Paulo) spamming the TRS while driving: the forward speed drops so you can place your shots
+  if(pl===p&&ITEM===0&&fr-(pl._trsLastFr||-999)<22&&grounded){ cap=Math.min(cap,MOVE_WALK_TOP*0.45); if(Math.abs(pl.vx)>cap) pl.vx*=0.9; }
   pl._moveCap=cap;
   let accel=(sprint?MOVE_RUN_ACCEL:MOVE_ACCEL)*HS.accel;
   accel*=0.45+0.55*Math.min(1,spin*1.6);              // the wheel takes a moment to bite

@@ -36,8 +36,10 @@
     const L=r/255; return 'rgba('+Math.round(8+22*L)+','+Math.round(7+20*L)+','+Math.round(12+28*L)+','+a+')';
   }
   const estains=[];                                                             // ink stuck on foes
+  // (build 407 fix) Ink & Vinyl has blood (bloodAmt) but none of GORE's look or sound: goreAmt is GORE's alone —
+  // it drove the red grade and the metal hit layer, which turned I&V red and made the shutdowns loud
+  function bloodAmt(){ return INK()?0.85:goreAmt(); }
   function goreAmt(){
-    if(INK()) return 0.85;
     const base=((window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')||(window.MV_BETA&&MV_BETA.bloodOn))?1:0;   // the GORE code keeps blood on in every filter (build 362)
     const chosen=base?(0.55+0.45*Math.min(1,floorsDown()/33))*(1-rideInk()):0;                          // picked in Options: on, gorier as he goes down
     return Math.max(0,Math.min(1,Math.max(chosen, deepAmt())));
@@ -76,11 +78,11 @@
   }
   window.MV_DEPTH={floorsDown, floorsUp, deepAmt, goreAmt:()=>goreAmt()};
   window.addEventListener('load',()=>{ const _o=window.drawDamageOverlay; window.drawDamageOverlay=function(){ const r=typeof _o==='function'?_o.apply(this,arguments):undefined; try{ depthOverlay(); }catch(e){} return r; }; });
-  function gore(){ return goreAmt()>0.04; }
+  function gore(){ return bloodAmt()>0.04; }
   function playing(){ return gore()&&typeof _gameState!=='undefined'&&_gameState==='game'; }
   function spray(x,y,n,bias){
     if(!playing()||!isFinite(x)||!isFinite(y)) return;
-    const scale=goreAmt();
+    const scale=bloodAmt();
     if(scale<0.98) n=Math.max(n>1?1:n, Math.round(n*scale));
     const base=bias==null?-Math.PI/2:bias;
     for(let i=0;i<n;i++){
@@ -167,10 +169,15 @@
     if(puddles.length>90) puddles.shift();
   }
   window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }};
+  // Paulo, Nov 13: blood (and ink) never hangs in the air or sits inside a wall: it lands on a surface; on a wall
+  // it slides down in a little line, and where the wall ends it lets go as a drop that falls to the next surface
   function splat(x,y,r){
     const fy=floorTop(x,y);
     if(fy!=null&&onFloor(x,fy)){ pour(x,fy,0.35+r*0.25); return; }
-    stains.push({x,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:INK()?30+Math.random()*50:8+Math.random()*18,bits:2+Math.random()*3|0});
+    let side=0; for(const s of [-1,1]) if(hitFloor(x+s*4,y)){ side=s; break; }
+    if(!side){ if(hitFloor(x,y)) return; drops.push({x,y,px:x,py:y,vx:0,vy:0.8,r:Math.max(1,r),t:5,max:900,chunk:false,drip:true}); return; }   // nothing to stick to: it keeps falling
+    let sx0=x; for(let k=0;k<6&&!hitFloor(sx0+side*1,y);k++) sx0+=side;           // right on the wall's face
+    stains.push({x:sx0,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:INK()?30+Math.random()*50:8+Math.random()*18,bits:2+Math.random()*3|0, side, y0:y});
     if(stains.length>220) stains.splice(0,stains.length-220);
   }
   function puddleTick(){
@@ -251,9 +258,44 @@
       const d=drops[i];
       d.px=d.x; d.py=d.y;
       d.vy+=0.32; d.x+=d.vx; d.y+=d.vy; d.vx*=0.985; d.t++;
-      if(d.t>4&&hitFloor(d.x,d.y+2)){ splat(d.px,d.py,d.r*0.4); drops.splice(i,1); continue; }
-      if(d.t>=d.max){ splat(d.x,d.y,d.r*0.45); drops.splice(i,1); }
+      // (Paulo, Nov 13) flying at MIND, it lands on him: a stain on his body that runs down
+      if(d.t>3&&typeof p!=='undefined'&&p&&!d.drip&&!d.own){ for(const pl of [p, window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null]){ if(!pl) continue;
+        const bx=pl.x+SW/2-22, by=pl.y+FEET_OFF-100; if(d.x>bx&&d.x<bx+44&&d.y>by&&d.y<by+80){ estains.push({e:pl, ox:d.x-pl.x, oy:d.y-pl.y, r:1.5+Math.random()*2.5, len:0, max:8+Math.random()*22, t:0, me:true}); if(estains.length>90) estains.shift(); drops.splice(i,1); d._gone=true; break; } }
+        if(d._gone) continue; }
+      if(d.t>4&&(hitFloor(d.x,d.y+2)||hitFloor(d.x,d.y))){ splat(d.px,d.py,d.r*0.4); drops.splice(i,1); continue; }
+      if(d.t>=Math.max(d.max,600)||d.y>(typeof MV_GRID!=='undefined'&&MV_GRID?MV_GRID.rows*MV_GRID.tile:1e5)){ drops.splice(i,1); }   // (out of the world or very old: gone, never a stain in the air)
     }
+    // stains on a wall run down its face; past its bottom edge the run lets go and drips to what's below
+    for(const s of stains){ if(!s.side||!(s.drip>0)) continue;
+      const ny=s.y+(INK()?0.6:0.35);
+      if(!hitFloor(s.x+s.side*3,ny+2)){ drops.push({x:s.x,y:ny+2,px:s.x,py:ny,vx:0,vy:0.6,r:1.4,t:5,max:900,chunk:false,drip:true}); s.drip=0; continue; }
+      s.ly=ny;
+    }
+  }
+  // (Paulo, Nov 13) "We also bleed if we get hit": a spray off MIND on every hit that hurts him
+  window.addEventListener('load',()=>{ const _h=window.applyPlayerHit; if(typeof _h!=='function') return;
+    window.applyPlayerHit=function(kx,ky,dmg){ const hp0=typeof p!=='undefined'&&p?p.hp:0; const r=_h.apply(this,arguments);
+      try{ if(p&&p.hp<hp0&&playing()){ const n=Math.min(22,4+Math.round((hp0-p.hp)*0.5)); const k0=drops.length; spray(p.x+SW/2,p.y+FEET_OFF-55,n,Math.atan2((ky||-1),(kx||0))||-Math.PI/2); for(let j=k0;j<drops.length;j++) drops[j].own=true; } }catch(e){}
+      return r; }; });
+  // Paulo, Nov 13: Ink & Vinyl gets its own words, wholesome ones, in a dreamy cloud: a soft good-night when a foe
+  // is off for good, a sleepy "not yet" on a 1st / 2nd shutdown
+  const dreams=[], DREAM_OFF=['SWEET DREAMS','SLEEP TIGHT','REST NOW','NIGHT NIGHT','PEACE, LITTLE ONE'], DREAM_NOT=['NOT SLEEPY YET...','FIVE MORE MINUTES!','ALMOST DOZING...','ONE MORE SONG?'];
+  window.addEventListener('load',()=>{ const _d=window._damageEnemy; if(typeof _d!=='function') return;
+    window._damageEnemy=function(e){ const pre=e&&e.hp; const r=_d.apply(this,arguments);
+      try{ if(e&&INK()&&typeof _gameState!=='undefined'&&_gameState==='game'&&e.hp<=0&&(pre==null||pre>0)){
+        const off=!!(e._lastShutPerm||e._permOff||e._stayDown), L=off?DREAM_OFF:DREAM_NOT;
+        dreams.push({x:(e.x||0)+(e.w||32)/2, y:(e.y||0)-10, word:L[(Math.random()*L.length)|0], t:0, max:off?120:90, big:off}); if(dreams.length>5) dreams.shift(); } }catch(er){}
+      return r; }; });
+  function drawDreams(){
+    for(let i=dreams.length-1;i>=0;i--){ const d=dreams[i]; if(++d.t>d.max){ dreams.splice(i,1); continue; }
+      const k=d.t/d.max, a=Math.min(1,d.t/10,(d.max-d.t)/20), X=sx(d.x), Y=sy(d.y)-k*40-Math.sin(d.t*0.08)*4;
+      const tw=(typeof textW==='function'?textW(d.word,2):d.word.length*12)+30, th=34;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.fillStyle='rgba(150,170,220,0.35)'; ctx.beginPath(); for(let j=0;j<5;j++){ const cx=X-tw/2+tw*(j+0.5)/5, r=th*(0.5+0.18*Math.sin(j*1.7+d.t*0.05)); ctx.moveTo(cx+r,Y+4); ctx.arc(cx,Y+4,r,0,Math.PI*2); } ctx.fill();
+      ctx.fillStyle='#fbfaff'; ctx.beginPath(); for(let j=0;j<5;j++){ const cx=X-tw/2+tw*(j+0.5)/5, r=th*(0.46+0.16*Math.sin(j*1.7+d.t*0.05)); ctx.moveTo(cx+r,Y); ctx.arc(cx,Y,r,0,Math.PI*2); } ctx.fill();
+      for(let j=0;j<3;j++){ ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(X-tw/2-6-j*8,Y+12+j*8,4-j,0,Math.PI*2); ctx.fill(); }
+      if(typeof drawTextC==='function') drawTextC(d.word,X,Y-7,'#3a3a5a',2);
+      ctx.restore(); }
   }
   function drawBlood(){
     if(!playing()||typeof sx!=='function') return;
@@ -262,8 +304,10 @@
     { const Bq=window.MV_BETA; if(Bq&&(Bq.results||Bq.popup||Bq.ending||Bq.trans||Bq.contScreen||Bq.overT>0)) return; }
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawPuddles(); }catch(e){}
+    try{ if(INK()) drawDreams(); }catch(e){}
     for(const s of stains){
-      if(s.drip>0){ s.y+=INK()?0.6:0.35; s.drip--; }
+      if(s.drip>0){ if(s.side){ if(s.ly!=null) s.y=s.ly; } s.drip--; }   // (a wall stain's run is moved in tick(); floor stains don't run)
+      if(s.side&&s.y0!=null&&s.y>s.y0+1){ ctx.fillStyle=IC('rgba(110,0,12,'+(s.a*0.8).toFixed(2)+')'); ctx.fillRect(sx(s.x)-Math.max(0.6,sw(0.7)),sy(s.y0),Math.max(1,sw(1.4)),sy(s.y)-sy(s.y0)); }   // the line it leaves running down")
       ctx.save();
       ctx.translate(sx(s.x),sy(s.y)); ctx.rotate(s.rot);
       for(let b=0;b<(s.bits||3);b++){
@@ -276,12 +320,12 @@
     }
     // ink on the foes: blots stuck to their bodies, each running down in a thin line
     for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.t++;
-      if(!e||!isFinite(e.x)||e._gone||e._hidden||q.t>1500||ENEMS.indexOf(e)<0){ estains.splice(i,1); continue; }
+      if(!e||!isFinite(e.x)||e._gone||e._hidden||q.t>1500||(!q.me&&ENEMS.indexOf(e)<0)){ estains.splice(i,1); continue; }
       if(q.len<q.max) q.len+=0.25;
       const X0=sx(e.x+q.ox), Y0=sy(e.y+q.oy), al=Math.min(1,(1500-q.t)/200);
-      ctx.fillStyle='rgba(10,9,14,'+(0.85*al).toFixed(3)+')'; ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=IC('rgba(120,0,14,'+(0.85*al).toFixed(3)+')'); ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
       ctx.fillRect(X0-Math.max(0.6,sw(0.7)),Y0,Math.max(1,sw(1.4)),sw(q.len)); ctx.beginPath(); ctx.arc(X0,Y0+sw(q.len),Math.max(1,sw(1.3)),0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(150,160,185,'+(0.35*al).toFixed(3)+')'; ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
+      ctx.fillStyle=IC('rgba(255,170,180,'+(0.35*al).toFixed(3)+')'); ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
     ctx.lineCap='round';
     for(const d of drops){
       ctx.strokeStyle=IC(d.r>2.4?'#6e0010':'#c4001c');

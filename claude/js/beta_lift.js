@@ -99,7 +99,7 @@
   function dmgScale(){ const f=floorsNow(); return f>=0?1-0.75*Math.min(1,f/33):1+1.5*Math.min(1,-f/33); }
   S.dmgScale=dmgScale; S.floorsNow=floorsNow;
   { const _h=window.applyPlayerHit;
-    window.applyPlayerHit=function(kx,ky,dmg){ if(S.sealed) return; const k=dmgScale(); if(k!==1&&dmg!=null&&dmg<9000) dmg=Math.max(1,Math.round(dmg*k)); return _h.call(this,kx,ky,dmg); }; }
+    window.applyPlayerHit=function(kx,ky,dmg){ if(S.sealed) return; const k=dmgScale(); if(k!==1&&dmg!=null&&dmg<9000&&!window._mvExactDmg) dmg=Math.max(1,Math.round(dmg*k)); return _h.call(this,kx,ky,dmg); }; }   // (build 407) the boss's hits are exact: no floor scaling
   { const _ai=B.enemyAITick;
     B.enemyAITick=function(){
       const f=floorsNow(), list=typeof ENEMS!=='undefined'?ENEMS:[];

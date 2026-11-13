@@ -298,12 +298,12 @@
   }
 
   // ── bolts: heavy, and deflectable ────────────────────────────
-  const BOLT_DMG=28;
+  const BOLT_DMG=12;                                             // (build 407, Paulo) a boss pellet hurts like foe A's
   let knPrev=null;
   function heavyHit(b){
     if(hitCd>0||_shutdownTimer>0) return;
     hitCd=40; const s=b.vx>=0?1:-1;
-    if(typeof applyPlayerHit==='function') applyPlayerHit(s*11,-8,BOLT_DMG);
+    window._mvExactDmg=true; try{ if(typeof applyPlayerHit==='function') applyPlayerHit(s*11,-8,BOLT_DMG); } finally{ window._mvExactDmg=false; }
     B.shake=Math.max(B.shake||0,9);
     burst(b.x,b.y,16,['#ff6070','#ffffff','#ffd0d0'],4);
   }
@@ -376,7 +376,7 @@
       { let f=null; for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(!e||!e.alive||e._boss||e._betaHeld) continue; if(b.x>e.x&&b.x<e.x+e.w&&b.y>e.y&&b.y<e.y+e.h){ f=e; break; } }
         if(f){ try{ if(typeof _damageEnemy==='function') _damageEnemy(f,14,b.x,b.y); }catch(er){} burst(b.x,b.y,10,['#ffffff','#ffd060'],3); free.splice(i,1); continue; } }
       if(bs&&bs.alive&&Math.hypot(b.x-(bs.x+bs.w/2),b.y-(bs.y+bs.h/2))<62){
-        bs.hp=Math.max(1,bs.hp-8); bs.hitF=6; B.shake=Math.max(B.shake||0,4);
+        bs.hp=Math.max(1,bs.hp-Math.round(BOLT_DMG/2)); bs.hitF=6; B.shake=Math.max(B.shake||0,4);   // (build 407) half of what it does to MIND
         burst(b.x,b.y,12,['#ffffff','#ffd060','#ff6060'],4); S('omniblock_chip',1.2); free.splice(i,1); }
     }
   }
@@ -483,6 +483,7 @@
     p.vx-=ux*(1.5+2.5*k);                                          // the rock pushes back
   }
   B.knifeBladeHit=bladeHit;
+  B.knifeBlade=()=>{ const b=blade(); return b?{hx:b.hx, hy:b.hy, aw:toW(b.kn)}:null; };   // the blade now (beta_foes: beams it stands in)
   function marksTick(){ for(const m of marks) m.life--; marks=marks.filter(m=>m.life>0); }
 
   // ── the finish: knife → gate → golden beam ───────────────────

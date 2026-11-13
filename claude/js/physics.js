@@ -3407,7 +3407,7 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
       ||(!!e.mind&&!e._battleAi&&((e._shutCount||0)+1)>=SHUT_LIMIT);
     // Paulo, Nov 13: a sonic cue for how far gone a foe is. 1st shutdown: the shutdown sound as it is; 2nd: the
     // same, lower; 3rd (off for good): a big power-down on top of the death sound (beta_impact MV_PERM_OFF_SFX).
-    const beta=!!(e._betaEnemy||e._ai), dn=e._downs||0;
+    const beta=!!(e._betaEnemy||e._ai), dn=e._downs||0; e._lastShutPerm=perm;   // (build 407) gore_metal / beta_gore pick their words by it
     if(perm){ sfx('enemy_dead'); try{ if(beta&&window.MV_PERM_OFF_SFX) MV_PERM_OFF_SFX(e); }catch(_e){} }
     else sfx('enemy_shut', beta?(dn>=1?0.7:1):powerPitch);
     if(p&&p.hook&&p.hook.tgt===e){

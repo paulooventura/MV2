@@ -200,6 +200,7 @@
       }
     },
     // after the tiles: the lobby, and the vault's cover
+    bgCars,
     over(B){
       if(B.stageId!=='1.3') return;
       // the tower's floors (beta_lift lays them): one beam per cell, the same everywhere, so they read as one line
@@ -257,6 +258,11 @@
     if(B.stageId!=='1.3') return;
     board(23.4,1.5,5,8,'#ff5ab4','rgba(255,90,180,0.10)',[['AWDJOO','#ff9ad0',2],['MALL','#ffd0e8',1],['24/7','#6ef4ff',1]]);
     board(40,1,8,4.5,'#6ef4ff','rgba(110,244,255,0.10)',[['MV LABS','#bff8ff',2],['MIND · VENTURE','#6ef4ff',1]]);
+  }
+  // Paulo, Nov 13: "1.3 background airplanes showing in front of buildings". The flying cars are drawn in the
+  // background pass now (beta_decor world(), before the tiles and the rooms), so every building covers them.
+  function bgCars(B){
+    if(!B||B.stageId!=='1.3') return;
     const x0=23*T, x1=95*T, span=x1-x0;
     for(const c of cars){ const t=((fr*c.s+c.o)%span+span)%span, x=c.s>0?x0+t:x1-t, y=c.y*T;
       const X=sx(x), Y=sy(y), d=c.s>0?1:-1;

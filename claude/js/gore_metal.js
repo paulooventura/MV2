@@ -105,6 +105,9 @@
     if(gibs.length>90) gibs.splice(0,gibs.length-90);
   }
   const WORDS=['BRUTAL','SHREDDED','\\m/','SLAUGHTER','UNHOLY','BRUTAL'];
+  // Paulo, Nov 13: the metal words only when a foe is OFF FOR GOOD; a 1st / 2nd shutdown, it talks back
+  const TAUNTS=['NICE TRY.',"I'M NOT OFF YET, FOOL!",'IS THAT ALL?','HA! STILL HUMMING.',"YOU'LL HAVE TO DO BETTER."];
+  function taunt(x,y){ calls.push({x,y,word:TAUNTS[(Math.random()*TAUNTS.length)|0],t:0,max:90,lane:calls.length%3,taunt:true}); if(calls.length>6) calls.shift(); }
   function callout(x,y){
     comboT=150; combo++;
     const word=combo>=3?(combo%2?'\\m/':'SHREDDED'):WORDS[(Math.random()*WORDS.length)|0];
@@ -122,7 +125,9 @@
     if(!playing()) return;
     const e=args[0]; if(!e) return;
     const dmg=+args[1]||0;
-    if(e.hp<=0&&!e._mvGib&&(hpBefore==null||hpBefore>0)){
+    if(e.hp<=0&&!e._mvGib&&(hpBefore==null||hpBefore>0)&&!(e._lastShutPerm||e._permOff||e._stayDown||e._boss)){
+      taunt((e.x||0)+(e.w||32)*0.5,(e.y||0)-8); hitStop=Math.max(hitStop,2);
+    } else if(e.hp<=0&&!e._mvGib&&(hpBefore==null||hpBefore>0)){
       e._mvGib=true;
       const x=(e.x||0)+(e.w||32)*0.5, y=(e.y||0)+(e.h||32)*0.4;
       const dir=(typeof p!=='undefined'&&p&&p.fc)?0:Math.PI;
@@ -513,7 +518,7 @@
     // kill callouts and the combo counter
     for(const c of calls){
       const k=c.t/c.max, pop=c.t<6?0.6+c.t*0.1:1+Math.max(0,0.15-(c.t-6)*0.02);
-      metalText(c.word,sx(c.x),sy(c.y)-k*30-c.lane*34,Math.round(36*pop),'#d4001e',1-Math.max(0,(k-0.6)/0.4));
+      metalText(c.word,sx(c.x),sy(c.y)-k*30-c.lane*34,Math.round((c.taunt?22:36)*pop),c.taunt?'#ff8a96':'#d4001e',1-Math.max(0,(k-0.6)/0.4));
     }
     if(comboShow>0&&combo>=2) metalText('COMBO x'+combo,W-130,118,30,'#ff2a3a',Math.min(1,comboShow/20));
     // shake the graded picture

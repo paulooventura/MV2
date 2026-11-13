@@ -834,12 +834,22 @@ function _updateBattleEye(pl){
   if(pl===p){
     let anyKey=false; for(const kk in K){ if(K[kk]){ anyKey=true; break; } }
     if(!best&&pl.og&&Math.abs(pl.vx||0)<0.05&&!anyKey&&!(pl.hook&&pl.hook.st!=='idle')) pl._idleT=(pl._idleT||0)+1; else { if((pl._idleT||0)>600){ pl.tAimDX=pl.fc?1:-1; pl.tAimDY=0; } pl._idleT=0; }
+    // (build 407, Paulo: "more funny animations for when the characters are standing idle ... move its arm,
+    // inspecting its item, or sitting down") a 20 s routine: looks round, inspects the arm, a big arm stretch,
+    // turns the item over in front of his eye, sits down and dozes (z z z), jiggles the wheel, shakes it off
+    pl._idleSit=false;
     if(pl._idleT>600){
-      const t=(pl._idleT-600)%480, f=pl.fc?1:-1;
+      const t=(pl._idleT-600)%1200, f=pl.fc?1:-1;
       if(t<120){ tx=-4.5; ty=0.5; }                                   // a look to the left
       else if(t<240){ tx=4.5; ty=0.5; }                               // ...and to the right
       else if(t<380){ tx=f*3; ty=3.5; pl.tAimDX=f*0.55; pl.tAimDY=-0.35; }   // lifts his arm and looks it over
-      else { tx=f*1.5; ty=-4; pl.tAimDX=f; pl.tAimDY=0; }             // a glance up
+      else if(t<500){ tx=f*1.5; ty=-4; pl.tAimDX=f; pl.tAimDY=0; }    // a glance up
+      else if(t<620){ const a=-Math.PI/2+Math.sin((t-500)/120*Math.PI*2)*1.3; pl.tAimDX=Math.cos(a)*f; pl.tAimDY=Math.sin(a); tx=pl.tAimDX*3; ty=pl.tAimDY*3; }   // a big stretch: the arm swings up and over
+      else if(t<800){ const w=Math.sin((t-620)*0.12); pl.tAimDX=f*(0.7+0.2*w); pl.tAimDY=-0.55+0.25*Math.cos((t-620)*0.09); tx=f*3.5; ty=-1+w; }   // turns his item over in front of his eye
+      else if(t<1000){ pl._idleSit=true; tx=f*0.5; ty=3; pl.tAimDX=f*0.4; pl.tAimDY=0.8;                   // sits down... and dozes off
+        if(t>860&&t%40===0) PFXS.push({x:pl.x+SW/2+f*10,y:pl.y+FEET_OFF-110,vx:f*0.3,vy:-0.6,life:60,maxLife:60,r:3,col:'#e8f0ff'}); }
+      else if(t<1100){ tx=Math.sin(t*0.6)*2; ty=0; pl.wheelAngle=(pl.wheelAngle||0)+Math.sin(t*0.5)*0.12; pl.tAimDX=f; pl.tAimDY=0.2; }   // jiggles the wheel, bored
+      else { tx=Math.sin(t*0.3)*4.5; ty=-0.5; pl.tAimDX=f; pl.tAimDY=-0.1; }   // shakes it off, looks around
       pl._idling=true;
     }else pl._idling=false;
   }
@@ -1099,7 +1109,7 @@ function update(){
   if(p.hook.st!=='on'&&p.wallGrip<=0){
     if(!isJump()) p._jumpArmed=true;
     const _grounded=_playerOnGround(p);
-    const _dnMv=isDn()&&!p.magOn;p.crouchInput=!!(_grounded&&_dnMv);const airDuck=!_grounded&&_dnMv;const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
+    const _dnMv=isDn()&&!p.magOn;p.crouchInput=!!(_grounded&&_dnMv);const airDuck=!_grounded&&_dnMv;const headroom=measureHeadroom(p);const tunnelNeed=headroom<6?Math.min(1,(6-headroom)/6):0;const target=Math.max((p.crouchInput||airDuck||p._idleSit)?1:0,tunnelNeed);p.crouchAmt+=(target-p.crouchAmt)*(target>p.crouchAmt?0.28:0.16);if(p.crouchAmt<0.02)p.crouchAmt=0;if(p.crouchAmt>0.98)p.crouchAmt=1;
     let _platLaunch=false;
     if(_grounded&&isDn()&&!p.magOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}

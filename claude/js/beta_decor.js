@@ -939,6 +939,9 @@
     // default (dirt) skin takes the nearest tower skin beside it (same row, then same column).
     if(skin&&B.stageId==='1.3'&&B._skinFixFor!==skin){
       B._skinFixFor=skin; const fx=B._skinFix=skin.map(row=>row.slice()), R=skin.length, C=skin[0].length;
+      // (build 407, Paulo: "a dirt block by the secret save area's entrance") a SOLID cell painted with a room's skin
+      // (10-12) has no facade of its own and showed as dirt: it takes its tower's facade (7-9)
+      for(let r=0;r<R;r++) for(let c=0;c<C;c++) if(cells[r]&&cells[r][c]===1&&skin[r][c]>=10&&skin[r][c]<=12) fx[r][c]=skin[r][c]-3;
       for(let r=0;r<Math.min(R,60);r++) for(let c=0;c<C;c++){
         if(!cells[r]||!cells[r][c]||skin[r][c]) continue;
         let best=0, bd=99;
@@ -957,6 +960,7 @@
     }
     const skinUse=(skin&&B.stageId==='1.3'&&B._skinFix)?B._skinFix:skin;
     const sk=(c,r)=>skinUse?skinUse[r][c]:0;
+    if(window.MV_CITY&&MV_CITY.bgCars) try{ MV_CITY.bgCars(B); }catch(e){}   // 1.3's flying cars: behind everything
     // underground air: stone (basement) or cave
     // Paulo, Nov 13: "some triangular blocks revealing the background ... those buildings should look solid". A ramp
     // cell only paints its solid triangle; its open half showed the sky. Behind a ramp now goes what's on its open
