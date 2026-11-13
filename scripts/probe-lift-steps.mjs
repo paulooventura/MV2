@@ -11,7 +11,7 @@ export default async ({pg,out})=>{
   const openCabY=X=>ev(x=>{ const m=MV_BETA.platforms.find(q=>q.x===x&&q.phase==='open'); return m?Math.round(m.y):null; },X);
   const waitOpen=async(X,ms)=>{ const t=Date.now(); while(Date.now()-t<ms){ const y=await openCabY(X); const s=await st(); if(y!=null&&(!s.cab||s.cab.door<0.15)) return y; await sleep(pg,100); } return null; };
   const walk=async(key,cond,arg,ms=3000)=>{ await pg.keyboard.down(key); const t=Date.now(); while(Date.now()-t<ms){ if(await ev(cond,arg)) break; await sleep(pg,25);} await pg.keyboard.up(key); await sleep(pg,400); };
-  const FLOORS=[64,56,46,36,26,14];
+  const FLOORS=[64,54,44,34,23,14];   // build 404: (about) ten rows apart
   // tripwire: any sudden lift of MIND (>20 px in one write) while he's in a car, with who did it
   await ev(()=>{ let _y=p.y; window._MV_JUMPS=[]; Object.defineProperty(p,'y',{configurable:true,get(){return _y;},set(v){
     if(_y-v>20&&(MV_LIFT.sealed||MV_LIFT.hold)&&_MV_JUMPS.length<5) _MV_JUMPS.push({fr,from:Math.round(_y),to:Math.round(v),st:new Error().stack.split('\n').slice(2,6).map(s=>s.trim().replace(/https?:\/\/[^/]+\//,'')).join(' < ')});

@@ -510,8 +510,10 @@
       PFXS.push({x:F.x,y:F.y,vx:(Math.random()-0.5)*1.5,vy:(Math.random()-0.5)*1.5,life:16,maxLife:20,r:2+Math.random()*2,col:['#fff4c0','#ffb040','#ff7030'][F.t%3]});
       if(F.t>=FLY){ F.st='strike'; F.t=0; F.x=F.gx; F.y=F.gy;
         clang(1); B.shake=Math.max(B.shake||0,14); burst(F.gx,F.gy,40,['#ffffff','#ffe39a','#ffb040'],6);
-        B.open=true; S('gate'); S('unlock');
-        if(typeof uiShowToast==='function') uiShowToast('THE KIRITSUKE OPENS THE GATE'); }
+        // Paulo, Nov 13: the gate opens only with every Knowl seed and crystal in AND the boss down
+        // (gateReady); the knife's strike used to open it outright
+        if(!B.gateReady||B.gateReady()){ B.open=true; S('gate'); S('unlock'); if(typeof uiShowToast==='function') uiShowToast('THE KIRITSUKE OPENS THE GATE'); }
+        else if(typeof uiShowToast==='function') uiShowToast('THE GATE WAITS FOR EVERY KNOWL SEED AND CRYSTAL'); }
     }else if(F.st==='strike'){
       F.rot=wrap(F.rot)*0.8; if(Math.abs(F.rot)<0.02) F.rot=0;
       if(F.t>=30){ F.st='beam'; F.t=0; chord(); }
@@ -558,6 +560,11 @@
     if(!on()){ return _up.apply(this,arguments); }
     tk++;
     if(intro){ try{ introTick(); }catch(er){ intro=null; } if(typeof clkj==='function') clkj(); return; }   // the scene holds
+    // Paulo, Nov 13: the victory scene stays paused while the kiritsuke flies to the gate, the camera following
+    // it (below); when its beam is done the camera goes back to MIND and play goes on
+    if(finish&&!B.freeze){ try{ finishTick(); }catch(er){ finish=null; }
+      for(let i=PFXS.length-1;i>=0;i--){ const q=PFXS[i]; q.x+=q.vx||0; q.y+=q.vy||0; if(--q.life<=0) PFXS.splice(i,1); }
+      if(typeof clkj==='function') clkj(); return; }
     if(hitstop>0){ hitstop--; return; }                            // the blade bit rock
     try{ dropInput(); }catch(er){ console.warn('drop',er); }
     const r=_up.apply(this,arguments);
@@ -579,6 +586,7 @@
   };
   const _cf=window._cameraFollowTarget;
   if(typeof _cf==='function') window._cameraFollowTarget=function(pl){
+    if(finish&&B.on&&pl===p&&typeof camViewW==='function'){ const vw=camViewW(), vh=camViewH(); return {x:finish.x-vw/2, y:finish.y-vh/2}; }   // following the knife to the gate
     const bs=intro&&boss();
     // T461 (Paulo, Nov 11): while the boss's dialog is open the camera frames both: MIND on one side,
     // the boss on the other (the midpoint between them)

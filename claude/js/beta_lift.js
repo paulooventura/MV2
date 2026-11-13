@@ -21,10 +21,13 @@
   // Six stops. The street is the floor level. The other five are above it.
   const LEVELS=[
     {n:1, name:'FLOOR LEVEL', row:64},
-    {n:2, name:'2ND FLOOR', row:56},
-    {n:3, name:'3RD FLOOR', row:46},
-    {n:4, name:'4TH FLOOR', row:36},
-    {n:5, name:'5TH FLOOR', row:26},
+    // Paulo, Nov 13: "some of the elevator floors are closer and farther from each other. Let's have them
+    // about the same vertical distance ... so it actually looks like a building". Ten rows apart now (they
+    // were 8 / 10 / 10 / 10 / 12), and the tower's interior (beta_city.js) draws its floors on the same beat.
+    {n:2, name:'2ND FLOOR', row:54},
+    {n:3, name:'3RD FLOOR', row:44},
+    {n:4, name:'4TH FLOOR', row:34},
+    {n:5, name:'5TH FLOOR', row:23},                                   // (23, not 24: the long slope west of the tower lands flush on it)
     {n:6, name:'6TH FLOOR', row:14}
   ];
   const S={
@@ -60,11 +63,28 @@
     return false;
   }
   S.inClosedCab=inClosedCab;
+  S.rows=LEVELS.map(l=>l.row).sort((a,b)=>a-b);                        // the stops, top to bottom (beta_city draws its storeys on them)
+  // Paulo, Nov 13: "when we're getting the elevator, our companion sprites should be revealed at the same time as
+  // ours when the elevator opens its door", and going over the roof "our companion's sprite shows falling off
+  // from it". The companion rides in your car: while you're shut in, it's kept beside you (hidden like you,
+  // carried through the wrap over the roof), and it's let go once the doors are open.
+  function companionRide(m){
+    let sib=null; try{ sib=window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null; }catch(e){}
+    if(!sib||!p) return;
+    if(m) sib._liftRide=m;
+    const r=sib._liftRide; if(!r) return;
+    if(!m&&(r.door||0)<0.15){ sib._liftRide=null; return; }          // doors open: it walks out with you
+    const FO=typeof FEET_OFF==='number'?FEET_OFF:88, side=(p.x+SW/2<r.x+r.w/2)?1:-1;
+    sib.x=Math.max(r.x+2,Math.min(r.x+r.w-SW-2,p.x+side*14)); sib.y=r.y-FO; sib.vx=0; sib.vy=0; sib.og=true;
+    sib._fly=false; sib._flying=false; sib._plan=null; sib._ti=null;
+    if(sib.hook&&sib.hook.st&&sib.hook.st!=='idle'){ sib.hook.st='idle'; sib.hook.pivots=null; }
+    S.sibRides=(S.sibRides|0)+1;
+  }
   { const _dc=window.drawCharacter;
     if(typeof _dc==='function') window.drawCharacter=function(){
       // T501 (Paulo, Nov 12): hidden the whole ride, the wrap to the top included, until the doors open —
       // sealed in a car he isn't drawn even on the frames where the car and he are a step apart
-      try{ if(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&((S.sealed&&!p._aiCompanion)||inClosedCab(p))) return; }catch(_e){}
+      try{ if(B.on&&B.stageId==='1.3'&&typeof p!=='undefined'&&((S.sealed&&(!p._aiCompanion||p._liftRide))||inClosedCab(p))) return; }catch(_e){}
       return _dc.apply(this,arguments);
     }; }
   { const _de=window._damageEnemy;
@@ -397,8 +417,9 @@
     const C=window.MV_CONSOLE; if(!C||typeof C.set!=='function'||C.mode===m) return;
     // GORE is a secret filter: reaching it 33 floors down unlocks it, as the code on the FILTER row does
     if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){ _goreUnlock(); return; }
+    if(!S.forced) S.baseMode=C.mode;
     C.set(m);
-    if(C.mode===m) try{ uiShowToast(m==='ink'?'INK & VINYL':'GORE'); }catch(e){}
+    if(C.mode===m){ S.forced=m; try{ uiShowToast(m==='ink'?'INK & VINYL - THE 33RD FLOOR':'GORE - 33 FLOORS DOWN'); }catch(e){} }
   }
   function aboard(m){
     if(onCab(m)) return true;
@@ -413,7 +434,7 @@
     if(!B.platforms) return;
     const id=B.stageId;
     if(id!==S.stage){
-      S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0;
+      S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0; S.musicT=0; S.barT=0;
       S.cab=null; S.inside=false; S.ask=false; S.sealed=false; S.laid=false; S.near=false;
       yCache.clear(); S.cut.clear();
       for(const m of B.platforms){ m.phase=null; m._lift=null; m.door=0; m._used=false; }
@@ -481,6 +502,7 @@
       }
     }
     S.cab=sealed; S.sealed=!!sealed; S.inside=!!sealed; S.hold=hold;
+    companionRide(sealed);
     if(sealed){
       const left=sealed.x+6, right=sealed.x+sealed.w-6-(typeof SW==='number'?SW:40);
       // against a cab wall, the push doesn't build speed (or he shoots out when the doors open)
@@ -511,6 +533,15 @@
     // gore_metal.js and beta_audio.js liftMix). At the 33rd floor, once the fade is full, the game
     // switches to that filter for real.
     if(Math.abs(S.vibe||0)>=SPAN&&Math.abs(S.pull)>0.985) fullFilter(S.vibe>0?'ink':'gore');
+    // Paulo, Nov 13: "the music for ink & vinyl only gets fully transitioned from the standard music when we
+    // reach the 33rd floor. That way we know when we got to the 33rd floor. The visual effects can be gradually
+    // phased". The picture keeps fading floor by floor (pull); the song stays until floor 33 (or -33), then
+    // crossfades over ~2 s (beta_audio liftMix, tempo-matched), and goes back if you ride down from there.
+    { const at=Math.abs(S.vibe||0)>=SPAN?1:0; S.musicT=(S.musicT||0)+(at-(S.musicT||0))*0.025; S.musicDir=Math.sign(S.vibe||0)||S.musicDir||1; }
+    // leaving heaven (or the depths) gives you back the filter you had: the full switch is only up there
+    if(S.forced&&Math.abs(S.vibe||0)<SPAN){ const C=window.MV_CONSOLE; if(C&&C.mode===S.forced&&typeof C.set==='function'){ try{ C.set(S.baseMode||'off'); }catch(e){} } S.forced=null; }
+    // the floor bar: every time the doors open on you, the 67 floors show on the right for a few seconds
+    { const open=!!(S.cab||S.hold)&&!S.sealed; if(S._wasSealed&&!S.sealed) S.barT=200; S._wasSealed=S.sealed; if(S.barT>0&&!open&&!S.sealed) S.barT--; else if(S.barT>0&&open) S.barT=Math.max(S.barT-1,60); }
     const zT=S.sealed?1:0;
     S.zoom+=(zT-S.zoom)*(S.sealed?0.1:0.06);
     if(!S.sealed) S.dir+=(0-S.dir)*0.06;
@@ -627,8 +658,28 @@
     if(w>2&&h>2) ctx.drawImage(buf,x,y,w,h,x,y,w,h);
     ctx.restore();
   }
+  // the 67 floors (-33 .. +33) as a column of dots on the right edge, heaven at the top, the depths below
+  function floorBar(){
+    if(!(S.barT>0)||!B.on||B.stageId!=='1.3'||typeof W!=='number') return;
+    const a=Math.min(1,S.barT/24, 1), N=2*SPAN+1, gap=Math.max(4,Math.min(9,(H*0.72)/(N-1))), h=gap*(N-1);
+    const x=W-30, y0=(H-h)/2, v=S.vibe||0, cur=SPAN-v;
+    ctx.save(); ctx.globalAlpha=a*0.85;
+    ctx.fillStyle='rgba(6,4,10,0.55)'; if(typeof uiRound==='function'){ uiRound(x-12,y0-18,24,h+36,12); ctx.fill(); } else ctx.fillRect(x-12,y0-18,24,h+36);
+    for(let i=0;i<N;i++){
+      const f=SPAN-i, y=y0+i*gap, up=f>0, k=Math.abs(f)/SPAN;
+      const col=f===0?'#ffd36a':up?'rgba('+(200+55*k|0)+','+(200+40*k|0)+','+(190+40*k|0)+','+(0.45+0.4*k)+')':'rgba('+(180+60*k|0)+','+(40-30*k|0)+','+(50-30*k|0)+','+(0.45+0.4*k)+')';
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,i===cur?0:(f===0||Math.abs(f)===SPAN?2.4:1.6),0,Math.PI*2); ctx.fill();
+    }
+    const yc=y0+cur*gap, pulse=1+0.25*Math.sin((typeof fr==='number'?fr:0)*0.2);
+    ctx.globalAlpha=a; ctx.fillStyle=v>0?'#fff4e0':v<0?'#ff4a4a':'#ffd36a';
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10; ctx.beginPath(); ctx.arc(x,yc,4.5*pulse,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    if(typeof drawTextR==='function'){ const lbl=v===SPAN?'HEAVEN':v===-SPAN?'GORE':(v>0?'+':'')+v; drawTextR(lbl,x-16,yc-6,v>0?'#fff4e0':v<0?'#ff8a8a':'#ffd36a',2); }
+    ctx.restore();
+  }
+  S.floorBar=floorBar;
   function prompt(){
     if(typeof drawTextC!=='function'||typeof W!=='number') return;
+    try{ floorBar(); }catch(e){}
     if(S.sealed&&S.cab){
       const fl=LEVELS[floorIndex(S.cab.x, S.cab.y)];
       drawTextC(fl?fl.name:'',W/2,64,'#f4efe6',2);

@@ -104,13 +104,17 @@
         if(side===0){ R(g,1,0,4,32,'#6a707c'); R(g,2,0,1,32,'#d0d8e4'); } if(side===1){ R(g,27,0,4,32,'#6a707c'); R(g,29,0,1,32,'#d0d8e4'); }   // chrome guide rails
       });
     }
-    const fy=((r%7)+7)%7, door=((c%6)+6)%6===3&&fy>=3, lamp=((c%6)+6)%6===0&&fy===2;
-    return mk('H'+fy+(door?1:0)+(lamp?1:0)+(c&1),g=>{
+    // one storey per elevator stop (MV_LIFT.rows): its ceiling light at the stop, its floor band on the row above the next
+    let fy=null, span=10; const RW=window.MV_LIFT&&MV_LIFT.rows;
+    if(RW){ let f=null, nx=null; for(const q of RW){ if(q<=r) f=q; else { nx=q; break; } } if(f!=null&&nx!=null){ fy=r-f; span=nx-f; } }
+    if(fy==null) fy=(((r-4)%10)+10)%10;
+    const last=fy===span-1, door=((c%6)+6)%6===3&&fy>=span-4, lamp=((c%6)+6)%6===0&&fy===4, led=fy===span-4;
+    return mk('H'+fy+(last?'L':'')+(led?'D':'')+(door?1:0)+(lamp?1:0)+(c&1),g=>{
       R(g,0,0,32,32,'#2c2a30'); for(let x=(c&1)*4;x<32;x+=8) R(g,x,0,1,32,'rgba(255,240,220,0.05)');
       if(fy===0){ R(g,0,0,32,3,'#1c1a20'); R(g,0,3,32,1,'#ffc070'); R(g,0,4,32,4,'rgba(255,192,112,0.12)'); }   // cove light at the ceiling
-      if(fy===6){ R(g,0,24,32,8,'#1a181c'); R(g,0,24,32,1,'rgba(255,192,112,0.5)'); }
+      if(last){ R(g,0,24,32,8,'#1a181c'); R(g,0,24,32,1,'rgba(255,192,112,0.5)'); }
       if(door){ R(g,6,0,20,32,'#3a3e48'); R(g,8,0,7,32,'#4a505c'); R(g,17,0,7,32,'#4a505c'); R(g,15,0,2,32,'#1a1c22');   // a sliding door
-        if(fy===3){ R(g,10,6,12,5,'#0e1418'); R(g,11,7,10,3,'#6ef4ff'); } }                  // its LED number
+        if(led){ R(g,10,6,12,5,'#0e1418'); R(g,11,7,10,3,'#6ef4ff'); } }                  // its LED number
       if(lamp){ R(g,12,10,8,3,'#ffe0b0'); g.fillStyle='rgba(255,210,150,0.14)'; g.beginPath(); g.arc(16,14,14,0,Math.PI*2); g.fill(); }
     });
   }

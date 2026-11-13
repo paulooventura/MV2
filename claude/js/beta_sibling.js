@@ -119,6 +119,7 @@
       const ux=Math.sin(t)*dir, uy=-Math.cos(t);
       const hit=_hookRayHit(c.x,c.y-10,c.x+ux*reach,c.y-10+uy*reach);
       if(!hit||hit.enemy) continue;
+      if(badAnchor(hit.tx,hit.ty)) continue;                     // a spot that got it nowhere before
       const len=Math.hypot(hit.tx-c.x,hit.ty-c.y);
       if(len<90||hit.ty>c.y-70) continue;
       const s=-Math.abs(hit.tx-mid)-Math.abs(len-230)*0.4+(hit.ty<G.y?40:0);
@@ -126,11 +127,24 @@
     }
     return best;
   }
+  // Paulo, Nov 13: "our companion is still doing that 'stuck with the rope not launching making a repeated
+  // sound'". A rope that latched where it couldn't swing hung ~45 frames, let go, and 45 frames later the same
+  // spot was picked again: throw, latch, hang, again, the sounds on a loop. A rope that got it nowhere (or a
+  // throw that never left the hand) marks that spot bad for 10 s; two duds in a row and it stops roping for 6 s.
+  const BAD=[];
+  function badAnchor(x,y){ for(let i=BAD.length-1;i>=0;i--){ if(fr-BAD[i].t>600){ BAD.splice(i,1); continue; } if(Math.hypot(BAD[i].x-x,BAD[i].y-y)<48) return true; } return false; }
+  function ropeDud(){
+    if(S._ropeAt) BAD.push({x:S._ropeAt.x,y:S._ropeAt.y,t:fr});
+    S._ropeDud=(S._ropeDud|0)+1; B.sibRopeDuds=(B.sibRopeDuds|0)+1;
+    if(S._ropeDud>=2){ S._ropeDud=0; S._ropeCd=360; }
+  }
   function throwRope(A){
     const c=centre(S), dx=A.x-c.x, dy=A.y-c.y, d=Math.hypot(dx,dy)||1;
     S.aimDX=S.tAimDX=dx/d; S.aimDY=S.tAimDY=dy/d; S.fc=dx>0;
+    S._ropeFrom={x:c.x,y:c.y}; S._ropeAt={x:A.x,y:A.y};
     asSib({},()=>fireItem(false));
     S._ropeT=0;
+    if(!S.hook||S.hook.st==='idle'){ ropeDud(); S._ropeCd=Math.max(S._ropeCd|0,ROPE_CD); }   // it never left the hand
   }
   function ropeTick(){
     const h=S.hook, was=h.st; S._ropeT=(S._ropeT||0)+1;
@@ -142,12 +156,12 @@
       // T430 (Paulo, Nov 11): since build 336 down reels IN and up pays all the slack out (held, it
       // snaps). The old mapping held down to go down, which reeled it up, away from the goal, so it
       // kept holding it: the reel click repeated for seconds, then let go, re-threw, again.
-      if(G.y<c.y-40&&h.rl>ROPE_RL_MIN+30) inp.d=true;                                        // climb toward it: reel in
+      if(G.y<c.y-40&&h.rl>ROPE_RL_MIN+30) inp.u=true;                                        // climb toward it: reel in (UP since build 404)
       else if(G.y>c.y+90){ letGo(); return; }                                                 // the goal is below: drop
     }
     const x0=S.x;
     asSib(inp,()=>updateHook());
-    if(h.st==='idle'){ if(was==='ext') S._ropeMiss=(S._ropeMiss||0)+1; S._ropeCd=ROPE_CD; S._launchT=40; return; }
+    if(h.st==='idle'){ if(was==='ext'){ S._ropeMiss=(S._ropeMiss||0)+1; ropeDud(); } S._ropeCd=Math.max(S._ropeCd|0,ROPE_CD); S._launchT=40; return; }
     if(h.st!=='on') return;
     S._ropeMiss=0;
     S.wheelAngle=(S.wheelAngle||0)+(S.x-x0)/WHEEL_R;
@@ -162,6 +176,7 @@
   // player"), and if the latch is somehow still on, drop it, so it never hangs from it for good
   function letGo(){
     const h=S.hook; if(!h) return;
+    { const c=centre(S), f=S._ropeFrom; if(f&&Math.hypot(c.x-f.x,c.y-f.y)<60) ropeDud(); else S._ropeDud=0; }
     try{ if(typeof _detachPlayerRope==='function') withPlayerContext(S,()=>_detachPlayerRope(h)); }catch(e){}
     if(S.hook&&S.hook.st!=='idle') ropeIdle(S);
     S._ropeCd=ROPE_CD; S._launchT=50; S._ropeT=0;
@@ -190,8 +205,11 @@
     const cx=x+SW/2, f=y+FEET_OFF;
     if(typeof WH==='number'&&f>WH-40) return true;                      // the bottom of the world
     if(B.elecAt&&B.elecAt(cx,f-20)) return true;                       // live water
-    return !B.hasIsolator&&!!(B.inWater&&B.inWater(cx,f-40));           // T494/T495: deep water without the Isolator: it would short
+    return !sibIso()&&!!(B.inWater&&B.inWater(cx,f-40));                // T494/T495: deep water without ITS OWN Isolator: it would short
   }
+  // Paulo, Nov 13: the companion was underwater in the 1.2 cave without an Isolator, shorting while it hit the
+  // foe. It went by MIND's Isolator (B.hasIsolator): with yours on, water looked safe to it. It has its own now.
+  function sibIso(){ return !!(S&&S._hasIso); }
   function standOk(x,y){ const cx=x+SW/2, f=y+FEET_OFF; return solidAt(cx,f+6)&&!solidAt(cx,f-30)&&!solidAt(cx,f-60)&&!deadly(x,y); }
   // the floor in this column nearest a feet height (null if there's none to stand on)
   function groundNear(x,feet){
@@ -294,6 +312,7 @@
     if(S._flyCd>0) S._flyCd--;
     if(S._zip){ zipTick(); return; }
     if(S._ropeCd>0) S._ropeCd--;
+    if(S.og&&(S._ropeMiss|0)>0&&fr%300===0) S._ropeMiss--;     // misses fade: it can try a rope again later
     if(S.hook&&S.hook.st!=='idle'&&(S._ropeT||0)>ROPE_MAX_T+90) letGo();   // a rope that outlived its use: let go
     if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
     if(S._fly){ hoverTick(); return; }
@@ -725,7 +744,10 @@
     // T494 (Paulo, Nov 11): "our companion must deal with the same set of rules ... if they don't have an
     // isolator, they can't go underwater because they will short circuit." Head under, no Isolator:
     // it shorts like MIND does (its charge drains, sparks, a crackle) and shuts down at zero.
-    if(!B.hasIsolator&&B.inWater&&B.inWater(c.x,c.y-14)&&!(b._downT>0)){
+    isoTick(b);
+    const wetNow=!sibIso()&&B.inWater&&B.inWater(c.x,c.y-14);
+    if(wetNow&&!(b._downT>0)) escapeWater(b);
+    if(wetNow&&!(b._downT>0)){
       b.sibHp=(b.sibHp==null?100:b.sibHp)-0.55; b._hurtFr=fr; b._shorting=true;
       if(fr%3===0) PFXS.push({x:c.x+(Math.random()-0.5)*30,y:c.y+(Math.random()-0.5)*30,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:8,maxLife:8,r:1.4,col:Math.random()<0.5?'#fff6a0':'#80d8ff'});
       if(fr%12===0) try{ if(B.tzzz) B.tzzz(0.3); }catch(e){}
@@ -734,6 +756,49 @@
     // it heals slowly when it's been left alone for a few seconds
     if(b.sibHp<100&&fr-(b._hurtFr||-999)>180) b.sibHp=Math.min(100,b.sibHp+0.12);
   }
+  // in the water without an Isolator: out, by the shortest way to dry ground it can stand on (the XLR hover)
+  function escapeWater(b){
+    if(b!==S||S._fly) return;
+    const c=centre(S), feet=S.y+FEET_OFF; let best=null, bd=1e9;
+    for(let dx=-480;dx<=480;dx+=16){ const x=S.x+dx, g=groundNear(x,feet); if(g==null) continue;
+      const d=Math.abs(dx)+Math.max(0,g-feet)*2+Math.max(0,feet-g)*0.6; if(d<bd){ bd=d; best={x, y:g-FEET_OFF}; } }
+    if(!best) best={x:S.x, y:S.y-160};
+    S._flyCd=0; ropeIdle(S);
+    if(startHoverTo(best)){ B.sibEscapes=(B.sibEscapes|0)+1; }
+  }
+  function startHoverTo(T){ S._fly=true; S._flyT=0; S._flyTo={x:T.x,y:T.y}; S._hvx=S.vx||0; S._hvy=Math.min(-2,S.vy||0); S._plan=null; S._stuck=0; return true; }
+  // and it goes for an Isolator of its own when one is near: the crate keeps one for each of you
+  function isoTick(b){
+    if(b!==S) return;
+    if(B.stageId!==S._isoStage){ S._isoStage=B.stageId; S._hasIso=false; S._isoTry=0; S._isoCd=0; }
+    const iso=B.isoPickup; if(S._isoCd>0) S._isoCd--;
+    if(sibIso()||!iso||iso.got) return;
+    const c=centre(S), d=Math.hypot(iso.x-c.x,iso.y-20-c.y);
+    if(Math.abs(c.x-iso.x)<64&&c.y>iso.y-150&&c.y<iso.y+24){            // its body over the crate
+      S._hasIso=true; S._fly=false; B.sibIsoGot=(B.sibIsoGot|0)+1;
+      iso.pop=20;                                                     // its own taken, yours is still in the crate
+      for(let k=0;k<14;k++){ const a=Math.random()*Math.PI*2, s=1.4+Math.random()*2.6; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.2,life:18,maxLife:18,r:2,col:'#ffa040'}); }
+      try{ sfx('menu'); }catch(e){}
+      speak('GOT MY OWN ISOLATOR! THERE\'S ONE IN THERE FOR YOU TOO.',200);
+      return;
+    }
+    if(S._isoCd>0||S._fly||!p) return;
+    const dm=Math.hypot(iso.x-(p.x+SW/2),iso.y-(p.y+FEET_OFF));
+    if(d<560&&dm<760){
+      if(d>90&&(S._isoTry=(S._isoTry|0)+1)>6){ S._isoTry=0; S._isoCd=600; return; }   // can't get there: try again later
+      S._flyCd=0; startHoverTo({x:iso.x-SW/2, y:iso.y-FEET_OFF-4});
+    }
+  }
+  // shorting: the same lightning veins over its body as MIND gets from an electro-box frag
+  function veins(){
+    if(!S||!S._shorting||typeof sx!=='function') return;
+    const mx=sx(S.x+SW/2), my=sy(S.y+FEET_OFF-50), r=sw(42);
+    const bolt=(x1,y1,x2,y2,n,j,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(x1,y1); for(let i=1;i<n;i++){ const t=i/n; ctx.lineTo(x1+(x2-x1)*t+(Math.random()-0.5)*j,y1+(y2-y1)*t+(Math.random()-0.5)*j); } ctx.lineTo(x2,y2); ctx.stroke(); };
+    ctx.save(); ctx.globalAlpha=0.55+0.4*Math.random(); ctx.lineCap='round';
+    for(let i=0;i<4;i++){ const a=Math.random()*Math.PI*2, b=a+0.8+Math.random()*2; bolt(mx+Math.cos(a)*r*0.8,my+Math.sin(a)*r,mx+Math.cos(b)*r*0.8,my+Math.sin(b)*r,6,r*0.5,i%2?'#80d8ff':'#fff6a0',sw(1.8)); }
+    ctx.restore();
+  }
+  B.sibIso=()=>sibIso();
   // ── T495 (Paulo, Nov 11): the companion is its own entity: it keeps clear of danger (deadly() keeps it
   //    out of water without the Isolator), and now and then a little balloon pops over its head, like
   //    Laitu's: heads-ups about threats, a word when you're hurt or charged, small talk when it's calm.
@@ -749,7 +814,7 @@
     const wet=B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-40);
     if(b._shorting){ speak('I\'M SHORTING OUT! GET ME OUT!',150); return; }
     if(B.chargeT>240){ speak('YOU\'RE BUZZING! STAY OUT OF THE WATER!'); return; }
-    if(wet&&!B.hasIsolator){ speak('NO ISOLATOR, NO SWIM. I\'LL WAIT HERE.'); return; }
+    if(wet&&!sibIso()){ speak(B.isoPickup?'I NEED MY OWN ISOLATOR. I\'LL WAIT HERE.':'NO ISOLATOR, NO SWIM. I\'LL WAIT HERE.'); return; }
     if(hp0!=null&&p.hp<hp0-8){ speak(p.hp<35?'YOU\'RE RUNNING LOW! FIND A SEED!':'WATCH IT! YOU OK?',150); return; }
     let near=null, nd=340;
     for(const e of (typeof ENEMS!=='undefined'?ENEMS:[])){ if(!e||!e.alive||e._hidden||e._permOff) continue; const d=Math.hypot(e.x+e.w/2-(p.x+SW/2),e.y+e.h/2-(p.y+FEET_OFF-40)); if(d<nd){ nd=d; near=e; } }
@@ -762,6 +827,7 @@
   { const _hud=window.drawLdtkLabHud;
     if(typeof _hud==='function') window.drawLdtkLabHud=function(){
       const r=_hud.apply(this,arguments);
+      try{ if(B.on) veins(); }catch(e){}
       try{ if(say&&S&&B.on&&typeof sx==='function'){
         const a=Math.min(1,say.t/12,(say.max-say.t)/8+0.2), cx=sx(S.x+SW/2), top=sy(S.y+FEET_OFF-STAND_H-30);
         const txt=say.txt; ctx.save(); ctx.font='15px "MV Pixel", monospace'; const tw=ctx.measureText(txt).width+28; ctx.restore();

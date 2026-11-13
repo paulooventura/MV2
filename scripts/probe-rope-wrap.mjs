@@ -68,7 +68,7 @@ try {
         const buried = [[4, 0], [-4, 0], [0, 4], [0, -4]].every(([dx, dy]) => solid(h.ax + dx, h.ay + dy));
         let worst = inRock(), bends = 0;
         const watch = () => { worst = Math.max(worst, inRock()); bends = Math.max(bends, (h.pivots || []).length); return h.st === 'on'; };
-        keys('KeyD'); step(70, watch); keys('KeyA'); step(70, watch); keys('KeyW'); step(40, watch); keys('KeyS'); step(30, watch); keys(null); step(30, watch);
+        keys('KeyD'); step(70, watch); keys('KeyA'); step(70, watch); keys('KeyS'); step(40, watch); keys('KeyW'); step(30, watch); keys(null); step(30, watch);
         res.push({ at: c + ',' + r, aim: ax + ',' + ay, anchor: Math.round(h.ax) + ',' + Math.round(h.ay), buried, inRock: Math.round(worst), bends, ok: !buried && worst <= 8 });
         if (p.hook.st === 'on') _detachPlayerRope(p.hook);
       }

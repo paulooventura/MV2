@@ -94,6 +94,26 @@
     o.type='sine'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*2.3,t+0.05); p.pan.value=pan;
     env(g,t,0.09*amt,0.003,0.08); o.connect(g); g.connect(p); p.connect(d0); p.connect(N.rev); o.start(t); o.stop(t+0.12);
   }
+  // Paulo, Nov 13: "add ... sfx to the levels so that the world looks more alive" — far-off life, quiet and
+  // filtered: a dog in the town (1.1 / 1.2), a car horn down in the city (1.3), wind chimes on a porch
+  function townCall(id){
+    const t=A.currentTime, out=A.createGain(), lp=A.createBiquadFilter(), p=A.createStereoPanner();
+    lp.type='lowpass'; lp.frequency.value=1400; p.pan.value=(Math.random()*2-1)*0.8; out.gain.value=1; out.connect(lp); lp.connect(p); p.connect(N.out); p.connect(N.rev);
+    const r=Math.random();
+    if(r<0.45&&id!=='1.3'){                                         // a dog, two or three barks
+      const n=2+(Math.random()*2|0);
+      for(let i=0;i<n;i++){ const s=t+i*0.32+Math.random()*0.05, o=A.createOscillator(), g=A.createGain(), bp=A.createBiquadFilter();
+        o.type='sawtooth'; o.frequency.setValueAtTime(330,s); o.frequency.exponentialRampToValueAtTime(170,s+0.13); bp.type='bandpass'; bp.frequency.value=650; bp.Q.value=2.5;
+        env(g,s,0.05,0.01,0.13); o.connect(bp); bp.connect(g); g.connect(out); o.start(s); o.stop(s+0.18); }
+    }else if(r<0.75&&id==='1.3'){                                   // a car horn far below
+      for(const [f,dt] of [[330,0],[415,0]]){ const o=A.createOscillator(), g=A.createGain(); o.type='square'; o.frequency.value=f; env(g,t+dt,0.012,0.02,0.45); o.connect(g); g.connect(out); o.start(t+dt); o.stop(t+dt+0.5); }
+    }else{                                                          // wind chimes
+      const sc=[1047,1175,1319,1568,1760,2093]; const n=3+(Math.random()*3|0);
+      for(let i=0;i<n;i++){ const s=t+i*(0.12+Math.random()*0.2), o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.value=sc[(Math.random()*sc.length)|0];
+        env(g,s,0.018,0.004,1.6); o.connect(g); g.connect(out); o.start(s); o.stop(s+1.7); }
+      lp.frequency.value=6000;
+    }
+  }
   function thud(k){
     const t=A.currentTime, o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(95,t); o.frequency.exponentialRampToValueAtTime(40,t+0.18);
     env(g,t,0.32*k*sv(),0.004,0.2); o.connect(g); g.connect(A.destination); o.start(t); o.stop(t+0.25);
@@ -315,6 +335,7 @@
       if(S.frogs&&Math.random()<0.02*(1+storm)){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
       if(!E.room&&Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
       things(B,S,E);
+      if(!E.room&&E.wind>0.15&&Math.random()<0.0009*(1-hush)) townCall(B.stageId);   // build 404: a far-off town, now and then
     }
     // the wheel
     const og=!!(p.og||(typeof _playerOnGround==='function'&&_playerOnGround(p)));

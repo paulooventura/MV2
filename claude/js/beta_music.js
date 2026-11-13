@@ -125,7 +125,9 @@
       // boss is really in view (on the screen, no margin) — before that the stage music plays
       if(!B.bossSeenOnce&&bossInView(boss)) B.bossSeenOnce=true;
       B.bossMeet=!!B.bossSeenOnce;
-      if(!B.bossSeenOnce) return {track:stageMusic||'stage'};
+      // Paulo, Nov 13: "on 1.3 the music still not spawning from the boss as soon as we enter the level". The
+      // boss's theme plays from the first frame, placed at the boss (faint and muffled far off, full on it);
+      // only the dialog still waits for the first real sight of it.
       if(see&&!boss.awake){ boss.awake=true; B.shake=Math.max(B.shake||0,4); }
       B.bossMix=1;
       return {track:'boss', at:ctr(boss)};

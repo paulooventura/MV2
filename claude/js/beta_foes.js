@@ -364,9 +364,15 @@
   // ── the HEPTAGON ──────────────────────────────────────────────
   const NODES=7;
   function nodePos(e,i){ const c={x:e.x+e.w/2,y:e.y+e.h/2}, a=e.rot+i*Math.PI*2/NODES-Math.PI/2; return {x:c.x+Math.cos(a)*56, y:c.y+Math.sin(a)*56, a}; }
+  // Paulo, Nov 13: "Let's have the boss have more animated stuff. The laughter sfx. When we hit it with the knife it
+  // recoils back, and it also tries to avoid it when we slash it. It should also become more red and its
+  // projectiles/lasers should shoot more constantly, and they should gradually deal more damage the closer we
+  // are from eliminating the boss." rage = how much of it is gone (0 full .. 1 nearly down).
+  function bossRage(e){ return Math.max(0,Math.min(1,1-e.hp/(e.mhp||1))); }
   function bossTick(e){
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, d=Math.hypot(dx,P.y-c.y);
-    const near=d<620;
+    const near=d<620, rage=bossRage(e);
+    const hm=(kx,ky,dmg)=>{ const ok=hurtMind(kx,ky,Math.round(dmg*(1+1.1*rage))); if(ok&&(e._laughCd||0)<fr){ e._laughCd=fr+200; e._mockT=60; e._mockLine=GLOAT[(e._gl=(e._gl|0)+1)%GLOAT.length]; try{ laugh(e); }catch(er){} } return ok; };
     // T466 (Paulo, Nov 11): three phases. 1: full to 2/3 HP, only the small ball projectiles.
     // 2: 2/3 to 1/3, balls + the notch lasers. 3: the last third, it gets really angry and moves
     // faster, with both of those AND foe E's powerful laser beam (aimed at MIND, then fired).
@@ -377,48 +383,59 @@
     if(!near&&!B.bossOn&&d>980&&e.awake) e.awake=false;
     // FLOATS WHEN THE HERO IS NEAR — otherwise it settles into its bowl
     const restY=e.homeY+150, tx=e.awake?Math.max(e.xMin!=null?e.xMin:58*T,Math.min(e.xMax!=null?e.xMax:78*T,P.x)):e.homeX, ty=e.awake?e.homeY-30+Math.sin(fr*0.025)*40:restY;
-    const spd=hard?2.4:1;
-    e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025*spd; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006*spd;
+    const spd=(hard?2.4:1)*(1+0.5*rage);
+    // the knife coming: wound up near it, or a slash in the air — it darts away (once every couple of seconds)
+    const kThreat=!!(B.knifeHeat&&B.knifeHeat()>0.12)||!!(B.knifeBig&&B.knifeBig())||!!(B.knifePose&&B.knifePose().swing);
+    if(e._dodgeCd>0) e._dodgeCd--;
+    if(e.awake&&kThreat&&!e._threatWas&&d<360&&!(e._dodgeCd>0)&&Math.random()<0.45+0.4*rage){
+      const away=-Math.sign(dx)||1; e.vx=(e.vx||0)+away*(9+5*rage); e.vy=(e.vy||0)-(4+3*Math.random()); e._dodgeT=26; e._dodgeCd=Math.round(150-50*rage);
+      S('punch_whiff',0.5); B.bossDodges=(B.bossDodges|0)+1; }
+    e._threatWas=kThreat;
+    if(e._recoilT>0||e._dodgeT>0){ if(e._recoilT>0) e._recoilT--; if(e._dodgeT>0) e._dodgeT--; e.vx*=0.9; e.vy*=0.9; e.rot+=(e.vx||0)*0.004; }
+    else{ e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025*spd; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006*spd; }
+    if(e.xMin!=null&&e.x+e.w/2<e.xMin*1-40&&e.vx<0) e.vx*=-0.5; if(e.xMax!=null&&e.x+e.w/2>e.xMax+40&&e.vx>0) e.vx*=-0.5;
     e.x+=e.vx; e.y+=e.vy;
+    // a laugh now and then while it's fighting
+    if(e.awake&&e.alive&&fr>(e._tauntAt||0)){ if(e._tauntAt){ e._mockT=70; e._mockLine=TAUNT[(e._tn=(e._tn|0)+1)%TAUNT.length]; try{ laugh(e); }catch(er){} } e._tauntAt=fr+540+Math.floor(Math.random()*300); }
     if(e.awake) e.rot+=hard?0.035:ph===2?0.016:0.01;                   // asleep in the bowl it lies still on a face
     if(!e.awake){ e.beams=null; return; }
     // contact
-    if(d<70) hurtMind(Math.sign(dx)*8,-6,16);
+    if(d<70) hm(Math.sign(dx)*8,-6,16);
     // the attack cycle
     e.stT++;
     const PATS=ph===1?['volley']:ph===2?['volley','corona']:['volley','corona','eyebeam'];
-    if(e.st==='rest'||e.st==='gap'){ if(e.stT>(hard?32:ph===2?60:80)){ e.pat=((e.pat|0)+1)%PATS.length; e.st=PATS[e.pat]; e.stT=0; } }
+    if(e.st==='rest'||e.st==='gap'){ if(e.stT>Math.round((hard?32:ph===2?60:80)*(1-0.55*rage))){ e.pat=((e.pat|0)+1)%PATS.length; e.st=PATS[e.pat]; e.stT=0; } }
     else if(e.st==='eyebeam'){                                     // foe E's beam: it tracks MIND (dashed), locks, fires thick
       const tel=40, fire=48;
       if(e.stT<=tel){ const ax=P.x-c.x, ay=P.y-c.y, al=Math.hypot(ax,ay)||1; e._eb={ux:ax/al, uy:ay/al}; }
       const ux=e._eb.ux, uy=e._eb.uy, L=rayEnd(c.x,c.y,ux,uy,1100);
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
       if(e.stT===tel){ S('laser',0.35); S('zap',0.5); B.shake=Math.max(B.shake||0,7); }
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hurtMind(ux*8,-5,24);
+      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hm(ux*8,-5,24);
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }
     else if(e.st==='corona'){                                      // a corona of 7 beams: telegraphed, then it fires and turns
       const tel=hard?34:46, fire=hard?70:55;
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[]};
       for(let i=0;i<NODES;i++){ const n=nodePos(e,i), ux=Math.cos(n.a), uy=Math.sin(n.a); const L=rayEnd(n.x,n.y,ux,uy,900); e.beams.list.push({x:n.x,y:n.y,ux,uy,L});
-        if(!e.beams.tel&&segDist(P.x,P.y,n.x,n.y,n.x+ux*L,n.y+uy*L)<22) hurtMind(ux*6,-4,18); }
+        if(!e.beams.tel&&segDist(P.x,P.y,n.x,n.y,n.x+ux*L,n.y+uy*L)<22) hm(ux*6,-4,18); }
       if(e.stT===tel){ S('laser',0.5); B.shake=Math.max(B.shake||0,4); }
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }else if(e.st==='volley'){                                     // the nodes fire bolts at him, one after another
-      const every=hard?5:7;
-      if(e.stT%every===0&&e.stT<=every*NODES*(hard?2:1)){ const i=(e.stT/every|0)%NODES, n=nodePos(e,i), bx=P.x-n.x, by=P.y-n.y, bd=Math.hypot(bx,by)||1;
-        e.bolts.push({x:n.x,y:n.y,vx:bx/bd*(hard?7.5:6),vy:by/bd*(hard?7.5:6),life:140}); S('laser',1.6); }
-      if(e.stT>every*NODES*(hard?2:1)+20){ e.st='gap'; e.stT=0; }
+      const every=Math.max(3,Math.round((hard?5:7)*(1-0.35*rage))), rounds=(hard?2:1)+(rage>0.5?1:0);
+      if(e.stT%every===0&&e.stT<=every*NODES*rounds){ const i=(e.stT/every|0)%NODES, n=nodePos(e,i), bx=P.x-n.x, by=P.y-n.y, bd=Math.hypot(bx,by)||1;
+        const bs=(hard?7.5:6)*(1+0.3*rage); e.bolts.push({x:n.x,y:n.y,vx:bx/bd*bs,vy:by/bd*bs,life:140}); S('laser',1.6); }
+      if(e.stT>every*NODES*rounds+20){ e.st='gap'; e.stT=0; }
     }else if(e.st==='sweep'){                                      // under half: one big beam sweeps across the arena
       const a=Math.PI*0.15+Math.PI*0.7*(e.stT/120)*(e.sweepDir||1);
       const ux=Math.cos(Math.PI/2+(e.sweepDir||1)*(-Math.PI*0.45+Math.PI*0.9*e.stT/120)), uy=Math.abs(Math.sin(Math.PI/2+(-Math.PI*0.45+Math.PI*0.9*e.stT/120)));
       const L=rayEnd(c.x,c.y,ux,uy,900); e.beams={tel:e.stT<30, k:e.stT<30?e.stT/30:1, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hurtMind(ux*7,-5,22);
+      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34) hm(ux*7,-5,22);
       if(e.stT>=120){ e.st='gap'; e.stT=0; e.beams=null; e.sweepDir=-(e.sweepDir||1); }
     }
     for(let i=e.bolts.length-1;i>=0;i--){ const b=e.bolts[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
       if(b.life<=0||solid(b.x,b.y)){ burst(b.x,b.y,5,['#ff8080','#ffd0d0'],2); e.bolts.splice(i,1); continue; }
-      if(Math.hypot(b.x-P.x,b.y-P.y)<26){ hurtMind(b.vx*0.8,-3,10); e.bolts.splice(i,1); } }
+      if(Math.hypot(b.x-P.x,b.y-P.y)<26){ hm(b.vx*0.8,-3,10); e.bolts.splice(i,1); } }
   }
   function bossDefeat(e){
     if(e._defeated) return; e._defeated=true; B.bossDown=true; B.bossOn=false;
@@ -454,8 +471,10 @@
     if(e.awake&&!off){ const g0=ctx.createRadialGradient(0,0,R*0.5,0,0,R*1.8); g0.addColorStop(0,'rgba(255,60,60,'+(e.phase===3?(0.45+0.2*Math.sin(fr*0.3)).toFixed(3):'0.25')+')'); g0.addColorStop(1,'rgba(255,60,60,0)'); ctx.fillStyle=g0; ctx.beginPath(); ctx.arc(0,0,R*1.8,0,Math.PI*2); ctx.fill(); }
     ctx.save(); ctx.rotate(e.rot);
     ctx.beginPath(); for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
-    const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#3a3440':'#4a3c58'); g.addColorStop(1,off?'#1a161e':'#1c1424');
-    ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=sw(4); ctx.strokeStyle=e.hitF>0?'#ffffff':(off?'#4a2a2a':'#c02838'); ctx.stroke();
+    const rg=off?0:bossRage(e), mixC=(a,b2,t)=>'rgb('+a.map((v,i)=>Math.round(v+(b2[i]-v)*t)).join(',')+')';
+    const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#3a3440':mixC([74,60,88],[178,34,48],rg)); g.addColorStop(1,off?'#1a161e':mixC([28,20,36],[86,10,18],rg));
+    ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=sw(4+2*rg); ctx.strokeStyle=e.hitF>0?'#ffffff':(off?'#4a2a2a':'#c02838'); ctx.stroke();
+    if(rg>0.05){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=rg*(0.35+0.25*Math.sin(fr*(0.12+0.2*rg))); ctx.fillStyle='#ff2030'; ctx.fill(); ctx.restore(); }   // a hot red pulse through the body
     for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2, x=Math.cos(a)*R, y=Math.sin(a)*R;   // the angle nodes
       const hot=e.beams&&!off?(e.beams.tel?e.beams.k:1):(e.awake&&!off?0.3+0.2*Math.sin(fr*0.2+i):0.1);
       ctx.fillStyle='rgba(255,'+(80+120*hot|0)+','+(80+60*hot|0)+','+(0.4+0.6*hot)+')'; ctx.beginPath(); ctx.arc(x,y,sw(6+3*hot),0,Math.PI*2); ctx.fill(); }
@@ -469,6 +488,7 @@
     const sc=off?0:Math.min(1,e._scare*1.15), mk=off?0:Math.min(1,(e._mockT||0)/20);
     if(sc>0.05){ ctx.translate((Math.random()-0.5)*sw(2.5)*sc,(Math.random()-0.5)*sw(1.5)*sc); }      // trembling
     if(mk>0) ctx.translate(0,Math.sin(fr*0.9)*sw(3)*mk);                                              // shaking with laughter
+    if(e._recoilT>0) ctx.translate(Math.sin(fr*1.7)*sw(4)*(e._recoilT/24),0);                        // reeling from the blade
     ctx.strokeStyle=off?'#5a5060':'#ff4a5a'; ctx.lineWidth=sw(5); ctx.lineCap='round';
     const mad=e.awake&&!off;
     const by=mad?-R*0.16:-R*0.26;
@@ -671,6 +691,8 @@
     burst(x,y,6,['#ffffff','#c0c8d8'],3); S('omniblock_chip',1.6); }
   // T462 (Paulo, Nov 11): hit with anything but the kiritsuke, the boss mocks: it laughs at MIND
   // (a synthesized "ha-ha-ha"), its face grins, and it says the toys won't do.
+  const GLOAT=['HA HA HA! FEEL THAT?','HAH! STAY DOWN, SPEAKER.','HA HA! TOO SLOW!'];
+  const TAUNT=['HA HA HA... COME CLOSER.','IS THAT A KNIFE OR A SPOON? HA HA!','I CAN DO THIS ALL NIGHT. HA HA HA!'];
   const MOCK=['HA HA HA! YOUR TOYS CAN\'T TOUCH ME.','IS THAT ALL? PATHETIC LITTLE SPEAKER.','HAH! NO PLUG OF YOURS WILL END ME.','TICKLES. TRY SOMETHING SHARPER... OH WAIT.'];
   function laugh(e){
     let a=null; try{ a=typeof ga==='function'?ga():null; }catch(er){} if(!a||a.state!=='running') return;
@@ -708,6 +730,10 @@
   const _dmgE=window._damageEnemy;
   if(typeof _dmgE==="function") window._damageEnemy=function(e,dmg,fx,fy,kb){
     if(e&&e._boss&&on()&&!knifeHit){ if(e.alive&&fx!=null&&fy!=null&&(e._clinkF||0)<fr){ e._clinkF=fr+8; clink(e,fx,fy); } if(e.alive) bossMock(e); return false; }
+    if(e&&e._boss&&on()&&knifeHit&&e.alive){                          // the blade lands: it's thrown back, reeling
+      const hx=fx!=null?fx:(p?p.x+SW/2:e.x), dir=Math.sign(e.x+e.w/2-hx)||1;
+      e.vx=(e.vx||0)+dir*12; e.vy=(e.vy||0)-5; e._recoilT=24; e.hitF=12; e._dodgeCd=Math.max(e._dodgeCd|0,40);
+      B.shake=Math.max(B.shake||0,9); S('enemy_boot',1.5); B.bossRecoils=(B.bossRecoils|0)+1; }
     if(e&&e._foe==='cube'&&e.alive&&on()){
       // (build 371) any hit while its window is shut wakes it and opens the 3 s window again —
       // before, only walking up to it did, so standing next to it once the 3 s ran out it

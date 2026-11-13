@@ -187,7 +187,7 @@
     if(!cache[id]) cache[id]={th, sky:skyTex(th), far:farTex(th), town:townTex(th), aurora:auroraTex(th), cloud:cloudTex(th), mid:midTex(th)};
     return cache[id];
   }
-  let shoot=null;
+  let shoot=null, flock=null;
   function haze(y,hgt,a,th){ const g=ctx.createLinearGradient(0,y-hgt,0,y+hgt); g.addColorStop(0,th.glow+'0)'); g.addColorStop(0.5,th.glow+a+')'); g.addColorStop(1,th.glow+'0)'); ctx.fillStyle=g; ctx.fillRect(0,y-hgt,W,hgt*2); }
   function tile(img,offX,y,scale){
     const w=img.width*scale, h=img.height*scale; let x=-(((offX%w)+w)%w);
@@ -236,6 +236,13 @@
     };
     if(th.moon&&!th.moon.late) moon();
     { ctx.save(); ctx.globalAlpha=0.62; tile(L.cloud,cx*0.05+fr*0.1,skyY+L.sky.height*PXS*(th.moon?th.moon.y:0.2)-30,PXS); ctx.restore(); }   // clouds drifting across the moon
+    // Paulo, Nov 13: "add animation ... so that the world looks more alive": a flock (birds; bats on 1.3) crosses now and then
+    if(!flock&&Math.random()<0.0035){ const dir=Math.random()<0.5?1:-1, n=3+(Math.random()*5|0); flock={dir, x:dir>0?-60:W+60, y:skyY+60+Math.random()*Math.min(220,Math.max(60,horizon-skyY-260)), v:1.3+Math.random()*1.1, birds:Array.from({length:n},(_,i)=>({dx:-i*18*dir+(Math.random()-0.5)*10, dy:(i%2?1:-1)*i*7+(Math.random()-0.5)*6, ph:Math.random()*6}))}; }
+    if(flock){ const F=flock; F.x+=F.v*F.dir; F.y+=Math.sin(fr*0.02)*0.15;
+      ctx.save(); ctx.strokeStyle=th.pole; ctx.lineWidth=PXS*0.8; ctx.lineCap='round';
+      for(const b of F.birds){ const bx=F.x+b.dx, by=F.y+b.dy, wf=Math.sin(fr*(th.city?0.5:0.3)+b.ph)*(th.city?7:5), s=th.city?6:7;
+        ctx.beginPath(); ctx.moveTo(bx-s,by-wf); ctx.lineTo(bx,by); ctx.lineTo(bx+s,by-wf); ctx.stroke(); }
+      ctx.restore(); if(F.x<-200||F.x>W+200) flock=null; }
     // horizon glow, then far mountains, haze, the middle layer, haze, then the town and its mist
     const hg=ctx.createLinearGradient(0,horizon-140,0,horizon+20); hg.addColorStop(0,th.glow+'0)'); hg.addColorStop(1,th.glow+'0.18)');
     ctx.fillStyle=hg; ctx.fillRect(0,horizon-140,W,160);

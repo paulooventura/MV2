@@ -18851,53 +18851,27 @@
       },
       {
        "__identifier": "Enemy",
-       "iid": "l13-76",
-       "width": 16,
-       "height": 16,
-       "px": [
-        240,
-        944
-       ],
-       "__grid": [
-        15,
-        59
-       ],
-       "fieldInstances": [
-        {
-         "__identifier": "ai",
-         "__type": "String",
-         "__value": "circle"
-        },
-        {
-         "__identifier": "range",
-         "__type": "Int",
-         "__value": 1
-        }
-       ]
-      },
-      {
-       "__identifier": "Enemy",
        "iid": "l13-77",
        "width": 16,
        "height": 16,
        "px": [
-        336,
+        400,
         944
        ],
        "__grid": [
-        21,
+        25,
         59
        ],
        "fieldInstances": [
         {
          "__identifier": "ai",
          "__type": "String",
-         "__value": "circle"
+         "__value": "mirror"
         },
         {
          "__identifier": "range",
          "__type": "Int",
-         "__value": 1
+         "__value": 3
         }
        ]
       },
@@ -18990,32 +18964,6 @@
        ],
        "__grid": [
         29,
-        34
-       ],
-       "fieldInstances": [
-        {
-         "__identifier": "ai",
-         "__type": "String",
-         "__value": "mirror"
-        },
-        {
-         "__identifier": "range",
-         "__type": "Int",
-         "__value": 4
-        }
-       ]
-      },
-      {
-       "__identifier": "Enemy",
-       "iid": "l13-82",
-       "width": 16,
-       "height": 16,
-       "px": [
-        528,
-        544
-       ],
-       "__grid": [
-        33,
         34
        ],
        "fieldInstances": [

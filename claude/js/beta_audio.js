@@ -196,7 +196,7 @@
       if(Math.abs(a.playbackRate-r)<0.02) window._mvVinylSpin=0;
       return;
     }
-    if(Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;
+    if(!a._liftRate&&Math.abs(a.playbackRate-r)>0.004) a.playbackRate=r;   // (build 404) the elevator tempo slide owns the rate while it runs
     if(beds.size||a._placed) return;
     if(vol()<=0){ a.volume=0; a.muted=true; return; }
     a.muted=false;
@@ -704,7 +704,7 @@
   }
   function liftTempoOff(stage){ if(stage&&stage._liftRate){ stage._liftRate=false; if(!window._mvVinyl&&!octaved&&!window._mvOctave) setRate(stage,1); } }
   function liftMix(){
-    const L=window.MV_LIFT, pull=L?L.pull||0:0, inside=!!(L&&L.inside);
+    const L=window.MV_LIFT, pull=L?(L.musicT||0)*(L.musicDir||1):0, inside=!!(L&&L.inside);   // build 404: the song changes only at floor 33 (musicT), not floor by floor
     const v=vol();
     const stage=current&&els[current];
     const base=stage?(stage._baseVol==null?1:stage._baseVol):1;
@@ -751,5 +751,29 @@
     liftBed.muted=v<=0;
     liftTempo(stage,t);
   }
-  window.MV_BETA_AUDIO={play, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
+  // Paulo, Nov 13: "make sure that two soundtracks don't play at the same time (besides the elevator up/down
+  // effect, which should be syncing both tracks together seamlessly)". A guard, four times a second: in a
+  // stage only the current track (plus the 1.2 two-track blend and the elevator's phase bed) may sound; the
+  // title / story songs (audio.js) and any other stage track left going are paused. Off a stage, the
+  // stage tracks are silenced.
+  let guardN=0;
+  function musicGuard(){
+    try{
+      const Bq=window.MV_BETA, gs=typeof _gameState!=='undefined'?_gameState:'';
+      const inStage=!!(Bq&&Bq.on&&(gs==='game'||gs==='paused'||gs==='options'));
+      const live=a=>!!a&&!a.paused&&!a.muted&&a.volume>0.02;
+      const legacy=[]; try{ for(const v of [typeof _gameAudioEl!=='undefined'?_gameAudioEl:null, typeof _storyAudioEl!=='undefined'?_storyAudioEl:null, typeof _openingAudioEl!=='undefined'?_openingAudioEl:null]) if(v) legacy.push(v); if(typeof _mp3Pool!=='undefined'&&_mp3Pool) for(const k in _mp3Pool) if(_mp3Pool[k]&&legacy.indexOf(_mp3Pool[k])<0) legacy.push(_mp3Pool[k]); }catch(e){}
+      if(inStage){
+        const keep=current&&els[current];
+        for(const k in els){ const a=els[k]; if(!a||a===keep||(duoOn&&a._mix!=null)) continue; if(live(a)){ try{ a.pause(); }catch(e){} guardN++; } }
+        if(keep) for(const a of legacy) if(a!==keep&&live(a)){ try{ a.pause(); }catch(e){} guardN++; }
+        const L=window.MV_LIFT; if(liftBed&&live(liftBed)&&!(L&&Math.abs(L.pull||0)>=0.02&&!L.inside)){ liftBed.volume=0; liftBed.muted=true; guardN++; }
+      }else if(legacy.some(live)){
+        for(const k in els) if(live(els[k])){ try{ els[k].pause(); }catch(e){} guardN++; }
+        if(liftBed&&live(liftBed)){ liftBed.volume=0; liftBed.muted=true; }
+      }
+    }catch(e){}
+  }
+  setInterval(musicGuard,250);
+  window.MV_BETA_AUDIO={play, musicGuard, guarded:()=>guardN, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();

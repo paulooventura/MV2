@@ -809,9 +809,32 @@
     }
   }
   // the town behind the spawn ledge and the slope in 1.2 (sketch: pink houses, people, bunting)
+  // Paulo, Nov 13: "that first background house by 1.2 looks like it's floating in the air". The town's houses
+  // stopped at a fixed depth (G) that the terrain was meant to cover; over the drop under the slope it didn't.
+  // The town now stands on a stone terrace that goes all the way down to the real ground under it.
+  function townFloor(d){
+    if(d._ground!=null) return d._ground;
+    const cells=MV_BETA.level&&MV_BETA.level.cells; if(!cells) return d.y+d.h;
+    const R=cells.length, C=cells[0].length; let deep=Math.floor((d.y+d.h)/T);
+    for(let px=d.x;px<=d.x+700;px+=T/2){ const c=Math.floor(px/T); if(c<0||c>=C) continue; let r=Math.max(0,Math.floor((d.y+d.h)/T)); while(r<R&&!cells[r][c]) r++; if(r<R) deep=Math.max(deep,r); }
+    return d._ground=Math.min(R,deep+1)*T;
+  }
+  function terrace(d){
+    const top=d.y+d.h-6, bot=townFloor(d); if(bot<=top+8) return;
+    const x0=d.x-14, w=730, h=bot-top;
+    rect(x0,top,w,h,'#2a1e30');
+    for(let yy=top+10, k=0; yy<bot; yy+=22, k++) for(let xx=x0+(k%2?0:24); xx<x0+w; xx+=48) rect(xx,yy,Math.min(44,x0+w-xx),Math.min(18,bot-yy),k%3?'#33253a':'#2e2134');   // dressed stone (clipped to the wall)
+    rect(x0,top,w,10,'#4a3a52'); rect(x0,top+10,w,3,'#1a121e');                                                        // the coping
+    for(let i=0;i<5;i++){ const ax=x0+60+i*140, ay=Math.min(bot-60,top+70);                                            // drain arches with a little light
+      ctx.fillStyle='#120c16'; ctx.beginPath(); ctx.arc(X(ax),Y(ay+26),S(18),Math.PI,0); ctx.fill(); ctx.fillRect(X(ax-18),Y(ay+26),S(36),S(24));
+      if(i%2===0){ ctx.fillStyle='rgba(255,190,110,'+(0.35+0.15*Math.sin(fr*0.04+i))+')'; ctx.fillRect(X(ax-6),Y(ay+20),S(12),S(10)); } }
+    for(let i=0;i<9;i++){ const vx=x0+30+i*82+((i*37)%23), len=40+((i*53)%70), sway=Math.sin(fr*0.03+i)*S(2);              // ivy down the wall
+      for(let k=0;k<len;k+=8){ ctx.fillStyle=k%16?'#2a5a34':'#3a7a44'; ctx.fillRect(X(vx)+sway*(k/len),Y(top+12+k),S(4),S(6)); } }
+  }
   function bgTown(d){
-    if(!inView(d.x-100,d.y-120,d.w+200,d.h+140)) return;
-    const x=d.x, y=d.y, G=d.y+d.h;                      // G: deep enough that the terrain covers the bases
+    if(!inView(d.x-100,d.y-120,d.w+200,Math.max(d.h,townFloor(d)-d.y)+140)) return;
+    terrace(d);
+    const x=d.x, y=d.y, G=d.y+d.h;                      // G: the terrace's top (terrace() fills down to the ground)
     const far='#4a2c48', farD='#382038', mid='#5e3a52', midD='#46293e', near='#6e4658', nearD='#523244';
     const roofC='#7a3a3a', roofHi='#b86a5a', roofD='#3a1a22';
     // house 1: tall, gabled (left)

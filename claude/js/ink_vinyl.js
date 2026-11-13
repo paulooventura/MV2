@@ -229,7 +229,7 @@
     oc.style.opacity=amt.toFixed(3);
     if(oc.style.display==='none') oc.style.display='';
     if(amt>0.12){ try{ bed(); }catch(e){} }
-    if(A&&A.bed&&A.bed.g) A.bed.g.gain.value=0.22*amt;
+    if(A&&A.bed&&A.bed.g) A.bed.g.gain.value=0.08*amt;
     syncBox();
     if((INK.frames++&7)===0) expose();
     const at=ageTarget(); INK.age+=(at-INK.age)*(at>INK.age?0.35:0.06);
@@ -296,10 +296,16 @@
     const a=actx(); if(!a) return; setup(a);
     if(A.bed) return;
     const len=a.sampleRate*4, b=a.createBuffer(1,len,a.sampleRate), d=b.getChannelData(0);
-    for(let k=0;k<len;k++){ d[k]=(Math.random()*2-1)*0.008; if(Math.random()<0.0007) d[k]+=(Math.random()*2-1)*0.45; }
+    // Paulo, Nov 13: "the vinyl cracks for the I&V filter sound like noise and are making the whole thing sound
+    // dirty". No hiss bed any more (it was white noise under everything) and no loud clicks: a few soft,
+    // short pops a second, each a tiny decaying tick, band-limited so they sit behind the music.
+    for(let k=0;k<len;k++) d[k]=0;
+    const pops=Math.round(4*6);                                       // ~6 a second over the 4 s loop
+    for(let i=0;i<pops;i++){ const at=Math.floor(Math.random()*(len-200)), amp=(0.05+Math.random()*0.14)*(Math.random()<0.5?1:-1), n=Math.floor(a.sampleRate*(0.0006+Math.random()*0.0018));
+      for(let j=0;j<n;j++) d[at+j]+=amp*Math.exp(-j/(n*0.35))*(j%2?-0.6:1); }
     const s=a.createBufferSource(); s.buffer=b; s.loop=true;
-    const hp=a.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1000;
-    const g=a.createGain(); g.gain.value=0.22;
+    const hp=a.createBiquadFilter(); hp.type='bandpass'; hp.frequency.value=2800; hp.Q.value=0.6;
+    const g=a.createGain(); g.gain.value=0.08;
     s.connect(hp); hp.connect(g); g.connect(A.out); s.start();
     A.bed={s,g};
   }

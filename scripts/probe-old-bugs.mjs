@@ -435,8 +435,8 @@ const PROBES = {
         const watch = () => { worst = Math.max(worst, ropeRun()); bodyIn += H.bodyInRock() >= 2 ? 1 : 0; frames++; return p.hook.st === 'on'; };
         H.clearKeys(); K.KeyD = true; H.step(70, watch);
         H.clearKeys(); K.KeyA = true; H.step(70, watch);
-        H.clearKeys(); K.KeyW = true; H.step(40, watch);
-        H.clearKeys(); K.KeyS = true; H.step(30, watch);
+        H.clearKeys(); K.KeyS = true; H.step(40, watch);   // pay out (down since build 404)
+        H.clearKeys(); K.KeyW = true; H.step(30, watch);   // reel in (up)
         H.clearKeys(); H.step(30, watch);
         const ok = !inside && worst <= 8 && !flewIn && bodyIn < 3;
         out.push({ from: c + ',' + r, aim: ax + ',' + ay, anchor: Math.round(h.ax) + ',' + Math.round(h.ay), cube: !!h._cube, inside, onFace, worstInRock: worst, flewIn, bodyIn, frames, ok });

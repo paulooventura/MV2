@@ -1075,7 +1075,7 @@ function updateHook(){
       if(ix||iy){ const sp=Math.hypot(h.evx,h.evy)||1, il=Math.hypot(ix,iy);
         let nvx=h.evx+ix/il*sp*0.12, nvy=h.evy+iy/il*sp*0.12; const nl=Math.hypot(nvx,nvy)||1;
         h.evx=nvx/nl*sp; h.evy=nvy/nl*sp; h._steered=(h._steered|0)+1; }
-      h._upWas=!!isUp(); h._dnWas=!!isDn();                       // a direction held through the latch is not a fresh press (no surprise slack)
+      h._upWas=!!isDn(); h._dnWas=!!isUp();                       // (build 404: up reels in) a direction held through the latch is not a fresh press (no surprise slack)
     }
     h.ex+=h.evx; h.ey+=h.evy;
     if(Math.hypot(h.ex-attach.x,h.ey-attach.y)>CMAX){ if(h.st==='on') _releaseHookAim(h.ax,h.ay); _hookOff(); return; }
@@ -1158,7 +1158,9 @@ function updateHook(){
     const arm=Math.min(1, Math.hypot(adx,ady)*6);
     h._ax0=p.aimDX||0; h._ay0=p.aimDY||0;
     if(ITEM===1){
-      const up=isUp(), dn=isDn();
+      // Paulo, Nov 13: "invert the up/down reel effect for the RCA item. so if we press up, it reels in and
+      // down reels out." `up` below is the pay-out key (now DOWN), `dn` the reel-in key (now UP).
+      const up=isDn(), dn=isUp();
       const caught=_ropeCatch(h), light=_catchLighter(caught);
       if(up&&!h._upWas){
         if(h._paid){ _detachPlayerRope(h,'snap'); return; }
