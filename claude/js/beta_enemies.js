@@ -1035,7 +1035,7 @@
     ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
     { const rot=(e._ai==='circle'?(e.roll||0):0)+(piv?e.ang:(!piv&&e.ang&&e._ai!=='circle'?e.ang:0))+(!piv&&e.og&&e._ai!=='circle'?(e.gAng||0):0);
       const lk=e.look||{x:0,y:0}, cr=Math.cos(-rot), sr=Math.sin(-rot);
-      inkFace(ctx,s,e._ai,ink,off,off?0:lk.x*cr-lk.y*sr,off?0:lk.x*sr+lk.y*cr,rot); }
+      if(!(e.alive&&window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')) inkFace(ctx,s,e._ai,ink,off,off?0:lk.x*cr-lk.y*sr,off?0:lk.x*sr+lk.y*cr,rot); }   // (build 411) in GORE the mad face (gore_metal) replaces it, not stacked on it
     if(e._iso){ ctx.strokeStyle='rgba(255,160,70,'+(0.55+0.2*Math.sin(fr*0.12))+')'; ctx.lineWidth=Math.max(3,s*0.07); ctx.save(); ctx.scale(1.12,1.12); shape(); ctx.stroke(); ctx.restore(); }
     ctx.restore();
   }

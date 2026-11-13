@@ -97,7 +97,7 @@ function drawEnemyBodyShape(bx,by,facing,shape){
   }
 }
 function drawMindGloveArm(e,sxp,syp,facing,hidden){
-  const armCol1=C.MAROON, armCol2=C.RED_D;
+  const armCol1=window._mirrorDraw?'#0e1014':C.MAROON, armCol2=window._mirrorDraw?'#5c626e':C.RED_D;   // (build 411) the mirror D's coil: black and chrome
   const punching=e.pt>0;
   const snapFrac=punching?(1-e.pt/10):0;
   const fwdDir=facing?1:-1;
@@ -132,6 +132,7 @@ function drawCharShadow(cx,cy){
 function _wheelPalette(pl){
   const ch=_playerChargeInfo(pl);
   const {chargeFrac,ready,springReady,wallReady}=ch;
+  if(pl._wheelHostile&&window._mirrorDraw) return {b1:'#141418',b2:'#3a3c44',b3:'#c8ced8',spin:'rgba(220,226,236,0.55)',tread:false};   // (build 411) the mirror D: black and chrome, no red
   if(pl._wheelHostile) return {b1:'#660018',b2:'#aa0028',b3:'#dd2244',spin:'rgba(200,40,60,0.6)',tread:false};
   if(ready&&(springReady||wallReady)) return {b1:'#0a3818',b2:'#22c060',b3:'#7affa8',spin:'rgba(48,255,120,0.7)',tread:true};
   if(ready) return {b1:'#184820',b2:'#28a050',b3:'#58e878',spin:'rgba(40,200,80,0.55)',tread:true};
@@ -539,9 +540,10 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   const cg=Math.max(0,Math.min(1,ch.chargeFrac||0));
   const lampReady=!!ch.ready;
   const pulse=hostile?0.55+Math.sin(fr*0.14)*0.45:0;
+  const MIR=hostile&&!!window._mirrorDraw;                         // (build 411, Paulo) the mirror D: black chrome body, a YELLOW light bulb, nothing red
   if(hostile&&pulse>0.25){
     ctx.beginPath();ctx.ellipse(cx,drawY,R+4+pulse*5,R+5+pulse*6,0,0,Math.PI*2);
-    ctx.fillStyle=pulse>0.7?'rgba(255,80,60,0.45)':'rgba(255,120,60,0.28)';
+    ctx.fillStyle=MIR?(pulse>0.7?'rgba(255,220,80,0.45)':'rgba(255,200,70,0.28)'):(pulse>0.7?'rgba(255,80,60,0.45)':'rgba(255,120,60,0.28)');
     ctx.fill();
   }
   if(lampReady&&!hostile){
@@ -554,7 +556,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   // pass 4 (Oct 22): the glowing green glass bulb of the key art (the mirror enemy keeps dark red glass)
   if(isFinite(cx)&&isFinite(drawY)){
     // Paulo (Oct 22, the key art): clear glass with a violet (MIND) / rose (VENTURE) glow
-    const gl=hostile?['rgba(205,215,230,','#2a2e36','#14161a','#3a3e48']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
+    const gl=MIR?['rgba(255,214,90,','#fff4b8','#e0b030','#5a4208']:hostile?['rgba(205,215,230,','#2a2e36','#14161a','#3a3e48']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
     const halo=ctx.createRadialGradient(cx,drawY,R*0.6,cx,drawY,R+9);
     halo.addColorStop(0,gl[0]+(hostile?0.0:0.30)+')'); halo.addColorStop(1,gl[0]+'0)');
     ctx.fillStyle=halo; ctx.beginPath(); ctx.ellipse(cx,drawY,R+9,R+10,0,0,Math.PI*2); ctx.fill();
@@ -563,13 +565,13 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     bg.addColorStop(0,gl[1]); bg.addColorStop(0.55,gl[2]); bg.addColorStop(1,gl[3]);
     ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
     // filament glow ring behind the eye
-    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=MIR?'rgba(255,230,120,0.35)':hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
   }
 
-  let scleraCol=hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
+  let scleraCol=MIR?'#fff2c4':hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
   if(lampReady&&!hostile) scleraCol=`rgb(${200+Math.round(Math.sin(fr*0.2)*30)},255,${210+Math.round(Math.sin(fr*0.17)*25)})`;
-  let irisCol=hostile?'#882018':(isVen?'#e02a3c':'#9a4cff');
-  let irisDark=hostile?'#5a1010':(isVen?'#6a0a18':'#4a1a9a');
+  let irisCol=MIR?'#2a2a30':hostile?'#882018':(isVen?'#e02a3c':'#9a4cff');
+  let irisDark=MIR?'#08080a':hostile?'#5a1010':(isVen?'#6a0a18':'#4a1a9a');
   if(!hostile&&cg>0.05){
     const g=cg;
     irisCol=_mixHex(isVen?'#e02a3c':'#9a4cff','#28a050',g);
@@ -608,7 +610,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     ctx.beginPath(); ctx.moveTo(cx-9,drawY-eyeRy-1); ctx.lineTo(cx-1,drawY-eyeRy+2); ctx.moveTo(cx+9,drawY-eyeRy-1); ctx.lineTo(cx+1,drawY-eyeRy+2); ctx.stroke();
   }
   ctx.beginPath();ctx.ellipse(cx,drawY+2,5.5,5.5,0,0,Math.PI*2);
-  ctx.strokeStyle=goreFace?'#ff3040':(hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#ff6a7a':'#c49aff')));ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=goreFace?'#ff3040':(MIR?'#f0c040':hostile?'#cc4040':(cg>0.05?'#48c878':(isVen?'#ff6a7a':'#c49aff')));ctx.lineWidth=1;ctx.stroke();
   const px=cx+pupilX,py=drawY+2+pupilY;
   ctx.beginPath();ctx.arc(px,py,3.5,0,Math.PI*2);ctx.fillStyle='#03030e';ctx.fill();
   ctx.beginPath();ctx.arc(px-1.2,py-1.2,1.4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
@@ -988,8 +990,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     if(_armSolid(fx,fy)||_armSolid(fx+fd*8,fy)) facing=!facing;
   }
   const isVenture=p.hero==='venture';
-  const armCol1=isVenture?C.MAROON:C.PURPLE_D;
-  const armCol2=isVenture?C.RED_D:C.INDIGO;
+  const armCol1=window._mirrorDraw?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
+  const armCol2=window._mirrorDraw?'#5c626e':isVenture?C.RED_D:C.INDIGO;
   const punching   = p.pt > 0;
   const charging   = p.pCharging;
   const HP = typeof _heroPunch==='function' ? _heroPunch(p) : {dmg:15,reach:28,loadF:20,loadDmg:35,loadReach:58};
@@ -1222,7 +1224,7 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   if(!facing) ctx.scale(-1,1);
   if(punching) ctx.scale(1+snapFrac*0.1,1+snapFrac*0.1);
   // Paulo (Oct 22, the key art): a purple leather glove for MIND, a red one for VENTURE
-  const gL=isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];
+  const gL=window._mirrorDraw?['#e8eef8','#6a707c','#14161c']:isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];   // (build 411) the mirror D: a chrome glove
   ctx.fillStyle='#050507';
   ctx.beginPath();ctx.roundRect(-1,-gh/2-1,gw+2,gh+2,7);ctx.fill();
   ctx.beginPath();ctx.arc(gw/2,0,gh/2+3,0,Math.PI*2);ctx.fill();
@@ -1969,7 +1971,7 @@ function drawMindEnemy(e){
   const _eh=p.hero; p.hero=e.mirror?'mind':'venture';
   drawBody(wcx,bTopS,fc,0,{hp:e.hp,mhp:e.mhp,off:false});
   p.hero=_eh;
-  const armDark=C.MAROON, armMain=C.RED_D;
+  const armDark=window._mirrorDraw?"#0e1014":C.MAROON, armMain=window._mirrorDraw?"#5c626e":C.RED_D;   // (build 411) the mirror D: black and chrome
   const eItem=e.item!=null?e.item:0;
   if(e.hook&&e.hook.st!=='idle'&&eItem===1){
     const hk=e.hook;
