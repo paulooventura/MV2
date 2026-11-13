@@ -1018,10 +1018,26 @@
     }
     for(const e of ENEMS) if(e._cubeHitF>0) e._cubeHitF--;
     knowlFlyTick();
+    try{ rescueTick(); }catch(e){}
   }
 
   // ── Knowls can be carried by the MAG and thrown; touching an enemy charges it
   const KR=11;
+  // Paulo, Nov 13: "No items, foes, characters, or anything that moves ... should be able to get inside
+  // walls/floors/ceilings EVER." Whatever ends up in rock — a Knowl (dropped from the MAG, thrown, flying), a jack
+  // on the floor — is put back at once on the nearest free spot, upward first.
+  function knowlInRock(x,y){ return solidPx(x,y)||solidPx(x-KR+2,y)||solidPx(x+KR-2,y)||solidPx(x,y-KR+2)||solidPx(x,y+KR-2); }
+  function freeSpot(x,y,inRock){
+    if(!inRock(x,y)) return null;
+    for(let r=4;r<=4*T;r+=4) for(const [dx,dy] of [[0,-1],[1,0],[-1,0],[0,1],[1,-1],[-1,-1],[1,1],[-1,1]]){ const nx=x+dx*r, ny=y+dy*r; if(!inRock(nx,ny)) return {x:nx,y:ny}; }
+    return null;
+  }
+  function rescueTick(){
+    for(const k of KDROP){ if(!k||k.got||k._carried||!(k._fly||k._moved)) continue;   // only ones that have been moved (the level's own rest where they're placed)
+      const s=freeSpot(k.x,k.y,(x,y)=>solidPx(x,y)); /* its centre in rock (a resting seed may touch the floor) */ if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx=0; k.vy=0; k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
+    if(typeof ITEM_DROPS!=='undefined') for(const d of ITEM_DROPS){ if(!d||d.got) continue; const it=d._box&&d._box.item; if(!it) continue;
+      const s=freeSpot(it.x,it.y,(x,y)=>solidPx(x,y)||solidPx(x,y-10)); if(s){ it.x=s.x; it.y=s.y; it.vx=0; it.vy=0; it.og=false; d.x=s.x-16; d.y=s.y-16; B.rescued=(B.rescued|0)+1; } }
+  }
   function knowlFlyTick(){
     for(const k of KDROP){
       if(!k._fly) continue;
@@ -1483,7 +1499,7 @@
       const r=h.ref, w=h.kind==='knowl'?22:(r.w||T), hh=h.kind==='knowl'?22:(r.h||T);
       const half=Math.abs(tip.ux)*w/2+Math.abs(tip.uy)*hh/2;
       const cx=tip.x+tip.ux*(along+half), cy=tip.y+tip.uy*(along+half);
-      if(h.kind==='knowl'){ r.x=r.ox=cx; r.y=r.oy=cy; r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }
+      if(h.kind==='knowl'){ r._moved=true; if(!knowlInRock(cx,cy)){ r.x=r.ox=cx; r.y=r.oy=cy; } r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }   // (build 410) never carried into rock: it waits at its last free spot
       else { r.x=cx-w/2; r.y=cy-hh/2; r.vx=p.vx||0; r.vy=p.vy||0; }
       if(h.kind==='enemy'){ r.shotCd=Math.max(r.shotCd||0,30); r.hitF=Math.max(r.hitF||0,2); }
       along+=half*2;

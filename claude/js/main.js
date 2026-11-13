@@ -997,6 +997,9 @@ function update(){
   // T443 (Paulo, Nov 11): "the loaded punch isn't loading when we're moving" — running no longer
   // cancels the charge (it used to drop it whenever the run was held on the ground)
   if(isPunch()&&!p.pCharging&&p.pCd===0){p.pCharging=true;p.pCharge=0;}
+  // (build 410, Paulo: "I spam punch and only one or another being registered") a tap pressed AND released between two
+  // updates was never seen held, so it was lost: a fresh press seen only as just-pressed still throws the punch
+  else if(!isPunch()&&!p.pCharging&&p.pCd===0&&typeof _bindJ==='function'&&_bindJ('punch')){p.pCharging=true;p.pCharge=0;}
   if(p.pCharging)p.pCharge=Math.min(p.pCharge+1,28);
   if(!isPunch()&&p.pCharging&&p.pCd===0){p.pCharging=false;const charged=_punchLoaded(p);
     // Paulo, Nov 4 (build 356): empty hands = two gloves. Punches in a row (each within

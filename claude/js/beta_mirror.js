@@ -175,8 +175,9 @@
     // T490 (Paulo, Nov 11): no hat (only Mind has the wide brim) and a black / chrome look
     window._mirrorHat=false; window._mirrorDraw=true; window._mindOffNoLabel=off; window._hatDirOverride=e.fc?1:-1;
     ctx.save();
-    if(off) ctx.filter='grayscale(1) brightness(0.55) contrast(0.9)';
-    if(off) ctx.globalAlpha*=0.9;
+    // (build 410, frame rate) no canvas filter: a filter on every frame was the elevator area's slowdown (a D by the
+    // right elevator, shut down). Off, it's just drawn faded and dark (its palette is black / chrome already).
+    if(off) ctx.globalAlpha*=0.55;
     try{ _draw.apply(this,arguments); } finally{ ctx.restore(); window._mirrorHat=false; window._mirrorDraw=false; window._mindOffNoLabel=false; window._hatDirOverride=0; }
     if(B.drawEnemyMark&&e.mark) B.drawEnemyMark({mark:e.mark, alive:e.alive, x:e.x, y:e.y+FEET_OFF-STAND_H-WHEEL_R-30, w:SW});
   };

@@ -187,6 +187,7 @@
     return i-1;
   }
   function layLedges(){
+    if(S._layFor!==B.level){ S._layFor=B.level; S.laid=false; }     // (build 410) a reloaded level (a life lost) gets its floors again
     if(S.laid||typeof gridSet!=='function'||typeof gridCell!=='function'||typeof MV_GRID_AIR==='undefined'||typeof MV_GRID_ONEWAY==='undefined') return;
     if(typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.ready) return;
     // Paulo, Nov 13: the floor lines beside the elevators are platforms you can walk on, jump up through and drop

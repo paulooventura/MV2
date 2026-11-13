@@ -462,6 +462,9 @@
   }
   // the blade in a beam: the beam stops on it (MIND is shielded) and runs back into the boss at half strength
   function beamTurned(e,x0,y0,ux,uy,L,dmg){
+    // (build 410, Paulo: "the boss is almost not doing any damage") only a SWING turns a beam: holding the knife near
+    // the beam's path used to shield MIND nearly all the time (beams aimed at him pass by his hand)
+    if(!(B.knifeSwinging&&B.knifeSwinging())) return false;
     const bl=B.knifeBlade&&B.knifeBlade(); if(!bl) return false;
     const ex=bl.hx+Math.cos(bl.aw)*60, ey=bl.hy+Math.sin(bl.aw)*60;
     let hit=false; for(let k=0;k<=6&&!hit;k++){ const t=k/6, qx=bl.hx+(ex-bl.hx)*t, qy=bl.hy+(ey-bl.hy)*t; if(segDist(qx,qy,x0,y0,x0+ux*L,y0+uy*L)<14) hit=true; }
@@ -638,7 +641,7 @@
   // Paulo (Oct 31): the kiritsuke is Mind's. In co-op (two people playing) whoever picked Mind keeps it; the
   // co-op page sets window.MV_COOP_ON, and then Venture's player never draws it. One player: unchanged.
   const knifeMine=()=>!(window.MV_COOP_ON&&p&&p.hero!=='mind');
-  B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeHeat=()=>holdT>0?heatOf(holdT):0; B.knifeBig=()=>big; B.knifePose=()=>({armE,knE,swing:swing&&swing.up,comboT});
+  B.knifeCharge=()=>holdT>0?Math.min(1,holdT/CHARGE):0; B.knifeHeat=()=>holdT>0?heatOf(holdT):0; B.knifeBig=()=>big; B.knifePose=()=>({armE,knE,swing:swing&&swing.up,comboT}); B.knifeSwinging=()=>!!swing||!!(big&&big.t<=10);
   const dirOf=()=>p.fc?1:-1;
   // dull red → orange → yellow → bright yellow-white
   function heatRGB(h){ const st=[[0,[150,30,20]],[0.25,[230,70,20]],[0.5,[255,140,30]],[0.78,[255,215,50]],[1,[255,250,190]]];
