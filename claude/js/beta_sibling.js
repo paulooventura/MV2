@@ -204,8 +204,21 @@
   function deadly(x,y){
     const cx=x+SW/2, f=y+FEET_OFF;
     if(typeof WH==='number'&&f>WH-40) return true;                      // the bottom of the world
-    if(B.elecAt&&B.elecAt(cx,f-20)) return true;                       // live water
-    return !sibIso()&&!!(B.inWater&&B.inWater(cx,f-40));                // T494/T495: deep water without ITS OWN Isolator: it would short
+    // T540: sample the whole body, not one point 40 px above the feet. Venture
+    // was drowning with its wheels in the water because the old single sample
+    // missed the surface, and live electro-boxes were missed the same way.
+    for(const dy of [2,16,32,48]){
+      if(B.elecAt&&B.elecAt(cx,f-dy)) return true;
+      if(!sibIso()&&B.inWater&&B.inWater(cx,f-dy)) return true;
+    }
+    return false;
+  }
+  // no isolator => don't cross water at all, even if the far side is dry
+  function pathDeadly(x0,y0,x1,y1){
+    if(sibIso()) return false;
+    const d=Math.hypot(x1-x0,y1-y0), n=Math.max(1,Math.ceil(d/12));
+    for(let i=1;i<n;i++) if(deadly(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return true;
+    return false;
   }
   // Paulo, Nov 13: the companion was underwater in the 1.2 cave without an Isolator, shorting while it hit the
   // foe. It went by MIND's Isolator (B.hasIsolator): with yours on, water looked safe to it. It has its own now.
@@ -354,7 +367,7 @@
         len+=Math.hypot(c.x-a.x,c.y-a.y); T=c; if(len>56) break;
       }
       tx=T.x;
-      if(deadly(T.x,T.y)){ tx=S.x; S._waiting=true; }                // live water / a pit ahead: wait at the edge
+      if(deadly(T.x,T.y)||pathDeadly(S.x,S.y,T.x,T.y)){ tx=S.x; S._waiting=true; }   // T540: water/electro ahead: wait at the edge
       if(k0>=0&&!plan){
         const K=trail[k0];
         let m=-1; for(let j=k0+1;j<trail.length;j++) if(trail[j].og){ m=j; break; }
