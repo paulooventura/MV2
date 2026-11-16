@@ -1272,6 +1272,13 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
 
 /* -- Full character draw â€” MV2 vector composition -- */
 function drawCharacter(){
+  // T545: skip the other viewport's player. drawCharacterFor() swaps `p` to its
+  // target before calling this, so test identity rather than the call site.
+  if(typeof _splitHide!=='undefined'&&_splitHide){
+    const isP2=(typeof p2!=='undefined'&&p===p2);
+    if(_splitHide==='p2'&&isP2) return;
+    if(_splitHide==='p1'&&!isP2) return;
+  }
   if(!isFinite(p.x)||!isFinite(p.y))return;
   const fc=p.fc;
   const ca2=p.crouchAmt;

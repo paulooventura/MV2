@@ -1326,6 +1326,85 @@ function drawSparks(){
   }
   ctx.restore();
 }
+// T545: one world-render pass, reused for the single view and for each half of
+// a local co-op split. `_splitHide` tells the character drawers which of the
+// two players to leave out of a given pass (render.js).
+let _coopSplit=false, _splitHide=null;
+function _coopSplitWanted(){
+  if(typeof _playerCount==='undefined'||_playerCount!==2||!p||!p2||p2._aiCompanion) return false;
+  const d=Math.hypot(p.x-p2.x,p.y-p2.y);                  // world px apart
+  if(!_coopSplit) return d>Math.max(W,960)*0.9;           // split with hysteresis
+  return d>Math.max(W,960)*0.62;                          // merge only once clearly close
+}
+function drawWorldPass(){
+  if(_tmjDraw) drawTmjMap();
+  if(typeof drawCampaignPlats==='function') drawCampaignPlats();
+  drawBGParticles(); drawCandleLights();
+  if(!_tmjDraw){
+    if(typeof _sketchLabMode!=='undefined'&&_sketchLabMode&&typeof drawSketchLabWorld==='function'){
+      drawSketchLabWorld();
+    }else if(typeof _ldtkLabMode!=='undefined'&&_ldtkLabMode&&typeof drawLdtkLabWorld==='function'){
+      drawLdtkLabWorld();
+    }else{
+      drawParallax();
+      const apl=allP();
+      for(const pl of apl){if(pl.mp)drawMovPlat(pl.mp);else if(!pl.mv)drawPlat(pl);}
+      for(const a of APLAT){const bx=sx(a.x),by=sy(a.y);ctx.fillStyle=C.BROWN;ctx.fillRect(bx,by,sw(a.w),sw(a.h));ctx.fillStyle=C.ORANGE;ctx.fillRect(bx,by,sw(a.w),1);}
+      if(_battleTestMode&&_gameState==='game'){const z=BATTLE_RANDOM_SPAWN_ZONE;const zx=sx(z.x),zy=sy(z.y),zw=sw(z.w),zh=sw(z.h);ctx.fillStyle='rgba(96,180,255,0.18)';ctx.fillRect(zx,zy,zw,zh);ctx.strokeStyle='rgba(140,210,255,0.65)';ctx.lineWidth=1;ctx.strokeRect(zx,zy,zw,zh);if(fr%48<24)drawTextC('RANDOM RIVAL',zx+zw/2,Math.max(4,zy-6),'#8cf',2);}
+    }
+  }
+  drawGoal();
+  for(const pf of PFXS){const t=pf.life/pf.maxLife;
+    if(pf.spark) continue;                             // drawn last in the world pass, on top (drawSparks)
+    if(pf.shimmer){ctx.globalAlpha=Math.min(1,t*1.1);ctx.fillStyle=pf.col;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(0.6+t*0.5),0,Math.PI*2);ctx.fill();if(t>0.5){ctx.globalAlpha=(t-0.5)*0.5;ctx.strokeStyle=pf.col;ctx.lineWidth=1;ctx.beginPath();ctx.arc(sx(pf.x),sy(pf.y),pf.r*(1.2+t),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;continue;}if(t<0.4&&(fr&1))continue;ctx.fillStyle=pf.col;const pr=t>0.6?2:1;ctx.fillRect(sx(pf.x),sy(pf.y),pr,pr);}
+  for(const s of ESHOTS){if(s.type==='laser')continue;const bx=sx(s.x),by=sy(s.y);if(s.type==='signol_frag'){const r=sw(s.r||5),dull=s.settled,ageAfterStop=dull?(fr-(s.stopFr||fr)):0,fade=dull?Math.max(0.2,1-ageAfterStop/SIGNOL_FRAG_STOP_FADE):1,pulse=dull?0.55:0.85+0.15*Math.sin(fr*0.35+s.x*0.1);ctx.globalAlpha=fade*pulse;if(dull){ctx.fillStyle='#6a4030';ctx.fillRect(bx-r*0.6,by-r*0.4,r*1.2,r*0.9);ctx.fillStyle='#4a3028';ctx.fillRect(bx-r*0.35,by-r*0.2,r*0.7,r*0.45);}else{const ta=Math.atan2(s.vy||0,s.vx||-0.01)+Math.PI;for(let fi=0;fi<3;fi++){const d=fi*5+2;ctx.globalAlpha=fade*(0.4-fi*0.1);ctx.fillStyle=fi===0?'#ffff55':(fi===1?'#ff8800':'#ff3300');ctx.beginPath();ctx.arc(sx(s.x+Math.cos(ta)*d),sy(s.y+Math.sin(ta)*d),r*(0.38-fi*0.09),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=fade*pulse;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(bx,by,r,0,Math.PI*2);ctx.fill();ctx.fillStyle=(fr&1)?C.YELLOW:C.ORANGE;ctx.beginPath();ctx.arc(bx,by,r*0.55,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.WHITE;ctx.fillRect(bx-1,by-1,2,2);}ctx.globalAlpha=1;continue;}const sp=Math.hypot(s.vx,s.vy)||1,ux=s.vx/sp,uy=s.vy/sp;ctx.fillStyle=C.RED;ctx.fillRect(bx-1,by-1,3,2);ctx.fillStyle=(fr&1)?C.ORANGE:C.YELLOW;ctx.fillRect(bx,by-1,1,1);ctx.fillStyle=C.ORANGE;ctx.fillRect(bx-Math.round(ux*3),by-Math.round(uy*3)-1,1,1);}
+  if(typeof drawKnowlTree==='function') drawKnowlTree();
+  drawKnowlTreeAura(); drawRopePickup(); drawItemDrops(); drawKnowl();
+  if(typeof drawPhysicsLabWorld==='function') drawPhysicsLabWorld();
+  if(typeof drawItemLabHud==='function') drawItemLabHud();
+  if(typeof drawPhysicsLabHud==='function') drawPhysicsLabHud();
+  if(typeof drawSketchLabHud==='function') drawSketchLabHud();
+  if(typeof drawLdtkLabHud==='function') drawLdtkLabHud();
+  const _bwPad=64;
+  for(const bw of BWALLS){if(bw.hp<=0&&!(bw.debris&&bw.debris.length))continue;   /* a broken block still draws its crumbs */const bx=sx(bw.x),by=sy(bw.y);if(bx>W+_bwPad||bx+sw(bw.w)<-_bwPad||by>H+_bwPad||by+sw(bw.h)<-_bwPad)continue;try{drawBreakWall(bw);}catch(err){console.error('bwall draw',err,bw);_sanitizeBwall(bw);}}
+  for(const c of CRATES) drawCrate(c);
+  for(const e of ENEMS) if(!e.mind) drawEnemy(e);
+  drawLaitu();
+  p._armPose=computeConnectorArmPose(p); if(p2)p2._armPose=computeConnectorArmPose(p2);
+  drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+  if(_splitHide!=='p1'){try{drawCharacter();}catch(err){console.error('player draw',err);}}
+  if(p2&&_splitHide!=='p2'){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
+  drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
+  drawSparks();
+}
+// T545: two stacked equal viewports when the human co-op players drift apart.
+// Each pass clips to its half and aims its own camera at its own player; the
+// world art is identical, no stretching (one zoom, one scale for both).
+function _drawCoopSplit(){
+  _coopSplit=true;
+  const z=camZoom||1, vw=W/z, hh=H/(2*z);
+  const aim=(pl)=>{
+    const tx=pl.x+SW*0.5-vw*0.4, ty=pl.y+FEET_OFF-hh*0.5;
+    _rcamX=Math.max(0,Math.min(Math.max(0,WW-vw),tx));
+    _rcamY=Math.max(0,Math.min(Math.max(0,WH-2*hh),ty));
+  };
+  // PLAYER 1 — top half
+  ctx.save(); _worldZoomBegin();
+  ctx.beginPath(); ctx.rect(0,0,vw,hh); ctx.clip();
+  aim(p); _splitHide='p2'; drawWorldPass();
+  _worldZoomEnd(); ctx.restore();
+  // PLAYER 2 — bottom half (translate the same world render down one half)
+  ctx.save(); _worldZoomBegin();
+  ctx.beginPath(); ctx.rect(0,hh,vw,hh); ctx.clip();
+  ctx.translate(0,hh);
+  aim(p2); _splitHide='p1'; drawWorldPass();
+  _worldZoomEnd(); ctx.restore();
+  _splitHide=null;
+  // the seam between the two views
+  ctx.fillStyle=C.BLACK; ctx.fillRect(0,H/2-2,W,4);
+  ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,H/2,W,1);
+}
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);
   if(_gameState==='title'){drawTitle();return;}
@@ -1339,6 +1418,9 @@ function draw(){
   if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }
   if(_gameState==='cutscene'){_cutsceneFr++;drawCutscene();return;}
   if(_gameState==='select'){drawSelect();return;}
+  if(_coopSplitWanted()){ _drawCoopSplit(); }
+  else{
+  _coopSplit=false;
   _snapRenderCam();
   _worldZoomBegin();                                   // world layers zoom with speed (physics.js); the HUD doesn't
   try{
@@ -1383,10 +1465,13 @@ function draw(){
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
   } finally { _worldZoomEnd(); }
+  }
   if(typeof _drawSportBlur==='function') _drawSportBlur();
   drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
   if(window.MV_BETA&&MV_BETA.loadFade>0){ ctx.save(); ctx.globalAlpha=Math.min(1,MV_BETA.loadFade/22); ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); ctx.restore(); MV_BETA.loadFade--; }
-  if(p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText((p2._aiCompanion?'ALLY':'P2')+' HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
+  // T545: no P2 HP bar / label in human co-op (split or not). The AI ally's
+  // bar stays — it is the one readout that belongs to a non-human partner.
+  if(p2&&p2._aiCompanion){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText('ALLY HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}
   if(_shutdownTimer>0){const shutT=1-_shutdownTimer/SHUTDOWN_FRAMES;ditherRect(0,0,W,H,C.BLACK,fr);for(let i=0;i<9;i++){const y2=((i*23+fr*3)%H)|0;ctx.fillStyle=(i+fr)%3?C.PURPLE_D:C.VIOLET;ctx.fillRect(0,y2,W,1);}if(shutT>0.2){ctx.fillStyle=C.BLACK;ctx.fillRect(W/2-140,H*0.40,280,48);if(fr%16<12)drawTextC('SYSTEM SHUTDOWN',W/2,Math.round(H*0.41),C.LILAC,2);drawTextC(_gameOver?'FINAL...':'REBOOTING...',W/2,Math.round(H*0.41)+22,C.PURPLE_L,2);}}
   if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-28,C.RED_L,4);drawTextC('5 SHUTDOWNS',W/2,H/2+8,C.LILAC,3);drawTextC('TAB TO RETRY',W/2,H/2+40,C.GREY,2);}
   if(_zoneCardT>0){_zoneCardT--; drawZoneCard(); }
