@@ -1042,10 +1042,13 @@ let _titleT=0, _logoHalfW=0;
     const cur=imgs[idx], next=imgs[(idx+1)%imgs.length];
     const cover=(im,a)=>{ const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
       ctx.globalAlpha=a; ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h); };
+    // T525: the fade breathes with the title track's energy (analyser side tap).
+    const energy=(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.titleEnergy)?MV_BETA_AUDIO.titleEnergy():0;
+    const beat=0.82+0.35*energy;
     ctx.save();
-    const a=f<0.15?f/0.15:f>0.85?(1-f)/0.15:1;
-    cover(cur,a*0.55); if(next!==cur) cover(next,(1-a)*0.32);
-    ctx.globalAlpha=1; ctx.fillStyle='rgba(6,2,22,0.28)'; ctx.fillRect(0,0,W,H);
+    const a=(f<0.15?f/0.15:f>0.85?(1-f)/0.15:1)*beat;
+    cover(cur,Math.min(1,a)*0.55); if(next!==cur) cover(next,Math.min(1,(1-a))*0.32);
+    ctx.globalAlpha=1; ctx.fillStyle='rgba(6,2,22,'+(0.3-0.12*energy).toFixed(3)+')'; ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
 function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='105px "MV Pixel", monospace'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }

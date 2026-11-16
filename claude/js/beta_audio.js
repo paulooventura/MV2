@@ -779,5 +779,17 @@
     }catch(e){}
   }
   setInterval(musicGuard,250);
-  window.MV_BETA_AUDIO={play, musicGuard, guarded:()=>guardN, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
+  // T525: a READ-ONLY analyser tap on the title track's existing Web Audio source.
+  // It does not reconnect the audible path and never starts a second track.
+  let _titleAn=null;
+  function titleEnergy(){
+    try{
+      const ac=_bgmAC; if(!ac||!_titleSrc) return 0;
+      if(!_titleAn){ _titleAn=ac.createAnalyser(); _titleAn.fftSize=128; _titleSrc.connect(_titleAn); }
+      const b=new Uint8Array(_titleAn.frequencyBinCount); _titleAn.getByteFrequencyData(b);
+      let s=0; for(let i=0;i<16;i++) s+=b[i];
+      return Math.min(1,s/(16*255));
+    }catch(e){ return 0; }
+  }
+  window.MV_BETA_AUDIO={play, titleEnergy, musicGuard, guarded:()=>guardN, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();
