@@ -590,7 +590,7 @@ function _startGameAtZone(idx){
 }
 function _onInteract(e){
   _unlockAudio();
-  if(_gameState==='title'){ _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return; }
+  if(_gameState==='title'){ _titleT=0; _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return; }
   if(_gameState==='cutscene'){ _advanceCutscene(); return; }
   if(_gameState==='story'||_gameState==='select') startGame();
 }
@@ -618,6 +618,7 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();return;
   }
   if(_gameState==='title'){
+    _titleT=0;   // T524: any input cancels the idle montage
     _ensureTitleMusic();
     if(e.code==='ArrowUp'||e.code==='KeyW'){_titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;e.preventDefault();return;}
     if(e.code==='ArrowDown'||e.code==='KeyS'){_titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;e.preventDefault();return;}
@@ -1029,6 +1030,24 @@ function drawZoneCard(){
 }
 function _drawSnesWindow(x,y,w,h,opts){ uiPanel(x,y,w,h,{sel:!!(opts&&opts.sel),locked:!!(opts&&opts.locked),r:Math.min(12,h/3)}); }
 let _titleT=0, _logoHalfW=0;
+  // T524: idle >15 s on the title -> a slow slideshow of real gameplay stills,
+  // behind the menu (the menu stays fully usable).
+  const TITLE_SLIDES=['claude-180.png','companion-rope.png','jack-beam.png','mind-venture-house-1-1.png','phone-181.png','front-pc.png','jack-intro.png']
+    .map(n=>{const im=new Image(); im.src='assets/previews/'+n; return im;});
+  function drawTitleSlides(){
+    if(_titleT<=900) return;
+    const imgs=TITLE_SLIDES.filter(im=>im.complete&&im.naturalWidth>1);
+    if(!imgs.length) return;
+    const t=_titleT-900, per=300, idx=Math.floor(t/per)%imgs.length, f=(t%per)/per;
+    const cur=imgs[idx], next=imgs[(idx+1)%imgs.length];
+    const cover=(im,a)=>{ const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
+      ctx.globalAlpha=a; ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h); };
+    ctx.save();
+    const a=f<0.15?f/0.15:f>0.85?(1-f)/0.15:1;
+    cover(cur,a*0.55); if(next!==cur) cover(next,(1-a)*0.32);
+    ctx.globalAlpha=1; ctx.fillStyle='rgba(6,2,22,0.28)'; ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
 function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='105px "MV Pixel", monospace'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
 function _titleArtCursor(map,sx,sy){
   const bob=Math.sin(fr*0.18)*1.5, s=map.s;
@@ -1074,6 +1093,7 @@ function drawTitle(){
     }
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
     ctx.drawImage(tc,Math.round(map.dx),Math.round(map.dy));
+    drawTitleSlides();
     _drawTitleMenuOverArt(map);
     if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }
     return;
@@ -1089,6 +1109,7 @@ function drawTitle(){
   let g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(6,2,22,0.85)'); g.addColorStop(0.32,'rgba(6,2,22,0.15)'); g.addColorStop(0.6,'rgba(6,2,22,0.25)'); g.addColorStop(1,'rgba(6,2,22,0.92)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  drawTitleSlides();
   const k=Math.min(1,_titleT/50), ease=1-Math.pow(1-k,3), bounce=k<1?0:Math.sin(fr*0.03)*3;
   const ly=-120+(48+120)*ease+bounce;
   ctx.globalAlpha=k;
