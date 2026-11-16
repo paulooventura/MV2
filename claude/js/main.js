@@ -1383,27 +1383,23 @@ function drawWorldPass(){
 // world art is identical, no stretching (one zoom, one scale for both).
 function _drawCoopSplit(){
   _coopSplit=true;
-  const z=camZoom||1, vw=W/z, hh=H/(2*z);
-  const aim=(pl)=>{
-    const tx=pl.x+SW*0.5-vw*0.4, ty=pl.y+FEET_OFF-hh*0.5;
-    _rcamX=Math.max(0,Math.min(Math.max(0,WW-vw),tx));
-    _rcamY=Math.max(0,Math.min(Math.max(0,WH-2*hh),ty));
-  };
-  // PLAYER 1 — top half
-  ctx.save(); _worldZoomBegin();
-  ctx.beginPath(); ctx.rect(0,0,vw,hh); ctx.clip();
-  aim(p); _splitHide='p2'; drawWorldPass();
-  _worldZoomEnd(); ctx.restore();
-  // PLAYER 2 — bottom half (translate the same world render down one half)
-  ctx.save(); _worldZoomBegin();
-  ctx.beginPath(); ctx.rect(0,hh,vw,hh); ctx.clip();
-  ctx.translate(0,hh);
-  aim(p2); _splitHide='p1'; drawWorldPass();
-  _worldZoomEnd(); ctx.restore();
+  // Sonic 2 co-op: ONE world and ONE camera (so both halves show the same
+  // floor), split into an upper and lower window; each window just leaves the
+  // other player out so you can always pick yours out.
+  const cx=(p.x+p2.x)*0.5+SW*0.5, cy=(p.y+p2.y)*0.5+FEET_OFF;
+  const vw=camViewW(), vh=camViewH();
+  _rcamX=Math.max(0,Math.min(Math.max(0,WW-vw),cx-vw*0.5));
+  _rcamY=Math.max(0,Math.min(Math.max(0,WH-vh),cy-vh*0.5));
+  const half=Math.floor(H/2);
+  // upper window — Player 1 only
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,half); ctx.clip();
+  _splitHide='p2'; drawWorldPass(); ctx.restore();
+  // lower window — Player 2 only, same camera, scrolled down by half a screen
+  ctx.save(); ctx.beginPath(); ctx.rect(0,half,W,H-half); ctx.clip();
+  _splitHide='p1'; drawWorldPass(); ctx.restore();
   _splitHide=null;
-  // the seam between the two views
-  ctx.fillStyle=C.BLACK; ctx.fillRect(0,H/2-2,W,4);
-  ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,H/2,W,1);
+  ctx.fillStyle=C.BLACK; ctx.fillRect(0,half-2,W,4);
+  ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,half,W,1);
 }
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);

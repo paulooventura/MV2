@@ -683,7 +683,9 @@ function sfx(t){
     knowl:'knowl_pickup',
   };
   const sampleKey=sampleAlias[t]||t;
-  if(SFX_SAMPLE_PATHS[sampleKey]&&_playSfxSample(sampleKey,pitch)) return;
+  // Paulo: the knowl pickup sample one octave lower (half playback rate).
+  const samplePitch=(sampleKey==='knowl_pickup')?pitch*0.5:pitch;
+  if(SFX_SAMPLE_PATHS[sampleKey]&&_playSfxSample(sampleKey,samplePitch)) return;
   const a=ga();if(!a)return;const n=a.currentTime;
   const sv=Math.max(0,Math.min(1,OPT.sfxVol||1));
   _psgBuffers(a);
@@ -733,11 +735,11 @@ function sfx(t){
     case'player_hit':o(340*pitch,90*pitch,.12,.12);nz(.08,.08,true,0.7*pitch);break;
     case'stomp':o(200,60,.08,.14);nz(.05,.12,true);break;
     case'hurt':o(340*pitch,90*pitch,.12,.12);nz(.08,.08,true,0.7*pitch);break;
-    // T526 (Paulo 11-16): one octave lower - the old pitches were too bright.
-    case'knowl':o(330,330,.06,.1);o(440,440,.06,.1,.06);o(660,660,.08,.09,.12);break;
-    case'knowl_pickup':o(262,262,.06,.12);o(330,330,.06,.11,.06);o(392,392,.06,.1,.12);o(524,524,.1,.1,.18);break;
+    // Paulo: knowl seed / crystal tones one octave lower than the original.
+    case'knowl':o(165,165,.06,.1);o(220,220,.06,.1,.06);o(330,330,.08,.09,.12);break;
+    case'knowl_pickup':o(131,131,.06,.12);o(165,165,.06,.11,.06);o(196,196,.06,.1,.12);o(262,262,.1,.1,.18);break;
     case'knowl_seed':{
-      const f0=262*pitch, f1=330*pitch, f2=392*pitch, f3=524*pitch;
+      const f0=131*pitch, f1=165*pitch, f2=196*pitch, f3=262*pitch;
       const tap=(dt,v)=>{ o(f0,f0,.06,v,dt); o(f1,f1,.06,v*.9,dt+.06); o(f2,f2,.06,v*.8,dt+.12); o(f3,f3,.1,v*.8,dt+.18); };
       tap(0,.12); tap(.2,.06); tap(.4,.03);
       break;

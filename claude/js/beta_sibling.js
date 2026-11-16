@@ -60,7 +60,9 @@
   const BANG_T=60, PUNCH_CD=24, PUNCH_R=84, PUNCH_R_WALL=100, ACT_HOLD={block:240, fight:180, pull:24};
   let S=null, trail=[], bolts=[], lastLevel=null, lastHero=null;
 
-  function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results; }
+  // The house NPC is the "other brother" when you play solo. In 2-player co-op
+  // P2 IS that brother — no second copy in the house (Paulo).
+  function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _playerCount!=='undefined'&&_playerCount===2); }
   function active(){ return on&&labOk()&&B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _paused!=='undefined'&&_paused); }
   function spawn(){
     S=mkP(); S._aiCompanion=true; S._betaSib=true;
