@@ -905,9 +905,12 @@
   const _tip=window.drawConnectorTip;
   window.drawConnectorTip=function(cx,cy,aimAngle,flash,itemOverride,enh){
     const idx=itemOverride!=null?itemOverride:ITEM;
-    if(inChar&&big&&!big.drawn){ big.drawn=true; drawBigSlash(); }
+    // T542: drawCharacterFor(p2) temporarily swaps the global p, so inChar alone
+    // paints the knife on Venture too. The Kiritsuke belongs to the lead only.
+    const leadDraw=!(typeof p2!=='undefined'&&p&&p===p2);
+    if(inChar&&leadDraw&&big&&!big.drawn){ big.drawn=true; drawBigSlash(); }
     if(idx!==4) return _tip.apply(this,arguments);
-    const mine=inChar&&poseOn, hc=mine?B.knifeHeat():0;
+    const mine=inChar&&leadDraw&&poseOn, hc=mine?B.knifeHeat():0;
     let rot=mine?toW(knE):aimAngle;
     if(hc>=1) rot+=Math.sin(performance.now()/30)*0.04;
     if(mine&&swing) drawSwingTrail(swing);
