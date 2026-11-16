@@ -825,6 +825,15 @@ function _itemTipEnhanced(itemIdx, override){
   return typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[itemIdx];
 }
 function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
+  // T519: a stray TRS plug has appeared pinned at the screen's top-left. That
+  // only happens when a connector call meant for a crate / the RCA socket reaches
+  // here at (0,0) while the caller's translate never landed (a NaN world point
+  // makes ctx.translate() a silent no-op). With no effective translate the canvas
+  // is still at the origin, so drop the draw — every real caller puts its tip
+  // somewhere else before calling.
+  if(!(cx|0)&&!(cy|0)){
+    try{ const t=ctx.getTransform(); if(Math.abs(t.e)<24&&Math.abs(t.f)<24) return; }catch(e){}
+  }
   const itemIdx=itemOverride!=null?itemOverride:ITEM;
   const enh=_itemTipEnhanced(itemIdx, enhancedOverride);
   const sc=typeof _itemArtScale==='function'?_itemArtScale(itemIdx):1;
