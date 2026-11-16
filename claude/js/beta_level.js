@@ -1858,7 +1858,13 @@
     // at the stage entrance (Paulo, Oct 20).
     if(p&&B.level){
       const bottom=(B.level.rows||B.level.h||62)*T;
-      if((typeof _playerOnGround==='function'?_playerOnGround(p):p.og)&&!(B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-8))&&!B.ridePlat&&fr%15===0) B.safe={x:p.x, y:p.y};
+      // T530: keep the reboot point current every frame on ANY stable footing —
+      // a lower ledge, a moving platform, or a shut-down foe. It used to refresh
+      // only every 15th frame and never on platforms, so a shunt off a downed
+      // foe in 1.2's lower section rebooted Paulo at the stage top instead of
+      // the ledge he was standing on.
+      const stable=(typeof _playerOnGround==='function'?_playerOnGround(p):p.og)||B.ridePlat||B.rideEnemy;
+      if(stable&&!(B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-8))) B.safe={x:p.x, y:p.y};
       if(p.y+FEET_OFF>=bottom-8&&_shutdownTimer<=0&&!B.contScreen&&!B.overT){   // reached the bottom of the map: down the hole
         B.shake=Math.max(B.shake||0,8); B.stats.hits++;
         p.hp=1; applyPlayerHit(0,0,9999);

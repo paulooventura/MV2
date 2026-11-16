@@ -822,6 +822,21 @@
       e.vx=(e.vx||0)*0.5+moved*0.5; if(e._ai==='circle') e.roll=(e.roll||0)+moved/(e.w/2); if(e._plat) e._platOff=e.x-e._plat.x;
     }
     const s2={ax:tx*(1-kE), ay:ty, bx:0, by:0};
+    // T530: a shove off a (downed) foe may never push MIND into rock or off his
+    // ledge — that shunt is what dropped him into 1.2's pit and rebooted him at
+    // the stage top. Sweep the horizontal push, keeping only safe steps.
+    if(s2.ax&&pl===p){
+      const ph=actorSeparationHB(pl), bw=ph.w, bh=ph.h, feet=pl.y+FEET_OFF;
+      const wasG=!!pl.og;
+      const n=Math.max(1,Math.ceil(Math.abs(s2.ax)/(T*0.4))), st=s2.ax/n; let ok=0;
+      for(let k=0;k<n;k++){
+        const nx=ph.x+ok+st, cx=nx+bw/2;
+        if(nx<0||nx+bw>WW||!boxFree(nx,ph.y,bw,bh)) break;
+        if(wasG&&!solidAt(cx,feet+6)&&!platUnder(nx,bw,feet)) break;   // never shove him off a ledge
+        ok+=st;
+      }
+      s2.ax=ok;
+    }
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
   // ── standing on enemies (Paulo, Oct 20) ─────────────────────────

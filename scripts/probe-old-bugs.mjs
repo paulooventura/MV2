@@ -497,6 +497,50 @@ const PROBES = {
     return { pass: res.length > 0 && !bad.length, note: `${res.length} enemies, ${bad.length} sunk/through floor/wet, ${pits} drops into open pits (info)`, samples: res.map(({ x0, y0, lx, ly, wasGone, ...r }) => ({ ...r, moved: Math.round(r.moved) })) };
   },
 
+  // T530 — a downed foe is a solid body; running into it must never shunt MIND
+  // into the pit (which used to reboot him at the stage top) or cost a life.
+  downedFoeShove() {
+    const H = __PH; H.hold();
+    const T = H.T;
+    const list = ENEMS.filter((e) => e._ai);
+    if (!list.length) return { pass: true, note: 'no foes in this stage (skipped)', skipped: true };
+    const bottom = MV_GRID.rows * T;
+    const out = [];
+    for (const e of list) {
+      const cx = e.x + e.w / 2;
+      const g = H.groundBelow(cx, e.y - T, 5 * T);
+      if (g == null) continue;                            // no testable ledge under it
+      e.y = g - e.h; e.vx = 0; e.vy = 0;
+      e.alive = false; e._permOff = true; e._downs = 3; e._shorted = false;
+      // MIND needs a launch spot on the SAME floor to the left — skip foes on
+      // ledge ends where there is nowhere to stand before running into them.
+      let startCx = null;
+      for (let d = 2; d <= 8; d++) {
+        const tx = e.x - d * T + e.w / 2;
+        const g2 = H.groundBelow(tx, g - 3 * T, 4 * T);
+        if (g2 != null && Math.abs(g2 - g) < T * 0.6 && !H.solid(tx, g - FEET_OFF - 10)) { startCx = tx; break; }
+      }
+      if (startCx == null) { e.alive = true; e._permOff = false; continue; }
+      H.put(startCx, g); H.safe();
+      const hp0 = p.hp;
+      let maxJump = 0, lp = { x: p.x, y: p.y }, fell = false, lost = false;
+      K.right = true;
+      H.step(150, (i) => {
+        H.safe();
+        const d = Math.hypot(p.x - lp.x, p.y - lp.y);
+        if (d > maxJump) maxJump = d;
+        lp = { x: p.x, y: p.y };
+        if (p.y + FEET_OFF > bottom - 40) { fell = true; return false; }
+        if (p.hp < hp0) { lost = true; return false; }
+      });
+      H.clearKeys();
+      out.push({ ai: e._ai, at: Math.round(e.x) + ',' + Math.round(g), maxJump: Math.round(maxJump), fell, lost, ok: !fell && !lost && maxJump < T * 1.5 });
+      e.alive = true; e._permOff = false;                 // restore for other probes
+    }
+    const bad = out.filter((o) => !o.ok);
+    return { pass: out.length > 0 && !bad.length, note: `${out.length} downed-foe runs, ${bad.length} shunt/pit/teleport`, samples: out };
+  },
+
   // #3a #8 #171d — an enemy without an Isolator dropped into the pool shorts out; one with an Isolator doesn't
   enemiesWater() {
     const H = __PH; H.hold();
@@ -743,5 +787,6 @@ PROBES.editor.lvls = ['1.1'];
 PROBES.passRamp.lvls = ['1.1'];
 PROBES.editorEnts.lvls = ['1.1', '1.2'];
 PROBES.editorGone.lvls = ['1.1', '1.2'];
+PROBES.downedFoeShove.lvls = ['1.2'];
 
 main().catch((e) => { console.error('probe runner failed:', e.message); process.exitCode = 2; });
