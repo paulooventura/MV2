@@ -220,6 +220,14 @@
     for(let i=1;i<n;i++) if(deadly(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return true;
     return false;
   }
+  // A bottomless pit: no floor (or platform) within a few tiles below. Venture
+  // must not walk into one, and if it falls in, it climbs back out with a jack.
+  function pitBelow(x,y,depth){
+    const f=y+FEET_OFF, lim=depth||210;
+    for(let d=6;d<=lim;d+=8) if(solidAt(x,f+d)) return false;
+    for(const m of (B.platforms||[])) if(x>=m.x-4&&x<=m.x+m.w+4&&f+lim>=m.y&&f<=m.y+m.h) return false;
+    return true;
+  }
   // Paulo, Nov 13: the companion was underwater in the 1.2 cave without an Isolator, shorting while it hit the
   // foe. It went by MIND's Isolator (B.hasIsolator): with yours on, water looked safe to it. It has its own now.
   function sibIso(){ return !!(S&&S._hasIso); }
@@ -329,6 +337,14 @@
     if(S.hook&&S.hook.st!=='idle'&&(S._ropeT||0)>ROPE_MAX_T+90) letGo();   // a rope that outlived its use: let go
     if(S.hook&&S.hook.st!=='idle'){ ropeTick(); if(S.hook.st==='on'){ S._flying=false; S._fly=false; S._stuck=0; return; } }
     if(S._fly){ hoverTick(); return; }
+    // T: if it has fallen into a pit, climb back out — its RCA hook first, then
+    // its XLR hover — toward the last safe spot on your trail.
+    if((S._pitCd||0)>0) S._pitCd--;
+    if(!(S._pitCd>0)&&!(S.hook&&S.hook.st!=='idle')&&pitBelow(S.x+SW/2,S.y,180)&&S.y>p.y+120){
+      const T=trail[trail.length-1]||{x:p.x,y:p.y};
+      S._flyCd=0;
+      if(startHover(T)){ S._pitCd=150; return; }
+    }
     const spot=pickSpot(), work=!!spot.work;
     // Paulo (Oct 22, build 264): "more serene, grounded, less glitchy". Close by it eases up to a
     // spot of its own choosing (Oct 26) and stops; further off it rides your trail (Oct 25), jumping where you jumped.
@@ -391,10 +407,15 @@
     }
     S._flying=false;
     const dx=tx-S.x, adx=Math.abs(dx), dead=work&&!S._trailMode?5:16, dir=Math.sign(dx);
+    // T: stop at the lip of a bottomless pit; a planned jump or a gap with a
+    // real landing is handled below.
+    const lipX=S.x+SW/2+dir*(SW/2+24);
+    const pitStop=S.og&&!S._plan&&!S._fly&&adx>12&&pitBelow(lipX,S.y,150);
+    if(pitStop){ S.vx=0; S._waiting=true; }
     if(S._launchT>0&&S.og) S._launchT=0;
     if(plan&&!S.og){ S.vx+=(plan.vx-S.vx)*0.5; }                     // in its jump: steer along the arc it planned
     else if(S._launchT>0){ S._launchT--; S.vx*=0.995; }             // just let go of its rope: the swing carries it until it lands
-    else if(adx>dead){
+    else if(adx>dead&&!pitStop){
       S.vx=(S.vx||0)+dir*Math.min(0.42,0.1+adx/260);
       const vStop=Math.sqrt(2*0.32*(adx-dead))+0.4;                   // brake in time: eases to a stop on its mark
       if(Math.sign(S.vx)===dir&&Math.abs(S.vx)>vStop) S.vx=dir*vStop;
@@ -402,7 +423,7 @@
     }else S.vx=(S.vx||0)*(S.og?0.75:0.97);
     if(!(S._launchT>0)&&!(plan&&!S.og)) S.vx=Math.max(-maxV-(S.og?0:1.5),Math.min(maxV+(S.og?0:1.5),S.vx));
     const feet=S.y+FEET_OFF;
-    if(S.og&&!S._plan){
+    if(S.og&&!S._plan&&!pitStop){
       const ax=S.x+SW/2+dir*(SW/2+10);
       const wall=adx>dead&&(solid(ax,feet-24)||solid(ax,feet-52));
       let ledge=false, gap=false, ontoPlat=false;
@@ -411,7 +432,8 @@
         ledge=dyT<-40&&Math.abs(tx-S.x)<150&&(p.og||work);              // its spot is up a step: hop up
         // a gap ahead (no floor under the next stretch) with somewhere to land at about this height: leap it
         if(adx>40&&Math.abs(S.vx)>1.2){ const fx=S.x+SW/2+dir*(SW/2+18); let floorAhead=false; for(let yy=feet+4;yy<feet+90;yy+=12) if(solid(fx,yy)){ floorAhead=true; break; }
-          if(!floorAhead&&dyT<40&&!deadly(S.x+dir*120,S.y+60)) gap=true; }
+          // only leap when there is somewhere to land — never jump into a pit
+          if(!floorAhead&&dyT<40&&!deadly(S.x+dir*120,S.y+60)&&!pitBelow(S.x+SW/2+dir*130,S.y,150)) gap=true; }
         ontoPlat=pm&&S._ridePlat!==pm&&dyP<-20&&Math.abs(dxP)<170;      // hop onto the platform you're riding
       }
       if(wall||ledge||gap||ontoPlat){ S.vy=-10.8; S.og=false; if(gap||ontoPlat) S.vx=dir*Math.max(Math.abs(S.vx),3.2); }

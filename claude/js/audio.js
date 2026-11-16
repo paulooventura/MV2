@@ -752,6 +752,12 @@ function sfx(t){
     case'ropeSlack':o(180,90,.1,.07);break;
     case'click':o(980,980,.03,.06);break;
     case'chargeReady':o(392,392,.07,.11);o(523,523,.09,.1,.07);break;
+    // Extra life / spare battery: a bright rising 1UP arpeggio, unmistakable
+    // from the ordinary item blip (the old item_get call had no case = silence).
+    case'extra_life':
+      [659,784,988,1319].forEach((f,i)=>o(f,f,.12,.13,i*.085,'square'));
+      o(1319,1319,.22,.1,.34,'triangle'); break;
+    case'item_get':o(523,523,.07,.1);o(784,784,.11,.09,.07);break;
     case'unlock':[523,659,784,1047,1319].forEach((f,i)=>o(f,f,.1,.1,i*.09));break;
     case'item_enhanced':
       nz(.14,.22,true,0.2);

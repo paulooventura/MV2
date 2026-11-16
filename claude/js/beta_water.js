@@ -1405,10 +1405,22 @@
     }
     if(iso&&!iso.got&&D){ D.glow&&D.glow(iso.x,iso.y-20,50,0.25+0.1*Math.sin(fr*0.08),'rgba(255,150,60,'); if(B.drawCrate) B.drawCrate(iso); else D.itemCrate(4,iso.x,iso.y,false); }
   };  // water goes over the characters (they look submerged), under the HUD
+  // the knocked-off Isolator drawn OVER the water: before the water pass its
+  // sprite was hidden while the glow still showed (a glow with nothing in it).
+  function drawLooseIso(){
+    const L=B.isoLoose, D=window.MV_BETA_DECOR; if(!L) return;
+    const x=sx(L.x), y=sy(L.y), r=sw(13);
+    if(D&&D.glow) D.glow(L.x,L.y,44,0.3+0.15*Math.sin(fr*0.15),'rgba(255,150,60,');
+    ctx.save(); ctx.translate(x,y-r); ctx.rotate(L.spin);
+    ctx.fillStyle='#c8641e'; ctx.strokeStyle='#ffc070'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(-r*1.1,-r,r*2.2,r*2,r*0.7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3a1a08'; ctx.beginPath(); ctx.roundRect(-r*0.55,-r*0.5,r*1.1,r,r*0.4); ctx.fill();
+    ctx.strokeStyle='rgba(255,240,210,0.7)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(-r*0.4,-r*0.3,r*0.5,Math.PI*1.1,Math.PI*1.6); ctx.stroke();
+    ctx.restore();
+  }
   const _origFg=window.drawTmjForeground;
   window.drawTmjForeground=function(){
     const r=_origFg?_origFg.apply(this, arguments):undefined;
-    if(on()){ drawWater(); try{ if(B.drawSolidFoes) B.drawSolidFoes(); }catch(e){} }
+    if(on()){ drawWater(); try{ if(B.drawSolidFoes) B.drawSolidFoes(); }catch(e){} drawLooseIso(); }
     return r;
   };
   // water as drawn: a body standing in the water is shown under it (the

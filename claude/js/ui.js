@@ -423,7 +423,7 @@ function _pauseInput(){
     else if(it==='EXIT'){
       _paused=false;
       if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
-      else { try{ if(typeof _stopBGM==='function') _stopBGM('game'); }catch(e){} _gameState='title'; if(typeof _titleT!=='undefined') _titleT=0; }
+      else { try{ if(typeof _stopBGM==='function') _stopBGM('game'); }catch(e){} _gameState='title'; if(typeof _titleT!=='undefined'){ _titleT=0; if(typeof _slideFade!=='undefined') _slideFade=0; } }
     }
   }
 }
@@ -444,10 +444,11 @@ function drawPauseMenu(){
 }
 
 // ── Options ───────────────────────────────────────────────────
-// music volume, sfx, sports-mode volume, filters, CRT, difficulty, then the control binds, manual last.
-// There is no music-style row: the scored music always plays.
+// music volume, sfx, sports-mode volume, filters, CRT, then the control binds, manual last.
+// There is no music-style row: the scored music always plays. No difficulty row either —
+// the elevator's floor level sets it (Paulo, 2026-11-16).
 const OPT_FILTER_ROW=3;
-const OPT_BIND0=6;
+const OPT_BIND0=5;
 function _optManualRow(){ return OPT_BIND0+BIND_ORDER.length; }
 function _optRowCount(){ return _optManualRow()+1; }
 let _optHoldN=0;
@@ -489,14 +490,6 @@ function _optionsInput(ev){
   if(_optRow<=2&&(dec||inc)){ _optNudgeBar(_optRow, inc); return true; }
   if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
   if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow===5&&(dec||inc||ev.confirm)){
-    const B=window.MV_BETA;
-    if(B&&typeof B.setDifficulty==='function'){
-      const cur=B.difficulty||2;
-      B.setDifficulty(dec?(cur<=1?3:cur-1):(cur>=3?1:cur+1));
-    }
-    return true;
-  }
   if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
   if(_optRow>=OPT_BIND0&&_optRow<_optManualRow()&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_BIND0]; return true; }
   return true;
@@ -590,7 +583,10 @@ function _startGameAtZone(idx){
 }
 function _onInteract(e){
   _unlockAudio();
-  if(_gameState==='title'){ _titleT=0; _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return; }
+  if(_gameState==='title'){
+    if(_titleSlideInput()){ _ensureTitleMusic(); return; }  // first press fades the still back to the title
+    _titleT=0; _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return;
+  }
   if(_gameState==='cutscene'){ _advanceCutscene(); return; }
   if(_gameState==='story'||_gameState==='select') startGame();
 }
@@ -618,7 +614,8 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();return;
   }
   if(_gameState==='title'){
-    _titleT=0;   // T524: any input cancels the idle montage
+    if(_titleSlideInput()){ e.preventDefault(); return; }  // first key fades the still back, no menu action
+    _titleT=0;
     _ensureTitleMusic();
     if(e.code==='ArrowUp'||e.code==='KeyW'){_titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;e.preventDefault();return;}
     if(e.code==='ArrowDown'||e.code==='KeyS'){_titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;e.preventDefault();return;}
@@ -893,8 +890,7 @@ function drawOptions(){
   const rows=[{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
-    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
-    {label:'DIFFICULTY',val:(()=>{ const d=window.MV_BETA&&MV_BETA.difficulty||2; return d<=1?'EASY':d>=3?'HARD':'NORMAL'; })()}];
+    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a),rule:i===0?'CONTROLS':null}));
   rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
@@ -1030,26 +1026,43 @@ function drawZoneCard(){
 }
 function _drawSnesWindow(x,y,w,h,opts){ uiPanel(x,y,w,h,{sel:!!(opts&&opts.sel),locked:!!(opts&&opts.locked),r:Math.min(12,h/3)}); }
 let _titleT=0, _logoHalfW=0;
-  // T524: idle >15 s on the title -> a slow slideshow of real gameplay stills,
-  // behind the menu (the menu stays fully usable).
+  // T524: idle >15 s on the title -> full-screen, fully opaque gameplay stills.
+  // Any button fades the still back to the title; the first press only dismisses
+  // it (the menu is hidden underneath so it can't be clicked by accident).
   const TITLE_SLIDES=['claude-180.png','companion-rope.png','jack-beam.png','mind-venture-house-1-1.png','phone-181.png','front-pc.png','jack-intro.png']
     .map(n=>{const im=new Image(); im.src='assets/previews/'+n; return im;});
+  const SLIDE_FADE_FR=28;
+  let _slideFade=0;
+  function _titleSlideInput(){
+    if(_slideFade>0) return true;                       // mid fade: swallow input until the title is back
+    if(_titleT>900){ _slideFade=SLIDE_FADE_FR; return true; }
+    return false;
+  }
   function drawTitleSlides(){
-    if(_titleT<=900) return;
+    const fading=_slideFade>0;
+    if(!fading&&_titleT<=900) return false;
     const imgs=TITLE_SLIDES.filter(im=>im.complete&&im.naturalWidth>1);
-    if(!imgs.length) return;
-    const t=_titleT-900, per=300, idx=Math.floor(t/per)%imgs.length, f=(t%per)/per;
-    const cur=imgs[idx], next=imgs[(idx+1)%imgs.length];
+    if(!imgs.length){ _slideFade=0; _titleT=0; return false; }
     const cover=(im,a)=>{ const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
       ctx.globalAlpha=a; ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h); };
-    // T525: the fade breathes with the title track's energy (analyser side tap).
-    const energy=(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.titleEnergy)?MV_BETA_AUDIO.titleEnergy():0;
-    const beat=0.82+0.35*energy;
+    const t=Math.max(0,_titleT-900), per=300, idx=Math.floor(t/per)%imgs.length, f=(t%per)/per;
+    const cur=imgs[idx], next=imgs[(idx+1)%imgs.length];
     ctx.save();
-    const a=(f<0.15?f/0.15:f>0.85?(1-f)/0.15:1)*beat;
-    cover(cur,Math.min(1,a)*0.55); if(next!==cur) cover(next,Math.min(1,(1-a))*0.32);
-    ctx.globalAlpha=1; ctx.fillStyle='rgba(6,2,22,'+(0.3-0.12*energy).toFixed(3)+')'; ctx.fillRect(0,0,W,H);
+    if(fading){
+      // the still dissolves over the title art, then normal title takes over
+      cover(cur,_slideFade/SLIDE_FADE_FR);
+      if(--_slideFade<=0) _titleT=0;
+    }else{
+      // T525: only the crossfade breathes with the music — the still itself is
+      // fully opaque, never see-through to the key art behind it.
+      const energy=(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.titleEnergy)?MV_BETA_AUDIO.titleEnergy():0;
+      const beat=0.85+0.3*energy;
+      const a=Math.max(0,Math.min(1,(f<0.15?f/0.15:f>0.85?(1-f)/0.15:1)*beat));
+      if(next!==cur) cover(next,1);                     // the outgoing still sits fully underneath
+      cover(cur,a);
+    }
     ctx.restore();
+    return true;
   }
 function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='105px "MV Pixel", monospace'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
 function _titleArtCursor(map,sx,sy){
@@ -1096,8 +1109,8 @@ function drawTitle(){
     }
     ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
     ctx.drawImage(tc,Math.round(map.dx),Math.round(map.dy));
-    drawTitleSlides();
-    _drawTitleMenuOverArt(map);
+    const showingSlide=drawTitleSlides();
+    if(!showingSlide) _drawTitleMenuOverArt(map);       // hidden under the still, restored after the fade
     if(window.MV_TITLE_FADE>0){ ctx.fillStyle='rgba(0,0,0,'+(window.MV_TITLE_FADE/24).toFixed(3)+')'; ctx.fillRect(0,0,W,H); window.MV_TITLE_FADE--; }
     return;
   }
@@ -1112,7 +1125,7 @@ function drawTitle(){
   let g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(6,2,22,0.85)'); g.addColorStop(0.32,'rgba(6,2,22,0.15)'); g.addColorStop(0.6,'rgba(6,2,22,0.25)'); g.addColorStop(1,'rgba(6,2,22,0.92)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  drawTitleSlides();
+  if(drawTitleSlides()) return;                         // full still owns the screen until a button fades back
   const k=Math.min(1,_titleT/50), ease=1-Math.pow(1-k,3), bounce=k<1?0:Math.sin(fr*0.03)*3;
   const ly=-120+(48+120)*ease+bounce;
   ctx.globalAlpha=k;

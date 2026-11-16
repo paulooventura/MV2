@@ -97,6 +97,8 @@ def cube(c0, r0, s=5, d=2):
     ent('Decor', c0, r0, s + d, s + d, kind='cube', s=s, d=d)
 cube(12, 9)                                             # upper cube (C's lift runs under it)
 cube(12, 41)                                            # lower cube (an A sits on it)
+# Build 361 notch fix is applied POST-shift in the historical-fix block below —
+# clearing it here (before slopes()) would change the cube's slope cells too.
 # the top band over the spire mass
 rect(22, 37, 2, 16, AIR)
 poly([(23, 16), (29, 16), (29, 12), (30, 12), (30, 5), (32, 3), (35, 9), (35, 14), (37, 16), (37, 21), (23, 21)], SOLID)   # the spire mass
@@ -206,9 +208,8 @@ for k in range(8): ent('MovingPlatform', 19, k * 7, 3, 1, axis='y', a=0, b=56, s
 def deck(c0, c1, r):
     for cc in range(c0, c1 + 1):
         if g[r][cc] == AIR: put(cc, r, ONEWAY)
-for rr in (39, 33, 27, 21, 17): deck(12, 17, rr)      # scaffold decks up the middle
-rungs(12, 13, 17, 40)                                # ladder up the scaffold
-rungs(16, 17, 21, 40)                                # second ladder on the right
+for rr in (39, 29, 19): deck(12, 17, rr)              # three landings up the middle (fewer cells = lighter)
+rungs(12, 13, 19, 39)                                # one ladder between them
 ent('Decor', 10, 3, 10, 4, kind='crane')             # the crane gantry over the shaft
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=61, speed=12)      # the long elevator, down to the pool's floor
 ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=16, speed=9)        # the little lift: T535 now clears the notch and descends 4 rows more
@@ -275,6 +276,27 @@ for e in ents:
 for col, es in belts.items():                                  # evenly spaced round the longer loop
     a, b = es[0]['fields']['a'], es[0]['fields']['b']
     for k, e in enumerate(sorted(es, key=lambda q: q['r'])): e['r'] = round(a + k * (b - a) / len(es))
+
+# ── Historical direct .ldtk fixes, now encoded in the generator ──────────
+# Builds 361/365/366/367 used to hand-edit the exported .ldtk. Regenerating the
+# level silently dropped them, so they live here (POST-shift grid coords now).
+# Build 361 — the top-left notch on both cube platforms
+put(13, 15, AIR); put(13, 47, AIR)
+# Build 366 — the vault tower's right wall follows the sheet
+put(52, 19, SOLID)
+for rr in (40, 41, 46, 47, 48, 49, 50, 51, 52): put(50, rr, SOLID); put(51, rr, SOLID)
+put(49, 46, SOLID); put(49, 47, SOLID)           # the slope corner is a straight wall now
+for rr in (50, 51, 52): put(52, rr, AIR)          # the step out / hidden-door gap
+# Build 365 — the doorway into the Kiritsuke chamber
+for rr in (76, 77, 78, 79): put(82, rr, AIR)
+# Build 367 — crystal on the step, pool filled to it, the two circlers folded into one
+for e in ents:
+    if e['kind'] == 'Crystal' and e['c'] == 51 and e['r'] == 52: e['c'] = 52
+    elif e['kind'] == 'Water' and e['c'] == 33 and e['r'] == 53: e['r'] = 47
+    elif e['kind'] == 'Enemy' and e['r'] == 59 and e['c'] in (15, 21): e['_drop'] = True
+    elif e['kind'] == 'Enemy' and e['c'] == 33 and e['r'] == 34: e['_drop'] = True
+ents = [e for e in ents if not e.pop('_drop', False)]
+ents.append(dict(kind='Enemy', c=25, r=59, w=1, h=1, fields={'ai': 'circle', 'range': 1}))
 
 # ── LDtk export ───────────────────────────────────────────────────
 def fval(name, v):

@@ -108,8 +108,14 @@
   // ── punches (render.js asks here when a fist lands) ──
   S.fist=function(wx,wy,wr,charged){
     if(!on()) return false;
-    for(const d of S.doors){ if(d.st!=='shut') continue;
-      if(wx>d.c*T-wr-6&&wx<(d.c+1)*T+wr+6&&wy>d.r0*T-wr&&wy<(d.r1+1)*T+wr){
+    for(const d of S.doors){
+      const inRect=wx>d.c*T-wr-6&&wx<(d.c+1)*T+wr+6&&wy>d.r0*T-wr&&wy<(d.r1+1)*T+wr;
+      // Paulo: punch an OPEN door to swing it shut again. debounced so the same
+      // punch can't immediately reopen it, and it won't shut while MIND is in it.
+      if(d.st==='open'&&inRect){ d.st='closing'; d.t=0; thud(0.9); creak(0.5);
+        dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,8,'#8a6a44'); B.doorsClosed=(B.doorsClosed|0)+1; return true; }
+      if(d.st!=='shut'||d.t<12||!inRect) continue;      // debounce after a close
+      {
         // T528: a running loaded punch SMASHES the door instead of swinging it.
         const run=Math.abs((p&&p.vx)||0);
         d.st=(charged&&run>=7.5)?'smashed':'opening'; d.t=0;
@@ -146,6 +152,16 @@
       if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); } }
       else if(d.st==='smashed'){ d.t++; if(d.t===2){ for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,18,'#8a6a44'); }
         if(d.t>=10){ d.st='open'; thud(1.2); } }
+      else if(d.st==='closing'){
+        d.t++;
+        const b=body();
+        const blocked=b&&d.c*T<b.x1&&(d.c+1)*T>b.x0&&d.r0*T<b.y1&&(d.r1+1)*T>b.y0;
+        if(d.t>=14&&!blocked){                          // wait until MIND has stepped out of the way
+          for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID);
+          d.st='shut'; d.t=0; thud(1.1);
+        }
+      }
+      else if(d.st==='shut') d.t++;                      // debounce clock since the last close
     }
     for(const t of S.traps){
       if(t.shake>0) t.shake--;
@@ -159,7 +175,7 @@
     // the extra life
     const L=S.life;
     if(L&&!L.got){ L.t++; if(p&&Math.hypot(p.x+SW/2-L.x,p.y+FEET_OFF-50-L.y)<46&&L.t>20){ L.got=true; B._atticLife=true; B.lives=(B.lives|0)+1; if(B.showLives) B.showLives(false);
-      try{ sfx('item_get'); }catch(e){} try{ uiShowToast('EXTRA LIFE!'); }catch(e){} dust(L.x,L.y,20,'#ffd060'); } }
+      try{ sfx('extra_life'); }catch(e){} try{ uiShowToast('EXTRA LIFE!'); }catch(e){} dust(L.x,L.y,20,'#ffd060'); } }
   }
   const _up=window.update;
   window.update=function(){ const r=_up.apply(this,arguments); try{ tick(); }catch(e){ console.warn('doors',e); } return r; };
@@ -171,7 +187,8 @@
   function plank(x,y,w,h,base,dark){ ctx.fillStyle=base; ctx.fillRect(X(x),Y(y),W2(w),W2(h)); ctx.fillStyle=dark; for(let yy=0;yy<h;yy+=10) ctx.fillRect(X(x),Y(y+yy),W2(w),Math.max(1,W2(1))); }
   function drawDoor(d){
     const x=d.c*T, y=d.r0*T, h=(d.r1-d.r0+1)*T;
-    const k=d.st==='shut'?0:d.st==='open'?1:Math.min(1,d.t/26), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
+    // T: a closing door swings back the other way, not open further.
+    const k=d.st==='shut'?0:d.st==='open'?1:d.st==='closing'?Math.max(0,1-d.t/14):Math.min(1,d.t/26), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
     const wv=Math.max(5,T*Math.cos(ang)), hingeX=d.side>0?x+T:x, px=d.side>0?hingeX-wv:hingeX;   // swings away from you, hinged on the far edge
     ctx.save();
     ctx.fillStyle='rgba(10,6,4,0.75)'; ctx.fillRect(X(x),Y(y),W2(T),W2(h));                          // the dark doorway behind it

@@ -355,8 +355,10 @@
     try{
       const a=typeof ga==='function'?ga():null; if(!a){ sfx('land'); return; }
       const t=a.currentTime;
-      // T544 (Paulo 11-16): the blom-blom leans up going up, down going down.
-      const dir=Math.sign(S.dir||0)||0, k=dir>0?1.06:dir<0?0.95:1;
+      // T544 (Paulo 11-16): the arrival ding-dong leans clearly up going up and
+      // down going down. Use the direction captured at launch (S.dir decays as
+      // soon as the doors open), with a shift big enough to actually hear.
+      const dir=Math.sign(S._rideDir||S.dir||0)||0, k=dir>0?1.19:dir<0?0.84:1;
       tone(a,t,90*k,48*k,0.2,0.16,'triangle');
       tone(a,t+0.08,523*k,523*k,0.18,0.34,'sine');
       tone(a,t+0.26,784*k,784*k,0.16,0.46,'sine');
@@ -433,7 +435,7 @@
     }
     shiftColumn(columnOf(m), delta, 'go');
     for(const c of columnOf(m)) c._used=true;
-    S.ask=false; S.dir=up?1:-1;
+    S.ask=false; S.dir=up?1:-1; S._rideDir=up?1:-1;
     const before=S.vibe||0, step=up?1:-1;
     S.vibe=Math.max(-SPAN, Math.min(SPAN, before+step));
     // T548/T549/T552: riding PAST the last floor keeps counting as "over the edge"

@@ -2470,7 +2470,14 @@
     B.results={t:0, sc:score(), music:true};
     // Paulo, Nov 13: "I passed 1.2 to 1.3 but the music didn't stop to make that level complete theme song start".
     // The stage clear only ducked the stage song; now it stops and the stage-complete song plays (after the fanfare)
-    if(window.MV_BETA_AUDIO){ MV_BETA_AUDIO.fanfare(); if(MV_BETA_AUDIO.play) MV_BETA_AUDIO.play('results',{restart:true}); }
+    if(window.MV_BETA_AUDIO){
+      // The stage song must not run under the celebration, and the results song
+      // starts only AFTER the fanfare ends — not on top of it (two songs at once).
+      try{ MV_BETA_AUDIO.stopAll(); }catch(e){}
+      const dur=MV_BETA_AUDIO.fanfare();
+      const startResults=()=>{ if(B.results&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play) MV_BETA_AUDIO.play('results',{restart:true}); };
+      if(dur>0&&typeof setTimeout==='function') setTimeout(startResults,dur); else startResults();
+    }
   }
   function drawResults(){
     const R=B.results, a=Math.min(1,R.t/20), sc=R.sc;

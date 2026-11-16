@@ -282,8 +282,11 @@ function _updateRunEntry(pl){
   // (build 409, Paulo: "after 1.5 s of COMPLETE idleness") any input but the item button itself resets the count
   let _otherKey=false; try{ const sw=(OPT&&OPT.binds&&OPT.binds.swap)||[]; for(const k in K){ if(K[k]&&sw.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
-  if(btn&&!was&&standing&&(pl._stillT||0)>=120){
-    pl._ignition=!pl._ignition; pl._ignEat=8; pl._stillT=0;   // one press per 2 s idle stretch
+  // Paulo: a double tap after the idle gate must engage Sports-Mode, not flip it
+  // on and straight back off. Ignore the second press of the pair briefly.
+  if((pl._ignTapLock||0)>0) pl._ignTapLock--;
+  if(btn&&!was&&standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0)){
+    pl._ignition=!pl._ignition; pl._ignEat=8; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)

@@ -30,11 +30,13 @@
   // T534: the E eye is a floater, but it must never be *inside* a wall. If a bad
   // spawn, a shove or a moving platform buries it, nudge it out by the smallest
   // free step (at most one tile). Its float behaviour is otherwise untouched.
-  function depenetrate(e){
-    if(boxFree(e.x,e.y,e.w,e.h)) return false;
-    for(let d=2;d<=T;d+=2){
+  function depenetrate(e,pad){
+    pad=pad||0;
+    const bx=e.x-pad, by=e.y-pad, bw=e.w+pad*2, bh=e.h+pad*2;
+    if(boxFree(bx,by,bw,bh)) return false;
+    for(let d=2;d<=T*1.5;d+=2){
       for(const [dx,dy] of [[d,0],[-d,0],[0,d],[0,-d]]){
-        if(!boxFree(e.x+dx,e.y+dy,e.w,e.h)) continue;
+        if(!boxFree(bx+dx,by+dy,bw,bh)) continue;
         e.x+=dx; e.y+=dy; e.vx=0; e.vy=0;
         if(e._path){ e._path.length=0; }
         return true;
@@ -299,6 +301,9 @@
     if(typeof PFXS!=='undefined') for(let k=0;k<18;k++){ const a=Math.random()*Math.PI*2, v=2+Math.random()*3; PFXS.push({x:c.x+Math.cos(a)*e.w*0.4,y:c.y+Math.sin(a)*e.h*0.4,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*2,col:k%3?'#bfe6ff':'#fff2a0'}); }
   }
   function cubeTick(e){
+    // the drawn hexagon's radius (0.56*w) is wider than its box — pad the test
+    // so the PIXELS, not just the box, stay clear of rock (and it can't cling to a wall)
+    depenetrate(e,Math.max(0,e.w*0.07+Math.min(10,(e._lift||0)*0.5)));
     e._fx=false;
     if(B._fBubFr!==fr){ B._fBubFr=fr; try{ bubbleTick(); }catch(er){} }
     if(e.mhp>=9999){ e.hp=e.mhp=90; }                    // (build 368) beta_enemy_f's 9999 HP stuck after its notch rules were switched off
@@ -642,7 +647,7 @@
         // Paulo, Nov 4 (build 367): the first time in this journey she gives MIND a spare battery
         // (a battery is what reboots him after a shutdown); her line says so.
         B.popupSeen=B.popupSeen||{};
-        if(!B.popupSeen.savrahBattery){ B.popupSeen.savrahBattery=true; s.gift=true; s.say=330; B.lives=(B.lives|0)+1; if(B.showLives) B.showLives(false); try{ S('item_get'); }catch(er){} }
+        if(!B.popupSeen.savrahBattery){ B.popupSeen.savrahBattery=true; s.gift=true; s.say=330; B.lives=(B.lives|0)+1; if(B.showLives) B.showLives(false); try{ S('extra_life'); }catch(er){} }
         else s.gift=false;
         _spawnX=s.x-SW/2; _spawnY=s.y-FEET_OFF; B.safe={x:_spawnX,y:_spawnY};
         try{ if(B.saveStage) B.saveStage(); }catch(er){}
