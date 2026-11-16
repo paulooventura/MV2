@@ -95,8 +95,20 @@
       drops.push({x,y,px:x,py:y,vx:Math.cos(a)*sp*(chunk?0.7:1),vy:Math.sin(a)*sp-1.4,r:(chunk?3.2:1.1)+Math.random()*(chunk?3.4:2.2),t:0,max:(chunk?40:18)+Math.random()*24|0,chunk});
     }
     if(n>=8){ splashN+=n; burstN++; burstT=22; }
+    // T553: the blot sticks to the SURFACE that was hit, not the middle of the face.
+    // Which edge the impact is closest to is the side we slashed from.
     if(INK()&&typeof ENEMS!=='undefined'){ for(const e of ENEMS){ if(!e||!isFinite(e.x)||x<e.x-6||x>e.x+(e.w||32)+6||y<e.y-6||y>e.y+(e.h||32)+6) continue;
-      for(let k=0;k<2;k++) estains.push({e, ox:Math.max(2,Math.min((e.w||32)-2,x-e.x+(Math.random()-0.5)*14)), oy:Math.max(2,Math.min((e.h||32)-4,y-e.y+(Math.random()-0.5)*10)), r:2+Math.random()*3, len:0, max:10+Math.random()*28, t:0});
+      const w=e.w||32, h=e.h||32, rx=x-e.x, ry=y-e.y;
+      const ds=[rx, w-rx, ry, h-ry]; let side=0; for(let s=1;s<4;s++) if(ds[s]<ds[side]) side=s;
+      for(let k=0;k<2;k++){
+        const jitter=(Math.random()-0.5)*8;
+        let ox,oy;
+        if(side===0){ ox=1+Math.random()*3; oy=Math.max(3,Math.min(h-4,ry+jitter)); }
+        else if(side===1){ ox=w-1-Math.random()*3; oy=Math.max(3,Math.min(h-4,ry+jitter)); }
+        else if(side===2){ ox=Math.max(3,Math.min(w-4,rx+jitter)); oy=1+Math.random()*3; }
+        else{ ox=Math.max(3,Math.min(w-4,rx+jitter)); oy=h-1-Math.random()*3; }
+        estains.push({e, ox, oy, side, r:2+Math.random()*3, len:0, max:10+Math.random()*28, t:0});
+      }
       if(estains.length>90) estains.splice(0,estains.length-90); break; } }
     if(drops.length>520) drops.splice(0,drops.length-520);
   }
