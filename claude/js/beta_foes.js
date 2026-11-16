@@ -605,6 +605,8 @@
         burst(s.x,s.y-24,20,['#60d0ff','#ffffff'],3); S('chargeReady',1.2);
         // T440 (Paulo, Nov 11): "A dialog box has to pop open when we reach the save state." (was a toast)
         B.saveDlg={t:0, lines:s.gift?['I SAVED THIS MOMENT TO YOUR TIMELINE.','TAKE THIS SPARE BATTERY: IF YOU GET','SHUT DOWN, IT REBOOTS YOU.']:['I SAVED THIS MOMENT TO YOUR TIMELINE.','IF YOU GET SHUT DOWN, YOU START AGAIN','FROM HERE.']};
+        // T538: the item-popup music plays while Savrah talks (same mechanism as beta_level.js openPopup)
+        try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play){ if(!B._saveDlgMusic) B._saveDlgMusic=B.music||'stage'; MV_BETA_AUDIO.play('item'); } }catch(er){}
       }
     }else if(s) s.near=false;
     if(s&&s.say>0) s.say--;
@@ -802,9 +804,11 @@
   // further the longer it's held (walls in between block it)
   function pull(t){
     const h=heatOf(t), Rg=70+330*h, st=0.15+2.6*h*h;
-    // the pull's centre: just in front of MIND along the aim (where the slash will go), not the
-    // cocked-back blade, so what it draws in is in the slash's path
-    const ae=toW(aimE()), kx=p.x+SW/2+Math.cos(ae)*60, ky=p.y+FEET_OFF-58+Math.sin(ae)*60;
+    // T541 (Paulo 11-16): the charge's energy gathers at the BLADE TIP, not at MIND's
+    // body. Use the live arm pose when present; the old aim-point is only a fallback.
+    const ae=toW(aimE()), ap=p._armPose;
+    const kx=ap&&isFinite(ap.tipX)?ap.tipX:p.x+SW/2+Math.cos(ae)*60;
+    const ky=ap&&isFinite(ap.tipY)?ap.tipY:p.y+FEET_OFF-58+Math.sin(ae)*60;
     const free=(x,y,w,hh)=>typeof gridWorldSolid!=='function'||!(gridWorldSolid(x+2,y+2)||gridWorldSolid(x+w-2,y+2)||gridWorldSolid(x+2,y+hh-2)||gridWorldSolid(x+w-2,y+hh-2));
     for(const e of ENEMS){ if(!e||e._boss||e._betaHeld) continue; const ex=e.x+e.w/2, ey=e.y+e.h/2, d=Math.hypot(kx-ex,ky-ey);
       if(d>Rg||d<e.w*0.5+12||!clearLine(kx,ky,ex,ey)) continue;
@@ -1085,11 +1089,14 @@
       const d=B.saveDlg;
       if(d&&B.on&&_gameState==='game'&&!(typeof _paused!=='undefined'&&_paused)){
         d.t++;
-        if(saveDlgKey()&&d.t>SAVE_MIN){ B.saveDlg=null; for(const k in K) delete K[k]; for(const k in Kj) delete Kj[k]; try{ S('menu'); }catch(e){} }
+        if(saveDlgKey()&&d.t>SAVE_MIN){
+          B.saveDlg=null; for(const k in K) delete K[k]; for(const k in Kj) delete Kj[k]; try{ S('menu'); }catch(e){}
+          try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play&&B._saveDlgMusic){ MV_BETA_AUDIO.play(B._saveDlgMusic); B._saveDlgMusic=null; } }catch(er){}
+        }
         if(typeof fr!=='undefined') fr++;
         return;
       }
-      if(d&&!B.on) B.saveDlg=null;
+      if(d&&!B.on){ B.saveDlg=null; try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play&&B._saveDlgMusic){ MV_BETA_AUDIO.play(B._saveDlgMusic); B._saveDlgMusic=null; } }catch(er){} }
       return _upd.apply(this,arguments);
     }; }
   function drawSaveDlg(){

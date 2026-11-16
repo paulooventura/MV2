@@ -539,7 +539,8 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   const ch=charge||{chargeFrac:0,ready:false};
   const cg=Math.max(0,Math.min(1,ch.chargeFrac||0));
   const lampReady=!!ch.ready;
-  const pulse=hostile?0.55+Math.sin(fr*0.14)*0.45:0;
+  const MOFF=!!window._mirrorOff;   // T531: shut-down mirror - bulb dark, eye closed
+  const pulse=hostile&&!MOFF?0.55+Math.sin(fr*0.14)*0.45:0;
   const MIR=hostile&&!!window._mirrorDraw;                         // (build 411, Paulo) the mirror D: black chrome body, a YELLOW light bulb, nothing red
   if(hostile&&pulse>0.25){
     ctx.beginPath();ctx.ellipse(cx,drawY,R+4+pulse*5,R+5+pulse*6,0,0,Math.PI*2);
@@ -565,7 +566,7 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     bg.addColorStop(0,gl[1]); bg.addColorStop(0.55,gl[2]); bg.addColorStop(1,gl[3]);
     ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
     // filament glow ring behind the eye
-    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=MIR?'rgba(255,230,120,0.35)':hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=MIR?(MOFF?'rgba(40,20,20,0.16)':'rgba(255,230,120,0.35)'):hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
   }
 
   let scleraCol=MIR?'#fff2c4':hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
@@ -633,6 +634,14 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
         ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(pts[0][0]+o,pts[0][1]+o); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0]+o,pts[j][1]+o); ctx.stroke();
       }
     }
+    ctx.restore();
+  }
+  // T531: a shut-down mirror's glass goes dark and the eye is a single closed line.
+  if(MIR&&MOFF){
+    ctx.save();
+    ctx.fillStyle='rgba(10,6,10,0.55)'; ctx.beginPath(); ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#0a0608'; ctx.lineWidth=2.4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-8,drawY+2); ctx.lineTo(cx+8,drawY+2); ctx.stroke();
     ctx.restore();
   }
   // Paulo (Oct 22): the eye finds the nearest enemy. Closer = a higher bottom lid.

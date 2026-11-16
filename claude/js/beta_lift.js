@@ -344,9 +344,11 @@
     try{
       const a=typeof ga==='function'?ga():null; if(!a){ sfx('land'); return; }
       const t=a.currentTime;
-      tone(a,t,90,48,0.2,0.16,'triangle');
-      tone(a,t+0.08,523,523,0.18,0.34,'sine');
-      tone(a,t+0.26,784,784,0.16,0.46,'sine');
+      // T544 (Paulo 11-16): the blom-blom leans up going up, down going down.
+      const dir=Math.sign(S.dir||0)||0, k=dir>0?1.06:dir<0?0.95:1;
+      tone(a,t,90*k,48*k,0.2,0.16,'triangle');
+      tone(a,t+0.08,523*k,523*k,0.18,0.34,'sine');
+      tone(a,t+0.26,784*k,784*k,0.16,0.46,'sine');
     }catch(e){}
   }
   function travelSfx(){
