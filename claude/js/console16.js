@@ -47,6 +47,7 @@
     get mode(){ return mode; },
     get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
     set(m){ if(m==='gore'&&!goreOn()) return; if(!(MODES[m]||plain(m))||m===mode) return; const was=mode; mode=m;
+      try{ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(m); }catch(e){}   // T547: GORE = -33, I&V = +33
       try{ if(window.MV_TV){ if(plain(m)) MV_TV.on=false; else if(plain(was)) MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
     cycle(dir){ const L=['off','snes','md','ink']; if(goreOn()) L.push('gore'); const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
@@ -54,6 +55,7 @@
     MODES
   };
   window.MV_CONSOLE=api;
+  try{ if(mode==='gore'||mode==='ink'){ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(mode); } }catch(e){}  // T547: boot with the picked filter on the scale
   function syncHue(){
     const c=document.getElementById('c');
     if(c) c.style.filter='';

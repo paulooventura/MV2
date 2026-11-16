@@ -41,7 +41,16 @@
     const h=50*k, bot=feet-(2*WR+6)*k, w=40*k; return {x:cx-w/2, y:bot-h, w, h}; }
   // (build 407 fix) Ink & Vinyl has blood (bloodAmt) but none of GORE's look or sound: goreAmt is GORE's alone —
   // it drove the red grade and the metal hit layer, which turned I&V red and made the shutdowns loud
-  function bloodAmt(){ return INK()?0.85:goreAmt(); }
+  // T549/T552: past the last floor the ride keeps deepening - extra blood below
+  // -33, extra (thin, fast) ink above +33. The 67-dot bar itself stays capped.
+  function overAmt(){
+    const L=window.MV_LIFT, ov=L?(L.over||0)/20:0;
+    return ov<=0?0:ov*((L.pull||0)>=0?1:0);
+  }
+  function bloodAmt(){
+    if(INK()) return Math.min(1.6,0.85+overAmt()*0.6);
+    return Math.min(1.6,goreAmt()+overAmt()*0.6);
+  }
   function goreAmt(){
     const base=((window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')||(window.MV_BETA&&MV_BETA.bloodOn))?1:0;   // the GORE code keeps blood on in every filter (build 362)
     const chosen=base?(0.55+0.45*Math.min(1,floorsDown()/33))*(1-rideInk()):0;                          // picked in Options: on, gorier as he goes down

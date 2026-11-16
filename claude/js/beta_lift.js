@@ -422,16 +422,30 @@
     }
     shiftColumn(columnOf(m), delta, 'go');
     for(const c of columnOf(m)) c._used=true;
-    S.ask=false; S.dir=up?1:-1; S.vibe=(S.vibe||0)+(up?1:-1);
-    S.vibe=Math.max(-SPAN, Math.min(SPAN, S.vibe));
+    S.ask=false; S.dir=up?1:-1;
+    const before=S.vibe||0, step=up?1:-1;
+    S.vibe=Math.max(-SPAN, Math.min(SPAN, before+step));
+    // T548/T549/T552: riding PAST the last floor keeps counting as "over the edge"
+    // (down = deeper gore, up = brighter heaven) even though the 67-dot bar is capped.
+    if(Math.abs(before)>=SPAN&&S.vibe===before&&Math.sign(step)===Math.sign(before))
+      S.over=Math.min(20,(S.over||0)+1);
+    else if(Math.sign(step)!==Math.sign(before)) S.over=Math.max(0,(S.over||0)-1);
     travelSfx();
   }
+  // T547: picking a filter in Options moves the 67-floor scale; the elevator's own
+  // fullFilter() below sets this guard so the two systems never fight each other.
+  S.setFilterVibe=function(m){
+    if(S.settingFromFilter) return;
+    const v=m==='gore'?-SPAN:m==='ink'?SPAN:0;
+    S.vibe=v; S.barT=180;
+  };
   function fullFilter(m){
     const C=window.MV_CONSOLE; if(!C||typeof C.set!=='function'||C.mode===m) return;
     // GORE is a secret filter: reaching it 33 floors down unlocks it, as the code on the FILTER row does
     if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){ _goreUnlock(); return; }
     if(!S.forced) S.baseMode=C.mode;
-    C.set(m);
+    S.settingFromFilter=true;
+    try{ C.set(m); } finally{ S.settingFromFilter=false; }
     if(C.mode===m){ S.forced=m; try{ uiShowToast(m==='ink'?'INK & VINYL - THE 33RD FLOOR':'GORE - 33 FLOORS DOWN'); }catch(e){} }
   }
   function aboard(m){
@@ -447,7 +461,7 @@
     if(!B.platforms) return;
     const id=B.stageId;
     if(id!==S.stage){
-      S.stage=id; S.vibe=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0; S.musicT=0; S.barT=0;
+      S.stage=id; S.vibe=0; S.over=0; S.floors=0; S.pull=0; S.dir=0; S.zoom=0; S.musicT=0; S.barT=0;
       S.cab=null; S.inside=false; S.ask=false; S.sealed=false; S.laid=false; S.near=false;
       yCache.clear(); S.cut.clear(); S.cutOrig.clear(); S.cutOpen=true;
       for(const m of B.platforms){ m.phase=null; m._lift=null; m.door=0; m._used=false; }
