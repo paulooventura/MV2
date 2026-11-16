@@ -121,6 +121,11 @@ rect(42, 49, 32, 49, SOLID)                             # the rock under the vau
 # the right rock mass (with its stepped top) and the arena edge
 rect(38, 52, 2, 12, AIR)
 poly([(38, 13), (40, 11), (41, 9), (43, 9), (43, 11), (45, 11), (47, 13), (51, 13), (51, 14), (38, 14)], SOLID)
+# T535: the little lift at col 52 stops at row 12, but the flat top of this rock
+# mass (row 13, cols 49-51) juts out directly under the car as a notch and stops
+# it descending further. Carve just that sliver away; row 14 and the building
+# body below stay solid, so no floor the player stands on is lost.
+rect(49, 51, 13, 13, AIR)
 rect(42, 48, 15, 39, AIR)                               # the secret area (the high-tech vault)
 rect(41, 41, 24, 40, SOLID)                             # its left wall: the only way in is the door at the bottom right
 rect(49, 49, 36, 40, AIR)                               # its SECRET ENTRANCE at the tower's bottom right, off the rung shaft
@@ -206,7 +211,7 @@ rungs(12, 13, 17, 40)                                # ladder up the scaffold
 rungs(16, 17, 21, 40)                                # second ladder on the right
 ent('Decor', 10, 3, 10, 4, kind='crane')             # the crane gantry over the shaft
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=61, speed=12)      # the long elevator, down to the pool's floor
-ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=12, speed=9)        # the little lift at the arena's top-left
+ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=16, speed=9)        # the little lift: T535 now clears the notch and descends 4 rows more
 # water: the pool and the run under the rock
 ent('Water', 33, 47, 17, 16)                           # surface in the channel; fills the basin under the vault
 # boxes: the plug into the secret area (omni), the bowl's seal (falls when the boss is beaten),
