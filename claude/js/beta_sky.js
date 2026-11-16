@@ -198,6 +198,8 @@
     const L=get(B.stageId||'default'), th=L.th;
     const cx=typeof camX==='number'?camX:0;
     const horizon=horizonPx;
+    // the 67-floor mood: -33 GORE (red moon) · 0 equilibrium (golden hour) · +33 I&V (bright sun)
+    const LF=window.MV_LIFT, mood=Math.max(-1,Math.min(1,(LF?(LF.vibe||0):0)/33));
     ctx.save(); ctx.imageSmoothingEnabled=false;
     // the sky fills the screen; it drifts very slowly and moves a touch with the camera
     const skyY=Math.min(0,Math.max(H-L.sky.height*PXS,horizon-L.sky.height*PXS*0.82));
@@ -234,10 +236,23 @@
       ctx.fillStyle=m.col; ctx.beginPath(); ctx.arc(mx-PXS,my-PXS,R-PXS*2,0,Math.PI*2); ctx.fill();
       ctx.fillStyle=m.crater||'rgba(120,100,180,0.35)'; for(const [ox,oy,rr] of [[-0.3,-0.2,0.18],[0.25,0.1,0.12],[-0.05,0.35,0.1],[0.35,-0.35,0.08]]){ ctx.beginPath(); ctx.arc(mx+ox*R,my+oy*R,rr*R,0,Math.PI*2); ctx.fill(); }
     };
-    if(th.moon&&!th.moon.late) moon();
-    // Paulo: the sky must RESONATE with the 67-floor scale — a bright sun at the
-    // top (Ink & Vinyl), the theme's own sky at equilibrium, a swollen red moon
-    // down in GORE. Drawn into the sky itself, not just a faint screen wash.
+    // Paulo: the theme's own moon belongs to GORE only. At equilibrium the sky
+    // is golden hour (a low warm sun), and at I&V a bright high sun.
+    if(th.moon&&!th.moon.late&&mood<-0.12) moon();
+    // Paulo: the sky RESONATES with the 67-floor scale. At equilibrium (no
+    // elevator ride yet) it is dawn/dusk — a low golden sun and a warm wash —
+    // NOT the theme's night moon. +33 bright sun, -33 swollen red moon.
+    if(Math.abs(mood)<=0.12){
+      const gx=W*0.74-cx*0.01, gy=skyY+L.sky.height*PXS*0.5, R=34*PXS/1.5;
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const wg=ctx.createLinearGradient(0,gy-140,0,horizon+40);
+      wg.addColorStop(0,'rgba(255,190,110,0)'); wg.addColorStop(0.6,'rgba(255,170,95,0.16)'); wg.addColorStop(1,'rgba(255,140,80,0.28)');
+      ctx.fillStyle=wg; ctx.fillRect(0,gy-140,W,horizon-gy+180);
+      const g=ctx.createRadialGradient(gx,gy,R*0.5,gx,gy,R*7); g.addColorStop(0,'rgba(255,214,150,0.55)'); g.addColorStop(1,'rgba(255,170,95,0)');
+      ctx.fillStyle=g; ctx.fillRect(gx-R*7,gy-R*7,R*14,R*14);
+      ctx.restore();
+      ctx.fillStyle='#ffdca6'; ctx.beginPath(); ctx.arc(gx,gy,R,0,Math.PI*2); ctx.fill();
+    }
     {
       const LF=window.MV_LIFT, vv=LF?(LF.vibe||0):0, m=Math.max(-1,Math.min(1,vv/33));
       if(Math.abs(m)>0.12){

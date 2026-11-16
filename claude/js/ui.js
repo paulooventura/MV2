@@ -1029,9 +1029,12 @@ let _titleT=0, _logoHalfW=0;
   // T524: idle >15 s on the title -> full-screen, fully opaque gameplay stills.
   // Any button fades the still back to the title; the first press only dismisses
   // it (the menu is hidden underneath so it can't be clicked by accident).
-  const TITLE_SLIDES=['claude-180.png','companion-rope.png','jack-beam.png','mind-venture-house-1-1.png','phone-181.png','front-pc.png','jack-intro.png']
+  // Idle >15 s on the title -> a slideshow of clean, full-screen gameplay
+  // screenshots. One still at a time, fully opaque; any button returns to the
+  // title (the first press only dismisses — it cannot activate a menu item).
+  const TITLE_SLIDES=['slide-1.png','slide-2.png','slide-3.png','slide-4.png','slide-5.png']
     .map(n=>{const im=new Image(); im.src='assets/previews/'+n; return im;});
-  const SLIDE_FADE_FR=28;
+  const SLIDE_FADE_FR=18;
   let _slideFade=0;
   function _titleSlideInput(){
     if(_slideFade>0) return true;                       // mid fade: swallow input until the title is back
@@ -1043,27 +1046,19 @@ let _titleT=0, _logoHalfW=0;
     if(!fading&&_titleT<=900) return false;
     const imgs=TITLE_SLIDES.filter(im=>im.complete&&im.naturalWidth>1);
     if(!imgs.length){ _slideFade=0; _titleT=0; return false; }
-    const cover=(im,a)=>{ const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
-      ctx.globalAlpha=a; ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h); };
-    const t=Math.max(0,_titleT-900), per=300, idx=Math.floor(t/per)%imgs.length, f=(t%per)/per;
-    const cur=imgs[idx], next=imgs[(idx+1)%imgs.length];
+    const t=Math.max(0,_titleT-900), per=420;
+    const idx=Math.floor(t/per)%imgs.length;
+    const im=imgs[idx];
+    const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
+    const x=(W-w)/2, y=(H-h)/2;
     ctx.save();
-    if(fading){
-      // the still dissolves over the title art, then normal title takes over
-      cover(cur,_slideFade/SLIDE_FADE_FR);
-      if(--_slideFade<=0) _titleT=0;
-    }else{
-      // T525: only the crossfade breathes with the music — the still itself is
-      // fully opaque, never see-through to the key art behind it.
-      const energy=(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.titleEnergy)?MV_BETA_AUDIO.titleEnergy():0;
-      const beat=0.85+0.3*energy;
-      const a=Math.max(0,Math.min(1,(f<0.15?f/0.15:f>0.85?(1-f)/0.15:1)*beat));
-      if(next!==cur) cover(next,1);                     // the outgoing still sits fully underneath
-      cover(cur,a);
-    }
+    ctx.globalAlpha=fading?_slideFade/SLIDE_FADE_FR:1;   // fully opaque while showing
+    ctx.drawImage(im,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
     ctx.restore();
+    if(fading&&--_slideFade<=0) _titleT=0;
     return true;
   }
+
 function uiLogoHalf(){ if(!_logoHalfW||!_uiFontReady){ ctx.save(); ctx.font='105px "MV Pixel", monospace'; _logoHalfW=ctx.measureText('MIND & VENTURE').width/2; ctx.restore(); } return _logoHalfW; }
 function _titleArtCursor(map,sx,sy){
   const bob=Math.sin(fr*0.18)*1.5, s=map.s;

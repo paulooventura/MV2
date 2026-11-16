@@ -79,10 +79,11 @@
     S.junk=[];
     S.life=null; S.found=!!B._atticFound; S.reveal=S.found?1:0; S.puffs=[];
   }
+  // MIND's body hitbox in tile pixels — shared by apply() and the close tick.
+  const body=()=>{ if(!p) return null; const x0=p.x+SW*0.2, x1=p.x+SW*0.8, y1=p.y+FEET_OFF, y0=y1-100; return {x0,x1,y0,y1}; };
+  const hitsBody=(c,r)=>{ const b=body(); return b&&c*T<b.x1&&(c+1)*T>b.x0&&r*T<b.y1&&(r+1)*T>b.y0; };
   function apply(){
     if(typeof MV_GRID_SOLID==='undefined') return;
-    const body=c=>{ if(!p) return false; const x0=p.x+SW*0.2, x1=p.x+SW*0.8, y1=p.y+FEET_OFF, y0=y1-100; return true&&{x0,x1,y0,y1}; };
-    const hitsBody=(c,r)=>{ const b=body(); return b&&c*T<b.x1&&(c+1)*T>b.x0&&r*T<b.y1&&(r+1)*T>b.y0; };
     for(const d of S.doors){ let blocked=false; for(let r=d.r0;r<=d.r1;r++) if(hitsBody(d.c,r)) blocked=true;
       if(blocked){ d.st='open'; d.t=99; continue; }
       for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID); }
