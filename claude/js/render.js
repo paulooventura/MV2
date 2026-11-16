@@ -844,8 +844,10 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
 
   if(itemIdx===0){
     // TRS: black/grey barrel, gold contacts (standard + enhanced)
+    // T478: ribbed rubber strain-relief boot at the cable end
     _connPx(-20,-3,10,6,'#101012');
     _connPx(-20,-2,10,2,'#2a2a30');
+    for(let i=0;i<4;i++) _connPx(-19+i*2.2,-3.4,1,6.8,'#24242c');
     _connPx(-10,-5,12,10,'#0c0c10');
     _connPx(-9,-4,11,3,'#2a2a32');
     _connPx(-8,2,9,2,'#08080c');
@@ -859,9 +861,12 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     _connPx(29.4,-3.2,7,1.8,'#fff0b8');
     _connPx(36.4,-4.2,2.4,8.4,'#0a0a0f');
     _connPx(38.8,-2.8,6,5.6,'#e2b64a');
-    ctx.beginPath();ctx.moveTo(44.8,-3);ctx.lineTo(51.5,0);ctx.lineTo(44.8,3);ctx.closePath();
-    ctx.fillStyle='#e2b64a';ctx.fill();
-    ctx.fillStyle='#fff6c8';ctx.fillRect(45.5,-1.2,4,1.4);
+    // T478: a rounded metal tip, not a triangle — the dome of a real 3.5 mm plug
+    ctx.beginPath();ctx.roundRect(43.4,-3.4,5.2,6.8,2.6);
+    ctx.fillStyle='#d8b845';ctx.fill();
+    ctx.beginPath();ctx.ellipse(48.4,0,1.7,3.2,0,0,Math.PI*2);
+    ctx.fillStyle='#f3dc9a';ctx.fill();
+    ctx.fillStyle='#fff6c8';ctx.fillRect(45,-1.2,3.4,1.2);
     if(enh){
       _drawGreenVeins([
         [[-16,-1.2],[-8,-0.4],[2,1.2],[12,-1.0],[22,0.8],[32,-0.6],[44,0.4],[50.5,0]],
@@ -895,7 +900,11 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
     _connPx(18,-8,10,16,'#5a5e66');
     _connPx(18,-8,10,4,'#8a8e96');
     _connPx(18,4,10,4,'#2a2e34');
-    _connPx(20,-4,6,8,'#1a1c22');
+    // T478: a flared shell lip, then the pale insulator ring of a real phono plug
+    ctx.beginPath(); ctx.moveTo(26,-8); ctx.lineTo(30,-6.5); ctx.lineTo(30,6.5); ctx.lineTo(26,8); ctx.closePath();
+    ctx.fillStyle='#9098a2'; ctx.fill();
+    _connPx(29.4,-5.4,2.4,10.8,'#e8dfc2');
+    _connPx(31.8,-4.4,1.6,8.8,'#15161a');
     _connPx(28,-2.4,16,4.8,'#d4aa40');
     _connPx(28,-2.4,16,1.6,'#fff0b8');
     ctx.beginPath();ctx.arc(44.5,0,2.6,0,Math.PI*2);ctx.fillStyle='#e2b64a';ctx.fill();
