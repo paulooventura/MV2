@@ -768,7 +768,11 @@
         for(const k in els){ const a=els[k]; if(!a||a===keep||(duoOn&&a._mix!=null)) continue; if(live(a)){ try{ a.pause(); }catch(e){} guardN++; } }
         if(keep) for(const a of legacy) if(a!==keep&&live(a)){ try{ a.pause(); }catch(e){} guardN++; }
         const L=window.MV_LIFT; if(liftBed&&live(liftBed)&&!(L&&Math.abs(L.pull||0)>=0.02&&!L.inside)){ liftBed.volume=0; liftBed.muted=true; guardN++; }
-      }else if(legacy.some(live)){
+      }else{
+        // T522: off a stage, no beta/results track may sound. The old code only
+        // paused us when it happened to detect a live legacy element, so the
+        // stage-complete song could keep playing under the title. Silence
+        // ourselves unconditionally; this is a backstop, not the only gate.
         for(const k in els) if(live(els[k])){ try{ els[k].pause(); }catch(e){} guardN++; }
         if(liftBed&&live(liftBed)){ liftBed.volume=0; liftBed.muted=true; }
       }

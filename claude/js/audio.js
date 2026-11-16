@@ -420,6 +420,9 @@ function _playBGM(type,vol=0.7){
   _unlockAudio();
   const playGen=++_bgmPlayGen;
   _stopAllBgm();
+  // T522: starting ANY legacy song must synchronously stop the beta stage/results
+  // tracks too. The 250 ms musicGuard is only a backstop, not the authority.
+  try{ if(window.MV_BETA_AUDIO&&window.MV_BETA_AUDIO.stopAll) window.MV_BETA_AUDIO.stopAll(); }catch(e){}
   _activeBgmType=type;
   if(typeof document!=='undefined'&&document.hidden&&!/[?&]selftest=/.test(location.search||'')){
     _bgmHeldHidden=true;
