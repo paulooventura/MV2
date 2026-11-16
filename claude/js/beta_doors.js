@@ -110,8 +110,14 @@
     if(!on()) return false;
     for(const d of S.doors){ if(d.st!=='shut') continue;
       if(wx>d.c*T-wr-6&&wx<(d.c+1)*T+wr+6&&wy>d.r0*T-wr&&wy<(d.r1+1)*T+wr){
-        d.st='opening'; d.t=0; d.side=(p&&p.x+SW/2<d.c*T+T/2)?1:-1;     // it swings away from you
-        thud(1); creak(0.55); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,10); B.shake=Math.max(B.shake||0,4); B.doorsOpened=(B.doorsOpened|0)+1; return true; } }
+        // T528: a running loaded punch SMASHES the door instead of swinging it.
+        const run=Math.abs((p&&p.vx)||0);
+        d.st=(charged&&run>=7.5)?'smashed':'opening'; d.t=0;
+        d.side=(p&&p.x+SW/2<d.c*T+T/2)?1:-1;     // it swings away from you
+        if(d.st==='smashed'){ try{ sfx('omniblock_break'); }catch(e){}
+          dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,26,'#8a6a44'); B.shake=Math.max(B.shake||0,12); B.doorsSmashed=(B.doorsSmashed|0)+1;
+        }else{ thud(1); creak(0.55); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,10); B.shake=Math.max(B.shake||0,4); }
+        B.doorsOpened=(B.doorsOpened|0)+1; return true; } }
     for(const t of S.traps){ if(t.st!=='shut') continue;
       const x0=t.c0*T, x1=(t.c1+1)*T, y0=t.r*T, y1=(t.r+1)*T;
       if(wx>x0-wr&&wx<x1+wr&&wy>y0-wr-18&&wy<y1+wr+18){
@@ -136,7 +142,11 @@
   function tick(){
     if(!on()){ if(S.lv&&!B.on) S.lv=null; return; }
     if(S.lv!==B.level){ S.lv=B.level; build(); apply(); }
-    for(const d of S.doors) if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); } }
+    for(const d of S.doors){
+      if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); } }
+      else if(d.st==='smashed'){ d.t++; if(d.t===2){ for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,18,'#8a6a44'); }
+        if(d.t>=10){ d.st='open'; thud(1.2); } }
+    }
     for(const t of S.traps){
       if(t.shake>0) t.shake--;
       if(t.st==='opening'){ t.t++; if(t.t===4) for(let c=t.c0;c<=t.c1;c++){ gridSet(c,t.r,MV_GRID_AIR); if(t.id==='attic') gridSet(c,t.r-1,MV_GRID_AIR); } if(t.t>=22){ t.st='open'; thud(0.7); } } }

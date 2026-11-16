@@ -594,7 +594,13 @@
       const bx=m.x+m.w*0.5, by=m.y-CAB+18;
       if(Math.hypot(wx-bx,wy-by)<=(wr||12)+16){
         pressSfx();
-        if(m.phase==='open'){ m.phase='shut'; m._arrive=false; m._used=true; S.ask=true; }
+        // T514: one punch closes an open cab door, but only once per short buffer so
+        // mashing the item button can't re-trigger the state/audio every frame.
+        if(m.phase==='open'){
+          if((m._punchCd||0)>(typeof fr==='number'?fr:0)) return true;
+          m.phase='shut'; m._arrive=false; m._used=true; S.ask=true;
+          m._punchCd=(typeof fr==='number'?fr:0)+18;
+        }
         return true;
       }
       return false;
