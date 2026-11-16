@@ -117,6 +117,17 @@
           if(e.cd>0&&e.cd<s[1]) e.cd=Math.max(0,e.cd-1.2*aggr);
           if(e.cool>0&&e.cool<s[2]) e.cool=Math.max(0,e.cool-1.2*aggr);
         }
+        // T548: past the last floor. Up past +33 they actively avoid a fight;
+        // down past -33 they hunt and recover almost instantly.
+        if((S.over||0)>0&&p&&!e._boss){
+          const away=e.x+e.w/2<p.x+SW/2?-1:1;
+          if(up){ e.heat=0; e.fuse=0; e._provoked=0;
+            e.cd=Math.max(e.cd||0,120); e.cool=Math.max(e.cool||0,120);
+            e.vx=away*Math.max(Math.abs(e.vx||0),2.4);
+          }else{ e.cd=0; e.cool=0;
+            e.vx=-away*Math.max(Math.abs(e.vx||0),2.8);
+          }
+        }
       });
       if(up&&f>=17&&B.ropes) for(let i=B.ropes.length-1;i>=0;i--){ const q=B.ropes[i]; if(q&&q.e&&!(q.e._provoked>0)&&q.st==='fly') B.ropes.splice(i,1); }   // no unprovoked rope throws
       return r;

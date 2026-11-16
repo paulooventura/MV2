@@ -673,7 +673,11 @@
   }
   function fallTick(e){
     if(!e._iso&&shortIfWet(e)) return;
-    if(e._hop&&e.vx){ const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)){ e.x=nx; e.roll=(e.roll||0)+e.vx/(e.w/2); } else e.vx=-e.vx*0.5; }
+    if(e._hop&&e.vx){                                            // T533: sweep - never jump over a solid
+      const dx=e.vx, n=Math.max(1,Math.ceil(Math.abs(dx)/(T*0.4))), sx=dx/n; let moved=0;
+      for(let k=0;k<n;k++){ const nx=e.x+sx; if(!boxFree(nx,e.y,e.w,e.h)){ e.vx=-e.vx*0.5; break; } e.x=nx; moved+=sx; }
+      e.roll=(e.roll||0)+moved/(e.w/2);
+    }
     if(wetAt(e.x+e.w/2,e.y+e.h/2)) e.vy=Math.min(e.vy+GRAV*0.15,1.2);    // sinks slowly in water
     else e.vy=Math.min(e.vy+GRAV*0.8,13);
     const ny=e.y+e.vy, feet=ny+e.h;
@@ -698,7 +702,22 @@
       e.vy=0; e.og=true; e._falling=false; e.baseY=e.y;
       if(e._hop&&e.alive){ const H=e._hop; if(H.n<2){ H.n++; e.vy=-(6.2+2.4*H.n); e.vx=H.dir*(3+1.2*H.n); e.og=false; e._falling=true; e._squash=6; } else { e._hop=null; e.vx=0; } }   // the dribble: each bounce higher
       if(e._newHome&&e.alive!==undefined){ e._newHome=false; e.homeX=e.x+e.w/2; e._spawnAt={x:e.x, y:e.y, mn:e.mn, mx:e.mx, dir:e.dir, hp:e.mhp||e.hp}; }   // dropped by the MAG: it lives here now
-    }else{ e.y=ny; e.og=false; }   // (out of the world: B.enemyRespawnTick brings it back)
+    }else{
+      // T533: the old one-shot `e.y=ny` let a hard knock skip a whole solid
+      // floor. Walk the fall in sub-steps and stop at the first solid/plat.
+      const dy=e.vy, n=Math.max(1,Math.ceil(Math.abs(dy)/(T*0.4))); let ly=e.y, hit=false;
+      for(let k=1;k<=n;k++){
+        const yy=e.y+dy*k/n, ft=yy+e.h;
+        if(dy>=0){
+          const lp2=platUnder(e.x,e.w,ft);
+          if(lp2){ e.y=lp2.y-e.h; hit=true; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; e._plat=lp2; e._platOff=e.x-lp2.x; break; }
+          if(floorUnder(e.x,e.w,ft)){ e.y=floorSnap(e,ft); hit=true; if(e._falling) land(e,e.vy); e.vy=0; e.og=true; e._falling=false; e.baseY=e.y; break; }
+        }
+        if(!boxFree(e.x,yy,e.w,e.h)){ e.y=ly; hit=true; e.vy=0; break; }
+        ly=yy;
+      }
+      if(!hit){ e.y=ly; e.og=false; }   // (out of the world: B.enemyRespawnTick brings it back)
+    }
   }
 
   function think(e){
@@ -797,7 +816,11 @@
     let kE=pl===p?mP/(mP+mE):0;                                   // the enemy's share of the horizontal push
     let ex=-tx*kE;
     if(ex&&(!boxFree(e.x+ex,e.y,e.w,e.h)||enemyIn(e,e.x+ex,e.y,e.w,e.h))){ ex=0; kE=0; }   // pinned against a wall: MIND gives way
-    if(ex){ e.x+=ex; e.vx=(e.vx||0)*0.5+ex*0.5; if(e._ai==='circle') e.roll=(e.roll||0)+ex/(e.w/2); if(e._plat) e._platOff=e.x-e._plat.x; }
+    if(ex){                                                       // T533: never shove a body through a wall
+      const n=Math.max(1,Math.ceil(Math.abs(ex)/(T*0.4))), sx=ex/n; let moved=0;
+      for(let k=0;k<n;k++){ const nx=e.x+sx; if(!boxFree(nx,e.y,e.w,e.h)) break; e.x=nx; moved+=sx; }
+      e.vx=(e.vx||0)*0.5+moved*0.5; if(e._ai==='circle') e.roll=(e.roll||0)+moved/(e.w/2); if(e._plat) e._platOff=e.x-e._plat.x;
+    }
     const s2={ax:tx*(1-kE), ay:ty, bx:0, by:0};
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
@@ -897,7 +920,8 @@
     if(e._ai==='circle'&&e.og&&Math.abs(g.ang)>0.06) e.vx=(e.vx||0)+Math.sin(g.ang)*0.22;
     // pushed around (XLR, magnet throw…): slides, stopped by walls and other bodies, friction on the floor
     if(Math.abs(e.vx||0)>0.05){
-      const nx=e.x+e.vx; if(boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)) e.x=nx; else e.vx=0;
+      const dx=e.vx, n=Math.max(1,Math.ceil(Math.abs(dx)/(T*0.4))), sx=dx/n; let moved=0;   // T533: sweep
+      for(let k=0;k<n;k++){ const nx=e.x+sx; if(!boxFree(nx,e.y,e.w,e.h)||enemyIn(e,nx,e.y,e.w,e.h)){ e.vx=0; break; } e.x=nx; moved+=sx; }
       e.vx*=e.og?(e._ai==='circle'?0.985:0.86):0.98;
       if(e._ai==='circle') e.roll=(e.roll||0)+e.vx/(e.w/2);
       if(e.og&&!floorUnder(e.x,e.w,e.y+e.h)) e.og=false;
@@ -1171,23 +1195,36 @@
   //  (A squeaks, B chirps, C bonks low, E buzzes); hitting MIND: it gloats (a "!" pops, a cocky
   //  two-note blip); falling with nothing under it: a falling slide-whistle wail.
   const VOICE={circle:{f:880,type:'sine'}, tri:{f:1180,type:'triangle'}, square:{f:240,type:'square'}, eye:{f:520,type:'sawtooth'}, cube:{f:360,type:'triangle'}};
+  // T550: one mood from the elevator scale - upper floors childish/angelic, lower
+  // floors mean. Same value drives the synth pitch/timbre and the foe's phrases.
+  function foeMood(){
+    const L=window.MV_LIFT, v=L?(L.vibe||0):0, ov=L?(L.over||0):0;
+    if(v<0||(ov>0&&v<=0)) return 'gore';
+    if(v>0||(ov>0&&v>=0)) return 'cute';
+    return 'neutral';
+  }
+  window.MV_FOE_MOOD=foeMood;
+  function foeVoice(e){
+    const b=VOICE[e._ai||e._foe]||VOICE.circle, m=foeMood();
+    return {f:b.f*(m==='gore'?0.82:m==='cute'?1.22:1), type:m==='gore'?'sawtooth':m==='cute'?'sine':b.type, mood:m};
+  }
   function foeAc(){ try{ const a=typeof ga==='function'?ga():null; return a&&a.state==='running'?a:null; }catch(_e){ return null; } }
   function foeOut(a,e,g0){ const g=a.createGain(); let k=1; try{ const m=mindCenter(), c=center(e), d=Math.hypot(m.x-c.x,m.y-c.y); k=Math.max(0.15,1-d/900); }catch(_e){}
     g.gain.value=g0*k*((typeof OPT!=='undefined'&&OPT.sfxVol!=null)?OPT.sfxVol:1); g.connect(a.destination); return g; }
   function cry(e){
-    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, o=a.createOscillator(), g=a.createGain(), out=foeOut(a,e,0.22);
+    const a=foeAc(); if(!a) return; const v=foeVoice(e), t=a.currentTime, o=a.createOscillator(), g=a.createGain(), out=foeOut(a,e,0.22);
     o.type=v.type; o.frequency.setValueAtTime(v.f*1.4,t); o.frequency.exponentialRampToValueAtTime(v.f*0.7,t+0.16);
     if(v.type==='sawtooth'){ const lfo=a.createOscillator(), lg=a.createGain(); lfo.frequency.value=38; lg.gain.value=v.f*0.3; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t+0.2); }
     g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(1,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
     o.connect(g); g.connect(out); o.start(t); o.stop(t+0.22);
   }
   function gloatSfx(e){
-    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, out=foeOut(a,e,0.16);
+    const a=foeAc(); if(!a) return; const v=foeVoice(e), t=a.currentTime, out=foeOut(a,e,0.16);
     [[1,0],[1.5,0.09]].forEach(([m,dt])=>{ const o=a.createOscillator(), g=a.createGain(); o.type=v.type==='square'?'square':'triangle'; o.frequency.value=v.f*m*(v.f<400?2:1);
       g.gain.setValueAtTime(0.0001,t+dt); g.gain.exponentialRampToValueAtTime(1,t+dt+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dt+0.12); o.connect(g); g.connect(out); o.start(t+dt); o.stop(t+dt+0.14); });
   }
   function fallSfx(e){
-    const a=foeAc(); if(!a) return; const v=VOICE[e._ai||e._foe]||VOICE.circle, t=a.currentTime, out=foeOut(a,e,0.2);
+    const a=foeAc(); if(!a) return; const v=foeVoice(e), t=a.currentTime, out=foeOut(a,e,0.2);
     const o=a.createOscillator(), g=a.createGain(), vib=a.createOscillator(), vg=a.createGain(); o.type='sine';
     o.frequency.setValueAtTime(Math.max(600,v.f*1.6),t); o.frequency.exponentialRampToValueAtTime(110,t+1.3);   // the slide whistle down
     vib.frequency.value=7; vg.gain.value=22; vib.connect(vg); vg.connect(o.frequency);

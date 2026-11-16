@@ -395,7 +395,7 @@
     // Paulo, Nov 13: exact damage — a pellet like foe A's (12), a notch laser a third of the bar (33), the foe-E
     // beam three quarters (75); the elevator's floor scaling doesn't touch them. A kiritsuke in a beam's path
     // turns it: MIND takes nothing and the boss takes half of what he would have (once per firing).
-    const hm=(kx,ky,dmg)=>{ window._mvExactDmg=true; let ok=false; try{ ok=hurtMind(kx,ky,dmg); } finally{ window._mvExactDmg=false; } if(ok&&(e._laughCd||0)<fr){ e._laughCd=fr+200; e._mockT=60; e._mockLine=GLOAT[(e._gl=(e._gl|0)+1)%GLOAT.length]; try{ laugh(e); }catch(er){} } return ok; };
+    const hm=(kx,ky,dmg)=>{ window._mvExactDmg=true; let ok=false; try{ ok=hurtMind(kx,ky,dmg); } finally{ window._mvExactDmg=false; } if(ok&&(e._laughCd||0)<fr){ e._laughCd=fr+200; e._mockT=60; e._mockLine=(()=>{const L=moodLines(GLOAT,GORE_GLOAT,CUTE_GLOAT);return L[(e._gl=(e._gl|0)+1)%L.length];})(); try{ laugh(e); }catch(er){} } return ok; };
     // T466 (Paulo, Nov 11): three phases. 1: full to 2/3 HP, only the small ball projectiles.
     // 2: 2/3 to 1/3, balls + the notch lasers. 3: the last third, it gets really angry and moves
     // faster, with both of those AND foe E's powerful laser beam (aimed at MIND, then fired).
@@ -419,7 +419,7 @@
     if(e.xMin!=null&&e.x+e.w/2<e.xMin*1-40&&e.vx<0) e.vx*=-0.5; if(e.xMax!=null&&e.x+e.w/2>e.xMax+40&&e.vx>0) e.vx*=-0.5;
     e.x+=e.vx; e.y+=e.vy;
     // a laugh now and then while it's fighting
-    if(e.awake&&e.alive&&fr>(e._tauntAt||0)){ if(e._tauntAt){ e._mockT=70; e._mockLine=TAUNT[(e._tn=(e._tn|0)+1)%TAUNT.length]; try{ laugh(e); }catch(er){} } e._tauntAt=fr+540+Math.floor(Math.random()*300); }
+    if(e.awake&&e.alive&&fr>(e._tauntAt||0)){ if(e._tauntAt){ e._mockT=70; e._mockLine=(()=>{const L=moodLines(TAUNT,GORE_TAUNT,CUTE_TAUNT);return L[(e._tn=(e._tn|0)+1)%L.length];})(); try{ laugh(e); }catch(er){} } e._tauntAt=fr+540+Math.floor(Math.random()*300); }
     if(e.awake) e.rot+=hard?0.035:ph===2?0.016:0.01;                   // asleep in the bowl it lies still on a face
     if(!e.awake){ e.beams=null; return; }
     // contact
@@ -764,6 +764,15 @@
   const GLOAT=['HA HA HA! FEEL THAT?','HAH! STAY DOWN, SPEAKER.','HA HA! TOO SLOW!'];
   const TAUNT=['HA HA HA... COME CLOSER.','IS THAT A KNIFE OR A SPOON? HA HA!','I CAN DO THIS ALL NIGHT. HA HA HA!'];
   const MOCK=['HA HA HA! YOUR TOYS CAN\'T TOUCH ME.','IS THAT ALL? PATHETIC LITTLE SPEAKER.','HAH! NO PLUG OF YOURS WILL END ME.','TICKLES. TRY SOMETHING SHARPER... OH WAIT.'];
+  // T550: the same mood that shifts the voices shifts what they SAY.
+  const GORE_GLOAT=['THAT HURT, DIDN\'T IT? HA HA!','STAY DOWN, YOU LITTLE SPEAKER.','TOO SLOW, TOO SOFT. HA!'];
+  const GORE_TAUNT=['COME CLOSER. I\'LL MAKE IT HURT.','THAT KNIFE OF YOURS IS A SPOON.','I\'LL DO THIS ALL NIGHT.'];
+  const CUTE_GLOAT=['EEEHEE! GOTCHA!','OOPSIE! ARE YOU OKAY?','TEE HEE, TOO SLOW!'];
+  const CUTE_TAUNT=['HEE HEE... COME PLAY!','IS THAT A KNIFE OR A SPARKLY SPOON?','I CAN PLAY ALL DAY!'];
+  function moodLines(base, gore, cute){
+    const m=typeof window.MV_FOE_MOOD==='function'?window.MV_FOE_MOOD():'neutral';
+    return m==='gore'?gore:m==='cute'?cute:base;
+  }
   function laugh(e){
     let a=null; try{ a=typeof ga==='function'?ga():null; }catch(er){} if(!a||a.state!=='running') return;
     const v=(typeof OPT!=='undefined'&&OPT.sfxVol!=null?OPT.sfxVol:1), t0=a.currentTime+0.02;
