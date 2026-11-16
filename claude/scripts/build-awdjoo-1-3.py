@@ -195,8 +195,16 @@ for c, r, snap in [(26, 15, 1), (34, 5, 0), (51, 12, 1), (33, 28, 1), (28, 42, 1
 # bottom), so a cab only ever appears or vanishes behind a floor — never in plain sight
 for k in range(8): ent('MovingPlatform', 8, round(k * 59 / 8), 3, 1, axis='y', a=0, b=59, speed=16, loop=1, dir=1)    # left belt: DOWN
 for k in range(8): ent('MovingPlatform', 19, k * 7, 3, 1, axis='y', a=0, b=56, speed=16, loop=1, dir=-1)              # right belt: UP
-ent('MovingPlatform', 12, 18, 6, 1, axis='y', a=17, b=27, speed=9)      # purple lift: C rides it
-ent('MovingPlatform', 12, 30, 6, 1, axis='y', a=28, b=39, speed=9)      # purple lift: B rides it
+# T532: the two chaotic middle purple shuttles are gone. In their place a FIXED
+# scaffold you can actually climb: wooden decks and ladders bridge the gap
+# between the two cubes, crowned by a crane gantry. ONEWAY cells render as wood.
+def deck(c0, c1, r):
+    for cc in range(c0, c1 + 1):
+        if g[r][cc] == AIR: put(cc, r, ONEWAY)
+for rr in (39, 33, 27, 21, 17): deck(12, 17, rr)      # scaffold decks up the middle
+rungs(12, 13, 17, 40)                                # ladder up the scaffold
+rungs(16, 17, 21, 40)                                # second ladder on the right
+ent('Decor', 10, 3, 10, 4, kind='crane')             # the crane gantry over the shaft
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=61, speed=12)      # the long elevator, down to the pool's floor
 ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=12, speed=9)        # the little lift at the arena's top-left
 # water: the pool and the run under the rock
@@ -211,8 +219,8 @@ boxes('laser', [(c, r) for c in (50, 51) for r in range(50, 56)], plug='flood') 
 ent('Enemy', 15, 53, ai='circle', range=1)
 ent('Enemy', 21, 53, ai='circle', range=1)
 ent('Enemy', 14, 40, ai='circle', range=1)              # on the lower octagon
-ent('Enemy', 14, 17, ai='square', range=1)              # rides the upper purple lift
-ent('Enemy', 14, 29, ai='tri', range=1)                 # rides the lower purple lift
+ent('Enemy', 16, 8, ai='square', range=1)               # T532: was the upper shuttle; now perched on the upper cube
+ent('Enemy', 17, 40, ai='tri', range=1)                 # T532: was the lower shuttle; now on the lower cube
 ent('Enemy', 29, 28, ai='mirror', range=4)              # D
 ent('Enemy', 33, 28, ai='mirror', range=4)              # D
 ent('Enemy', 40, 7, ai='eye', range=6)                  # E: the fast floating pentagon

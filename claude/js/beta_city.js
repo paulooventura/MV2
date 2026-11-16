@@ -212,6 +212,7 @@
       for(const d of B.decor){
         if(d.kind==='lobby') lobby(d);
         else if(d.kind==='cube') cube(d);
+        else if(d.kind==='crane') crane(d);              // T532: gantry over the scaffold shaft
       }
       sky(B);
     },
@@ -240,6 +241,37 @@
     ctx.strokeStyle='rgba(255,240,220,0.8)'; ctx.lineWidth=Math.max(1,sw(1.5)); ctx.beginPath(); ctx.moveTo(sx(x+2),sy(y+1)); ctx.lineTo(sx(x+s-1),sy(y+1)); ctx.stroke();
     // its shadow cast on the shaft wall behind, below
     ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(sx(x+k*0.5),sy(y+s),sw(s),sw(k*0.6));
+  }
+  // T532: the construction crane that crowns the scaffold shaft — a gantry beam with
+  // hazard stripes, a trolley that drifts, and a hook on a cable. Drawn in world space.
+  function crane(d){
+    const x=d.x, y=d.y, w=d.w, h=d.h;
+    const beamY=y+h*0.30, beamH=Math.max(4,sw(h*0.26));
+    // the two uprights it sits on (the tower walls)
+    ctx.fillStyle='#3a3e46';
+    ctx.fillRect(sx(x+sw(2)),sy(y),Math.max(2,sw(4)),sw(h));
+    ctx.fillRect(sx(x+w-sw(6)),sy(y),Math.max(2,sw(4)),sw(h));
+    // the gantry beam
+    ctx.fillStyle='#c8a23a'; ctx.fillRect(sx(x),sy(beamY),sw(w),beamH);
+    ctx.fillStyle='#8a6a20'; ctx.fillRect(sx(x),sy(beamY+beamH-sw(2)),sw(w),Math.max(1,sw(2)));
+    // hazard stripes along the beam
+    ctx.save(); ctx.beginPath(); ctx.rect(sx(x),sy(beamY),sw(w),beamH); ctx.clip();
+    for(let k=-beamH;k<sw(w)+beamH;k+=Math.max(4,sw(9))){
+      ctx.fillStyle='rgba(30,22,10,0.55)';
+      ctx.beginPath(); ctx.moveTo(sx(x)+k,sy(beamY)+beamH); ctx.lineTo(sx(x)+k+beamH,sy(beamY));
+      ctx.lineTo(sx(x)+k+beamH*2,sy(beamY)); ctx.lineTo(sx(x)+k+beamH,sy(beamY)+beamH); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // the trolley drifts slowly along the beam
+    const tx=x+w*(0.34+0.3*(0.5+0.5*Math.sin(fr*0.006)));
+    ctx.fillStyle='#4a4e56'; ctx.fillRect(sx(tx-sw(7)),sy(beamY-sw(6)),sw(14),sw(10));
+    ctx.fillStyle='#22242a'; ctx.fillRect(sx(tx-sw(4)),sy(beamY-sw(4)),sw(8),sw(6));
+    // cable + hook hanging into the shaft
+    const hookY=y+h+h*0.5;
+    ctx.strokeStyle='#9aa0aa'; ctx.lineWidth=Math.max(1,sw(1.5));
+    ctx.beginPath(); ctx.moveTo(sx(tx),sy(beamY+beamH)); ctx.lineTo(sx(tx),sy(hookY)); ctx.stroke();
+    ctx.strokeStyle='#d8a83a'; ctx.lineWidth=Math.max(1,sw(2.5));
+    ctx.beginPath(); ctx.arc(sx(tx),sy(hookY+sw(4)),Math.max(2,sw(4)),Math.PI*0.15,Math.PI*1.85); ctx.stroke();
   }
   // ── up in the open sky over the towers: holo billboards on the background towers, hover-cars ──
   const TX=(fn,...a)=>(window.MV_BETA&&MV_BETA.wtext?MV_BETA.wtext:(f,...b)=>f(...b))(fn,...a);
