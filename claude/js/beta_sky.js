@@ -266,9 +266,25 @@
     if(window.MV_WEATHER) try{ MV_WEATHER.post(); }catch(e){}
     ctx.save();
     ctx.globalCompositeOperation='soft-light'; ctx.fillStyle=th.grade.replace(/[\d.]+\)$/,'0.35)'); ctx.fillRect(0,0,W,H);
+    // T551: Sun/Moon world mood from the 67-floor scale. +33 is bright daylight,
+    // 0 golden-hour, -33 the red moon. Screen-space grade - no cached art regen.
+    const LF=window.MV_LIFT, vv=LF?(LF.vibe||0):0, m=Math.max(-1,Math.min(1,vv/33));
+    if(m>0){
+      ctx.fillStyle='rgba(225,240,255,'+(0.26*m).toFixed(3)+')'; ctx.fillRect(0,0,W,H);
+      ctx.globalCompositeOperation='lighter';
+      const sg=ctx.createRadialGradient(W*0.72,H*0.16,8,W*0.72,H*0.16,H*0.6);
+      sg.addColorStop(0,'rgba(255,246,205,'+(0.30*m).toFixed(3)+')'); sg.addColorStop(1,'rgba(255,246,205,0)');
+      ctx.fillStyle=sg; ctx.fillRect(0,0,W,H);
+    }else if(m<0){
+      ctx.fillStyle='rgba(150,18,28,'+(0.30*(-m)).toFixed(3)+')'; ctx.fillRect(0,0,W,H);
+      ctx.globalCompositeOperation='lighter';
+      const rg=ctx.createRadialGradient(W*0.7,H*0.2,6,W*0.7,H*0.2,H*0.5);
+      rg.addColorStop(0,'rgba(255,70,60,'+(0.26*(-m)).toFixed(3)+')'); rg.addColorStop(1,'rgba(255,70,60,0)');
+      ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+    }
     ctx.globalCompositeOperation='source-over';
     const v=ctx.createRadialGradient(W/2,H*0.52,Math.min(W,H)*0.38,W/2,H*0.52,Math.max(W,H)*0.78);
-    v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,4,2,'+th.vig+')');
+    v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,4,2,'+(th.vig*(1-0.55*Math.max(0,m))).toFixed(3)+')');
     ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
