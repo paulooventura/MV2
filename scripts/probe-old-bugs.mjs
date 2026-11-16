@@ -389,7 +389,12 @@ const PROBES = {
     const T = H.T, out = [];
     const ropeRun = () => {                               // longest stretch of the line inside rock (px)
       const h = p.hook; if (!h || h.st !== 'on') return 0;
-      const pts = [{ x: h.ax, y: h.ay }, ...((h.pivots || []).map((q) => ({ x: q.x, y: q.y }))), ropePlayerEndWorld()];
+      // T533: measure the ROPE THAT IS DRAWN (render.js:2829 uses the sanitized
+      // h._path), not the raw pivot bookkeeping, which may legitimately cut a
+      // corner that the renderer already wraps with _ropeSanitizePath().
+      const pts = (h._path && h._path.length > 1)
+        ? h._path.map((q) => ({ x: q.x, y: q.y }))
+        : [{ x: h.ax, y: h.ay }, ...((h.pivots || []).map((q) => ({ x: q.x, y: q.y }))), ropePlayerEndWorld()];
       let worst = 0;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1], L = Math.hypot(b.x - a.x, b.y - a.y), n = Math.ceil(L / 2);
