@@ -456,9 +456,34 @@
       if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34){ if(!beamTurned(e,c.x,c.y,ux,uy,L,33)) hm(ux*7,-5,33); }
       if(e.stT>=120){ e.st='gap'; e.stT=0; e.beams=null; e.sweepDir=-(e.sweepDir||1); }
     }
-    for(let i=e.bolts.length-1;i>=0;i--){ const b=e.bolts[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
-      if(b.life<=0||solid(b.x,b.y)){ burst(b.x,b.y,5,['#ff8080','#ffd0d0'],2); e.bolts.splice(i,1); continue; }
-      if(Math.hypot(b.x-P.x,b.y-P.y)<26){ hm(b.vx*0.8,-3,12); e.bolts.splice(i,1); } }
+  }
+
+  // T539: bolts are their own system - they keep flying and expire even when the boss
+  // is asleep or dead. On a wall they ricochet a couple of times, then die like frags.
+  function bossBoltTick(e){
+    if(!e||!e.bolts||!e.bolts.length) return;
+    const P=centre();
+    for(let i=e.bolts.length-1;i>=0;i--){
+      const b=e.bolts[i]; b.x+=b.vx; b.y+=b.vy; b.life--;
+      if(b.life<=0){ burst(b.x,b.y,5,['#ff8080','#ffd0d0'],2); e.bolts.splice(i,1); continue; }
+      if(solid(b.x,b.y)){
+        const nb=b.bounces||0;
+        if(nb>=2){ burst(b.x,b.y,7,['#ff8080','#ffd0d0'],2.5); e.bolts.splice(i,1); continue; }
+        let nx=0,ny=0;
+        if(solid(b.x-4,b.y)) nx=1; else if(solid(b.x+4,b.y)) nx=-1;
+        if(solid(b.x,b.y-4)) ny=1; else if(solid(b.x,b.y+4)) ny=-1;
+        if(!nx&&!ny) ny=-1;
+        if(nx) b.vx=Math.abs(b.vx)*nx*0.82;
+        if(ny) b.vy=Math.abs(b.vy)*ny*0.82;
+        b.x-=b.vx; b.y-=b.vy; b.bounces=nb+1;
+        burst(b.x,b.y,4,['#ffc0c0','#ff6060'],2);
+        continue;
+      }
+      if(Math.hypot(b.x-P.x,b.y-P.y)<26){
+        try{ window._mvExactDmg=true; hurtMind(b.vx*0.8,-3,12); } finally{ window._mvExactDmg=false; }
+        e.bolts.splice(i,1);
+      }
+    }
   }
   // the blade in a beam: the beam stops on it (MIND is shielded) and runs back into the boss at half strength
   function beamTurned(e,x0,y0,ux,uy,L,dmg){
@@ -564,7 +589,8 @@
   B.foeTick=function(e){
     if(!p) return;
     e.mn=-1e7; e.mx=1e7;
-    if(e._foe==='eye') eyeTick(e); else if(e._foe==='cube') cubeTick(e); else if(e._foe==='boss') bossTick(e);
+    if(e._foe==='eye') eyeTick(e); else if(e._foe==='cube') cubeTick(e);
+    else if(e._foe==='boss'){ bossBoltTick(e); bossTick(e); }   // T539: bolts never freeze with the boss
   };
   B.foeDraw=function(e){ try{ if(e._foe==='eye') drawEye(e); else if(e._foe==='cube') drawCube(e); else if(e._foe==='boss') drawBoss(e); }catch(er){ console.warn('foe draw',er); } };
   // the boss can't be revived; its fall opens the bowl

@@ -218,8 +218,20 @@
     if(hang.length>80) hang.splice(0,hang.length-80);
   }
   function drawSeeps(){
-    for(const s of seeps){ const a=s.a; ctx.fillStyle=IC('rgba(100,0,12,'+a.toFixed(2)+')'); ctx.fillRect(sx(s.x)-Math.max(0.6,sw(0.7)),sy(s.y),Math.max(1,sw(1.4)),Math.max(1,sw(s.len)));
-      if(!s.done){ ctx.beginPath(); ctx.arc(sx(s.x),sy(s.y+s.len),Math.max(1,sw(1.2)),0,Math.PI*2); ctx.fill(); } }
+    // T546: on a ramp the soak follows the slope diagonal instead of standing as a
+    // vertical ladder rung. Flat floors keep the straight strip.
+    for(const s of seeps){
+      const a=s.a; ctx.fillStyle=IC('rgba(100,0,12,'+a.toFixed(2)+')');
+      const X=sx(s.x), Y=sy(s.y), len=Math.max(1,sw(s.len));
+      const sl=typeof gridSlopeAt==='function'?gridSlopeAt(Math.floor(s.x/32),Math.floor(s.y/32)):null;
+      const ang=(sl&&sl.angle)?sl.angle:0;
+      if(ang){
+        ctx.save(); ctx.translate(X,Y); ctx.rotate(ang);
+        ctx.fillRect(-Math.max(0.6,sw(0.7)),0,Math.max(1,sw(1.4)),len);
+        ctx.restore();
+      }else ctx.fillRect(X-Math.max(0.6,sw(0.7)),Y,Math.max(1,sw(1.4)),len);
+      if(!s.done){ ctx.beginPath(); ctx.arc(X-Math.sin(ang)*len,Y+Math.cos(ang)*len,Math.max(1,sw(1.2)),0,Math.PI*2); ctx.fill(); }
+    }
   }
   function drawPuddles(){
     for(const q of puddles){
