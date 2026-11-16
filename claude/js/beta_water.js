@@ -1523,11 +1523,13 @@
       }
       ctx.restore();
     }
-    // falling water
+    // falling water - T529: the pool uses slopeClip() above, the stream didn't, so
+    // its per-cell rects painted over ramps as flat steps. Clip it the same way.
+    const sc2=slopeClip(); ctx.save(); if(sc2) ctx.clip(sc2,'evenodd');
     ctx.fillStyle=elec?'rgba(170,220,250,0.6)':'rgba(120,165,190,0.42)'; ctx.fill(stream);
     ctx.save(); ctx.clip(stream); ctx.strokeStyle='rgba(225,240,248,0.22)'; ctx.lineWidth=1; ctx.beginPath();   // fine streaks running down
     for(let k=0;k<W;k+=5){ const o=((fr*11+k*29)%40); for(let yy=-40+o;yy<H;yy+=40){ ctx.moveTo(k+0.5,yy); ctx.lineTo(k+0.5,yy+14+(k%3)*4); } }
-    ctx.stroke(); ctx.restore();
+    ctx.stroke(); ctx.restore(); ctx.restore();
     // the surface: a bright line where the water meets the air
     if(surf.length){
       ctx.lineJoin='round'; ctx.lineCap='round';

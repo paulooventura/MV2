@@ -60,6 +60,16 @@
     S.charge=S.raining?Math.max(S.charge*0.999,clamp(v/STRIKE_START,0.5,1)):clamp(S.brew/BREW,0,1);
     if(!S.raining&&S.brew>=BREW){ S.raining=true; S.brew=0; }
     if(S.raining&&v<=RAIN_STOP){ S.raining=false; S.brew=0; }
+    // T536: if the pool can never be made whole (drops lost off-world, no basin in
+    // the stage, vapor bookkeeping drift) the old rule left it raining forever.
+    // A storm gets at most 60 s; then it clears the remaining vapor and stops.
+    if(S.raining){
+      S.rainFrames=(S.rainFrames||0)+1;
+      if(S.rainFrames>3600){
+        S.raining=false; S.brew=0; S.rainFrames=0;
+        try{ const left=B.vaporNow(); if(left>0) B.vaporTake(left); }catch(e){}
+      }
+    }else S.rainFrames=0;
     // Paulo, Nov 4 (build 360): the rain only falls until the level's water is back to its
     // default amount (less what went down pits this run, which is gone). Then it stops and
     // the leftover vapor clears, so the storm doesn't brew again.

@@ -67,10 +67,15 @@
     S.attic={cells:[], x0:5*T, x1:26*T, y0:12*T, y1:18*T};
     const carve=[[12,13,17],[13,12,18],[14,10,20],[15,9,21],[16,7,23],[17,5,25]];   // (build 408) the ridge one row taller: MIND stands upright under it
     for(const [r,a,b] of carve) for(let c=a;c<=b;c++) S.attic.cells.push([c,r]);
-    S.crates=[
+    // T527: the life moves to a random crate each new run; stable through a stage
+    // restart so it can't be re-rolled by reloading the room.
+    const defs=[
       {c:6.4,  r:18, stuff:'books'}, {c:7.5, r:18, stuff:'pots'}, {c:7.0, r:17.15, stuff:'teddy', small:true}, {c:9.6, r:18, stuff:'books'},
-      {c:12.4, r:18, stuff:'spoons'}, {c:20.4, r:18, stuff:'life', hp:1}, {c:22.0, r:18, stuff:'lamp'}, {c:21.3, r:17.15, stuff:'books', small:true}, {c:23.6, r:18, stuff:'pots'},
-    ].map(k=>Object.assign(k,{broken:false, shake:0, hp:k.stuff==='life'?1:2}));
+      {c:12.4, r:18, stuff:'spoons'}, {c:20.4, r:18, stuff:'books'}, {c:22.0, r:18, stuff:'lamp'}, {c:21.3, r:17.15, stuff:'books', small:true}, {c:23.6, r:18, stuff:'pots'},
+    ];
+    if(!(B._atticLifeCrate>=0&&B._atticLifeCrate<defs.length)) B._atticLifeCrate=Math.floor(Math.random()*defs.length);
+    defs[B._atticLifeCrate].stuff='life';
+    S.crates=defs.map(k=>Object.assign(k,{broken:false, shake:0, hp:k.stuff==='life'?1:2}));
     S.junk=[];
     S.life=null; S.found=!!B._atticFound; S.reveal=S.found?1:0; S.puffs=[];
   }
@@ -149,7 +154,7 @@
   const _up=window.update;
   window.update=function(){ const r=_up.apply(this,arguments); try{ tick(); }catch(e){ console.warn('doors',e); } return r; };
   // a new run gives the attic's life back; a restart of the stage keeps it taken
-  { const nr=B.newRun; if(typeof nr==='function') B.newRun=function(){ B._atticLife=false; B._atticFound=false; return nr.apply(this,arguments); }; }
+  { const nr=B.newRun; if(typeof nr==='function') B.newRun=function(){ B._atticLife=false; B._atticFound=false; B._atticLifeCrate=-1; return nr.apply(this,arguments); }; }
 
   // ── drawing (beta_decor world() calls S.over after the tiles: behind the characters) ──
   const X=x=>sx(x), Y=y=>sy(y), W2=v=>v<0?-sw(-v):sw(v);       // (sw() clamps to >=1: signed here)
