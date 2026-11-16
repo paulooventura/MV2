@@ -655,8 +655,9 @@
         burst(s.x,s.y-24,20,['#60d0ff','#ffffff'],3); S('chargeReady',1.2);
         // T440 (Paulo, Nov 11): "A dialog box has to pop open when we reach the save state." (was a toast)
         B.saveDlg={t:0, lines:s.gift?['I SAVED THIS MOMENT TO YOUR TIMELINE.','TAKE THIS SPARE BATTERY: IF YOU GET','SHUT DOWN, IT REBOOTS YOU.']:['I SAVED THIS MOMENT TO YOUR TIMELINE.','IF YOU GET SHUT DOWN, YOU START AGAIN','FROM HERE.']};
-        // T538: the item-popup music plays while Savrah talks (same mechanism as beta_level.js openPopup)
-        try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play){ if(!B._saveDlgMusic) B._saveDlgMusic=B.music||'stage'; MV_BETA_AUDIO.play('item'); } }catch(er){}
+        // Paulo: ONLY the calm track while Savrah's dialog is open, then the
+        // song that was playing before resumes when the box closes.
+        try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play){ if(!B._saveDlgMusic) B._saveDlgMusic=MV_BETA_AUDIO.current()||B.music||'stage'; MV_BETA_AUDIO.play('calm',{restart:true}); } }catch(er){}
       }
     }else if(s) s.near=false;
     if(s&&s.say>0) s.say--;

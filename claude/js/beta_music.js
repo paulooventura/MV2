@@ -151,7 +151,7 @@
   function direct(){
     if(!on()||!p||!A()) return;
     if(B.stageId!==stageId){ stageId=B.stageId; stageMusic=B.music||'stage'; lastTrack=null; triSpeaker=null; triDown=false; bowl=null; mixS=0; brake=null; handed=false; if(placed&&A().unplace) A().unplace(placed); placed=null; if(A().duoEnd) A().duoEnd(); }
-    if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze) return;       // item window, dialog, results, and the boss moment play their own
+    if(B.popup||B.talking||B.results||B.trans||B.ending||B.freeze||B.saveDlg) return;  // dialogs / results / boss moment play their own track
     const want=pick(); if(!want) return;
     if(want.blend&&A().duo){
       B.music=want.blend.amt>=0.5?want.blend.over:want.blend.under;

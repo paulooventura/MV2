@@ -246,6 +246,23 @@ function _readThreatCam(){
   const none={zoom:1,x:0,y:0};
   if(!p||typeof ENEMS==='undefined') return none;
   const ox=p.x+SW/2, oy=p.y+FEET_OFF-SH*0.42;
+  // Paulo: when the heptagon is in play, frame the fight so MIND and the boss
+  // are seen at opposite sides of the screen, both fully in view.
+  const boss=ENEMS.find(e=>e&&e._boss&&e.alive);
+  if(boss){
+    const bx=boss.x+(boss.w||96)/2, by=boss.y+(boss.h||96)*0.42;
+    const dx=bx-ox, dy=by-oy, d=Math.hypot(dx,dy)||1;
+    if(d<920){
+      const vw=camViewW(), vh=camViewH();
+      // pull the view toward the midpoint: from the default player-at-40%
+      // framing, shifting by dx*0.5 - vw*0.1 centres the pair.
+      const lx=Math.max(-vw*0.42,Math.min(vw*0.42,dx*0.5-vw*0.1));
+      const ly=Math.max(-vh*0.32,Math.min(vh*0.32,dy*0.5-vh*0.06));
+      const spanW=Math.abs(dx)+180, spanH=Math.abs(dy)+160;
+      const z=Math.max(1,Math.min(1.28,Math.min((vw*0.9)/spanW,(vh*0.85)/spanH)));
+      return {zoom:z,x:lx,y:ly};
+    }
+  }
   let best=null;
   for(const e of ENEMS){
     if(!e||e.alive===false||e._aiCompanion) continue;

@@ -212,7 +212,7 @@ for rr in (39, 29, 19): deck(12, 17, rr)              # three landings up the mi
 rungs(12, 13, 19, 39)                                # one ladder between them
 ent('Decor', 10, 3, 10, 4, kind='crane')             # the crane gantry over the shaft
 ent('MovingPlatform', 36, 30, 2, 1, axis='y', a=4, b=61, speed=12)      # the long elevator, down to the pool's floor
-ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=16, speed=9)        # the little lift: T535 now clears the notch and descends 4 rows more
+ent('MovingPlatform', 52, 6, 2, 1, axis='y', a=3, b=44, speed=9)        # the little lift: notch removed, runs the full shaft down to the arena ledge
 # water: the pool and the run under the rock
 ent('Water', 33, 47, 17, 16)                           # surface in the channel; fills the basin under the vault
 # boxes: the plug into the secret area (omni), the bowl's seal (falls when the boss is beaten),
@@ -283,7 +283,8 @@ for col, es in belts.items():                                  # evenly spaced r
 # Build 361 — the top-left notch on both cube platforms
 put(13, 15, AIR); put(13, 47, AIR)
 # Build 366 — the vault tower's right wall follows the sheet
-put(52, 19, SOLID)
+# Paulo: the old one-tile eave at (52,19) sat right in the little lift's shaft —
+# removed so the car can pass through and run to the bottom of the shaft.
 for rr in (40, 41, 46, 47, 48, 49, 50, 51, 52): put(50, rr, SOLID); put(51, rr, SOLID)
 put(49, 46, SOLID); put(49, 47, SOLID)           # the slope corner is a straight wall now
 for rr in (50, 51, 52): put(52, rr, AIR)          # the step out / hidden-door gap
