@@ -1117,8 +1117,9 @@ function update(){
     if(_grounded&&isDn()&&!p.magOn){p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else if(_grounded){p.duckCharge=Math.max(0,(p.duckCharge||0)-2);if(p.duckCharge<40)p.duckBoostReady=false;}
     // T443: holding DOWN in the air loads the jump too; it's ready the moment he lands
-    // (Paulo, Nov 13) not once the double jump is spent: that charge used to fire off the landing bounce as a 3rd jump in the air
-    else if(isDn()&&!p.magOn&&!p.xlrOn&&!(p._airJumps>0)){p._airLoaded=true;p.duckCharge=Math.min(90,(p.duckCharge||0)+1);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
+    // (Paulo, Nov 13, again) after the hop in the air too: holding DOWN loads a 3rd, loaded jump (fired below)
+    // (the air is short: ~50 frames after the hop, so in the air it loads in ~24 frames, not 60)
+    else if(isDn()&&!p.magOn&&!p.xlrOn){p._airLoaded=true;p.duckCharge=Math.min(90,(p.duckCharge||0)+2.5);if(p.duckCharge>=60&&!p.duckBoostReady){p.duckBoostReady=true;sfx('chargeReady');}}
     else{p.duckCharge=0;p.duckBoostReady=false;}
     p._groundFr=_grounded?(p._groundFr||0)+1:0; if(_grounded&&p._groundFr>=8&&!isDn()) p._airLoaded=false;
     const _springOn=_grounded&&!!p.duckBoostReady;
@@ -1199,6 +1200,21 @@ function update(){
       for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; PFXS.push({x:cx+Math.cos(a)*10,y:fy+Math.sin(a)*3,vx:Math.cos(a)*3.2,vy:Math.sin(a)*0.9+0.6,life:16,maxLife:16,r:2,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'}); }
       if(typeof MV_SPATIAL_from==='function'){} try{ sfx('double_jump'); }catch(e){}
       p.jumpTiltF=Math.max(p.jumpTiltF||0,18); p._dblJumpFx=14;
+      OPT.binds.jump.forEach(c=>delete Kj[c]);
+    }
+    // (Paulo, Nov 13) the TRIPLE jump: after the hop in the air, hold DOWN until the jump is loaded, then JUMP
+    // fires a loaded spring jump, once per airtime
+    else if(isJumpJ()&&p._airJumps===1&&p.duckBoostReady&&p._jumpFr!==fr&&!(typeof MV_FEEL_BOUNCING==='function'&&MV_FEEL_BOUNCING())
+            &&!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(p.x+SW/2,p.y+FEET_OFF-30))){
+      const _ch=Math.max(0,Math.min(1,(p.duckCharge||0)/60));
+      p._airJumps=2; p._airBoost=0; p._jumpFr=fr;
+      p.vy=JI*(1+1.05*_ch); p.jf=Math.round(JMH+10*_ch);
+      p.duckBoostReady=false; p.duckCharge=0; p._airLoaded=false;
+      p._tireSqV=(p._tireSqV||0)-5.5; p.suspComp=Math.max(p.suspComp||0,0.75);
+      p.flashF=Math.max(p.flashF||0,6);
+      for(let i=0;i<10;i++){const a=Math.PI*0.5+(Math.random()-0.5)*1.9,sp=(1+Math.random()*2.2)*1.5;PFXS.push({x:p.x+SW/2,y:p.y+FEET_OFF-2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:10+Math.random()*8|0,maxLife:22,r:2+Math.random()*2.5,col:p.hero==='venture'?'#ff9fb0':'#c9a0ff'});}
+      try{ sfx('jump_spring',0.6); }catch(e){}
+      p.jumpTiltF=Math.max(p.jumpTiltF||0,22); p._dblJumpFx=14;
       OPT.binds.jump.forEach(c=>delete Kj[c]);
     }
     if(p._dblJumpFx>0) p._dblJumpFx--;
