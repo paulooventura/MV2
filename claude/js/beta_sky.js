@@ -235,6 +235,26 @@
       ctx.fillStyle=m.crater||'rgba(120,100,180,0.35)'; for(const [ox,oy,rr] of [[-0.3,-0.2,0.18],[0.25,0.1,0.12],[-0.05,0.35,0.1],[0.35,-0.35,0.08]]){ ctx.beginPath(); ctx.arc(mx+ox*R,my+oy*R,rr*R,0,Math.PI*2); ctx.fill(); }
     };
     if(th.moon&&!th.moon.late) moon();
+    // Paulo: the sky must RESONATE with the 67-floor scale — a bright sun at the
+    // top (Ink & Vinyl), the theme's own sky at equilibrium, a swollen red moon
+    // down in GORE. Drawn into the sky itself, not just a faint screen wash.
+    {
+      const LF=window.MV_LIFT, vv=LF?(LF.vibe||0):0, m=Math.max(-1,Math.min(1,vv/33));
+      if(Math.abs(m)>0.12){
+        const up=m>0, k=Math.abs(m), ox=W*(up?0.78:0.68)-cx*0.01, oy=skyY+L.sky.height*PXS*(up?0.14:0.2);
+        const R=(up?34:40)*PXS/1.5*(0.7+0.5*k);
+        const glowCol=up?'rgba(255,246,205,':'rgba(255,70,60,';
+        ctx.save(); ctx.globalCompositeOperation='lighter';
+        const g=ctx.createRadialGradient(ox,oy,R*0.5,ox,oy,R*6); g.addColorStop(0,glowCol+(0.5*k).toFixed(3)+')'); g.addColorStop(1,glowCol+'0)');
+        ctx.fillStyle=g; ctx.fillRect(ox-R*6,oy-R*6,R*12,R*12);
+        ctx.translate(ox,oy);
+        for(let q=0;q<10;q++){ ctx.rotate(Math.PI/5); const L2=R*(4+2*Math.sin(fr*0.01+q)), rg=ctx.createLinearGradient(0,0,0,-L2); rg.addColorStop(0,glowCol+(0.12*k).toFixed(3)+')'); rg.addColorStop(1,glowCol+'0)');
+          ctx.fillStyle=rg; ctx.beginPath(); ctx.moveTo(-R*0.2,0); ctx.lineTo(-R*0.8,-L2); ctx.lineTo(R*0.8,-L2); ctx.closePath(); ctx.fill(); }
+        ctx.restore();
+        ctx.fillStyle=up?'#fff3c8':'#d8483c'; ctx.beginPath(); ctx.arc(ox,oy,R,0,Math.PI*2); ctx.fill();
+        if(!up){ ctx.fillStyle='rgba(90,20,24,0.4)'; for(const [dxq,dyq,rr] of [[-0.3,-0.2,0.2],[0.28,0.12,0.14],[-0.06,0.36,0.11]]){ ctx.beginPath(); ctx.arc(ox+dxq*R,oy+dyq*R,rr*R,0,Math.PI*2); ctx.fill(); } }
+      }
+    }
     { ctx.save(); ctx.globalAlpha=0.62; tile(L.cloud,cx*0.05+fr*0.1,skyY+L.sky.height*PXS*(th.moon?th.moon.y:0.2)-30,PXS); ctx.restore(); }   // clouds drifting across the moon
     // Paulo, Nov 13: "add animation ... so that the world looks more alive": a flock (birds; bats on 1.3) crosses now and then
     if(!flock&&Math.random()<0.0035){ const dir=Math.random()<0.5?1:-1, n=3+(Math.random()*5|0); flock={dir, x:dir>0?-60:W+60, y:skyY+60+Math.random()*Math.min(220,Math.max(60,horizon-skyY-260)), v:1.3+Math.random()*1.1, birds:Array.from({length:n},(_,i)=>({dx:-i*18*dir+(Math.random()-0.5)*10, dy:(i%2?1:-1)*i*7+(Math.random()-0.5)*6, ph:Math.random()*6}))}; }
