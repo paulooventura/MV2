@@ -1448,11 +1448,15 @@
     const {NX,NY,CS,BLK,EL}=F, b=F.bb;
     const pool=new Path2D(), stream=new Path2D(), surf=[], live=[];
     let tMin=1e9, bMax=-1e9;
+    // Only build water geometry for rows actually on screen. The pool spans the
+    // whole stage; drawing off-screen rows made a huge Path2D every frame and
+    // stalled 1.3's shaft (frame-rate drop + laggy controls).
+    const yTop=Math.max(b.y0,Math.floor((_rcamY-8)/CS)), yBot=Math.min(b.y1,Math.ceil((_rcamY+H+8)/CS));
     if(b.x1>=b.x0) for(let x=b.x0;x<=b.x1;x++){
       const X0=x*CS, X1=X0+CS;
       if(sx(X1)<-4||sx(X0)>W+4) continue;
-      let y=b.y0;
-      while(y<=b.y1){
+      let y=yTop;
+      while(y<=yBot){
         const i=y*NX+x, m=em(i);
         if(m<0.02){ y++; continue; }
         const j=y+1<NY?i+NX:-1, mj=j>=0?em(j):0;
@@ -1465,7 +1469,7 @@
           y++; continue;
         }
         let yb=y;                                              // a run of standing water
-        while(yb+1<NY){ const k=(yb+1)*NX+x, mk=em(k); if(mk<0.02) break; const kk=yb+2<NY?k+NX:-1; if(mk<0.9&&!(kk>=0&&((BLK[kk]&1)||em(kk)>=0.9))&&!(em(k-1)>0.5||em(k+1)>0.5)) break; yb++; }
+        while(yb+1<yBot+2&&yb+1<NY){ const k=(yb+1)*NX+x, mk=em(k); if(mk<0.02) break; const kk=yb+2<NY?k+NX:-1; if(mk<0.9&&!(kk>=0&&((BLK[kk]&1)||em(kk)>=0.9))&&!(em(k-1)>0.5||em(k+1)>0.5)) break; yb++; }
         const free=y>0&&!(BLK[i-NX]&1)&&!(em(i-NX)>=0.02);
         let top=(y+1)*CS-Math.min(1,m)*CS;
         if(free) top-=Math.max(-(yb-y+1)*CS*0.6,Math.min(CS*0.8,F.WH[x]));
@@ -1477,7 +1481,17 @@
           surf.push(X0,tl,X1,tr);
         }
         const bot=(yb+1)*CS;
-        pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(bot)); pool.lineTo(sx(X0),sy(bot)); pool.closePath();
+        // Paulo: on a ramp the water bottom must follow the slope's diagonal,
+        // not a flat cell edge — flat bottoms made a serrated "ladder" of steps.
+        const rampBot=(xx)=>{
+          const c=Math.floor(xx/CS), r=Math.floor((bot-1)/CS);
+          if(typeof gridSlopeY==='function'&&typeof gridSlopeKind==='function'&&gridSlopeKind(c,r)){
+            const sy2=gridSlopeY(c,r,xx); if(sy2!=null) return sy2;
+          }
+          return bot;
+        };
+        const bl=rampBot(X0+0.5), br=rampBot(X1-0.5);
+        pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(br)); pool.lineTo(sx(X0),sy(bl)); pool.closePath();
         if(top<tMin) tMin=top; if(bot>bMax) bMax=bot;
         for(let yy=y;yy<=yb;yy++) if(EL[yy*NX+x]) live.push(x,yy);
         y=yb+1;

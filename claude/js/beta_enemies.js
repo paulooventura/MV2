@@ -638,18 +638,31 @@
     sideOut(e);
     if(!e||e._betaHeld||ropeOf(e)||!bodyBuried(e)) return;
     const y0=e.y, x0=e.x;
-    for(let i=1;i<=e.h+T*3;i++){
+    // T424: search the nearest free spot in every direction — the old version
+    // only looked up and two tiles sideways, so a foe shoved deeper into rock
+    // stayed buried for the whole stage (a flaky enemiesFloor failure).
+    let best=null, bestD=1e9;
+    for(let dy=-T*5;dy<=T*5;dy+=T/2){
+      for(let dx=-T*3;dx<=T*3;dx+=T/2){
+        if(!dx&&!dy) continue;
+        const nx=x0+dx, ny=y0+dy;
+        if(bodyBuriedAt(nx,ny,e.w,e.h)||!boxFree(nx,ny,e.w,e.h)) continue;
+        const d=Math.abs(dx)+Math.abs(dy)*1.2;
+        if(d<bestD){ bestD=d; best=[nx,ny]; }
+      }
+    }
+    if(best){ e.x=best[0]; e.y=best[1]; e.vx=0; if((e.vy||0)>0) e.vy=0; e.og=!!floorUnder(e.x,e.w,e.y+e.h); return; }
+    // last resort: straight up out of the rock
+    for(let i=1;i<=e.h+T*4;i++){
       e.y=y0-i;
       if(!bodyBuried(e)){ if((e.vy||0)>0) e.vy=0; e.og=!!floorUnder(e.x,e.w,e.y+e.h); return; }
     }
     e.y=y0;
-    for(const s of [-1,1]){
-      for(let i=2;i<=T*2;i+=2){
-        e.x=x0+s*i;
-        if(!bodyBuried(e)&&boxFree(e.x,e.y,e.w,e.h)){ e.vx=0; return; }
-      }
-      e.x=x0;
-    }
+  }
+  function bodyBuriedAt(x,y,w,h){
+    const ys=[y+h*0.42,y+h*0.7];
+    let n=0; for(const yy of ys) for(const xx of [x+6,x+w/2,x+w-6]) if(solidAt(xx,yy)) n++;
+    return n>=2;
   }
   function applyShove(e){
     let sx=e._shoveX||0, sy=e._shoveY||0;
@@ -718,6 +731,10 @@
       }
       if(!hit){ e.y=ly; e.og=false; }   // (out of the world: B.enemyRespawnTick brings it back)
     }
+    // T424: a fall that ended inside rock (the boxFree stop above) would leave
+    // the body visibly buried for a few frames until the next liftOut — free it
+    // now so foes are never seen clipping into the floor.
+    if(bodyBuried(e)) liftOut(e);
   }
 
   function think(e){
