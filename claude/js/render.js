@@ -2841,6 +2841,22 @@ function drawHookCable(){
       const taut=taut0.slice(); if(taut.length) taut[taut.length-1]={x:_wn.x,y:_wn.y};
       const path=typeof _ropeSlackDrawPts==='function'?_ropeSlackDrawPts(taut,p.hook.rl):taut;
       const wpts=path.map(pt=>({x:sx(pt.x),y:sy(pt.y)}));
+      // T533: final guard - the drawn rope never appears inside a solid cell, even
+      // where the physics path could not resolve a corner. Only cells near the
+      // cord are considered, so this stays cheap.
+      const solidClip=new Path2D(); solidClip.rect(-10,-10,W+20,H+20);
+      const tt=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:32;
+      if(typeof _armSolid==='function'){
+        const seen=new Set();
+        for(const q of wpts){
+          const c0=Math.floor(q.x/tt)-1, r0=Math.floor(q.y/tt)-1;
+          for(let cc=c0;cc<=c0+2;cc++) for(let rr=r0;rr<=r0+2;rr++){
+            const k=cc+','+rr; if(seen.has(k)) continue; seen.add(k);
+            if(_armSolid((cc+0.5)*tt,(rr+0.5)*tt)) solidClip.rect(sx(cc*tt),sy(rr*tt),sw(tt)+1,sw(tt)+1);
+          }
+        }
+      }
+      ctx.save(); ctx.clip(solidClip,'evenodd');
       ctx.lineCap='round';ctx.lineJoin='round';
       // pulled straight under MIND's weight the cord draws thinner, with a bright strain line (Oct 22)
       const _taut=path===taut;
@@ -2871,6 +2887,7 @@ function drawHookCable(){
         ctx.restore();
       }
       if(!_plug) _drawRopeSpool(bx,by,p.hook,_ropeMain,_ropeGlow,Math.atan2(pe.y-by,pe.x-bx));
+      ctx.restore();   // T533: end solid-cell clip
     }
   }
 }

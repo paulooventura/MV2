@@ -2863,7 +2863,7 @@ function _ropeGridRay(x1,y1,x2,y2){
   }
   return null;
 }
-function _ropeFirstHit(x1,y1,x2,y2,h){
+function _ropeFirstHit(x1,y1,x2,y2,h,strict){
   let best=null, bt=1;
   const segLen=Math.hypot(x2-x1,y2-y1)||1;
   if(typeof _gridReady==='function'&&_gridReady()&&typeof gridRayHit==='function'){
@@ -2871,7 +2871,10 @@ function _ropeFirstHit(x1,y1,x2,y2,h){
     // Paulo (Oct 21, "YES / NO" sketch): the rope may ignore the face it's latched to only
     // while it pulls AWAY from it — heading into that face it must wrap round its edge.
     // Ignoring the latch cell must not hide rock further down the line.
-    if(g&&_ropeHitsLatch(g,h)&&!_ropeIntoLatch(h,x1,y1,x2,y2)){
+    // T533: strict mode (used by the rope's render-path sanitizer) keeps the latch
+    // cell solid so the drawn line wraps it. Hook flight still uses the lenient
+    // rule below, so latching and swinging feel unchanged.
+    if(!strict&&g&&_ropeHitsLatch(g,h)&&!_ropeIntoLatch(h,x1,y1,x2,y2)){
       const t=MV_GRID.tile, L=_ropeLatchCell(h), ux=(x2-x1)/segLen, uy=(y2-y1)/segLen;
       const tx=ux>0?((L.c+1)*t-x1)/ux:ux<0?(L.c*t-x1)/ux:1e9;
       const ty=uy>0?((L.r+1)*t-y1)/uy:uy<0?(L.r*t-y1)/uy:1e9;
@@ -2912,7 +2915,15 @@ function _ropeSegClear(x1,y1,x2,y2,h){
   const d=Math.hypot(x2-x1,y2-y1);
   if(d<3) return true;
   const ux=(x2-x1)/d, uy=(y2-y1)/d;
-  return !_ropeFirstHit(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2,h);
+  // T533: the ray cast treats ramp cells as passable, but the renderer's solid
+  // test (and the probe) counts their filled triangle. A drawn line may not
+  // cross one, so sample the actual points too.
+  const n=Math.max(1,Math.ceil(d/3));
+  for(let i=1;i<n;i++){
+    const sx=x1+(x2-x1)*i/n, sy=y1+(y2-y1)*i/n;
+    if(_armSolidPt(sx,sy)) return false;
+  }
+  return !_ropeFirstHit(x1+ux*2,y1+uy*2,x2-ux*2,y2-uy*2,h,true);
 }
 // which way the rope turns at P (coming from A, going to E): +1 / -1, 0 when nearly straight
 function _ropeTurn(A,P,E){
@@ -2935,7 +2946,7 @@ function _ropeUpdatePivots(h,tx,ty){
     if(h.pivots.length>=ROPE_MAX_PIVOTS) break;
     const d=Math.hypot(tx-base.x,ty-base.y)||1;
     const ux=(tx-base.x)/d, uy=(ty-base.y)/d;
-    const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2,h);
+    const fh=_ropeFirstHit(base.x+ux*2,base.y+uy*2,tx-ux*2,ty-uy*2,h,true);
     if(!fh) break;
     const c=_ropeOutsideCorner(base,{x:tx,y:ty},fh.hit,fh.rect);
     if(!c||Math.hypot(c.x-base.x,c.y-base.y)<2.5) break;
@@ -2957,7 +2968,7 @@ function _ropeSanitizePath(pts,h){
     for(let g=0;g<8&&!_ropeSegClear(a.x,a.y,b.x,b.y,h);g++){
       const d=Math.hypot(b.x-a.x,b.y-a.y)||1;
       const ux=(b.x-a.x)/d, uy=(b.y-a.y)/d;
-      const fh=_ropeFirstHit(a.x+ux*2,a.y+uy*2,b.x-ux*2,b.y-uy*2,h);
+      const fh=_ropeFirstHit(a.x+ux*2,a.y+uy*2,b.x-ux*2,b.y-uy*2,h,true);
       if(!fh) break;
       const c=_ropeOutsideCorner(a,b,fh.hit,fh.rect);
       if(!c||Math.hypot(c.x-a.x,c.y-a.y)<2) break;
