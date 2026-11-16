@@ -315,7 +315,9 @@
     if(t>gustT){ gust=0.4+Math.random()*0.8; gustT=t+2+Math.random()*4; set(N.wBP.frequency,(300+gust*500)*(1+E.elev*0.8),1.2); }
     // the weather (beta_weather.js): the wind picks up with the storm, the crickets go quiet in the rain
     const WX=window.MV_WEATHER&&MV_WEATHER.state, storm=WX?Math.max(WX.storm||0,(WX.cloud||0)*0.6):0, hush=WX?Math.min(1,Math.max(storm,(WX.haze||0)*0.4)):0;
-    set(N.wG.gain,0.16*S.wind*Math.max(gust,storm*1.1)*E.wind*(1+1.8*storm),1.2);
+    // T537: height is audible now - E.elev (from beta_spatial) opens the wind up
+    // on rooftops and keeps it faint at street level, without a second wind bed.
+    set(N.wG.gain,0.16*S.wind*Math.max(gust,storm*1.1)*E.wind*(0.45+1.15*Math.max(0,Math.min(1,E.elev||0)))*(1+1.8*storm),1.2);
     // indoors the night comes through the walls: dull and low (wind, crickets and hum are also
     // walled off one by one through beta_spatial's occlusion)
     set(N.amb.frequency, 16000-15200*(E.inside||0), 0.4);
