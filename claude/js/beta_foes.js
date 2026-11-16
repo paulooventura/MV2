@@ -503,6 +503,9 @@
   function bossDefeat(e){
     if(e._defeated) return; e._defeated=true; B.bossDown=true; B.bossOn=false;
     e._shorted=true; e._permOff=true; e.beams=null; e.bolts=[];
+    // T543: one deep "blow" to punctuate the paused victory scene (camera holds on
+    // the knife through finishTick; no extra audio graph, no second track).
+    try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.boom(1.1); }catch(er){}
     const c={x:e.x+e.w/2,y:e.y+e.h/2};
     for(let k=0;k<6;k++) setTimeout(()=>{ burst(c.x+(Math.random()-0.5)*90,c.y+(Math.random()-0.5)*90,30,['#ffffff','#ff6060','#ffd060','#c080ff'],6); B.shake=Math.max(B.shake||0,10); S('enemy_shut',0.6+k*0.1); },k*180);
     // the bowl's seal gives way
