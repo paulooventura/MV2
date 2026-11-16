@@ -1007,7 +1007,7 @@ function fireItem(charged=false){
       return;
     }
     if(p.hook.st==='idle'){
-      p.hook={st:'ext',ex:c.x,ey:c.y,evx:Math.cos(a)*CSPD,evy:Math.sin(a)*CSPD,ax:0,ay:0,rl:0,ox:c.x,oy:c.y,tgt:null};
+      p.hook={st:'ext',ex:c.x,ey:c.y,evx:Math.cos(a)*CSPD,evy:Math.sin(a)*CSPD,ax:0,ay:0,rl:0,ox:c.x,oy:c.y,tgt:null,_launchSp:CSPD};
       sfx('hook'); p.fireRecoil=7; p.fireRecoilA=a;
     }else{
       if(p.hook.st==='on') _releaseHookAim(p.hook.ax,p.hook.ay);
@@ -1079,9 +1079,25 @@ function updateHook(){
     // path bends toward where you hold (the speed stays the same, so it curves, it doesn't stop)
     if(!p._aiCompanion&&typeof isLf==='function'){
       const ix=(isRt()?1:0)-(isLf()?1:0), iy=(isDn()?1:0)-(isUp()?1:0);
-      if(ix||iy){ const sp=Math.hypot(h.evx,h.evy)||1, il=Math.hypot(ix,iy);
-        let nvx=h.evx+ix/il*sp*0.12, nvy=h.evy+iy/il*sp*0.12; const nl=Math.hypot(nvx,nvy)||1;
-        h.evx=nvx/nl*sp; h.evy=nvy/nl*sp; h._steered=(h._steered|0)+1; }
+      const sp0=Math.hypot(h.evx,h.evy)||1, il=Math.hypot(ix,iy);
+      const dot=il?(ix/il)*(h.evx/sp0)+(iy/il)*(h.evy/sp0):0;
+      if(il&&dot<-0.3){
+        // T517: opposite aim bleeds extension speed and draws the flying tip
+        // back toward MIND — the "reel in" feel, no snap or false latch.
+        const back=-dot, ns=Math.max(0.9,sp0*(1-0.11*back));
+        h.evx=(h.evx/sp0)*ns; h.evy=(h.evy/sp0)*ns;
+        const dx=attach.x-h.ex, dy=attach.y-h.ey, dl=Math.hypot(dx,dy);
+        if(dl>12){ const pull=Math.min(2.4,0.6+1.8*back); h.ex+=dx/dl*pull; h.ey+=dy/dl*pull; }
+        h._opposite=(h._opposite|0)+1;
+      }else{
+        if(il){ let nvx=h.evx+ix/il*sp0*0.12, nvy=h.evy+iy/il*sp0*0.12; const nl=Math.hypot(nvx,nvy)||1;
+          h.evx=nvx/nl*sp0; h.evy=nvy/nl*sp0; h._steered=(h._steered|0)+1; }
+        if(h._opposite){                                  // releasing restores normal extension
+          const tgt=h._launchSp||CSPD;
+          if(sp0<tgt){ const ns=Math.min(tgt,sp0+0.7); h.evx=(h.evx/sp0)*ns; h.evy=(h.evy/sp0)*ns; }
+          else h._opposite=0;
+        }
+      }
       h._upWas=!!isDn(); h._dnWas=!!isUp();                       // (build 404: up reels in) a direction held through the latch is not a fresh press (no surprise slack)
     }
     h.ex+=h.evx; h.ey+=h.evy;
@@ -1141,6 +1157,9 @@ function updateHook(){
         h.ex=h.ax; h.ey=h.ay;
       }
     }
+    // T518: carry a MAG wall-grip across the switch to RCA for a short window,
+    // so left/right can pull or slacken the cord the way the wall grip felt.
+    if(p.wallGrip>0) h._magWall=60; else if(h._magWall>0) h._magWall--;
     p.wallGrip=0;
     if(!p._hasAimInput&&_ropeInHand()) _aimHook(h.ax,h.ay);       // only the RCA's own arm looks up the rope
     // Down + jump lets go (item button does the same when the rope is selected).
@@ -1195,6 +1214,16 @@ function updateHook(){
         }
       }
       h._upWas=!!up; h._dnWas=!!dn;
+      if(h._magWall>0){
+        // T518: left reels the cord in, right pays it out — a controlled pull /
+        // slack from the MAG wall the player just came off, no teleport.
+        const lr=(isRt()?1:0)-(isLf()?1:0);
+        if(lr){
+          const cap=Math.max(ROPE_RL_MIN,_cordSpan(h)+70);
+          h.rl=Math.max(ROPE_RL_MIN,Math.min(cap,h.rl+lr*1.4));
+          h._paid=false; h._slackHold=0;
+        }
+      }
     }else{ h._upWas=false; h._dnWas=false; h._slackHold=0; }
     h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
     h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);

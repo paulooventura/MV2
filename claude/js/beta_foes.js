@@ -27,6 +27,21 @@
   const on=()=>B.on&&typeof p!=='undefined'&&p&&_gameState==='game';
   const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
   const boxFree=(x,y,w,h)=>!(solid(x+3,y+3)||solid(x+w-3,y+3)||solid(x+3,y+h-3)||solid(x+w-3,y+h-3)||solid(x+w/2,y+h/2));
+  // T534: the E eye is a floater, but it must never be *inside* a wall. If a bad
+  // spawn, a shove or a moving platform buries it, nudge it out by the smallest
+  // free step (at most one tile). Its float behaviour is otherwise untouched.
+  function depenetrate(e){
+    if(boxFree(e.x,e.y,e.w,e.h)) return false;
+    for(let d=2;d<=T;d+=2){
+      for(const [dx,dy] of [[d,0],[-d,0],[0,d],[0,-d]]){
+        if(!boxFree(e.x+dx,e.y+dy,e.w,e.h)) continue;
+        e.x+=dx; e.y+=dy; e.vx=0; e.vy=0;
+        if(e._path){ e._path.length=0; }
+        return true;
+      }
+    }
+    return false;
+  }
   const centre=()=>({x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5});
   function clearLine(x0,y0,x1,y1){ const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/12); for(let i=1;i<n;i++){ if(solid(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return false; } return true; }
   function rayEnd(x,y,ux,uy,max){ for(let d=6;d<=max;d+=6){ if(solid(x+ux*d,y+uy*d)) return d; } return max; }
@@ -129,6 +144,7 @@
     S('enemy_shut',0.45); S('laser',0.4);
   }
   function eyeTick(e){
+    depenetrate(e);                                       // T534: never stay buried in rock
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
     const sees=d<480&&clearLine(c.x,c.y,P.x,P.y);
     if(e.cd>0) e.cd--;
