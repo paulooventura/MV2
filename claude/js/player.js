@@ -268,7 +268,10 @@ function _updateRunEntry(pl){
   }
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
-  if((pl._standTapT||0)>0) pl._standTapT--;
+  // T521: the old 16-frame double-tap arm window is gone - spamming the item
+  // button must never flip Sports-Mode. Only a deliberate press after 2 s of
+  // complete idleness can toggle it.
+  pl._standTapT=0;
   // T448 (Paulo, Nov 11): only standing idle and aiming at no direction — shooting down at a
   // platform (or up) with a double tap no longer flips turbo
   const aimNone=!(typeof isUp==='function'&&isUp())&&!(typeof isDn==='function'&&isDn());
@@ -279,9 +282,8 @@ function _updateRunEntry(pl){
   // (build 409, Paulo: "after 1.5 s of COMPLETE idleness") any input but the item button itself resets the count
   let _otherKey=false; try{ const sw=(OPT&&OPT.binds&&OPT.binds.swap)||[]; for(const k in K){ if(K[k]&&sw.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
-  if(btn&&!was&&standing){
-    if((pl._standTapT||0)>0){ pl._ignition=!pl._ignition; pl._standTapT=0; pl._ignEat=8; }
-    else if((pl._stillT||0)>=90) pl._standTapT=16;   // (build 407, Paulo) only after 1.5 s standing still (was 0.5 s)
+  if(btn&&!was&&standing&&(pl._stillT||0)>=120){
+    pl._ignition=!pl._ignition; pl._ignEat=8; pl._stillT=0;   // one press per 2 s idle stretch
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)

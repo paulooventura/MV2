@@ -198,7 +198,11 @@
       // dirt grips less (he slides back more, a softer scrape, a few dirt chips kicked up), brick / stone /
       // wood / metal / the city's street grip hard (more counter-force, more smoke, a near-constant screech).
       const mat=floorMat(), solidM=mat!=='dirt', grip=solidM?0.9:0.62;
-      const creep=-Math.sign(a.x)*thrust*(1-grip)*2.2;
+      // T520 (Paulo 11-16): while he drives forward the tire holds - no backslide
+      // until the power bar is really low, then he loses ground proportionally.
+      const pw=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+      const powerSlip=pw<0.35?1-pw/0.35:0;
+      const creep=-Math.sign(a.x)*thrust*(1-grip)*2.2*powerSlip;
       p.vx+=(creep-p.vx)*0.72; p._xlrResistV=creep; p._xlrResistFr=fr; if(a.y>0.2) p.vy-=a.y*thrust*0.35;
       const slip=Math.abs(a.x)*thrust;
       p._tireHeat=Math.min(1,(p._tireHeat||0)+0.006*slip);
