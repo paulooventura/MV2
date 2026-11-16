@@ -152,7 +152,8 @@
     const R=B.trans; R.t++;
     if(R.t===26&&!R.loading){
       R.loading=true;
-      startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; }).catch(err=>{ console.error('stage load failed',err); B.trans=null; });
+      startBetaLab(R.to, R.mask, {atGate:R.how==='back'}).then(()=>{ R.done=true; R.t=26; R.after=0; })
+        .catch(err=>{ console.error('stage load failed',err); B.trans=null; if(typeof quitToTitle==='function') quitToTitle(); });
     }
     if(R.done){ R.after++; if(R.after>30){ B.trans=null; if(window.MV_CONSOLE){ MV_CONSOLE.mosaic=1; MV_CONSOLE.fade=0; } } }
   }
@@ -2532,10 +2533,29 @@
   function resultsNext(){
     const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed) MV_BETA_AUDIO.bed('results',false);
+    // T523: NEVER clear the results screen before the next world is committed.
+    // travel() can refuse (B.trans already set / unknown level) and its load can
+    // reject; the old order left no results AND no playable world - a hard freeze.
+    const wasTrans=B.trans;
+    try{
+      if(nx){
+        travel(nx,'forward');                       // sets B.trans, starts the iris wipe
+        if(B.trans&&B.trans!==wasTrans){ B.results=null; return; }
+      }else if(window.MV_STORY_STAGES){
+        saveStage(); B.ending={t:0};
+        if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed){ MV_BETA_AUDIO.bed('results',false); MV_BETA_AUDIO.bed('ending',true); }
+        B.results=null; return;
+      }else{
+        // No next level: keep the results up until the reload settles, then go.
+        startBetaLab(B.stageId, B.carryMask, {fresh:true})
+          .then(()=>{ B.results=null; })
+          .catch(err=>{ console.error('stage load failed',err); B.results=null; if(typeof quitToTitle==='function') quitToTitle(); });
+        return;
+      }
+    }catch(err){ console.error('resultsNext failed',err); }
+    // Nothing took over: bail out to the title instead of freezing on a dead screen.
     B.results=null;
-    if(nx) travel(nx,'forward');
-    else if(window.MV_STORY_STAGES){ saveStage(); B.ending={t:0}; if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed){ MV_BETA_AUDIO.bed('results',false); MV_BETA_AUDIO.bed('ending',true); } }
-    else{ B.on=false; startBetaLab(B.stageId, B.carryMask, {fresh:true}).catch(err=>console.error('stage load failed',err)); }
+    if(typeof quitToTitle==='function') quitToTitle();
   }
   // ── Lives + continues (Paulo, Oct 20): the game starts with 3 lives and 3
   //   continues. Every shutdown costs a life; MIND reboots at the stage
