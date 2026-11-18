@@ -13,24 +13,41 @@
 // ============================================================
 
 // ── Input state ───────────────────────────────────────────────
+// K/Kj  = P1 keyboard (held / just pressed).
+// K2/Kj2= P2 keyboard (held / just pressed) — arrows + numpad, rebindable.
+// KB2 tracks which P2 keys are physically down so a gamepad can never steal a
+// keyboard player's held key (the pad ORs into the same K2 slots).
 const K={}, Kj={}, K2={}, Kj2={};
-// Which P2 keys are physically held on the keyboard — the 2nd pad ORs into the
-// same K2 slots without stealing the arrows/numpad keys from a keyboard player.
-const KB2={};
-function _bindDown(a){ return (OPT.binds[a]||[]).some(c=>K[c]); }
-function _bindJ(a){   return (OPT.binds[a]||[]).some(c=>Kj[c]); }
+// Physical-keyboard-held trackers. A pad ORs into K/K2 but must never clear a
+// key the keyboard player is actually holding.
+const KB1={}, KB2={};
+function _bindDown(a){  return (OPT.binds[a]||[]).some(c=>K[c]); }
+function _bindJ(a){     return (OPT.binds[a]||[]).some(c=>Kj[c]); }
+function _bindDown2(a){ return (OPT.binds2[a]||[]).some(c=>K2[c]); }
+function _bindJ2(a){    return (OPT.binds2[a]||[]).some(c=>Kj2[c]); }
+/** In co-op, any key bound to P2 belongs to P2 (keyboard player two). */
+function _isP2Code(code){
+  if(typeof OPT==='undefined'||!OPT.binds2) return false;
+  for(const a of BIND_ORDER) if((OPT.binds2[a]||[]).indexOf(code)>=0) return true;
+  return false;
+}
+function _preventP2Scroll(code){
+  if(code.indexOf('Arrow')===0||code.indexOf('Numpad')===0||code==='Space') return true;
+  return false;
+}
 
 window.addEventListener('keydown',e=>{
   if(_gameState==='game'&&!_audioUnlocked) _unlockAudio();
   if(_gameState==='title'||_gameState==='story'||_gameState==='select'||_gameState==='partysetup'||
      _gameState==='options'||_gameState==='levels'||_gameState==='stagedesign'||
      _gameState==='cutscene'||_gameState==='tutorial') return;
-  const _isArrow=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code);
-  const _isP2Action=['Numpad1','Numpad2','Numpad3'].includes(e.code);
-  if(_playerCount===2&&(_isArrow||_isP2Action)){
+  if(_playerCount===2&&_isP2Code(e.code)){
     if(!KB2[e.code]) Kj2[e.code]=true;
-    KB2[e.code]=true; K2[e.code]=true; e.preventDefault(); return;
+    KB2[e.code]=true; K2[e.code]=true;
+    if(_preventP2Scroll(e.code)) e.preventDefault();
+    return;
   }
+  KB1[e.code]=true;
   if(!K[e.code]) Kj[e.code]=true;
   K[e.code]=true;
   if(e.code==='Space') K['Space_kb']=true;
@@ -40,9 +57,12 @@ window.addEventListener('keydown',e=>{
   ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
-  if(_playerCount===2&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Numpad1','Numpad2','Numpad3'].includes(e.code)){
-    KB2[e.code]=false; K2[e.code]=false; return;
+  if(_playerCount===2&&_isP2Code(e.code)){
+    KB2[e.code]=false; K2[e.code]=false;
+    if(_preventP2Scroll(e.code)) e.preventDefault();
+    return;
   }
+  KB1[e.code]=false;
   K[e.code]=false;
   if(e.code==='Space') K['Space_kb']=false;
   if(e.code==='KeyE')  K['KeyE_kb']=false;
@@ -132,20 +152,31 @@ function _initDpadEightWay(){
 // ── Gamepad ───────────────────────────────────────────────────
 // Poll the pad list every frame: a controller that was already connected when
 // the page loaded never fires `gamepadconnected`, so that event can't be the
-// only way in. Pad 0 drives P1, pad 1 drives P2 (and both drive the party menu).
-const GP={pad:null,pads:{},selX:0,selY:0,prevSy:0,manX:0};
+// only way in.
+//
+// ONE controller, ONE player (Paulo, Nov 2026). The first pad that produces
+// real input claims the controller and the claim is STICKY for the session:
+//   GP.owner    = 1 | 2 | null   (which player owns the pad)
+//   GP.ownedIdx = pad index claimed (all other pads are ignored entirely)
+// A player without the controller is keyboard-only; a disconnect/reconnect
+// never reassigns ownership. Menus use whichever pad is the active one.
+const GP={pad:null,pads:{},selX:0,selY:0,prevSy:0,manX:0,owner:null,ownedIdx:null};
 const GP_BTN=[0,1,2,3,4,8,9,12,13,14,15];
 window.addEventListener('gamepadconnected',e=>{ GP.pad=GP.pad||e.gamepad; });
 window.addEventListener('gamepaddisconnected',e=>{
   delete GP.pads[e.gamepad.index];
   if(GP.pad&&GP.pad.index===e.gamepad.index) GP.pad=null;
+  // NOTE: ownership is deliberately NOT cleared — "whichever the game picks
+  // up first, that stays". If the owned pad comes back it still owns the slot.
 });
-function _gpSlot(g,idx){
+function _gpSlot(g,idx,noIgnore){
   let s=GP.pads[idx];
   if(!s){
     s=GP.pads[idx]={prev:{},ignore:{}};
-    // Buttons already held the first time we see a pad are not fresh presses.
-    (g.buttons||[]).forEach((b,i)=>{ if(b&&(b.pressed||b.value>0.1)) s.ignore[i]=true; });
+    // Buttons already held the first time we see a pad are not fresh presses —
+    // EXCEPT at claim time: that press is the real input the player used to
+    // pick up the controller, and it must register.
+    if(!noIgnore) (g.buttons||[]).forEach((b,i)=>{ if(b&&(b.pressed||b.value>0.1)) s.ignore[i]=true; });
   }
   (g.buttons||[]).forEach((b,i)=>{ if(s.ignore[i]&&!(b&&(b.pressed||b.value>0.1))) delete s.ignore[i]; });
   return s;
@@ -160,38 +191,9 @@ function _gpStick(g,s){
   s.selX=sx; s.selY=sy;
   return {ax,ay,sx,sy,edges};
 }
-// Pad 0 → P1 (K/Kj), exactly the old mapping plus the party menu.
-function _readPad1(g){
-  const s=_gpSlot(g,0), st=_gpStick(g,s), ax=st.ax, ay=st.ay;
-  const pressed=i=>!s.ignore[i]&&!!(g.buttons[i]&&g.buttons[i].pressed===true);
-  const rose=i=>pressed(i)&&!s.prev[i];
-  if(ax<0) K['KeyA']=true; else if(!g.buttons[14]?.pressed) K['KeyA']=false;
-  if(ax>0) K['KeyD']=true; else if(!g.buttons[15]?.pressed) K['KeyD']=false;
-  if(ay<0) K['KeyW']=true; else if(!g.buttons[12]?.pressed) K['KeyW']=false;
-  if(ay>0) K['KeyS']=true; else if(!g.buttons[13]?.pressed) K['KeyS']=false;
-  if(pressed(14)) K['KeyA']=true;
-  if(pressed(15)) K['KeyD']=true;
-  if(pressed(12)) K['KeyW']=true;
-  if(pressed(13)) K['KeyS']=true;
-  // Xbox letters: 0 A (bottom), 1 B (right), 2 X (left), 3 Y (top).
-  // A jump · B item select · X run + use item · Y punch
-  const bJump=pressed(0);
-  if(bJump&&!s.prev[0]) Kj['Space']=true;
-  K['Space']=(K['Space_kb']||bJump);
-  if(rose(2)) Kj['KeyQ']=true;
-  if(rose(1)&&_gameState!=='options') Kj['KeyE']=true;
-  K['KeyQ']=(K['KeyQ_kb']||pressed(2));
-  K['Sprint_gp']=pressed(2);
-  K['KeyE']=(K['KeyE_kb']||pressed(1));
-  K['KeyF']=(K['KeyF_kb']||pressed(3));
-  if(pressed(4)) K['KeyS']=true;
-  if(_gameState==='partysetup'){
-    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
-    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
-    if((dX||dY)&&window.MV_PARTY_NAV) window.MV_PARTY_NAV(dX,dY);
-    if(rose(0)||rose(9)){ if(typeof _partyConfirm==='function') _partyConfirm(); }
-    if(rose(1)||rose(3)) _gameState='title';
-  }else if(_gameState==='title'){
+/** Screen/menu handling shared by both players' pads. */
+function _padMenuInput(st,pressed,rose,ay){
+  if(_gameState==='title'){
     const ok=rose(0)||rose(9);                          // A or START confirms
     if(!_titleMusicPlaying&&ok) _onInteract();
     else if(_titleMusicPlaying){
@@ -207,7 +209,7 @@ function _readPad1(g){
     MV_TEST_INPUT({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(3)||rose(1)});
   }
   if(_gameState==='manual'&&window.MV_MANUAL){
-    const sx=ax<-0.55?-1:ax>0.55?1:0;
+    const sx=st.ax<-0.55?-1:st.ax>0.55?1:0;
     if(rose(14)||(sx<0&&!(GP.manX<0))) MV_MANUAL.turn(-1);
     if(rose(15)||(sx>0&&!(GP.manX>0))) MV_MANUAL.turn(1);
     GP.manX=sx;
@@ -236,26 +238,71 @@ function _readPad1(g){
       GP.prevSy=sy;
     }
   }
-  GP_BTN.forEach(i=>s.prev[i]=pressed(i));
 }
-// Pad 1 → P2 (K2/Kj2, read by weapons.js updateCoopPlayer2) and the party menu.
-// A jumps, B uses the item, X cycles items, Y punches, LB runs, d-pad/stick moves.
-function _readPad2(g){
-  const s=_gpSlot(g,1), st=_gpStick(g,s);
+// Active pad → P1 (K/Kj): the classic mapping, now reached only when GP.owner===1.
+function _readPad1(g){
+  const s=_gpSlot(g,g.index||0), st=_gpStick(g,s), ax=st.ax, ay=st.ay;
   const pressed=i=>!s.ignore[i]&&!!(g.buttons[i]&&g.buttons[i].pressed===true);
   const rose=i=>pressed(i)&&!s.prev[i];
-  const setK=(code,on)=>{ K2[code]=!!KB2[code]||!!on; };
+  // Write into P1's *bound* codes (rebindable), never clearing a keyboard hold.
+  const set1=(a,on,tap)=>{ for(const c of (OPT.binds[a]||[])){ K[c]=!!KB1[c]||!!on; if(tap) Kj[c]=true; } };
+  if(ax<0) K['KeyA']=true; else if(!g.buttons[14]?.pressed) K['KeyA']=false;
+  if(ax>0) K['KeyD']=true; else if(!g.buttons[15]?.pressed) K['KeyD']=false;
+  if(ay<0) K['KeyW']=true; else if(!g.buttons[12]?.pressed) K['KeyW']=false;
+  if(ay>0) K['KeyS']=true; else if(!g.buttons[13]?.pressed) K['KeyS']=false;
+  if(pressed(14)) K['KeyA']=true;
+  if(pressed(15)) K['KeyD']=true;
+  if(pressed(12)) K['KeyW']=true;
+  if(pressed(13)) K['KeyS']=true;
+  set1('left',ax<0||pressed(14));
+  set1('right',ax>0||pressed(15));
+  set1('up',ay<0||pressed(12));
+  set1('down',ay>0||pressed(13)||pressed(4));
+  // Xbox letters: 0 A (bottom), 1 B (right), 2 X (left), 3 Y (top).
+  // A jump · B item select · X run + use item · Y punch
+  const bJump=pressed(0);
+  if(bJump&&!s.prev[0]) Kj['Space']=true;
+  K['Space']=(K['Space_kb']||bJump);
+  if(rose(2)) Kj['KeyQ']=true;
+  if(rose(1)&&_gameState!=='options') Kj['KeyE']=true;
+  K['KeyQ']=(K['KeyQ_kb']||pressed(2));
+  K['Sprint_gp']=pressed(2);
+  K['KeyE']=(K['KeyE_kb']||pressed(1));
+  K['KeyF']=(K['KeyF_kb']||pressed(3));
+  // Legacy K/Kj codes above stay for menu-back + beta lanes; these drive play.
+  set1('jump', bJump, bJump&&!s.prev[0]);
+  set1('use',  false, rose(1));          // B = item SELECT (cycle)
+  set1('swap', pressed(2), rose(2));     // X = USE item (held + tap)
+  set1('punch',false, rose(3));          // Y = punch
+  set1('sprint',pressed(2));             // X = run
+  if(_gameState==='partysetup'){
+    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
+    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
+    if((dX||dY)&&window.MV_PARTY_NAV) window.MV_PARTY_NAV(dX,dY);
+    if(rose(0)||rose(9)){ if(typeof _partyConfirm==='function') _partyConfirm(); }
+    if(rose(1)||rose(3)) _gameState='title';
+  }else _padMenuInput(st,pressed,rose,ay);
+  GP_BTN.forEach(i=>s.prev[i]=pressed(i));
+}
+// Active pad → P2 (K2/Kj2, read by weapons.js updateCoopPlayer2). Writes into
+// whatever codes P2 has bound (OPT.binds2), so rebinds work on the pad too.
+function _readPad2(g){
+  const s=_gpSlot(g,g.index||1), st=_gpStick(g,s);
+  const pressed=i=>!s.ignore[i]&&!!(g.buttons[i]&&g.buttons[i].pressed===true);
+  const rose=i=>pressed(i)&&!s.prev[i];
+  // held / tap for one action, honouring P2's bound codes and keyboard holds
+  const set=(a,on,tap)=>{ for(const c of (OPT.binds2[a]||[])){ K2[c]=!!KB2[c]||!!on; if(tap) Kj2[c]=true; } };
   const jump=pressed(0)||pressed(12)||st.sy<0;
-  setK('ArrowLeft',pressed(14)||st.sx<0);
-  setK('ArrowRight',pressed(15)||st.sx>0);
-  setK('ArrowUp',jump);                                  // held jump (variable height)
-  setK('ArrowDown',pressed(13)||st.sy>0);
-  if(rose(0)||rose(12)||st.edges.up) Kj2['ArrowUp']=true;   // A = jump
-  if(rose(2)) Kj2['Numpad3']=true;                       // X = cycle item
-  if(rose(1)) Kj2['Numpad1']=true;                       // B = use item
-  if(rose(3)) Kj2['Numpad2']=true;                       // Y = punch
-  setK('Numpad1',pressed(1));                            // hold B for XLR / MEG
-  K2['Sprint_gp2']=pressed(4);                           // LB = run
+  set('left', pressed(14)||st.sx<0);
+  set('right',pressed(15)||st.sx>0);
+  set('up',   pressed(12)||st.sy<0);
+  set('down', pressed(13)||st.sy>0);
+  set('jump', jump, rose(0)||rose(12)||st.edges.up);       // A = jump (held for variable height)
+  set('use',  false,rose(2));                              // X = item SELECT (cycle)
+  set('swap', pressed(1),rose(1));                         // B = USE item (hold for XLR / MEG)
+  set('punch',false,rose(3));                              // Y = punch
+  set('sprint',pressed(4));                                // LB = run (if P2 bound a key)
+  K2['Sprint_gp2']=pressed(4);
   if(_gameState==='partysetup'){
     const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
     const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
@@ -266,19 +313,41 @@ function _readPad2(g){
       else if(typeof _partyConfirm==='function') _partyConfirm();
     }
     if(rose(1)||rose(3)) _gameState='title';
-  }
+  }else _padMenuInput(st,pressed,rose,st.ay);
   GP_BTN.forEach(i=>s.prev[i]=pressed(i));
+}
+/** True when a pad has a button pressed or a stick past the dead zone. */
+function _padMeaningful(g){
+  if(!g||!g.connected) return false;
+  for(const i of GP_BTN){ const b=g.buttons&&g.buttons[i]; if(b&&(b.pressed===true||b.value>0.1)) return true; }
+  return Math.abs((g.axes&&g.axes[0])||0)>0.5||Math.abs((g.axes&&g.axes[1])||0)>0.5;
+}
+function _findPad(pads,idx){
+  for(let i=0;i<pads.length;i++) if(pads[i]&&pads[i].index===idx) return pads[i];
+  return null;
 }
 function readGamepad(){
   let pads;
   try{ pads=navigator.getGamepads?navigator.getGamepads():[]; }catch(e){ return; }
   if(!pads||!pads.length) return;
-  for(let i=0;i<2;i++){
-    const g=pads[i];
-    if(!g||!g.connected) continue;
-    if(!GP.pad) GP.pad=g;
-    try{ if(i===0) _readPad1(g); else _readPad2(g); }catch(err){ console.error('MV pad '+i,err); }
+  // Claim once, on the very first pad with real input. Solo -> P1 regardless
+  // of index; co-op -> the pad's slot (index 0 is P1's, anything else P2's).
+  if(GP.owner==null){
+    for(let i=0;i<pads.length;i++){
+      const g=pads[i];
+      if(!_padMeaningful(g)) continue;
+      GP.ownedIdx=(g.index!=null?g.index:i);
+      GP.owner=(_playerCount===2&&GP.ownedIdx!==0)?2:1;
+      _gpSlot(g,GP.ownedIdx,true);   // first real press counts — don't ignore it
+      break;
+    }
   }
+  if(GP.owner==null) return;                       // no controller claimed yet
+  const g=_findPad(pads,GP.ownedIdx);
+  if(!g||!g.connected) return;                     // owned pad gone: never reassign
+  if(!GP.pad) GP.pad=g;
+  try{ if(GP.owner===1) _readPad1(g); else _readPad2(g); }
+  catch(err){ console.error('MV pad',err); }
 }
 function clkj(){ Object.keys(Kj).forEach(k=>delete Kj[k]); }
 

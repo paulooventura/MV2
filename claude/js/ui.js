@@ -452,8 +452,9 @@ function drawPauseMenu(){
 // There is no music-style row: the scored music always plays. No difficulty row either —
 // the elevator's floor level sets it (Paulo, 2026-11-16).
 const OPT_FILTER_ROW=3;
-const OPT_BIND0=5;
-function _optManualRow(){ return OPT_BIND0+BIND_ORDER.length; }
+const OPT_BIND0=5;                                   // first P1 bind row
+const OPT_BIND1=OPT_BIND0+BIND_ORDER.length;          // first P2 bind row
+function _optManualRow(){ return OPT_BIND1+BIND_ORDER.length; }  // manual is last
 function _optRowCount(){ return _optManualRow()+1; }
 let _optHoldN=0;
 function _optNudgeBar(row,inc){
@@ -495,7 +496,11 @@ function _optionsInput(ev){
   if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
   if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
   if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
-  if(_optRow>=OPT_BIND0&&_optRow<_optManualRow()&&ev.confirm){ _optRebinding=BIND_ORDER[_optRow-OPT_BIND0]; return true; }
+  if(_optRow>=OPT_BIND0&&_optRow<_optManualRow()&&ev.confirm){
+    // Which player's set, and which action — P2 gets its own rebindable set.
+    _optRebinding={p:_optRow<OPT_BIND1?1:2, a:BIND_ORDER[(_optRow-OPT_BIND0)%BIND_ORDER.length]};
+    return true;
+  }
   return true;
 }
 
@@ -636,7 +641,12 @@ document.addEventListener('keydown',e=>{
     e.preventDefault(); return;
   }
   if(_gameState==='options'){
-    if(_optRebinding){ if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;} OPT.binds[_optRebinding]=[e.code]; _saveOpts();_optRebinding=null;e.preventDefault();return; }
+    if(_optRebinding){
+      if(e.code==='Escape'){_optRebinding=null;e.preventDefault();return;}
+      const t=_optRebinding;
+      (t.p===2?OPT.binds2:OPT.binds)[t.a]=[e.code];
+      _saveOpts(); _optRebinding=null; e.preventDefault(); return;
+    }
     if(e.code==='KeyE') _optSwapHeld=true;
     const slide=e.code==='ArrowLeft'||e.code==='KeyA'||e.code==='ArrowRight'||e.code==='KeyD';
     if(e.repeat&&slide&&_optRow<=2){ e.preventDefault(); return; }
@@ -922,7 +932,8 @@ function drawOptions(){
     {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
-  BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a),rule:i===0?'CONTROLS':null}));
+  BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
+  BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,2),rule:i===0?'PLAYER 2 — ARROWS / NUM PAD':null}));
   rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
   const rowH=stacked?78:52, VIS=6;
@@ -957,7 +968,7 @@ function drawOptions(){
   }
   if(start+show<rows.length) drawTextC('v',W/2,panelY+panelH-62,'#d8ffc8',2);
   const footY=panelY+panelH-36;
-  if(_optRebinding){ if(fr%32<24) drawTextC('PRESS A KEY',W/2,footY,'#ffe39a',scl); }
+  if(_optRebinding){ if(fr%32<24) drawTextC('PLAYER '+_optRebinding.p+': PRESS A KEY',W/2,footY,'#ffe39a',scl); }
   else drawTextC(uiMenuHint('options'),W/2,footY,'#d8ffc8',scl);
   drawTextR('BUILD '+(window.MV_BUILD||'?'),panelX+panelW-18,panelY+10,'#8fd78a',2);
   if(window._goreFlash>0){

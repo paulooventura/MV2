@@ -1264,18 +1264,19 @@ let _coopRollX0=0, _coopRollY0=0;
 function updateCoopPlayer2(){
   if(!p2) return;
   _coopRollX0=p2.x; _coopRollY0=p2.y;
-  const lf=!!K2['ArrowLeft'], rt=!!K2['ArrowRight'];
+  // P2 reads its own rebindable set (OPT.binds2) via _bindDown2 / _bindJ2.
+  const lf=_bindDown2('left'), rt=_bindDown2('right');
   p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
-  const run=!!K2['Sprint_gp2'];                    // LB on P2's pad
+  const run=!!K2['Sprint_gp2']||_bindDown2('sprint');  // LB on P2's pad (or a bound run key)
   const ms=run?MOVE_RUN:MOVE_WALK*MOVE_PEAK, ac=run?MOVE_RUN_ACCEL:MOVE_ACCEL;
   if(lf) p2.vx=Math.max(p2.vx-ac,-ms);
   else if(rt) p2.vx=Math.min(p2.vx+ac,ms);
   else{ const gf=p2.og?MOVE_STOP:AIR_DRIFT; p2.vx*=gf; if(p2.og&&Math.abs(p2.vx)<0.22)p2.vx=0; else if(Math.abs(p2.vx)<0.12)p2.vx=0; }
   if(lf)p2.fc=false; else if(rt)p2.fc=true;
-  const up2=!!K2['ArrowUp'];
+  const up2=_bindDown2('jump');                         // held jump (variable height)
   if(p2.og||(p2.hook&&p2.hook.st==='on')){ p2._airJumps=0; p2._airBoost=0; }
-  if(Kj2['ArrowUp']&&p2.og){p2.vy=JI;p2.jf=JMH;p2._airBoost=0;p2.og=false;sfx('jump');}
-  else if(Kj2['ArrowUp']&&!(p2._airJumps>0)&&!(p2.hook&&p2.hook.st==='on')
+  if(_bindJ2('jump')&&p2.og){p2.vy=JI;p2.jf=JMH;p2._airBoost=0;p2.og=false;sfx('jump');}
+  else if(_bindJ2('jump')&&!(p2._airJumps>0)&&!(p2.hook&&p2.hook.st==='on')
           &&!(window.MV_BETA&&MV_BETA.inWater&&MV_BETA.inWater(p2.x+SW/2,p2.y+FEET_OFF-30))){
     p2._airJumps=1; p2._airBoost=1; p2._airStall=1;
     p2.vy=Math.min(p2.vy,0); p2.jf=AIR_JUMP_HOLD;
@@ -1283,22 +1284,22 @@ function updateCoopPlayer2(){
     p2._dblJumpFx=14; try{ sfx('double_jump'); }catch(e){}
   }
   if(p2._dblJumpFx>0) p2._dblJumpFx--;
-  if(Kj2['Numpad3']) ITEM=(ITEM+1)%4;
-  if(Kj2['Numpad1']){
+  if(_bindJ2('use')) ITEM=(ITEM+1)%4;                   // item SELECT (cycle)
+  if(_bindJ2('swap')){
     if(ITEM===0){withPlayerContext(p2,()=>fireItem(false));if(p2.shots&&p2.shots.length){p.shots.push(...p2.shots);p2.shots.length=0;}}
     else if(ITEM===1) withPlayerContext(p2,()=>fireItem(false));
   }
-  if(K2['Numpad1']&&ITEM===2){
+  if(_bindDown2('swap')&&ITEM===2){
     const ca={x:p2.x+SW/2,y:p2.y+FEET_OFF-STAND_H*0.5}, range=155, dir=p2.fc?1:-1;
     for(const e of ENEMS){ if(!_enemyBodyPresent(e))continue; const dx=e.x+e.w/2-ca.x,dy=e.y+e.h/2-ca.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.5)*2.1; _applyItemForceToEnemy(e,dir*str,dy/dist*0.15); }
     for(const c of CRATES){ const dx=c.x+c.w/2-ca.x,dy=c.y+c.h/2-ca.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.4)*1.9; c.vx+=dir*str;c.vy+=dy/dist*0.12; }
-  }else if(K2['Numpad1']&&ITEM===3){
+  }else if(_bindDown2('swap')&&ITEM===3){
     const ca={x:p2.x+SW/2,y:p2.y+FEET_OFF-STAND_H*0.5}, range=190;
     for(const e of ENEMS){ if(!_enemyBodyPresent(e))continue; const hb=_enemyItemHB(e),dx=ca.x-(hb.x+hb.w/2),dy=ca.y-(hb.y+hb.h/2),dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.3)*2.2; _applyItemForceToEnemy(e,dx/dist*str,dy/dist*str); }
     for(const c of CRATES){ const dx=ca.x-(c.x+c.w/2),dy=ca.y-(c.y+c.h/2),dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.2)*1.9; c.vx+=dx/dist*str;c.vy+=dy/dist*str; }
     for(const k of KDROP){ if(k.got)continue; const dx=ca.x-k.x,dy=ca.y-k.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.25)*1.8; k.vx+=dx/dist*str;k.vy+=dy/dist*str; }
   }
-  if(Kj2['Numpad2']){
+  if(_bindJ2('punch')){
     const fistCX=p2.fc?p2.x+SW/2+AIM_LEN:p2.x+SW/2-AIM_LEN, fistCY=p2.y+20, fistR=4;
     let hitAny=false;
     for(const e of ENEMS){

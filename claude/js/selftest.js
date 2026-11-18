@@ -515,34 +515,83 @@
     finally{ p2.x=ox; p2.y=oy; }
   }
   function checkSecondPad(){
-    if(!COOP||!_origReadGP||typeof navigator==='undefined') return;
+    if(!COOP||!_origReadGP||typeof navigator==='undefined'||typeof GP==='undefined') return;
     var old=navigator.getGamepads;
+    // The controller lock must not leak into the actual run — save/restore it.
+    var oldGP={owner:GP.owner,ownedIdx:GP.ownedIdx,pad:GP.pad,pads:GP.pads};
+    var oldCount=(typeof _playerCount!=='undefined')?_playerCount:null;
     try{
       function pad(idx,down,axes){
         return {connected:true,index:idx,id:'MV Selftest Pad',axes:axes||[0,0],
           buttons:down.map(function(v){ return {pressed:!!v,value:v?1:0}; })};
       }
       var off=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
-      var on =[1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0];   // A + B + Y
-      if(typeof GP!=='undefined'&&GP.pads) delete GP.pads[1];
-      Object.keys(K2).forEach(function(k){ delete K2[k]; });
-      Object.keys(Kj2).forEach(function(k){ delete Kj2[k]; });
-      // First sight: all buttons up, so nothing is swallowed as "already held".
+      var on =[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0];   // A + B + X + Y
+      // P2 codes come from OPT.binds2 (rebindable). A=jump, B=use item,
+      // X=item select, Y=punch, stick/d-pad=directions.
+      var B2=(typeof OPT!=='undefined'&&OPT.binds2)?OPT.binds2:{};
+      var code=function(a){ return (B2[a]&&B2[a][0])||null; };
+      var cLeft=code('left'), cJump=code('jump'), cSelect=code('use'),
+          cUse=code('swap'), cPunch=code('punch');
+      if(!cLeft||!cJump||!cSelect||!cUse||!cPunch){ rec('pad2BindsMissing',{}); return; }
+      function clear(){
+        Object.keys(K2).forEach(function(k){ delete K2[k]; });
+        Object.keys(Kj2).forEach(function(k){ delete Kj2[k]; });
+        GP.owner=null; GP.ownedIdx=null; GP.pad=null; GP.pads={};
+      }
+      function p1Snapshot(){
+        var s={};
+        ['up','down','left','right','jump','use','swap','punch'].forEach(function(a){
+          var c=bind(a,null); if(c) s[c]=!!K[c];
+        });
+        return s;
+      }
+      function p1Changed(snap){
+        for(var c in snap) if(!!K[c]!==snap[c]) return true;
+        return false;
+      }
+      if(typeof _playerCount!=='undefined') _playerCount=2;
+      clear();
+      // All pads up: nothing to claim yet, so no pad owns a player.
       navigator.getGamepads=function(){ return [pad(0,off),pad(1,off)]; };
       _origReadGP();
-      // Left stick left + A/B/Y on pad 1 must land in K2 / Kj2 for P2.
+      if(GP.owner!==null) rec('pad2EarlyOwner',{owner:GP.owner});
+      // FIRST real input comes from pad 1, so it claims P2 (sticky).
       navigator.getGamepads=function(){ return [pad(0,off),pad(1,on,[-1,0])]; };
       _origReadGP();
-      if(!K2['ArrowLeft']) rec('pad2NoMove',{});
-      if(!K2['ArrowUp']) rec('pad2NoJump',{});
-      if(!Kj2['ArrowUp']) rec('pad2NoJumpEdge',{});
-      if(!Kj2['Numpad1']) rec('pad2NoItem',{});
-      if(!Kj2['Numpad2']) rec('pad2NoPunch',{});
+      if(GP.owner!==2||GP.ownedIdx!==1) rec('pad2OwnerWrong',{owner:GP.owner,idx:GP.ownedIdx});
+      if(!K2[cLeft]) rec('pad2NoMove',{code:cLeft});                      // stick left
+      if(!K2[cJump]) rec('pad2NoJump',{code:cJump});                      // A held
+      if(!Kj2[cJump]) rec('pad2NoJumpEdge',{code:cJump});                 // A fresh press
+      if(!Kj2[cSelect]) rec('pad2NoSelect',{code:cSelect});               // X = item select
+      if(!K2[cUse]||!Kj2[cUse]) rec('pad2NoItem',{code:cUse});            // B = use item
+      if(!Kj2[cPunch]) rec('pad2NoPunch',{code:cPunch});                  // Y = punch
+      var before=p1Snapshot();
+      // A second pad connecting with input must NOT steal ownership or drive P1.
+      navigator.getGamepads=function(){ return [pad(0,on),pad(1,on,[-1,0])]; };
+      _origReadGP();
+      if(GP.owner!==2||GP.ownedIdx!==1) rec('pad2OwnerStolen',{owner:GP.owner,idx:GP.ownedIdx});
+      if(p1Changed(before)) rec('pad2CrossControl',{});
+      // Releasing the owned pad must not leave P2 stuck.
       navigator.getGamepads=function(){ return [pad(0,off),pad(1,off,[0,0])]; };
       _origReadGP();
-      if(K2['ArrowLeft']||K2['ArrowUp']) rec('pad2Stuck',{});
+      if(K2[cLeft]||K2[cJump]) rec('pad2Stuck',{code:cLeft+'/'+cJump});
+      // Reverse case: if pad 0 owns the controller first, pad 1 must never
+      // claim P2 or feed it input — "whichever the game picks up first, stays".
+      clear();
+      navigator.getGamepads=function(){ return [pad(0,on),pad(1,off)]; };
+      _origReadGP();
+      if(GP.owner!==1) rec('pad2OwnerReverse',{owner:GP.owner});
+      navigator.getGamepads=function(){ return [pad(0,on),pad(1,on,[-1,0])]; };
+      _origReadGP();
+      if(GP.owner!==1||GP.ownedIdx!==0) rec('pad2StealReverse',{owner:GP.owner,idx:GP.ownedIdx});
+      if(K2[cLeft]||Kj2[cJump]) rec('pad2StoleP2',{code:cLeft+'/'+cJump});
     }catch(e){ rec('pad2Error',{msg:String(e&&e.message||e)}); }
-    finally{ try{ navigator.getGamepads=old; }catch(e){} }
+    finally{
+      try{ navigator.getGamepads=old; }catch(e){}
+      try{ GP.owner=oldGP.owner; GP.ownedIdx=oldGP.ownedIdx; GP.pad=oldGP.pad; GP.pads=oldGP.pads; }catch(e){}
+      try{ if(oldCount!==null) _playerCount=oldCount; }catch(e){}
+    }
   }
 
   function start(){
@@ -551,10 +600,11 @@
     _orig=update; update=wrappedUpdate;
     if(typeof draw==='function'){ _origDraw=draw; draw=wrappedDraw; }
     if(typeof readGamepad==='function'){ _origReadGP=readGamepad; readGamepad=wrappedReadGamepad; }
+    // Initialise before the one-shot co-op check so its findings survive.
+    violations={}; perf={maxUpdateMs:0,slowFrames:0};
     if(COOP) try{ checkSecondPad(); }catch(e){}
     window.__MV_SELFTEST_ACTIVE=true;
     running=true; lf=0; t0=Date.now(); renderFrames=0;
-    violations={}; perf={maxUpdateMs:0,slowFrames:0};
     phaseIdx=0; phaseFrame=0; jumpHold=0; baselineY=null; idleMaxDev=0; xHist.length=0;
     _slopeCornerOnce=false;
     if(typeof p!=='undefined'&&p) p._idlePrevY=undefined;
