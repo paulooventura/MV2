@@ -200,11 +200,23 @@
     noiseHit(a,dst,t0,0.03,0.5,3200); tone(a,dst,'square',on?2400:1600,on?1800:1200,t0,0.025,0.12);
     if(on){ noiseHit(a,dst,t0+0.07,0.025,0.4,2600); tone(a,dst,'square',2000,1500,t0+0.07,0.02,0.1); }
   }
-  function bark(){                                  // the rev: the note leaps up, holds, drops back
+  function bark(){                                  // the rev: a real engine VROOM — rises, holds, settles. (Paulo: not a fart)
     const a=ac(); if(!a) return; const t=a.currentTime, d=out(a);
-    tone(a,d,'sawtooth',70,420,t,0.16,0.32,2600);
-    tone(a,d,'sawtooth',420,120,t+0.16,0.32,0.26,1800);
-    tone(a,d,'square',35,90,t,0.4,0.18,500);
+    // rising fundamental (idle -> rev), then a slow settle back down. Staggered
+    // tones overlap because tone() decays across its whole duration — this fakes
+    // a sustained "hold" at the top instead of a single up-down blip.
+    tone(a,d,'sawtooth',60,280,t,        0.26,0.30,1900);
+    tone(a,d,'sawtooth',280,110,t+0.16, 0.50,0.26,1600);
+    // a slightly detuned second voice gives the rough, beating engine growl
+    tone(a,d,'sawtooth',64,285,t,        0.26,0.17,2400);
+    tone(a,d,'sawtooth',285,116,t+0.16, 0.50,0.15,2000);
+    // bright harmonic layer that opens up as it revs (brightness follows rpm)
+    tone(a,d,'sawtooth',125,560,t+0.05, 0.20,0.10,3800);
+    tone(a,d,'sawtooth',560,245,t+0.20, 0.36,0.085,3200);
+    // sub body — kept well above the old 35 Hz "fart" register
+    tone(a,d,'square',80,180,t,0.34,0.09,800);
+    // a short intake draw adds air, not a low thud
+    noiseHit(a,d,t+0.03,0.12,0.09,1200);
   }
   function ignite(){
     sportBurst();

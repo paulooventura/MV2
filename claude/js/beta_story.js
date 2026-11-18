@@ -206,7 +206,7 @@
     else used=false;
     if(used){ e.preventDefault(); e.stopImmediatePropagation(); }
   },true);
-  function geom(){ const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,inset:{t:0}}; const w=L.panelW, rh=74, h=108+ROWS*rh, x=L.panelX, y=Math.max(12+(L.inset.t||0), Math.round((H-h)/2)); return {x,y,w,h,rh}; }
+  function geom(){ const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,inset:{t:0}}; const w=L.panelW, rh=74, h=146+ROWS*rh, x=L.panelX, y=Math.max(12+(L.inset.t||0), Math.round((H-h)/2)); return {x,y,w,h,rh}; }
   const rowY=(g,i)=>g.y+84+i*g.rh;
   document.addEventListener('click',e=>{
     if(!pick||_gameState!=='timeline') return;
@@ -277,8 +277,8 @@
         drawText('START A NEW STORY HERE',X,y+20,sel?'#d8ffc8':'#8fd78a',2);
       }
     }
-    drawTextC(window.uiMenuHint?uiMenuHint('select'):'A PLAY    B BACK',W/2,g.y+g.h-32,'#d8ffc8',3);
-    drawTextC(pick.msgT>0&&pick.msg?pick.msg:'C COPY   V PASTE   Y ERASE   28 STATES PER FILE',W/2,g.y+g.h-12,pick.msgT>0?'#ffe39a':'#7dffcf',1);
+    drawTextC(window.uiMenuHint?uiMenuHint('select'):'A PLAY    B BACK',W/2,g.y+g.h-46,'#d8ffc8',3);
+    drawTextC(pick.msgT>0&&pick.msg?pick.msg:'C COPY   V PASTE   Y ERASE   28 STATES PER FILE',W/2,g.y+g.h-16,pick.msgT>0?'#ffe39a':'#7dffcf',1);
     ctx.restore();
   }
 })();
