@@ -23,6 +23,14 @@
   const INK_STORI='assets/bgm/kiyoki-senritsu-stori.mp3';
   const GORE_TRACK='assets/bgm/chaos-theory.mp3';
   const GORE_TRACK_2='assets/bgm/chaos-theory-2.mp3';
+  // Paulo: each filter gets its OWN boss theme when the boss comes into view.
+  // Ink & Vinyl and Gore boss songs are not composed yet — until they are, fall
+  // back to the default boss track. Drop the file in and set the path below.
+  const BOSS_THEMES={
+    base:'assets/bgm/pixel-quasar-gold-boss.mp3',
+    ink:null,   // TODO: Ink & Vinyl boss theme (e.g. 'assets/bgm/BOSS-ink.mp3')
+    gore:null   // TODO: Gore boss theme (e.g. 'assets/bgm/BOSS-gore.mp3')
+  };
   const SNES_TRACK='assets/bgm/snes-awdjoo.mp3';
   const SNES_TRACK_2='assets/bgm/snes-awdjoo-2.mp3';
   const GENESIS_TRACK='assets/bgm/genesis-awdjoo.mp3';
@@ -35,7 +43,16 @@
     // placed on the boss, louder near it — but under Ink & Vinyl the boss track WAS the stage song
     // (and under SNES / GORE the same as 1.3's stage track), so nothing changed when he came into
     // view. The boss always has its own theme now, in every filter.
-    if(name==='boss') return TRACKS.boss;
+    if(name==='boss'){
+      // Per-filter boss theme: Ink > Gore > base. Falls back to the default boss
+      // track until Paulo composes the I&V / Gore boss songs (null paths above).
+      let tb=BOSS_THEMES.base||TRACKS.boss;
+      try{
+        if(window.MV_INK_SOUND&&MV_INK_SOUND()&&BOSS_THEMES.ink) tb=BOSS_THEMES.ink;
+        else if(window.MV_GORE_SOUND&&MV_GORE_SOUND()&&BOSS_THEMES.gore) tb=BOSS_THEMES.gore;
+      }catch(e){}
+      return tb;
+    }
     try{
       if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
         const music=window.MV_BETA&&MV_BETA.music;

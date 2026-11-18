@@ -412,6 +412,9 @@ function _pauseInput(){
   const items=_pauseItems();
   if(Kj['ArrowUp']||Kj['KeyW']){ _pauseIdx=(_pauseIdx+items.length-1)%items.length; try{ sfx('menu'); }catch(e){} }
   if(Kj['ArrowDown']||Kj['KeyS']){ _pauseIdx=(_pauseIdx+1)%items.length; try{ sfx('menu'); }catch(e){} }
+  // Paulo: Punch (Y on the pad / the punch key) acts as an exit button on the
+  // pause menu — pressing it resumes the game immediately.
+  if(Kj['KeyF']){ try{ delete Kj['KeyF']; }catch(e){} _togglePause(); return; }
   if(Kj['KeyE']&&!K['KeyE_kb']){ _togglePause(); return; }          // pad B: back to the game
   if(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']){
     const it=items[_pauseIdx];

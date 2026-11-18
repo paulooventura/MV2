@@ -1483,10 +1483,18 @@
         const bot=(yb+1)*CS;
         // Paulo: on a ramp the water bottom must follow the slope's diagonal,
         // not a flat cell edge — flat bottoms made a serrated "ladder" of steps.
+        // gridSlopeY/gridSlopeKind take TILE indices + a world-x (collision_grid.js),
+        // but the fluid grid CS is HALF a tile — so we must divide by MV_GRID.tile
+        // here, not CS, or the lookup almost never hits a slope and stays flat.
+        const T=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:CS*2;
         const rampBot=(xx)=>{
-          const c=Math.floor(xx/CS), r=Math.floor((bot-1)/CS);
-          if(typeof gridSlopeY==='function'&&typeof gridSlopeKind==='function'&&gridSlopeKind(c,r)){
-            const sy2=gridSlopeY(c,r,xx); if(sy2!=null) return sy2;
+          const c=Math.floor(xx/T);
+          // try the tile row containing the water bottom and the one above/below
+          for(const r of [Math.floor((bot-1)/T), Math.floor(bot/T), Math.floor((bot+1)/T)]){
+            if(typeof gridSlopeKind==='function'&&gridSlopeKind(c,r)&&typeof gridSlopeY==='function'){
+              const sy2=gridSlopeY(c,r,xx);
+              if(sy2!=null && Math.abs(sy2-bot)<=T+2) return sy2;   // only a nearby ramp edge
+            }
           }
           return bot;
         };
