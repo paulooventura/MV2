@@ -104,7 +104,19 @@
     },
     // the woofer kicks the air: a sub thump, a pressure whoomp and a rising chirp (double jump)
     double_jump(a){ tone(a,{f:70,f1:120,d:0.18,v:0.28}); hiss(a,{type:'lowpass',f:300,f1:1400,d:0.16,v:0.12}); tone(a,{f:420,f1:980,dt:0.02,d:0.16,v:0.07,type:'triangle',rev:0.3}); },
-    tire_squeal(a,p){ p=p||0.6; tone(a,{f:1150,f1:980,d:0.22+0.12*p,v:0.035*(0.5+p),type:'sawtooth',bp:2300,q:6,vib:28,vibd:35}); hiss(a,{f:2600,q:3,d:0.18+0.1*p,v:0.03*(0.5+p)}); hiss(a,{type:'lowpass',f:500,d:0.1,v:0.05}); },
+    // Wheelspin / burnout screech (Paulo, Nov 18). `p` is the tire heat (0..1):
+    // hotter = higher, louder, longer and grittier. Two detuned saw voices with a
+    // rising glide and a skid wobble sing over a band of bright noise grit and a
+    // low rubber body, so it carries over the engine and the music. The bursts
+    // overlap at the game's cadence into one sustained, rising squeal.
+    tire_squeal(a,p){
+      const h=Math.max(0,Math.min(1,typeof p==='number'?p:0.6));
+      const d=0.26+0.16*h, f=820+780*h, f1=f*(1.16+0.22*h), bp=1500+1500*h;
+      tone(a,{f,f1,glide:d*0.85,d,v:0.085+0.15*h,type:'sawtooth',bp,q:4.5,vib:24+14*h,vibd:20+28*h,at:0.012,rev:0.16});
+      tone(a,{f:f*1.006,f1:f1*1.006,glide:d*0.85,d:d*0.96,v:0.045+0.08*h,type:'sawtooth',bp,q:5,at:0.016});
+      hiss(a,{f:f*1.7,f1:f*2.8,q:2.2,d:d*0.92,v:0.055+0.1*h,at:0.006,rev:0.12});
+      hiss(a,{type:'lowpass',f:380+260*h,d:d*0.7,v:0.04+0.05*h,at:0.006});
+    },
     // the wheel's engine: one tiny explosion. drive 0 is the idle putter (low, soft);
     // drive 1 is a faster, higher, sharper pop. The game schedules how often.
     engine_pop(a,drive){

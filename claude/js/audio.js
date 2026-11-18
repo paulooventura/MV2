@@ -675,7 +675,7 @@ function MV_SPATIAL_from(o){ try{ if(o&&isFinite(o.x)&&isFinite(o.y)) window._sf
 function sfxAt(o){ MV_SPATIAL_from(o); return sfx.apply(this,Array.prototype.slice.call(arguments,1)); }
 function sfx(t){
   if(!_audioUnlocked) return;
-  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed'||t==='enemy_shut'||t==='enemy_dead';   // (build 405) foe shutdowns are pitched by how many times it's gone down
+  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed'||t==='enemy_shut'||t==='enemy_dead'||t==='tire_squeal';   // (build 405) foe shutdowns are pitched by how many times it's gone down; tire_squeal by heat
   const pitch=(pitchable&&typeof arguments[1]==='number')?arguments[1]:1;
   const sampleAlias={
     jump:'jump_reg',
@@ -719,6 +719,18 @@ function sfx(t){
     case'jump_spring':
     case'jump_good':o(110*pitch,420*pitch,.2,.16);o(220*pitch,80*pitch,.16,.1);break;
     case'land':nz(.06,.16);o(90,55,.05,.1);break;
+    // Wheelspin / burnout screech (Paulo, Nov 18). `pitch` is the tire heat (0..1):
+    // hotter = higher, louder, longer and grittier. The base/PSG voice mirrors the
+    // posh one so the screech carries in every sound mode, not just Posh.
+    case'tire_squeal':{
+      const h=Math.max(0,Math.min(1,pitch));
+      const f=820+780*h, f1=f*(1.16+0.22*h), d=0.24+0.14*h;
+      o(f,f1,d,0.09+0.12*h,0,'sawtooth');
+      o(f*1.006,f1*1.006,d*0.95,0.05+0.06*h,0.004,'sawtooth');
+      nz(d*0.9,0.08+0.08*h,false,1.2+0.9*h);
+      o(f*0.5,f*0.62,d*0.7,0.035+0.03*h,0.008,'square');
+      break;
+    }
     case'punch':nz(.07,.18,false,0.75);o(165,52,.07,.13,0,'square');o(82,38,.05,.09,0.02,'triangle');break;
     case'hook':o(210,430,.16,.11,0,'triangle');o(130,290,.2,.07,0.03,'sine');nz(.14,.09,false,0.45);break;
     case'hook_charged':o(95,360,.14,.16,0,'triangle');o(55,220,.22,.1,0.04,'sine');nz(.16,.12,false,0.38);break;

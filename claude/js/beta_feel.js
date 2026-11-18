@@ -211,8 +211,12 @@
       const cx0=p.x+SW/2-inDir*(typeof WHEEL_R==='number'?WHEEL_R*0.55:8), cy0=p.y+FEET_OFF-1;     // the contact patch
       const n=Math.random()<(solidM?0.45:0.2)+0.45*p._tireHeat?1:0;
       if(n&&p.smoke&&p.smoke.length<(solidM?32:20)) p.smoke.push({x:cx0+(Math.random()-0.5)*6,y:cy0-2,vx:-inDir*(0.8+Math.random()*1.2)+(Math.random()-0.5)*0.6,vy:-0.4-Math.random()*1.1,life:24+((Math.random()*14)|0),maxLife:38,r:3+Math.random()*3+p._tireHeat*(solidM?4:2)});
-      if(solidM){ if(fr%7===0) try{ sfx('tire_squeal',0.55+0.45*p._tireHeat); }catch(e){} }
-      else{ if(fr%16===0) try{ sfx('tire_squeal',0.2+0.25*p._tireHeat); }catch(e){}
+      // Sound only: the screech is ground-contact only. xlrJet has already bailed on a
+      // rope above, and `resist` requires `grounded`; make both guarantees explicit at
+      // the sfx call site so no squeal ever fires in the air or on a rope.
+      const screechOK=grounded&&!(p.hook&&p.hook.st==='on');
+      if(solidM){ if(screechOK&&fr%7===0) try{ sfx('tire_squeal',0.55+0.45*p._tireHeat); }catch(e){} }
+      else{ if(screechOK&&fr%16===0) try{ sfx('tire_squeal',0.2+0.25*p._tireHeat); }catch(e){}
         if(Math.random()<0.35) PFXS.push({x:cx0,y:cy0-2,vx:-inDir*(1.5+Math.random()*2.5),vy:-1.5-Math.random()*2.2,life:16+(Math.random()*10|0),maxLife:26,r:1.5+Math.random()*1.5,col:Math.random()<0.5?'#7a5236':'#5a3a24',grav:true}); }
       p._tireMat=mat;
       if(fr%3===0) PFXS.push({x:p.x+SW/2+a.x*18,y:p.y+FEET_OFF-36+a.y*18,vx:a.x*2,vy:a.y*2,life:10,maxLife:10,r:2,col:'#aaddff'});
