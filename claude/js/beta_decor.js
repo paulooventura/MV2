@@ -392,43 +392,65 @@
     }
   }
 
-  // ── The Knowl tree: huge, ancient, glowing (canopy cached once) ───
+  // ── The Knowl tree: an ancient, diamond-bright tree with roots that run
+  // down into the earth toward Mother Nature. (canopy cached once) ──
   let treeImg=null;
-  const TREE={W:680, H:640, CY:450, TRUNK:360};   // canopy centre / trunk top, px above the roots
+  const TREE={W:680, H:760, CY:470, TRUNK:360};   // canopy centre / trunk top, px above the roots
   function buildTree(){
     treeImg=mk(TREE.W,TREE.H,(g,w,h)=>{
       const cx=w/2, base=h;
-      // roots
-      g.strokeStyle='#3a2414'; g.lineCap='round';
-      for(let i=0;i<9;i++){ const s=i/8*2-1; g.lineWidth=14-Math.abs(s)*8; g.beginPath(); g.moveTo(cx+s*30,base-40);
-        g.quadraticCurveTo(cx+s*90,base-10,cx+s*(150+hash(i,2)*60),base-2); g.stroke(); }
-      // trunk: twisting, wide at the foot
-      const tg=g.createLinearGradient(cx-60,0,cx+60,0); tg.addColorStop(0,'#2a180e'); tg.addColorStop(0.45,'#6a4426'); tg.addColorStop(1,'#2a180e');
-      g.fillStyle=tg; g.beginPath(); g.moveTo(cx-62,base-4); g.bezierCurveTo(cx-30,base-150,cx-64,base-280,cx-26,base-TREE.TRUNK);
-      g.lineTo(cx+28,base-TREE.TRUNK); g.bezierCurveTo(cx+66,base-280,cx+30,base-150,cx+64,base-4); g.closePath(); g.fill();
-      g.strokeStyle='rgba(20,10,4,0.6)'; g.lineWidth=2;
-      for(let i=0;i<7;i++){ g.beginPath(); const x0=cx-36+i*12; g.moveTo(x0,base-10); g.bezierCurveTo(x0+10,base-130,x0-12,base-260,x0+4,base-TREE.TRUNK+10); g.stroke(); }
-      // branches
-      g.strokeStyle='#4a2e18';
-      for(const [ex,ey,wd] of [[-240,-450,18],[230,-440,18],[-150,-520,13],[160,-530,13],[-300,-380,11],[300,-390,11],[0,-550,15]]){
-        g.lineWidth=wd; g.beginPath(); g.moveTo(cx,base-TREE.TRUNK+10); g.quadraticCurveTo(cx+ex*0.4,base+ey*0.85,cx+ex,base+ey); g.stroke(); }
-      // canopy: layered clouds of teal leaves
+      // (the root system is NOT baked here: it must run DOWN into the earth,
+      //  so it is drawn in treeRoots() AFTER the ground tiles in world())
+      // ── TRUNK: twisting, wide at the foot, cool stone-blue bark ──
+      const tg=g.createLinearGradient(cx-70,0,cx+70,0);
+      tg.addColorStop(0,'#16343a'); tg.addColorStop(0.45,'#3f7a7a'); tg.addColorStop(1,'#16343a');
+      g.fillStyle=tg; g.beginPath(); g.moveTo(cx-70,base-6);
+      g.bezierCurveTo(cx-34,base-160,cx-72,base-290,cx-30,base-TREE.TRUNK);
+      g.lineTo(cx+30,base-TREE.TRUNK); g.bezierCurveTo(cx+72,base-290,cx+34,base-160,cx+70,base-6); g.closePath(); g.fill();
+      g.strokeStyle='rgba(10,30,34,0.7)'; g.lineWidth=2;
+      for(let i=0;i<9;i++){ const x0=cx-44+i*11; g.beginPath(); g.moveTo(x0,base-10);
+        g.bezierCurveTo(x0+12,base-140,x0-14,base-270,x0+5,base-TREE.TRUNK+10); g.stroke(); }
+      // ── BRANCHES ──
+      g.strokeStyle='#2f5a58';
+      for(const [ex,ey,wd] of [[-250,-460,20],[240,-450,20],[-160,-530,14],[170,-540,14],[-310,-390,12],[310,-400,12],[0,-570,16]]){
+        g.lineWidth=wd; g.beginPath(); g.moveTo(cx,base-TREE.TRUNK+10);
+        g.quadraticCurveTo(cx+ex*0.4,base+ey*0.85,cx+ex,base+ey); g.stroke(); }
+      // ── CANOPY: teal-blue leaves lit warm-gold from within, diamond sparkle ──
       const blobs=[];
-      for(let i=0;i<90;i++){ const a=hash(i,11)*Math.PI*2, rr=Math.sqrt(hash(i,12));
-        blobs.push([cx+Math.cos(a)*rr*285, base-TREE.CY+Math.sin(a)*rr*120, 40+hash(i,13)*36, hash(i,14)]); }
+      for(let i=0;i<110;i++){ const a=hash(i,11)*Math.PI*2, rr=Math.sqrt(hash(i,12));
+        blobs.push([cx+Math.cos(a)*rr*300, base-TREE.CY+Math.sin(a)*rr*125, 38+hash(i,13)*38, hash(i,14)]); }
       blobs.sort((a,b)=>a[1]-b[1]);
+      // inner glow of the canopy
+      const cg=g.createRadialGradient(cx,base-TREE.CY,20,cx,base-TREE.CY,300);
+      cg.addColorStop(0,'rgba(255,224,160,0.35)'); cg.addColorStop(0.5,'rgba(120,230,200,0.18)'); cg.addColorStop(1,'rgba(40,120,110,0)');
+      g.fillStyle=cg; g.beginPath(); g.arc(cx,base-TREE.CY,300,0,Math.PI*2); g.fill();
       for(const [bx,by,br,t] of blobs){
+        const warm=t<0.42;
         const lg=g.createRadialGradient(bx-br*0.3,by-br*0.4,br*0.1,bx,by,br);
-        lg.addColorStop(0,t<0.5?'#5fe0b0':'#4ac8a0'); lg.addColorStop(0.7,'#1e7a62'); lg.addColorStop(1,'#0e4a3c');
+        if(warm){ lg.addColorStop(0,'#ffe6a8'); lg.addColorStop(0.45,'#e0a860'); lg.addColorStop(1,'#2a6a62'); }
+        else{ lg.addColorStop(0,'#7fe0d0'); lg.addColorStop(0.6,'#2a8a7e'); lg.addColorStop(1,'#0e4a4a'); }
         g.fillStyle=lg; g.beginPath(); g.arc(bx,by,br,0,Math.PI*2); g.fill();
       }
-      for(let i=0;i<260;i++){ const a=hash(i,21)*Math.PI*2, rr=Math.sqrt(hash(i,22));     // leaf glints
-        g.fillStyle=hash(i,23)<0.5?'rgba(170,255,220,0.7)':'rgba(90,220,170,0.6)';
-        g.fillRect(cx+Math.cos(a)*rr*300, base-TREE.CY+Math.sin(a)*rr*130, 2, 2); }
+      // diamond leaf glints — bright warm points across the crown
+      for(let i=0;i<420;i++){ const a=hash(i,21)*Math.PI*2, rr=Math.sqrt(hash(i,22));
+        const px=cx+Math.cos(a)*rr*315, py=base-TREE.CY+Math.sin(a)*rr*135;
+        const warm=hash(i,23)<0.55, sz=hash(i,24)<0.12?3:2;
+        g.fillStyle=warm?'rgba(255,236,170,0.9)':'rgba(150,255,225,0.75)';
+        g.fillRect(px,py,sz,sz);
+      }
+      // ── the DIAMOND at the root-heart: a bright faceted crystal where the
+      // roots meet, pouring light into the earth ──
+      const hy=base-8;
+      const dg=g.createRadialGradient(cx,hy-10,4,cx,hy-10,120);
+      dg.addColorStop(0,'rgba(220,255,250,0.9)'); dg.addColorStop(0.25,'rgba(120,255,220,0.5)'); dg.addColorStop(1,'rgba(60,200,180,0)');
+      g.fillStyle=dg; g.fillRect(cx-130,hy-130,260,150);
+      g.fillStyle='#d8fff4'; g.beginPath();
+      g.moveTo(cx,hy-34); g.lineTo(cx+18,hy-8); g.lineTo(cx,hy+16); g.lineTo(cx-18,hy-8); g.closePath(); g.fill();
+      g.fillStyle='rgba(255,255,255,0.95)'; g.beginPath();
+      g.moveTo(cx,hy-34); g.lineTo(cx+18,hy-8); g.lineTo(cx,hy-8); g.closePath(); g.fill();
+      g.strokeStyle='rgba(120,255,220,0.9)'; g.lineWidth=1.5; g.stroke();
       // stone ring at the roots
-      g.fillStyle='#3a322e'; g.beginPath(); g.ellipse(cx,base-6,190,16,0,0,Math.PI*2); g.fill();
-      g.fillStyle='#2a2422'; g.beginPath(); g.ellipse(cx,base-6,172,10,0,0,Math.PI*2); g.fill();
-      for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; g.fillStyle=i%2?'#4a403a':'#5a4e46'; g.fillRect(cx+Math.cos(a)*182-7,base-6+Math.sin(a)*13-5,14,9); }
+      g.fillStyle='rgba(28,52,50,0.7)'; g.beginPath(); g.ellipse(cx,base-6,200,14,0,0,Math.PI*2); g.fill();
     });
   }
   // hanging Knowl drops, sparkles, light shafts — the parts that move
@@ -437,13 +459,13 @@
     if(!treeImg) buildTree();
     const bx=d.x+T/2, by=d.y;                           // anchor = middle of the floor cell's top edge
     if(!inView(bx-TREE.W/2,by-TREE.H-60,TREE.W,TREE.H+80)) return;
-    // halo behind
-    glow(bx,by-TREE.CY+60,460,0.20+0.05*Math.sin(fr*0.02),'rgba(110,255,200,');
-    // light shafts from the canopy down to the roots
+    // halo behind — a bright, warm-cored diamond glow
+    glow(bx,by-TREE.CY+60,470,0.26+0.06*Math.sin(fr*0.02),'rgba(140,255,210,');
+    // soft vertical beams falling from the lit canopy (no flat horizontal bands)
     ctx.save(); ctx.globalCompositeOperation='lighter';
-    for(let i=0;i<5;i++){ const sxp=bx-200+i*100+Math.sin(fr*0.01+i)*20, a=0.05+0.03*Math.sin(fr*0.02+i*1.7);
-      const gg=ctx.createLinearGradient(0,Y(by-TREE.CY+80),0,Y(by)); gg.addColorStop(0,'rgba(140,255,210,'+a+')'); gg.addColorStop(1,'rgba(140,255,210,0)');
-      ctx.fillStyle=gg; ctx.beginPath(); ctx.moveTo(X(sxp-18),Y(by-TREE.CY+80)); ctx.lineTo(X(sxp+18),Y(by-TREE.CY+80)); ctx.lineTo(X(sxp+46),Y(by)); ctx.lineTo(X(sxp-46),Y(by)); ctx.fill(); }
+    for(let i=0;i<7;i++){ const sxp=bx-210+i*70+Math.sin(fr*0.01+i)*14, a=0.035+0.02*Math.sin(fr*0.02+i*1.7), wd=18+hash(i,51)*16;
+      const gg=ctx.createLinearGradient(0,Y(by-TREE.CY),0,Y(by+40)); gg.addColorStop(0,'rgba(255,224,160,'+a+')'); gg.addColorStop(0.5,'rgba(150,255,220,'+(a*0.6)+')'); gg.addColorStop(1,'rgba(120,255,210,0)');
+      ctx.fillStyle=gg; ctx.fillRect(X(sxp-wd/2),Y(by-TREE.CY),S(wd),S(TREE.CY+40)); }
     ctx.restore();
     const breath=1+0.008*Math.sin(fr*0.015);
     ctx.drawImage(treeImg, X(bx-TREE.W/2*breath), Y(by-TREE.H*breath), S(TREE.W*breath), S(TREE.H*breath));
@@ -460,6 +482,105 @@
       const t=((fr*0.004+hash(i,41))%1), x=bx+(hash(i,42)-0.5)*460+Math.sin(t*10+i)*14, y=by-10-t*560;
       ctx.fillStyle='rgba(160,255,220,'+(Math.sin(t*Math.PI)*0.85)+')'; ctx.fillRect(X(x),Y(y),S(2.5),S(2.5));
     }
+  }
+  // ── Root system + heart diamond. Drawn AFTER the solid tiles in world() so
+  // the roots visibly plunge DOWN into the earth instead of being buried by
+  // the dirt (or fanned sideways along the floor like the old baked roots).
+  function treeRoots(d){
+    const bx=d.x+T/2, by=d.y;
+    if(!inView(bx-320,by-40,640,300)) return;
+    const ph=fr*0.018;
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    // soft socket shadow where the trunk meets the ground
+    ctx.fillStyle='rgba(8,26,24,0.55)';
+    ctx.beginPath(); ctx.ellipse(X(bx),Y(by-3),S(70),S(10),0,0,Math.PI*2); ctx.fill();
+    // pooling light at the root heart
+    ctx.globalCompositeOperation='lighter';
+    const pg=ctx.createRadialGradient(X(bx),Y(by-4),0,X(bx),Y(by-4),S(150));
+    pg.addColorStop(0,'rgba(180,255,225,0.30)'); pg.addColorStop(0.4,'rgba(90,230,195,0.12)'); pg.addColorStop(1,'rgba(60,200,175,0)');
+    ctx.fillStyle=pg; ctx.fillRect(X(bx-150),Y(by-154),S(300),S(300));
+    ctx.globalCompositeOperation='source-over';
+    // deep roots: dark bark outline + luminous inner core, tapering downward
+    const N=14;
+    for(let i=0;i<N;i++){
+      const s=i/(N-1)*2-1;
+      const spread=55+hash(i,61)*165;
+      const depth=65+hash(i,62)*130;
+      const sway=Math.sin(ph+i*1.7)*5;
+      const x0=bx+s*24, y0=by-6;
+      const x1=bx+s*spread+sway, y1=by+depth;
+      const c1x=bx+s*spread*0.30, c1y=by+depth*0.20;
+      const c2x=bx+s*spread*0.78+sway*0.5, c2y=by+depth*0.72;
+      const path=()=>{ ctx.beginPath(); ctx.moveTo(X(x0),Y(y0));
+        ctx.bezierCurveTo(X(c1x),Y(c1y),X(c2x),Y(c2y),X(x1),Y(y1)); };
+      ctx.strokeStyle='rgba(7,26,24,0.85)'; ctx.lineWidth=S(10-Math.abs(s)*5); path(); ctx.stroke();
+      const core=0.62-0.22*Math.abs(s)+0.08*Math.sin(ph*1.4+i);
+      ctx.strokeStyle='rgba(120,255,220,'+core+')'; ctx.lineWidth=S(2.6-Math.abs(s)*1.1); path(); ctx.stroke();
+      // fine rootlets peeling off near the tip, driving deeper
+      const tx=x1+s*12, ty=y1+18+hash(i,63)*34;
+      ctx.strokeStyle='rgba(90,225,195,0.35)'; ctx.lineWidth=Math.max(1,S(1.2));
+      ctx.beginPath(); ctx.moveTo(X(x1),Y(y1));
+      ctx.quadraticCurveTo(X(x1+s*22),Y(y1+12),X(tx),Y(ty)); ctx.stroke();
+    }
+    // the heart diamond: bright faceted crystal at the base of the trunk
+    const dh=by-9, dx=S(17), dy=S(26), cx=X(bx), cy=Y(dh);
+    ctx.globalCompositeOperation='lighter';
+    const dg=ctx.createRadialGradient(cx,cy,0,cx,cy,S(78));
+    dg.addColorStop(0,'rgba(235,255,250,0.85)'); dg.addColorStop(0.28,'rgba(130,255,220,0.5)'); dg.addColorStop(1,'rgba(70,210,185,0)');
+    ctx.fillStyle=dg; ctx.fillRect(cx-S(78),cy-S(78),S(156),S(156));
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle='#e6fff7';
+    ctx.beginPath(); ctx.moveTo(cx,cy-dy); ctx.lineTo(cx+dx,cy); ctx.lineTo(cx,cy+dy); ctx.lineTo(cx-dx,cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.95)';
+    ctx.beginPath(); ctx.moveTo(cx,cy-dy); ctx.lineTo(cx+dx,cy); ctx.lineTo(cx,cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(90,220,195,0.75)';
+    ctx.beginPath(); ctx.moveTo(cx,cy+dy); ctx.lineTo(cx-dx,cy); ctx.lineTo(cx,cy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(200,255,238,0.95)'; ctx.lineWidth=Math.max(1,S(1.5));
+    ctx.beginPath(); ctx.moveTo(cx,cy-dy); ctx.lineTo(cx+dx,cy); ctx.lineTo(cx,cy+dy); ctx.lineTo(cx-dx,cy); ctx.closePath(); ctx.stroke();
+    // a few rising sparks around the heart
+    ctx.globalCompositeOperation='lighter';
+    for(let i=0;i<6;i++){
+      const t=(fr*0.01+hash(i,71))%1, sx=bx+(hash(i,72)-0.5)*150, sy=by-10-t*90;
+      ctx.fillStyle='rgba(200,255,225,'+(Math.sin(t*Math.PI)*0.8)+')';
+      ctx.fillRect(X(sx),Y(sy),S(2.5),S(2.5));
+    }
+    ctx.restore();
+  }
+  // A faint additive halo for the heart diamond, drawn AFTER the character so
+  // the crystal still reads while MIND is standing right on the roots.
+  let _heartHooked=false;
+  function treeHeartGlow(){
+    const B=window.MV_BETA; if(!B||!B.on) return;
+    Z=sw(1000)/1000;
+    for(const d of (B.decor||[])){
+      if(d.kind!=='tree') continue;
+      const bx=d.x+T/2, by=d.y;
+      if(!inView(bx-120,by-120,240,200)) continue;
+      const a=0.34+0.10*Math.sin(fr*0.05);
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const g=ctx.createRadialGradient(X(bx),Y(by-10),0,X(bx),Y(by-10),S(95));
+      g.addColorStop(0,'rgba(235,255,248,'+a+')'); g.addColorStop(0.4,'rgba(140,255,220,'+(a*0.5)+')'); g.addColorStop(1,'rgba(80,220,190,0)');
+      ctx.fillStyle=g; ctx.fillRect(X(bx-95),Y(by-105),S(190),S(190));
+      // a soft column of light climbing the trunk from the crystal
+      const bg=ctx.createLinearGradient(0,Y(by-230),0,Y(by-6));
+      bg.addColorStop(0,'rgba(255,230,170,0)'); bg.addColorStop(0.6,'rgba(180,255,225,'+(a*0.4)+')'); bg.addColorStop(1,'rgba(235,255,245,'+(a*0.6)+')');
+      ctx.fillStyle=bg; ctx.fillRect(X(bx-S(22)),Y(by-230),S(44),S(224));
+      const sp=S(12)+S(4)*Math.sin(fr*0.06);
+      ctx.fillStyle='rgba(245,255,252,0.9)';
+      ctx.fillRect(X(bx)-sp,Y(by-12)-S(1.5),sp*2,S(3));
+      ctx.fillRect(X(bx)-S(1.5),Y(by-12)-sp,S(3),sp*2);
+      ctx.restore();
+    }
+  }
+  function hookHeartGlow(){
+    if(_heartHooked) return;
+    if(typeof window.drawFgLampGlow!=='function'){ setTimeout(hookHeartGlow,50); return; }
+    const prev=window.drawFgLampGlow;
+    if(prev._heartGlow){ _heartHooked=true; return; }
+    const wrapped=function(){ const r=prev.apply(this,arguments); try{ treeHeartGlow(); }catch(e){} return r; };
+    wrapped._heartGlow=true;
+    window.drawFgLampGlow=wrapped;
+    _heartHooked=true;
   }
   function teardrop(x,y,r,fill,edge){
     ctx.fillStyle=fill; ctx.strokeStyle=edge; ctx.lineWidth=S(1.2);
@@ -1017,6 +1138,9 @@
       blit(depth>1?dirtDeep((c*5+r*3)&7,depth):tex.dirt[(c*5+r*3)&7],c,r);
       if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
     }
+    // the tree's roots must cross the dirt, so draw them now — after the
+    // ground tiles, before entities (the canopy/trunk were drawn earlier)
+    for(const d of B.decor) if(d.kind==='tree') treeRoots(d);
     edges(B,cells,r0,r1,c0,c1);
     if(window.MV_CITY) MV_CITY.over(B);
     if(window.MV_DOORS&&MV_DOORS.over) try{ MV_DOORS.over(B); }catch(e){}   // 1.1: doors, trap doors, the attic, the tree's glow (beta_doors.js)
@@ -1069,4 +1193,5 @@
   function solidTex(c,r,s){ if(s>=7&&window.MV_CITY){ const im=MV_CITY.img(c,r,s,false); if(im) return im; }
     return s===1?tex.roof:s===2?tex.brick[r&1]:s===3?tex.wood:s===6?tex.scales:tex.dirt[(c*5+r*3)&7]; }
   window.MV_BETA_DECOR={P, world, solidTex, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
+  hookHeartGlow();
 })();
