@@ -449,33 +449,28 @@
       g.fillStyle='rgba(255,255,255,0.95)'; g.beginPath();
       g.moveTo(cx,hy-34); g.lineTo(cx+18,hy-8); g.lineTo(cx,hy-8); g.closePath(); g.fill();
       g.strokeStyle='rgba(120,255,220,0.9)'; g.lineWidth=1.5; g.stroke();
-      // stone ring at the roots
-      g.fillStyle='rgba(28,52,50,0.7)'; g.beginPath(); g.ellipse(cx,base-6,200,14,0,0,Math.PI*2); g.fill();
+      // solid stone footing at the roots — a grounded base, not thin strings
+      g.fillStyle='#1c2a2a'; g.beginPath(); g.ellipse(cx,base-6,205,18,0,0,Math.PI*2); g.fill();
+      g.fillStyle='#2f4644'; g.beginPath(); g.ellipse(cx,base-8,188,13,0,0,Math.PI*2); g.fill();
+      for(let i=0;i<18;i++){ const a=i/18*Math.PI*2;
+        g.fillStyle=i%2?'#3f5a56':'#4e6b64';
+        g.beginPath(); g.ellipse(cx+Math.cos(a)*192,base-6+Math.sin(a)*13,10,6,0,0,Math.PI*2); g.fill(); }
     });
   }
-  // hanging Knowl drops, sparkles, light shafts — the parts that move
-  const DROPS=[]; for(let i=0;i<34;i++){ const a=hash(i,31)*Math.PI*2, rr=0.35+Math.sqrt(hash(i,32))*0.65; DROPS.push({ox:Math.cos(a)*rr*270, oy:-TREE.CY+Math.sin(a)*rr*100+80, len:14+hash(i,33)*30, ph:hash(i,34)*6.28}); }
+  // the Knowl tree is drawn solid and still — no hanging drops, no light shafts.
   function knowlTree(d){
     if(!treeImg) buildTree();
     const bx=d.x+T/2, by=d.y;                           // anchor = middle of the floor cell's top edge
     if(!inView(bx-TREE.W/2,by-TREE.H-60,TREE.W,TREE.H+80)) return;
-    // halo behind — a bright, warm-cored diamond glow
-    glow(bx,by-TREE.CY+60,470,0.26+0.06*Math.sin(fr*0.02),'rgba(140,255,210,');
-    // soft vertical beams falling from the lit canopy (no flat horizontal bands)
-    ctx.save(); ctx.globalCompositeOperation='lighter';
-    for(let i=0;i<7;i++){ const sxp=bx-210+i*70+Math.sin(fr*0.01+i)*14, a=0.035+0.02*Math.sin(fr*0.02+i*1.7), wd=18+hash(i,51)*16;
-      const gg=ctx.createLinearGradient(0,Y(by-TREE.CY),0,Y(by+40)); gg.addColorStop(0,'rgba(255,224,160,'+a+')'); gg.addColorStop(0.5,'rgba(150,255,220,'+(a*0.6)+')'); gg.addColorStop(1,'rgba(120,255,210,0)');
-      ctx.fillStyle=gg; ctx.fillRect(X(sxp-wd/2),Y(by-TREE.CY),S(wd),S(TREE.CY+40)); }
-    ctx.restore();
-    const breath=1+0.008*Math.sin(fr*0.015);
-    ctx.drawImage(treeImg, X(bx-TREE.W/2*breath), Y(by-TREE.H*breath), S(TREE.W*breath), S(TREE.H*breath));
-    // glowing drops hanging from the canopy, swinging gently
-    for(const dr of DROPS){
-      const sway=Math.sin(fr*0.02+dr.ph)*4, x=bx+dr.ox+sway, top=by+dr.oy, y=top+dr.len;
-      ctx.strokeStyle='rgba(60,140,110,0.8)'; ctx.lineWidth=S(1); ctx.beginPath(); ctx.moveTo(X(bx+dr.ox),Y(top)); ctx.lineTo(X(x),Y(y)); ctx.stroke();
-      const pulse=0.6+0.4*Math.sin(fr*0.05+dr.ph);
-      glow(x,y,14,0.35*pulse,'rgba(120,255,210,');
-      teardrop(x,y+4,4.5,'#9affe0','#2aa884');
+    // halo behind — a soft, steady glow. No light shafts: the tree reads as solid.
+    glow(bx,by-TREE.CY+60,450,0.24,'rgba(140,255,210,');
+    ctx.drawImage(treeImg, X(bx-TREE.W/2), Y(by-TREE.H), S(TREE.W), S(TREE.H));
+    // (hanging drops removed — they read as strings in the air)
+    // a few steady leaf sparkles in the canopy keep the tree quietly alive
+    for(let i=0;i<10;i++){
+      const a=hash(i,81)*Math.PI*2, rr=Math.sqrt(hash(i,82));
+      const x=bx+Math.cos(a)*rr*260, y=by-TREE.CY+Math.sin(a)*rr*110;
+      glow(x,y,11,0.18,'rgba(150,255,220,');
     }
     // knowl motes rising
     for(let i=0;i<24;i++){
@@ -483,45 +478,24 @@
       ctx.fillStyle='rgba(160,255,220,'+(Math.sin(t*Math.PI)*0.85)+')'; ctx.fillRect(X(x),Y(y),S(2.5),S(2.5));
     }
   }
-  // ── Root system + heart diamond. Drawn AFTER the solid tiles in world() so
-  // the roots visibly plunge DOWN into the earth instead of being buried by
-  // the dirt (or fanned sideways along the floor like the old baked roots).
+  // ── Solid root footing + heart diamond. Drawn AFTER the tiles so the base
+  // sits in the earth. No thin glowing strings: the tree stands on a broad,
+  // still stone-and-bark footing that reads as solid and stable.
   function treeRoots(d){
     const bx=d.x+T/2, by=d.y;
     if(!inView(bx-320,by-40,640,300)) return;
-    const ph=fr*0.018;
-    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-    // soft socket shadow where the trunk meets the ground
+    ctx.save();
+    // broad solid footing where the trunk meets the ground
     ctx.fillStyle='rgba(8,26,24,0.55)';
-    ctx.beginPath(); ctx.ellipse(X(bx),Y(by-3),S(70),S(10),0,0,Math.PI*2); ctx.fill();
-    // pooling light at the root heart
+    ctx.beginPath(); ctx.ellipse(X(bx),Y(by-3),S(90),S(13),0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#243b39';
+    ctx.beginPath(); ctx.ellipse(X(bx),Y(by-4),S(78),S(10),0,0,Math.PI*2); ctx.fill();
+    // soft pooling light at the root heart (steady, no flicker)
     ctx.globalCompositeOperation='lighter';
-    const pg=ctx.createRadialGradient(X(bx),Y(by-4),0,X(bx),Y(by-4),S(150));
-    pg.addColorStop(0,'rgba(180,255,225,0.30)'); pg.addColorStop(0.4,'rgba(90,230,195,0.12)'); pg.addColorStop(1,'rgba(60,200,175,0)');
-    ctx.fillStyle=pg; ctx.fillRect(X(bx-150),Y(by-154),S(300),S(300));
+    const pg=ctx.createRadialGradient(X(bx),Y(by-4),0,X(bx),Y(by-4),S(120));
+    pg.addColorStop(0,'rgba(180,255,225,0.22)'); pg.addColorStop(0.4,'rgba(90,230,195,0.09)'); pg.addColorStop(1,'rgba(60,200,175,0)');
+    ctx.fillStyle=pg; ctx.fillRect(X(bx-120),Y(by-124),S(240),S(240));
     ctx.globalCompositeOperation='source-over';
-    // deep roots: dark bark outline + luminous inner core, tapering downward
-    const N=14;
-    for(let i=0;i<N;i++){
-      const s=i/(N-1)*2-1;
-      const spread=55+hash(i,61)*165;
-      const depth=65+hash(i,62)*130;
-      const sway=Math.sin(ph+i*1.7)*5;
-      const x0=bx+s*24, y0=by-6;
-      const x1=bx+s*spread+sway, y1=by+depth;
-      const c1x=bx+s*spread*0.30, c1y=by+depth*0.20;
-      const c2x=bx+s*spread*0.78+sway*0.5, c2y=by+depth*0.72;
-      const path=()=>{ ctx.beginPath(); ctx.moveTo(X(x0),Y(y0));
-        ctx.bezierCurveTo(X(c1x),Y(c1y),X(c2x),Y(c2y),X(x1),Y(y1)); };
-      ctx.strokeStyle='rgba(7,26,24,0.85)'; ctx.lineWidth=S(10-Math.abs(s)*5); path(); ctx.stroke();
-      const core=0.62-0.22*Math.abs(s)+0.08*Math.sin(ph*1.4+i);
-      ctx.strokeStyle='rgba(120,255,220,'+core+')'; ctx.lineWidth=S(2.6-Math.abs(s)*1.1); path(); ctx.stroke();
-      // fine rootlets peeling off near the tip, driving deeper
-      const tx=x1+s*12, ty=y1+18+hash(i,63)*34;
-      ctx.strokeStyle='rgba(90,225,195,0.35)'; ctx.lineWidth=Math.max(1,S(1.2));
-      ctx.beginPath(); ctx.moveTo(X(x1),Y(y1));
-      ctx.quadraticCurveTo(X(x1+s*22),Y(y1+12),X(tx),Y(ty)); ctx.stroke();
-    }
     // the heart diamond: bright faceted crystal at the base of the trunk
     const dh=by-9, dx=S(17), dy=S(26), cx=X(bx), cy=Y(dh);
     ctx.globalCompositeOperation='lighter';
@@ -537,13 +511,6 @@
     ctx.beginPath(); ctx.moveTo(cx,cy+dy); ctx.lineTo(cx-dx,cy); ctx.lineTo(cx,cy); ctx.closePath(); ctx.fill();
     ctx.strokeStyle='rgba(200,255,238,0.95)'; ctx.lineWidth=Math.max(1,S(1.5));
     ctx.beginPath(); ctx.moveTo(cx,cy-dy); ctx.lineTo(cx+dx,cy); ctx.lineTo(cx,cy+dy); ctx.lineTo(cx-dx,cy); ctx.closePath(); ctx.stroke();
-    // a few rising sparks around the heart
-    ctx.globalCompositeOperation='lighter';
-    for(let i=0;i<6;i++){
-      const t=(fr*0.01+hash(i,71))%1, sx=bx+(hash(i,72)-0.5)*150, sy=by-10-t*90;
-      ctx.fillStyle='rgba(200,255,225,'+(Math.sin(t*Math.PI)*0.8)+')';
-      ctx.fillRect(X(sx),Y(sy),S(2.5),S(2.5));
-    }
     ctx.restore();
   }
   // A faint additive halo for the heart diamond, drawn AFTER the character so
@@ -556,16 +523,14 @@
       if(d.kind!=='tree') continue;
       const bx=d.x+T/2, by=d.y;
       if(!inView(bx-120,by-120,240,200)) continue;
-      const a=0.34+0.10*Math.sin(fr*0.05);
+      // steady halo — no vertical light column, no pulse
+      const a=0.34;
       ctx.save(); ctx.globalCompositeOperation='lighter';
       const g=ctx.createRadialGradient(X(bx),Y(by-10),0,X(bx),Y(by-10),S(95));
       g.addColorStop(0,'rgba(235,255,248,'+a+')'); g.addColorStop(0.4,'rgba(140,255,220,'+(a*0.5)+')'); g.addColorStop(1,'rgba(80,220,190,0)');
       ctx.fillStyle=g; ctx.fillRect(X(bx-95),Y(by-105),S(190),S(190));
-      // a soft column of light climbing the trunk from the crystal
-      const bg=ctx.createLinearGradient(0,Y(by-230),0,Y(by-6));
-      bg.addColorStop(0,'rgba(255,230,170,0)'); bg.addColorStop(0.6,'rgba(180,255,225,'+(a*0.4)+')'); bg.addColorStop(1,'rgba(235,255,245,'+(a*0.6)+')');
-      ctx.fillStyle=bg; ctx.fillRect(X(bx-S(22)),Y(by-230),S(44),S(224));
-      const sp=S(12)+S(4)*Math.sin(fr*0.06);
+      // a small steady sparkle at the crystal
+      const sp=S(12);
       ctx.fillStyle='rgba(245,255,252,0.9)';
       ctx.fillRect(X(bx)-sp,Y(by-12)-S(1.5),sp*2,S(3));
       ctx.fillRect(X(bx)-S(1.5),Y(by-12)-sp,S(3),sp*2);
