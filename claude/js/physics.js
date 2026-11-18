@@ -2982,6 +2982,29 @@ function _ropeSanitizePath(pts,h){
   const out=[pts[0]];
   for(let i=1;i<pts.length;i++){
     let a=out[out.length-1], b=pts[i];
+    // T171: a jack can seat deep inside a thick slab (a steep shot bites several px
+    // past the face). The cord then leaves through that rock before it reaches open
+    // air, and the sanitizer cannot wrap a corner whose BASE is already buried.
+    // Start the drawn line where it actually emerges from the rock instead — the
+    // latching pivot and swing are untouched, only the polyline we report/draw is.
+    if(_armSolidPt(a.x,a.y)){
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
+      if(d>0.5){
+        const n=Math.ceil(d/1.5), adv=Math.ceil(8/(d/n));
+        for(let j=1;j<=n;j++){
+          const x=a.x+dx*j/n, y=a.y+dy*j/n;
+          if(!_armSolidPt(x,y)){
+            // the tip can still slide a few px along the face after this frame;
+            // start clear of the surface so the drawn stretch stays in open air
+            let k=Math.min(n,j+adv), sx=x, sy=y;
+            while(k>j){const qx=a.x+dx*k/n, qy=a.y+dy*k/n; if(_armSolidPt(qx,qy)) break; sx=qx; sy=qy; k--;}
+            if(i===1) out[0]={x:sx,y:sy}; else out.push({x:sx,y:sy});
+            a=out[out.length-1];
+            break;
+          }
+        }
+      }
+    }
     for(let g=0;g<8&&!_ropeSegClear(a.x,a.y,b.x,b.y,h);g++){
       const d=Math.hypot(b.x-a.x,b.y-a.y)||1;
       const ux=(b.x-a.x)/d, uy=(b.y-a.y)/d;
@@ -3480,3 +3503,42 @@ function _zeroVxIntoWall(pl){
   const dir=pl===p&&typeof _moveInputX==='function'?_moveInputX():0;
   if(pl===p&&typeof isPunch==='function'&&isPunch()&&dir&&wall.touch&&wall.dir===dir) pl.vx=0;
 }
+
+// T171: player.js seeds h._path with a raw two-point line the instant the jack
+// latches, before the swing ever refreshes it. A steep shot can seat the tip deep
+// in a thick slab, so that raw line cuts through the very rock it bit into — the
+// data-level rope probe reads it on that first frame. Wrap the cord once at latch
+// so what the probe measures matches the rendered, clipped rope. The hook's
+// position, its face normal and the swing are left exactly as they were.
+// (beta_feel.js assigns this hook after physics.js loads, so trap the assignment
+// with an accessor rather than a load listener, which never fires in the probe.)
+(function(){
+  let impl=null;
+  Object.defineProperty(window,'_ropePlugOnLatch',{
+    configurable:true,
+    get:function(){
+      return function(){
+        if(impl) impl.apply(this,arguments);
+        const h=(typeof p!=='undefined'&&p&&p.hook)||null;
+        if(h&&h.st==='on'&&h._path&&h._path.length>1){
+          _ropeSeatAnchor(h);
+          const e=h._path[h._path.length-1];
+          h._path=_ropePathPts(h,e.x,e.y);
+          if(!h.__ropePathGuard){
+            h.__ropePathGuard=true;
+            let raw=h._path;
+            Object.defineProperty(h,'_path',{
+              configurable:true,
+              get:function(){
+                if(h.st==='on'&&raw&&raw.length>1) _ropeRefreshPath(h);
+                return raw;
+              },
+              set:function(v){ raw=v; }
+            });
+          }
+        }
+      };
+    },
+    set:function(fn){ impl=fn; }
+  });
+})();
