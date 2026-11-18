@@ -163,15 +163,16 @@
     xlr_push(a){ hiss(a,{f:500,f1:2200,q:0.8,d:0.32,v:0.2,rev:0.2}); tone(a,{f:110,f1:45,d:0.28,v:0.2}); },
     mag(a){ tone(a,{f:220,f1:330,d:0.3,v:0.08,type:'triangle',vib:9,vibd:20}); tone(a,{f:330,f1:495,d:0.3,v:0.05,vib:7,vibd:16}); bell(a,{f:900,ratio:2.76,index:2,d:0.2,v:0.04}); },
     ping(a){ bell(a,{f:N(88),ratio:3.5,index:1.8,d:0.7,v:0.1}); },
-    knowl_pickup(a){ [N(84),N(88),N(91),N(96)].forEach((f,i)=>bell(a,{f,dt:i*0.055,ratio:3.0,index:1.4,d:0.8,v:0.08,rev:0.6})); tone(a,{f:N(72),d:0.6,v:0.05,rev:0.4}); },
+    // Paulo (Nov 18): knowl crystals & seeds one OCTAVE lower — N(n-12) = half the frequency.
+    knowl_pickup(a){ [N(72),N(76),N(79),N(84)].forEach((f,i)=>bell(a,{f,dt:i*0.055,ratio:3.0,index:1.4,d:0.8,v:0.08,rev:0.6})); tone(a,{f:N(60),d:0.6,v:0.05,rev:0.4}); },
     knowl_seed(a,p){
-      const k=typeof p==='number'?p:2;
-      const notes=[N(84),N(88),N(91),N(96)];
+      const k=(typeof p==='number'?p:2)*0.5;           // octave lower (was the pitch multiplier)
+      const notes=[N(72),N(76),N(79),N(84)];
       const tap=(dt,v)=>notes.forEach((f,i)=>bell(a,{f:f*k,dt:dt+i*0.055,ratio:3.0,index:1.4,d:0.7,v,rev:0.55}));
       const q=0.9;                                    // Paulo (Oct 21): seeds 10% quieter
       tap(0,0.08*q); tap(0.18,0.045*q); tap(0.36,0.024*q); tap(0.54,0.012*q);
-      tone(a,{f:N(72)*k,d:0.55,v:0.05*q,rev:0.45});
-      tone(a,{f:N(72)*k,dt:0.18,d:0.4,v:0.028*q,rev:0.5});
+      tone(a,{f:N(60)*k,d:0.55,v:0.05*q,rev:0.45});
+      tone(a,{f:N(60)*k,dt:0.18,d:0.4,v:0.028*q,rev:0.5});
     },
     frag_fire(a){
       hiss(a,{f:380,f1:2400,q:0.7,d:0.42,v:0.22,rev:0.28});
@@ -196,7 +197,7 @@
     },
     // Knowl crystal (Paulo, Oct 21): bright and glassy — a fast shimmering run up, a high ting
     // and an airy sparkle tail; it climbs with each crystal like the seeds do
-    crystal_pickup(a,p){ p=p||1;
+    crystal_pickup(a,p){ p=(p||1)*0.5;                 // octave lower
       [N(88),N(91),N(95),N(100),N(103)].forEach((f,i)=>bell(a,{f:f*p,dt:i*0.035,ratio:3.99,index:1.1,d:1.1,v:0.075,rev:0.7}));
       bell(a,{f:N(108)*p,dt:0.18,ratio:2.0,index:0.8,d:1.4,v:0.06,rev:0.8});
       for(const det of [-7,7]) tone(a,{f:N(79)*p,dt:0.05,d:1.2,v:0.035,type:'triangle',det,at:0.05,rev:0.6});

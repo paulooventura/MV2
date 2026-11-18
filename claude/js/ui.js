@@ -133,8 +133,8 @@ function _goreFeed(dir){
 }
 function _filterName(){
   const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
-  if(m==='md') return 'B  MEGA DRIVE';
-  if(m==='snes') return 'A  SNES';
+  if(m==='md') return 'B';
+  if(m==='snes') return 'A';
   if(m==='ink') return 'D  INK & VINYL';
   if(m==='gore') return 'GORE';
   return 'NONE';
@@ -1035,8 +1035,17 @@ let _titleT=0, _logoHalfW=0;
   // Idle >15 s on the title -> a slideshow of clean, full-screen gameplay
   // screenshots. One still at a time, fully opaque; any button returns to the
   // title (the first press only dismisses — it cannot activate a menu item).
-  const TITLE_SLIDES=['slide-1.png','slide-2.png','slide-3.png','slide-4.png','slide-5.png']
-    .map(n=>{const im=new Image(); im.src='assets/previews/'+n; return im;});
+  // Paulo (Nov 18): slides are real gameplay FOOTAGE with crossfades. Images stay as fallback.
+  let _svIdx=0;
+  const SLIDE_VIDEOS=['clip1-lasers','clip2-crystals','clip3-filter','clip4-gramophone','clip5-srank']
+    .map(n=>{
+      const v=document.createElement('video');
+      v.src='assets/previews/'+n+'.webm'; v.muted=true; v.loop=true;
+      v.playsInline=true; v.preload='auto'; v.setAttribute('playsinline','');
+      const im=new Image(); im.src='assets/previews/slide-'+(++_svIdx)+'.png';
+      return {v, im, n};
+    });
+  const TITLE_SLIDES=SLIDE_VIDEOS.map(o=>o.im);   // fallback images
   const SLIDE_FADE_FR=18;
   let _slideFade=0;
   function _titleSlideInput(){
@@ -1044,21 +1053,49 @@ let _titleT=0, _logoHalfW=0;
     if(_titleT>900){ _slideFade=SLIDE_FADE_FR; return true; }
     return false;
   }
+  let _videosStarted=false, _activeVideo=-1;
+  function _slideFrame(o){                                        // a video frame if ready, else the fallback still
+    const v=o.v;
+    if(v.readyState>=2 && v.videoWidth>1) return v;
+    return (o.im.complete&&o.im.naturalWidth>1)?o.im:null;
+  }
   function drawTitleSlides(){
     const fading=_slideFade>0;
-    if(!fading&&_titleT<=900) return false;
-    const imgs=TITLE_SLIDES.filter(im=>im.complete&&im.naturalWidth>1);
-    if(!imgs.length){ _slideFade=0; _titleT=0; return false; }
+    if(!fading&&_titleT<=900){ if(_activeVideo>=0){ try{SLIDE_VIDEOS[_activeVideo].v.pause();}catch(e){} _activeVideo=-1; } return false; }
+    const ready=SLIDE_VIDEOS.filter(_slideFrame);
+    if(!ready.length){ _slideFade=0; _titleT=0; return false; }
     const t=Math.max(0,_titleT-900), per=420;
-    const idx=Math.floor(t/per)%imgs.length;
-    const im=imgs[idx];
-    const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
-    const x=(W-w)/2, y=(H-h)/2;
+    const FADE=Math.min(70,Math.floor(per*0.28));
+    const idx=Math.floor(t/per)%ready.length;
+    const pos=t%per;
+    const globalA=fading?_slideFade/SLIDE_FADE_FR:1;
+    // play only the active video (and the one we're crossfading to); pause the rest
+    const want=new Set([ready[idx], ready[(idx-1+ready.length)%ready.length], ready[(idx+1)%ready.length]]);
+    if(!_videosStarted){ want.add(ready[idx]); _videosStarted=true; }
+    ready.forEach(o=>{ const v=o.v; if(!v.src) return;
+      if(want.has(o)){ if(v.paused){ const pr=v.play(); if(pr&&pr.catch) pr.catch(()=>{}); } }
+      else if(!v.paused){ try{v.pause();}catch(e){} }
+    });
+    const drawFit=(o,a)=>{
+      const im=_slideFrame(o); if(!im||a<=0) return;
+      const iw=im.videoWidth||im.naturalWidth, ih=im.videoHeight||im.naturalHeight;
+      const s=Math.max(W/iw,H/ih), w=iw*s, h=ih*s;
+      const x=(W-w)/2, y=(H-h)/2;
+      ctx.globalAlpha=globalA*a;
+      ctx.drawImage(im,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
+    };
     ctx.save();
-    ctx.globalAlpha=fading?_slideFade/SLIDE_FADE_FR:1;   // fully opaque while showing
-    ctx.drawImage(im,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
+    if(pos<FADE){
+      const prev=ready[(idx-1+ready.length)%ready.length], k=pos/FADE, e=k*k*(3-2*k);
+      drawFit(prev,1-e); drawFit(ready[idx],e);
+    } else if(pos>per-FADE){
+      const next=ready[(idx+1)%ready.length], k=(pos-(per-FADE))/FADE, e=k*k*(3-2*k);
+      drawFit(ready[idx],1-e); drawFit(next,e);
+    } else {
+      drawFit(ready[idx],1);
+    }
     ctx.restore();
-    if(fading&&--_slideFade<=0) _titleT=0;
+    if(fading&&--_slideFade<=0){ _titleT=0; ready.forEach(o=>{try{o.v.pause();}catch(e){}}); _videosStarted=false; }
     return true;
   }
 
