@@ -57,6 +57,27 @@
     }
   }
 
+  // Paulo (Nov 18): the omni blocks capping the XLR chest in 1.1's first house
+  // are gone — the chest just sits on the floor now. The level is fetched from
+  // a generated .ldtk, so drop them here as a local override (the asset is
+  // untouched). Only the omni cubes touching the XLR item's cell go; every
+  // other block in the stage stays exactly where it is.
+  function dropXlrChestCovers(raw, id){
+    if(id!=='1.1') return;
+    for(const lv of raw.levels||[]){
+      const L=(lv.layerInstances||[]).find(l=>l.__identifier==='Entities');
+      if(!L||!L.entityInstances) continue;
+      const ents=L.entityInstances;
+      const xlr=ents.find(e=>e.__identifier==='Item'&&F(e,'item')==='XLR');
+      if(!xlr||!xlr.__grid) continue;
+      const c=xlr.__grid[0], r=xlr.__grid[1];
+      L.entityInstances=ents.filter(e=>{
+        if(e.__identifier!=='Box'||(F(e,'kind')||'omni')!=='omni'||!e.__grid) return true;
+        return Math.max(Math.abs(e.__grid[0]-c), Math.abs(e.__grid[1]-r))>1;   // keep anything not touching the chest
+      });
+    }
+  }
+
   const LOAD_FADE=22;
   async function startBetaLab(id, carryMask, opts){
     opts=opts||{};
@@ -77,6 +98,7 @@
     const tier=revisitTier(id);
     const raw=applyTiers(raw0, tier);                  // revisit layers: new areas, echo crystals
     dropGone(raw, id);
+    dropXlrChestCovers(raw, id);                       // 1.1: uncover the XLR chest (local override)
     const level=await parseLdtkProject(raw, PATH);   // Collision grid + seeds (Knowl) via lab F
     if(gen!==B.loadGen) return;
     B.tier=tier; B.progress=Math.max(B.progress||0, ORDER.indexOf(id));

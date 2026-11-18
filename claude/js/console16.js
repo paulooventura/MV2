@@ -22,8 +22,8 @@
 //
 //  C · POSH (mode 'off'): none of the console treatment — full resolution,
 //  full colour, smooth, clean sound. A fresh game starts in Ink & Vinyl
-//  instead; A and B are the nostalgia switches. Picking POSH turns the CRT
-//  off, picking A or B from POSH turns it on (the TV can still be flipped).
+//  instead; A and B are the nostalgia switches. The CRT TV is independent:
+//  switching filters never turns it on or off — that's its own button/control.
 //
 //  Mode: Options menu (FILTER). Storage key stays mv2.console.
 //  GORE is hidden until the options code unlocks it (mv2.gore).
@@ -46,9 +46,9 @@
   const api={
     get mode(){ return mode; },
     get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
-    set(m){ if(m==='gore'&&!goreOn()) return; if(!(MODES[m]||plain(m))||m===mode) return; const was=mode; mode=m;
+    set(m){ if(m==='gore'&&!goreOn()) return; if(!(MODES[m]||plain(m))||m===mode) return; mode=m;
       try{ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(m); }catch(e){}   // T547: GORE = -33, I&V = +33
-      try{ if(window.MV_TV){ if(plain(m)) MV_TV.on=false; else if(plain(was)) MV_TV.on=true; } }catch(e){} try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
+      try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
     cycle(dir){ const L=['off','snes','md','ink']; if(goreOn()) L.push('gore'); const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
