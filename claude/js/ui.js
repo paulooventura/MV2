@@ -352,11 +352,9 @@ function _drawUiToast(){
 function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
-    // Couch co-op: pick the party here, before the story / timeline.
-    {label:'LOCAL PLAY', activate:()=>openPartySetup()},
-    // Paulo (Oct 22): Creative Mode is on the menu, locked until the Alpha.
+    // Paulo (Nov 18): LOCAL PLAY / CREATIVE MODE are gone from the title. Co-op is
+    // picked from the character-select screen's BROTHER row instead.
     // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
-    {label:'CREATIVE MODE', locked:true, note:'OPENS IN ALPHA', activate:()=>{}},
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
     {label:'TEST MODE', activate:()=>openTestMode()},
   ];
@@ -1099,6 +1097,83 @@ let _titleT=0, _logoHalfW=0;
   const TITLE_SLIDES=SLIDE_VIDEOS.map(o=>o.im);   // fallback images
   const SLIDE_FADE_FR=18;
   let _slideFade=0;
+
+  // ── Title cadence (Paulo, Nov 18) ────────────────────────────────────────
+  // ONE shared pulse: the dance lane's BPM-locked clock (MV_BETA_AUDIO.danceClock /
+  // .beat) is authoritative. It may not exist yet while the audio lane is loading,
+  // so a free-running frame phase is only a graceful fallback — never a second
+  // soundtrack or an independent tempo. Visual only: no input, no gameplay, no audio.
+  let _uiCalm=-1;
+  function _uiReduced(){
+    if(_uiCalm<0){ try{ _uiCalm=(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)?1:0; }catch(e){ _uiCalm=0; } }
+    return _uiCalm;
+  }
+  function _uiCadence(){
+    let b=null;
+    const AU=window.MV_BETA_AUDIO;
+    if(AU&&AU.danceClock){ try{ b=AU.danceClock(); }catch(e){} }
+    let ph;
+    if(b&&isFinite(b.phase)) ph=b.phase;
+    else ph=((typeof fr==='number'?fr:0)*112/3600)*Math.PI*2;   // locked-less fallback
+    const env=_uiReduced()?0.35:Math.pow(Math.max(0,Math.cos(ph)),4); // 0..1, peaks on the beat
+    return {ph:ph, env:env, locked:!!(b&&b.locked)};
+  }
+  // A soft washi vignette throb + a few colored-pencil sparks over a slide.
+  function _titleCadenceFx(k){
+    const c=_uiCadence(), e=c.env;
+    ctx.save();
+    const g=ctx.createRadialGradient(W/2,H*0.46,H*0.24,W/2,H*0.46,H*0.78);
+    g.addColorStop(0,'rgba(6,20,10,0)');
+    g.addColorStop(1,'rgba(4,12,7,'+(0.18+0.16*e*k).toFixed(3)+')');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const lg=ctx.createLinearGradient(0,H*0.88,0,H);
+    lg.addColorStop(0,'rgba(150,240,140,0)');
+    lg.addColorStop(1,'rgba(150,240,140,'+(0.05+0.11*e*k).toFixed(3)+')');
+    ctx.fillStyle=lg; ctx.fillRect(0,H*0.88,W,H*0.12);
+    ctx.globalCompositeOperation='lighter';
+    const pts=[[W*0.17,H*0.23],[W*0.82,H*0.30],[W*0.71,H*0.72],[W*0.27,H*0.66]];
+    for(let i=0;i<pts.length;i++){
+      const e2=_uiReduced()?0.35:Math.pow(Math.max(0,Math.cos(c.ph-i*0.7)),6);
+      const a=(0.08+0.42*e2)*k;
+      if(a>0.02) uiSparkle(pts[i][0],pts[i][1],3+5*e2,i%2?'#ffe39a':'#c6ff9a',a);
+    }
+    ctx.restore();
+  }
+
+  // Screen-recorded clips carry baked-in black letterbox bands (clips 1-3 have a
+  // ~142px pure-black strip along the top). Fitting the padded frame leaves the
+  // footage sitting low, with a black bar above it. Detect the solid edge bands
+  // once per source, then fit the *content* rect so it truly fills the canvas.
+  const _slideCrop=new WeakMap();
+  function _slideContentRect(im){
+    const iw=im.videoWidth||im.naturalWidth, ih=im.videoHeight||im.naturalHeight;
+    const full={sx:0,sy:0,sw:iw,sh:ih};
+    if(!(iw>1&&ih>1)) return full;
+    const cached=_slideCrop.get(im); if(cached) return cached;
+    let r=full;
+    try{
+      const sw=64, sh=Math.max(8,Math.round(sw*ih/iw));
+      const cn=document.createElement('canvas'); cn.width=sw; cn.height=sh;
+      const g=cn.getContext('2d',{willReadFrequently:true}); g.imageSmoothingEnabled=false;
+      g.drawImage(im,0,0,sw,sh);
+      const d=g.getImageData(0,0,sw,sh).data;
+      const dark=(x,y)=>{const i=(y*sw+x)*4;return d[i]<14&&d[i+1]<14&&d[i+2]<14;};
+      const rowD=y=>{let n=0;for(let x=0;x<sw;x++)if(dark(x,y))n++;return n/sw;};
+      const colD=x=>{let n=0;for(let y=0;y<sh;y++)if(dark(x,y))n++;return n/sh;};
+      const lim=Math.floor(Math.max(sw,sh)*0.30);   // never trim more than 30% of an edge
+      let top=0,bot=0,left=0,right=0;
+      while(top<lim&&rowD(top)>0.97) top++;
+      while(bot<lim&&rowD(sh-1-bot)>0.97) bot++;
+      while(left<lim&&colD(left)>0.97) left++;
+      while(right<lim&&colD(sw-1-right)>0.97) right++;
+      if(top>=lim) top=0; if(bot>=lim) bot=0;       // an all-dark frame is not padding
+      if(left>=lim) left=0; if(right>=lim) right=0;
+      if(top<2) top=0; if(bot<2) bot=0; if(left<2) left=0; if(right<2) right=0;
+      if(top||bot||left||right)
+        r={sx:left/sw*iw,sy:top/sh*ih,sw:(sw-left-right)/sw*iw,sh:(sh-top-bot)/sh*ih};
+    }catch(e){}
+    _slideCrop.set(im,r); return r;
+  }
   function _titleSlideInput(){
     if(_slideFade>0) return true;                       // mid fade: swallow input until the title is back
     if(_titleT>900){ _slideFade=SLIDE_FADE_FR; return true; }
@@ -1127,13 +1202,15 @@ let _titleT=0, _logoHalfW=0;
       if(want.has(o)){ if(v.paused){ const pr=v.play(); if(pr&&pr.catch) pr.catch(()=>{}); } }
       else if(!v.paused){ try{v.pause();}catch(e){} }
     });
+    const pulse=1+0.006*_uiCadence().env;               // barely-there zoom on the beat
     const drawFit=(o,a)=>{
       const im=_slideFrame(o); if(!im||a<=0) return;
-      const iw=im.videoWidth||im.naturalWidth, ih=im.videoHeight||im.naturalHeight;
-      const s=Math.max(W/iw,H/ih), w=iw*s, h=ih*s;
+      const cr=_slideContentRect(im);
+      if(cr.sw<2||cr.sh<2) return;
+      const s=Math.max(W/cr.sw,H/cr.sh)*pulse, w=cr.sw*s, h=cr.sh*s;
       const x=(W-w)/2, y=(H-h)/2;
       ctx.globalAlpha=globalA*a;
-      ctx.drawImage(im,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
+      ctx.drawImage(im,cr.sx,cr.sy,cr.sw,cr.sh,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
     };
     ctx.save();
     if(pos<FADE){
@@ -1145,6 +1222,8 @@ let _titleT=0, _logoHalfW=0;
     } else {
       drawFit(ready[idx],1);
     }
+    ctx.globalAlpha=globalA;
+    _titleCadenceFx(0.62);                              // gentle beat throb over the footage
     ctx.restore();
     if(fading&&--_slideFade<=0){ _titleT=0; ready.forEach(o=>{try{o.v.pause();}catch(e){}}); _videosStarted=false; }
     return true;
@@ -1157,9 +1236,9 @@ function _titleArtCursor(map,sx,sy){
   ctx.fillStyle='#c6ff9a';
   ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+16*s); ctx.lineTo(x+22*s,y+8*s); ctx.closePath(); ctx.fill();
 }
-// The title's menu (Paulo, Oct 22): STORY MODE · CREATIVE MODE (locked until the Alpha) ·
-// OPTIONS, drawn in the art's own phosphor-green lettering on a dark glass plate that
-// covers the words painted into the art.
+// The title's menu (Paulo, Nov 18): STORY MODE · OPTIONS · TEST MODE, drawn in the
+// art's own phosphor-green lettering on a dark glass plate that covers the words
+// painted into the art. LOCAL PLAY / CREATIVE MODE were removed from the title.
 function _drawTitleMenuOverArt(map){
   const rows=_titleMenuGeom(); if(!rows.length) return;
   const k=Math.min(1,Math.max(0,(_titleT-20)/30)), s=map.s;
@@ -1167,13 +1246,21 @@ function _drawTitleMenuOverArt(map){
   ctx.save(); ctx.globalAlpha=k;
   const g=ctx.createLinearGradient(0,py,0,py+ph); g.addColorStop(0,'rgba(4,16,8,0.0)'); g.addColorStop(0.12,'rgba(4,16,8,0.9)'); g.addColorStop(0.88,'rgba(4,16,8,0.9)'); g.addColorStop(1,'rgba(4,16,8,0.0)');
   ctx.fillStyle=g; ctx.fillRect(px-30*s,py,pw+60*s,ph);
+  // Paulo (Nov 18): the title menu breathes with the shared BPM clock.
+  const beat=_uiCadence().env;
+  const hal=ctx.createRadialGradient(W/2,py+ph*0.5,10,W/2,py+ph*0.5,pw*0.62);
+  hal.addColorStop(0,'rgba(150,240,140,'+(0.05+0.09*beat).toFixed(3)+')');
+  hal.addColorStop(1,'rgba(150,240,140,0)');
+  ctx.fillStyle=hal; ctx.fillRect(px-30*s,py-10*s,pw+60*s,ph+20*s);
   ctx.fillStyle='rgba(150,240,140,0.35)'; ctx.fillRect(px+20*s,py+6*s,pw-40*s,1); ctx.fillRect(px+20*s,py+ph-8*s,pw-40*s,1);
+  uiSparkle(px-14*s,py+ph*0.5,4+4*beat,'#ffe39a',0.12+0.34*beat);
+  uiSparkle(px+pw+14*s,py+ph*0.5,4+4*beat,'#c6ff9a',0.12+0.34*beat);
   rows.forEach((r,i)=>{
     const sel=i===_titleMenuIdx, cy=r.y+r.h/2-4*s, crowd=rows.length>3?0.58:1, sz=Math.round((sel?36:30)*s*1.5*crowd);
     ctx.save(); ctx.font=sz+'px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
     const col=r.locked?(sel?'#7f9a86':'#4f6656'):(sel?'#d8ffc0':'#8fd78a');
     ctx.lineWidth=Math.max(3,sz*0.12); ctx.strokeStyle='#020a04'; ctx.strokeText(r.label,W/2,cy);
-    if(sel&&!r.locked){ ctx.shadowColor='rgba(170,255,140,0.9)'; ctx.shadowBlur=14; }
+    if(sel&&!r.locked){ ctx.shadowColor='rgba(170,255,140,0.9)'; ctx.shadowBlur=14+10*beat; }
     ctx.fillStyle=col; ctx.fillText(r.label,W/2,cy); ctx.restore();
     if(r.locked&&r.note){ drawTextC(r.note,W/2,cy+sz*0.42,sel?'#ffe39a':'#c8a050',2); }
     if(sel) uiCursor(W/2-((r.label.length*sz*0.5)/2)-26*s,cy,12);
@@ -1213,9 +1300,15 @@ function drawTitle(){
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   if(drawTitleSlides()) return;                         // full still owns the screen until a button fades back
   const k=Math.min(1,_titleT/50), ease=1-Math.pow(1-k,3), bounce=k<1?0:Math.sin(fr*0.03)*3;
-  const ly=-120+(48+120)*ease+bounce;
+  const ly=-120+(48+120)*ease+bounce, beat=_uiCadence().env;
   ctx.globalAlpha=k;
-  uiLogo('MIND & VENTURE',W/2,ly,84);
+  const lg=ctx.createRadialGradient(W/2,ly+24,8,W/2,ly+24,320);
+  lg.addColorStop(0,'rgba(150,240,140,'+(0.07+0.10*beat).toFixed(3)+')');
+  lg.addColorStop(1,'rgba(150,240,140,0)');
+  ctx.fillStyle=lg; ctx.fillRect(W/2-330,ly-300,660,660);
+  // scale the sprite, keep its px fixed so uiLogo's sprite cache stays warm
+  ctx.save(); ctx.translate(Math.round(W/2),Math.round(ly));
+  const z=1+0.03*beat; ctx.scale(z,z); uiLogo('MIND & VENTURE',0,0,84); ctx.restore();
   const rw=300, rh=40, ry=ly+104;
   const rg=ctx.createLinearGradient(W/2-rw/2,0,W/2+rw/2,0); rg.addColorStop(0,'rgba(246,201,74,0)'); rg.addColorStop(0.18,'rgba(246,201,74,0.95)'); rg.addColorStop(0.82,'rgba(246,201,74,0.95)'); rg.addColorStop(1,'rgba(246,201,74,0)');
   ctx.fillStyle=rg; ctx.fillRect(W/2-rw/2,ry,rw,2); ctx.fillRect(W/2-rw/2,ry+rh-2,rw,2);
@@ -1224,8 +1317,8 @@ function drawTitle(){
   drawTextC('A W D J O O',W/2,ry+11,'#ffe39a',2);
   drawTextC('A SONNATA 16-BIT ADVENTURE',W/2,ry+rh+12,'#d8ffc8',2);
   const hw=uiLogoHalf();
-  uiSparkle(W/2+hw-10,ly+14,10+4*Math.sin(fr*0.11),'#fff',0.5+0.5*Math.sin(fr*0.11));
-  uiSparkle(W/2-hw+40,ly+70,7+3*Math.sin(fr*0.09+2),'#ffe39a',0.5+0.5*Math.sin(fr*0.09+2));
+  uiSparkle(W/2+hw-10,ly+14,9+6*beat,'#fff',0.28+0.55*beat);
+  uiSparkle(W/2-hw+40,ly+70,6+5*beat,'#ffe39a',0.28+0.55*beat);
   ctx.globalAlpha=1;
   const rows=_titleMenuGeom();
   const panelW=360, panelX=W/2-panelW/2, panelY=rows[0].y-20;
