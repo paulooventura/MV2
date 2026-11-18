@@ -499,9 +499,13 @@ function _hatMotion(dir){
   return {ang:pl._hatAng||0, lift:pl._hatLift||0};
 }
 function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.lift); ctx.rotate(m.ang); ctx.translate(-px,-py); }
+// GUARD (groove fix): hatTY is in hat units (×9 px). Clamp the brim so it always
+// sits on top of the bulb (never below its centre), whatever a groove/tilt value
+// tries to do. Normal head bob needs 0 here — the head already carries the hat.
+function _hatBrimTY(R,hatTY){ return Math.max(-12,Math.min(Math.floor(R*0.5)-3,Math.round((hatTY||0)*9))); }
 function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
-  const ty=Math.round((hatTY||0)*9);
+  const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty, dir=window._hatDirOverride||_hatDir();
   ctx.save(); _hatXform(cx+tx,hatBrimY,dir<0?-1:1);
   drawLogoHat(cx+tx,hatBrimY,80,dir,{crownH:15});   // the key art's wide flat brim
@@ -509,7 +513,7 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
 }
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
-  const ty=Math.round((hatTY||0)*9);
+  const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty;
   // Paulo (Oct 22, the key art): a red baseball cap worn backwards — the bill points behind him
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
@@ -1281,36 +1285,128 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
 
 /* -- Full character draw â€” MV2 vector composition -- */
 // ── idle groove (Paulo: "when we stay idle too long, have the characters bop to the music") ──
-// Beat period comes from the ONE live soundtrack's BPM (the same table beta_audio uses
-// to tempo-match its crossfades); cached every couple of seconds, never a second track.
-const GROOVE_BPM={'canopy-quest-gold':99.2,'crystal-cavern-drift-gold':100.2,'pixel-quasar-gold-boss':129.2,
-  'chaos-theory':130.8,'chaos-theory-2':94,'kiyoki-senritsu-1go':143.5,'kiyoki-senritsu-stori':91.5,
-  'snes-awdjoo':105.5,'snes-awdjoo-2':107.8,'genesis-awdjoo':145.5,'crystal-memory-gate':92.2,'lost-save-shrine-diam':136};
-const GROOVE_LIFT=[0,1.8,0.6,2.4];
+// ONE clock for the whole world: the live track's playback position. beta_audio.js owns
+// the authoritative BPM table and the danceClock() accessor; nothing is duplicated here.
+// The old frame-counter period survives only as a graceful fallback when no song plays.
 let _grooveBpm=112, _grooveAt=-999;
 function beatFrames(){
+  // beat period in frames (60 fps) — fallback only; the primary phase is grooveClock()
+  const AU=window.MV_BETA_AUDIO;
+  if(AU&&AU.danceClock){ const c=AU.danceClock(); if(c&&c.bpm>0) return 3600/c.bpm; }
   if(!(typeof fr==='number')||fr-_grooveAt>120){
     _grooveAt=typeof fr==='number'?fr:0;
     let bpm=112;
-    try{
-      const AU=window.MV_BETA_AUDIO, cur=AU&&AU.current&&AU.current(), path=cur&&AU.pathOf?AU.pathOf(cur):null;
-      const m=path&&/([^/]+)\.mp3/.exec(path), k=m&&m[1];
-      if(k&&GROOVE_BPM[k]) bpm=GROOVE_BPM[k];
-      else{ const mode=window.MV_CONSOLE&&MV_CONSOLE.mode;
-        if(mode==='gore') bpm=130; else if(mode==='ink') bpm=100; else if(mode==='snes'||mode==='md') bpm=110; }
+    try{ const mode=window.MV_CONSOLE&&MV_CONSOLE.mode;
+      if(mode==='gore') bpm=130; else if(mode==='ink') bpm=100; else if(mode==='snes'||mode==='md') bpm=110;
     }catch(e){}
     _grooveBpm=bpm;
   }
-  return 3600/_grooveBpm;                          // frames per beat at 60 fps
+  return 3600/_grooveBpm;
+}
+// The single cadence source for every dancer (player + foes + world FX). Phase in
+// radians, locked to audio playback position; `locked` reports which source was
+// used. Reused result object: no allocation in the per-frame hot path.
+const _grooveOut={ph:0,beats:0,bpm:112,locked:false,energy:0.5};
+function grooveClock(){
+  const AU=window.MV_BETA_AUDIO;
+  if(AU&&AU.danceClock){
+    const c=AU.danceClock();
+    if(c){ _grooveOut.ph=c.phase; _grooveOut.beats=c.beats; _grooveOut.bpm=c.bpm;
+      _grooveOut.energy=(isFinite(c.energy)?c.energy:0.5); _grooveOut.locked=true; return _grooveOut; }
+  }
+  const bf=beatFrames(), beats=(typeof fr==='number'?fr:0)/bf;
+  _grooveOut.ph=beats*Math.PI*2; _grooveOut.beats=beats; _grooveOut.bpm=3600/bf;
+  _grooveOut.energy=0.5; _grooveOut.locked=false;
+  return _grooveOut;
+}
+// One intensity curve for every dancer: calm tracks stay restrained, GORE metal
+// and boss tracks get noticeably exaggerated. GORE gets the biggest push.
+function _grooveAmp(gc,gore){ return (0.55+0.9*gc.energy)*(gore?1.25:1); }
+// Foe groove: the SAME audio clock, visual only. It never touches hitboxes, AI,
+// attack timing, boss patterns or difficulty — just a few px of bob/sway/tilt.
+const _foeGrooveOut={dx:0,dy:0,rot:0};
+function foeGroove(e){
+  if(!e||!e.alive||e.mind) return null;
+  if((e.hitF||0)>0||e._downed||e.st==='down'||(e.fuse||0)>0||e._shorted||(e._shortT||0)>0) return null;
+  const gc=grooveClock(), ph=gc.ph;
+  const gore=!!(window.MV_GORE_SOUND&&MV_GORE_SOUND());
+  const amp=_grooveAmp(gc,gore);                    // energy scales the whole foe dance
+  const mode=window.MV_CONSOLE?window.MV_CONSOLE.mode:'off';
+  _foeGrooveOut.dx=0; _foeGrooveOut.dy=0; _foeGrooveOut.rot=0;
+  if(gore){
+    _foeGrooveOut.dy=amp*1.6*Math.sin(ph); _foeGrooveOut.rot=amp*0.05*Math.sin(ph);  // headbang
+  }else if(window.MV_INK_SOUND&&MV_INK_SOUND()){
+    _foeGrooveOut.dx=amp*1.8*Math.sin(ph*0.5); _foeGrooveOut.dy=amp*0.9*Math.cos(ph); _foeGrooveOut.rot=amp*0.04*Math.sin(ph+0.6); // vinyl sway
+  }else if(mode==='snes'||mode==='md'){
+    _foeGrooveOut.dy=amp*(1.2*Math.sin(ph)+0.4*Math.sin(3*ph)); _foeGrooveOut.dx=amp*0.7*Math.sin(ph*0.5+0.3); // chip-bob
+  }else{
+    _foeGrooveOut.dy=amp*(1.3*Math.sin(ph)+0.4*Math.sin(ph*0.5)); _foeGrooveOut.dx=amp*0.5*Math.sin(ph);       // easy bounce
+  }
+  return _foeGrooveOut;
+}
+// ── world cadence FX (Paulo: "the whole world must stimulate the player to dance") ──
+// Same audio-locked phase as the player and foes. Pre-rendered sprites are cached
+// once; the hot path is just ctx.drawImage + a couple of cheap sines. Reduced
+// motion gets a steady (non-pulsing) version. No gameplay / hitbox / audio change.
+const _cadGlows={};
+let _cadVig=null, _cadVigW=0, _cadVigH=0, _cadKey='', _cadSolid='rgb(104,70,168)';
+function _cadTint(){
+  const key=(window.MV_GORE_SOUND&&MV_GORE_SOUND())?'gore':(window.MV_INK_SOUND&&MV_INK_SOUND())?'ink'
+    :((window.MV_CONSOLE&&(MV_CONSOLE.mode==='snes'||MV_CONSOLE.mode==='md'))?'chip':'posh');
+  if(key!==_cadKey){ _cadKey=key; _cadSolid=key==='gore'?'rgb(120,24,30)':key==='ink'?'rgb(28,92,124)':key==='chip'?'rgb(74,54,138)':'rgb(104,70,168)'; }
+  return _cadSolid;
+}
+function _cadGlow(){
+  const key=_cadTint();
+  if(_cadGlows[key]) return _cadGlows[key];
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const g=c.getContext('2d'), rgba=key.replace('rgb(','rgba(').replace(')',',');
+  const gr=g.createRadialGradient(64,64,3,64,64,62);
+  gr.addColorStop(0,rgba+'0.55)'); gr.addColorStop(0.55,rgba+'0.18)'); gr.addColorStop(1,rgba+'0)');
+  g.fillStyle=gr; g.fillRect(0,0,128,128);
+  _cadGlows[key]=c; return c;
+}
+function _cadVignette(){
+  if(_cadVig&&_cadVigW===W&&_cadVigH===H) return _cadVig;
+  _cadVigW=W; _cadVigH=H;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d'), r=Math.hypot(W,H)*0.56;
+  const gr=g.createRadialGradient(W/2,H*0.46,r*0.34,W/2,H*0.46,r);
+  gr.addColorStop(0,'rgba(8,6,16,0)'); gr.addColorStop(0.72,'rgba(8,6,16,0.10)'); gr.addColorStop(1,'rgba(6,4,12,0.72)');
+  g.fillStyle=gr; g.fillRect(0,0,W,H);
+  _cadVig=c; return c;
+}
+// A reduced-motion / framerate guard: pulses never exceed one cycle per beat, and
+// hold steady when the player asked for reduced motion. Cached, allocation-free.
+let _cadReduce=false;
+try{ _cadReduce=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+const _cadPulseOut={beat:0.5,breath:0.5};
+function _cadPulse(){
+  if(_cadReduce){ _cadPulseOut.beat=0.5; _cadPulseOut.breath=0.5; return _cadPulseOut; }
+  const c=grooveClock();
+  _cadPulseOut.beat=0.5+0.5*Math.sin(c.ph);
+  _cadPulseOut.breath=0.5+0.5*Math.sin(c.ph*0.5);
+  return _cadPulseOut;
+}
+// Top-of-world ink vignette + washi tint. Called from drawFgLampGlow() so it sits
+// over the world but under the HUD, in every stage (not just ones with lamps).
+function drawWorldCadence(){
+  if(typeof _gameState!=='undefined'&&_gameState!=='game'&&_gameState!=='paused') return;
+  const q=_cadPulse();
+  ctx.save();
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=0.010+0.020*q.beat;
+  ctx.fillStyle=_cadTint(); ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=0.055+0.075*q.beat+0.030*q.breath;
+  ctx.drawImage(_cadVignette(),0,0);
+  ctx.restore();
 }
 function drawCharacter(){
-  // T545: skip the other viewport's player. drawCharacterFor() swaps `p` to its
-  // target before calling this, so test identity rather than the call site.
-  if(typeof _splitHide!=='undefined'&&_splitHide){
-    const isP2=(typeof p2!=='undefined'&&p===p2);
-    if(_splitHide==='p2'&&isP2) return;
-    if(_splitHide==='p1'&&!isP2) return;
-  }
+  // Co-op: BOTH players are drawn in BOTH viewports. The old _splitHide filter
+  // hid the other player per half, so each screen only showed its own character.
+  // The split camera (main.js) already clips whoever is off-camera; when the two
+  // players are close and the split collapses, both still need to be visible.
+  // drawCharacterFor() swaps `p` to its target before calling this — keep that.
   if(!isFinite(p.x)||!isFinite(p.y))return;
   const fc=p.fc;
   const ca2=p.crouchAmt;
@@ -1323,27 +1419,32 @@ function drawCharacter(){
   const walkBob=(!onRope&&p.og&&!p._onSlope&&Math.abs(p.vx)>0.5&&p.landF<=0)?Math.sin(fr*0.28+p.x*0.015)*0.45:0;
   const idleSway=0;
   // (living world) after ~2 s of standing still, bop in time with the song. Each
-  // filter dances differently: GORE headbangs, INK has a vinyl sway + snap,
-  // A/B do a stepped chip-bob, POSH gets an easy two-beat bounce.
+  // filter keeps its personality — GORE headbang, INK vinyl sway + snap, A/B chip
+  // double-bounce, POSH easy bounce — but every curve is a smooth, continuous sine
+  // sum phase-locked to the audio playback position (grooveClock), never a stepped
+  // lift or a peaky pow() spike.
   const idleOK=!!p.og&&!onRope&&Math.abs(p.vx||0)<0.4&&Math.abs(p.vy||0)<0.4
     &&!(p.pt>0)&&!(p.pCharging)&&!(p.hook&&p.hook.st!=='idle')&&!(p._madT>0)&&!(p._downT>0);
   p._idleT=idleOK?(p._idleT||0)+1:0;
   const groove=Math.max(0,Math.min(1,(p._idleT-120)/45));
   let gDX=0, gDY=0, gHead=0;
   if(groove>0){
-    const ph=(typeof fr==='number'?fr:0)/beatFrames()*Math.PI*2;
+    const gc=grooveClock(), ph=gc.ph;
+    const gore=!!(window.MV_GORE_SOUND&&MV_GORE_SOUND());
+    const k=groove*_grooveAmp(gc,gore);               // energy-scaled intensity (GORE exaggerated most)
     const mode=window.MV_CONSOLE?window.MV_CONSOLE.mode:'off';
-    if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
-      gDY=-1.1*groove*Math.sin(ph*0.5); gHead=3.6*groove*Math.pow(Math.max(0,Math.sin(ph)),5);   // headbang
+    if(gore){
+      gDY=-0.9*k*Math.sin(ph*0.5);
+      gHead=k*(2.6*Math.sin(ph)+0.9*Math.sin(2*ph+0.4));   // fluid double-pulse headbang
     }else if(window.MV_INK_SOUND&&MV_INK_SOUND()){
-      gDX=2.2*groove*Math.sin(ph*0.5); gDY=-1.0*groove*Math.cos(ph);                              // vinyl sway
-      gHead=0.7*groove*Math.sin(ph+0.6);                                                          // + snap
+      gDX=2.0*k*Math.sin(ph*0.5); gDY=-0.9*k*Math.cos(ph);
+      gHead=k*(0.7*Math.sin(ph+0.6)+0.25*Math.sin(2*ph-0.3)); // sway + smooth snap
     }else if(mode==='snes'||mode==='md'){
-      const step=(Math.floor((typeof fr==='number'?fr:0)/(beatFrames()/2))&3);                     // chip-bob
-      gDY=-groove*GROOVE_LIFT[step]; gDX=(step&1)?groove*1.1:-groove*1.1;
+      gDY=-k*(1.3*Math.sin(ph)+0.55*Math.sin(3*ph));       // chip shape, continuous
+      gDX=k*1.0*Math.sin(ph*0.5+0.3);
     }else{
-      gDY=-groove*(1.6*Math.max(0,Math.sin(ph))+0.5*Math.sin(ph*0.5));                            // easy bop
-      gHead=0.6*groove*Math.sin(ph+0.4);
+      gDY=-k*(1.6*Math.sin(ph)+0.5*Math.sin(ph*0.5));      // easy two-beat bounce
+      gHead=k*0.6*Math.sin(ph+0.4);
     }
   }
   const suspDrop=onRope?0:suspC*SUSP_TRAVEL;
@@ -1421,6 +1522,48 @@ function drawCharacter(){
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
+  // Pixel-perfect rope anchor (Paulo). The raw pose.noseX/Y is the *physics* nose:
+  // it misses the spring float, the body tilt, the idle-groove translate and the
+  // jab lean that move the jack on screen. Mirror drawConnectorTip's transform
+  // here, invert sx()/sy(), and publish the world pixel beta_feel's visEnd reads.
+  const _drawnTipLen=(it)=>{
+    if(it===1){
+      // drawConnectorTip paints the RCA's gold tip as a 2.6px-radius circle centred
+      // at local x=44.5, scaled by _itemArtScale(1)=1.12 -> painted tip at 52.75px.
+      // RCA_NOSE_LEN (52) is the physics length of that same point; use the painted
+      // value so the rope starts on the exact pixel, with 52 as the safe fallback.
+      const sc=typeof _itemArtScale==='function'?_itemArtScale(1):1;
+      const art=(44.5+2.6)*sc;
+      return (isFinite(art)&&art>0)?art:RCA_NOSE_LEN;
+    }
+    const sc=typeof _itemArtScale==='function'?_itemArtScale(it):1;
+    return (it===2?42:it===0?50:40)*sc;                   // matches render.js connectorTipWorld()
+  };
+  const recordDrawnNose=(angle)=>{
+    if(held<0) return;
+    if(_plugging){                                        // jack seated in the back: rope leaves the clip
+      if(typeof hookAttachWorld==='function'){
+        const q=hookAttachWorld();
+        pose.drawnNoseX=q.x; pose.drawnNoseY=q.y;
+        p._drawnNoseX=q.x; p._drawnNoseY=q.y; p._drawnNoseFr=fr;
+      }
+      return;
+    }
+    const noseLen=_drawnTipLen(held);
+    let ux=sx(pose.tipX)+Math.cos(angle)*noseLen;         // jack origin carries -floatY already
+    let uy=sy(pose.tipY-floatY)+Math.sin(angle)*noseLen;
+    if(pose.tilt){                                        // the body tilt rotates the whole jack about the torso
+      const tx=sx(pose.tiltCX), ty=sy(pose.tiltCY), c=Math.cos(pose.tilt), s=Math.sin(pose.tilt);
+      const ddx=ux-tx, ddy=uy-ty;
+      ux=tx+ddx*c-ddy*s; uy=ty+ddx*s+ddy*c;
+    }
+    if(_jabK>0) ux+=(fc?1:-1)*sw(p._comboHook?9:6)*_jabK; // the lean applied before drawConnArm
+    if(groove>0){ ux+=gDX; uy+=gDY; }                     // idle groove translate
+    // world zoom is applied by _worldZoomBegin() after sx()/sy(); working in the
+    // pre-zoom screen space the jack is drawn in, so it needs no correction here.
+    pose.drawnNoseX=ux-sx(0); pose.drawnNoseY=uy-sy(0);
+    p._drawnNoseX=pose.drawnNoseX; p._drawnNoseY=pose.drawnNoseY; p._drawnNoseFr=fr;
+  };
   // (build 356) empty hands: this is the left glove. The left jab punches from this shoulder
   // toward the aim, with the same hit logic as the right glove.
   if(_leftJab&&held<0&&!_plugging){ const fwd=fc?1:-1; window._jabExtra=Math.max(0,(glovShoulderWX-pose.connShX)*fwd); try{ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); } finally{ window._jabExtra=0; } return; }
@@ -1428,10 +1571,12 @@ function drawCharacter(){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(p.hook&&p.hook.st==='on'&&held===1&&!p.hook._plugged) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);
     else drawCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0&&!_plugging) drawConnectorTip(tipX,tipY,armA1,p.flashF,held);
+    if(held>=0&&!_plugging){ recordDrawnNose(armA1); drawConnectorTip(tipX,tipY,armA1,p.flashF,held); }
+    else if(_plugging) recordDrawnNose(armA1);
   }else{
     drawCoil(connShX,connShY,ca,Math.hypot(tipX-connShX,tipY-connShY),_armDark,_armMain,_armGlow,coilFlow);
-    if(held>=0&&!_plugging) drawConnectorTip(tipX,tipY,ca,p.flashF,held);
+    if(held>=0&&!_plugging){ recordDrawnNose(ca); drawConnectorTip(tipX,tipY,ca,p.flashF,held); }
+    else if(_plugging) recordDrawnNose(ca);
   }
   if(held<0&&!_plugging) drawFist(tipX,tipY,fc,false,0,false,0);     // the left glove (build 356)
   if(coilFlow){
@@ -1456,7 +1601,10 @@ function drawCharacter(){
     headCY-=peekLift;
     peekAmt=0.22+Math.sin(fr*0.18)*0.05;
   }
-  if(groove>0) hatTY+=gHead*0.5;                  // the hat lags the head a touch on the beat
+  // The hat rides the already-bobbed head: drawHead() receives sy(headCY+gHead),
+  // and both hats build hatBrimY from that drawY, so gHead is followed in SAME
+  // pixel space. Do NOT add gHead to hatTY here — hatTY is in hat units (×9 px),
+  // so gHead*0.5 would shove the brim ~4.5×gHead px straight through the bulb.
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
   drawHead(wcx,sy(headCY+gHead),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
   window._mindHeadDmg=0;
@@ -1477,6 +1625,13 @@ function drawCharacterFor(pl){
 /* â”€â”€ Draw world â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function drawBGParticles(){
   // â”€â”€ Sea-breeze streams â€” dotted falling pixel columns â”€â”€
+  // beat-reactive backlight — a soft washi glow breathing on the shared audio clock
+  const q=_cadPulse();
+  ctx.save();
+  ctx.globalAlpha=0.050+0.090*q.beat+0.030*q.breath;
+  ctx.drawImage(_cadGlow(),W*0.5-W*0.42,H*0.52-H*0.40,W*0.84,H*0.80);
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha=0.70+0.30*q.beat;   // sea-breeze dashes ride the beat
   for(const st of STREAMS){
     const bx=sx(st.x), by=sy(st.y);
     if(bx<-8||bx>W+8) continue;
@@ -1489,6 +1644,7 @@ function drawBGParticles(){
     }
   }
   // â”€â”€ Pollen / foam motes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  ctx.restore();                                   // end beat-pulsed sea-breeze streams
   for(const d of DRIPS){
     const bx=sx(d.x), by=sy(d.y);
     if(bx<-4||bx>W+4) continue;
@@ -1499,6 +1655,12 @@ function drawBGParticles(){
       const s=Math.round(d.splashF/SMS_SCALE)+1;
       ctx.fillStyle=C.SKY_L;
       ctx.fillRect(bx-s,by,1,1);ctx.fillRect(bx+s,by,1,1);ctx.fillRect(bx,by-s,1,1);
+    } else if((((d.x*7)|0)%5)===0){
+      // a few pollen motes twinkle on the beat (1 px, camera-culled above)
+      ctx.globalAlpha=0.18+0.32*q.beat;
+      ctx.fillStyle=C.SKY_L;
+      ctx.fillRect(bx,by-1,1,1);
+      ctx.globalAlpha=1;
     }
   }
   // â”€â”€ Floating critters â€” 5Ã—3 two-frame flappers â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2208,11 +2370,12 @@ function drawEnemy(e){
     _drawMinionOff(e);
     return;
   }
-  const bx=sx(e.x), by=sy(e.y);
+  const _g=foeGroove(e);                            // audio-locked bob, visual only
+  const bx=sx(e.x)+(_g?_g.dx:0), by=sy(e.y);
   const ew=sw(e.w), eh=sw(e.h);
   if(bx>W+16||bx+ew<-16||by>H+16)return;
   const fl=e.hitF>0&&fr%4<2;
-  const bob=Math.round(Math.sin(fr*0.14+e.x*0.04));
+  const bob=Math.round(Math.sin(fr*0.14+e.x*0.04)+(_g?_g.dy:0));
   const MINION_SPR_SCALE=2.6;
   const _blitScaledSpr=(spr,dx,dy)=>{
     const dw=Math.max(ew*0.9,sw(spr.width*MINION_SPR_SCALE));
@@ -2324,6 +2487,7 @@ function drawCandleLights(){
   }
 }
 function drawFgLampGlow(){
+  drawWorldCadence();                       // global beat-breathing vignette + washi tint (all stages)
   if(!_candleLights.length) return;
   for(const c of _candleLights){
     if(!c.fg) continue;
@@ -2618,6 +2782,23 @@ function _clampSegFrom(shX,shY,tx,ty){
   const pull=Math.max(0,minT-0.03);
   return {x:shX+(tx-shX)*pull,y:shY+(ty-shY)*pull};
 }
+
+// beta_feel.js's visEnd() asks computeConnectorArmPose() for a FRESH pose each
+// frame, so the drawnNoseX/Y recorded in drawCharacter() would be lost. Mirror the
+// renderer's exact world pixel onto every fresh pose for the local player. The
+// original function still owns the arm math; we only attach the render-side value.
+(function(){
+  const orig=window.computeConnectorArmPose;
+  if(typeof orig!=='function') return;
+  window.computeConnectorArmPose=function(pl){
+    const pose=orig.apply(this,arguments);
+    const who=pl||p;
+    if(pose&&who===p&&who._drawnNoseFr===fr&&isFinite(who._drawnNoseX)&&isFinite(who._drawnNoseY)){
+      pose.drawnNoseX=who._drawnNoseX; pose.drawnNoseY=who._drawnNoseY;
+    }
+    return pose;
+  };
+})();
 
 // Single source of truth for connector arm + RCA nose (world coords).
 // computeConnectorArmPose lives in player.js (one copy: the down-use pose and the duck blend are there)

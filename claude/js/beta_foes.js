@@ -221,8 +221,9 @@
       ctx.strokeStyle='rgba(255,'+(kn?160:80)+',80,'+(kn?0.95:(0.2+0.5*e.stT/32))+')'; ctx.lineWidth=kn?sw(4):1; ctx.setLineDash(kn?[]:[6,6]);
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
-    ctx.translate(cx,cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2)));
-    ctx.rotate(e.ang||0);                                          // down, it lies on a face (the notches, beta_enemies.js)
+    const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked idle dance (visual only)
+    ctx.translate(cx+(gr?gr.dx:0),cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2))+(gr?gr.dy:0));
+    ctx.rotate((e.ang||0)+(gr?gr.rot:0));                          // down, it lies on a face (the notches, beta_enemies.js)
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#5a3a3a':'#e04848'); g.addColorStop(1,off?'#2a1a1a':'#7a1018');
@@ -369,9 +370,11 @@
     if(e._wakeT>0&&!over) e._wakeT--;
     const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0);
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56)*swell;
+    const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked idle dance (visual only)
+    const gx=cx+(gr?gr.dx:0), gy=cy+(gr?gr.dy:0);
     const a=e.alive?(awake?0.62:0.22):0.35;                        // nearly invisible while it sleeps
-    if(wk>0){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(220,245,255,'+(0.5*wk)+')'; ctx.beginPath(); ctx.arc(cx,cy-sw(e._lift||0),R*(1.6-0.5*wk),0,Math.PI*2); ctx.fill(); ctx.restore(); }   // the wake flash
-    ctx.save(); ctx.translate(cx,cy-sw(e._lift||0)); ctx.rotate((e.spin||0)+(e.ang||0));
+    if(wk>0){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(220,245,255,'+(0.5*wk)+')'; ctx.beginPath(); ctx.arc(gx,gy-sw(e._lift||0),R*(1.6-0.5*wk),0,Math.PI*2); ctx.fill(); ctx.restore(); }   // the wake flash
+    ctx.save(); ctx.translate(gx,gy-sw(e._lift||0)); ctx.rotate((e.spin||0)+(e.ang||0)+(gr?gr.rot:0));
     // a hexagon outline with the cube's inner edges (the sheet's drawing)
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
     ctx.beginPath(); pts.forEach((q,i)=>ctx[i?'lineTo':'moveTo'](q[0],q[1])); ctx.closePath();

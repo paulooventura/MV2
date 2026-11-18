@@ -709,7 +709,15 @@
   // to its own as it takes over. Ratios are folded by octaves (x2 / /2) to stay near 1; pitch is kept.
   const BPM={'canopy-quest-gold':99.2,'crystal-cavern-drift-gold':100.2,'pixel-quasar-gold-boss':129.2,'chaos-theory':130.8,'chaos-theory-2':94,
     'kiyoki-senritsu-1go':143.5,'kiyoki-senritsu-stori':91.5,'snes-awdjoo':105.5,'snes-awdjoo-2':107.8,'genesis-awdjoo':145.5,'crystal-memory-gate':92.2,'lost-save-shrine-diam':136};
+  // Paulo: the dance must get more/less intense with the song's energy — GORE metal
+  // and boss themes hit hard, calm tracks barely sway. Keyed by the SAME track name
+  // as BPM, so there is still just one soundtrack and one tempo/energy source.
+  const ENERGY={'canopy-quest-gold':0.45,'crystal-cavern-drift-gold':0.40,'pixel-quasar-gold-boss':0.95,
+    'chaos-theory':1.0,'chaos-theory-2':0.92,'kiyoki-senritsu-1go':0.70,'kiyoki-senritsu-stori':0.32,
+    'snes-awdjoo':0.60,'snes-awdjoo-2':0.65,'genesis-awdjoo':0.85,'crystal-memory-gate':0.28,'lost-save-shrine-diam':0.30,
+    'the-knowl-tree':0.30};
   function bpmOf(path){ const m=/([^/]+)\.mp3/.exec(path||''); return m&&BPM[m[1]]||null; }
+  function energyOf(path){ const m=/([^/]+)\.mp3/.exec(path||''); return m&&ENERGY[m[1]]!=null?ENERGY[m[1]]:0.5; }
   function tempoRatio(from,to){ const a=bpmOf(from), b=bpmOf(to); if(!a||!b) return 1; let r=b/a; while(r>1.41) r/=2; while(r<0.71) r*=2; return r; }
   function setRate(el,r){ if(!el) return; try{ if('preservesPitch' in el) el.preservesPitch=true; const v=Math.max(0.5,Math.min(2,r)); if(Math.abs((el.playbackRate||1)-v)>0.002) el.playbackRate=v; }catch(e){} }
   function liftTempo(stage,t){
@@ -808,5 +816,47 @@
       return Math.min(1,s/(16*255));
     }catch(e){ return 0; }
   }
-  window.MV_BETA_AUDIO={play, titleEnergy, musicGuard, guarded:()=>guardN, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
+  // ── dance clock ──────────────────────────────────────────────────────────
+  // Paulo: "really make sure the dance animations are synced to the BPM of the
+  // track that is playing." This is the ONE clock every dancer reads (player in
+  // render.js, foes in beta_enemies.js / beta_foes.js). Phase is derived from the
+  // live track's playback position, not a free-running game frame counter, so it
+  // is locked to the song and re-locks by itself on a track change / crossfade.
+  // The BPM comes from the SAME table the crossfades use (no duplicated table).
+  //
+  // A track's beats are fixed in *source* time: after `currentTime` seconds of
+  // media have sounded, exactly `currentTime * baseBpm / 60` beats have passed,
+  // whatever the playbackRate — playbackRate only changes how fast currentTime
+  // advances in wall-clock time. Multiplying by playbackRate again here would
+  // double-count and make the dance drift during elevator / vinyl tempo slides
+  // (the opposite of staying locked). We DO report the effective tempo as
+  // bpm = baseBpm * playbackRate: that is the rate the dancers follow in real time.
+  // One reused result object: the render/FX hot path calls this every frame and
+  // must not allocate. Consumers read the fields immediately (never retain it).
+  // Energy eases toward the new track's value over ~0.5 s so a crossfade never
+  // makes the dance snap. Time-based (not call-count based): render reads this
+  // clock several times per frame (player, foes, world FX).
+  let _energyCur=0.5, _energyAt=0, _energyName=null;
+  const _clockOut={phase:0,beats:0,bpm:112,base:0,rate:1,t:0,name:null,locked:true,energy:0.5};
+  function danceClock(){
+    const name=current, a=name&&els[name];
+    if(!a||a.paused||!isFinite(a.currentTime)||a.currentTime<0) return null;
+    const path=a._path||a.src||'';
+    const base=bpmOf(path);
+    if(!base) return null;                         // track has no BPM (e.g. the knowl tree) -> no lock
+    const rate=(isFinite(a.playbackRate)&&a.playbackRate>0)?a.playbackRate:1;
+    const beats=a.currentTime*base/60;
+    const now=Date.now();
+    const target=energyOf(path);
+    if(name!==_energyName){ _energyName=name; _energyAt=now; }
+    const dt=Math.max(0,Math.min(250,now-_energyAt));
+    _energyCur+=(target-_energyCur)*(1-Math.exp(-dt/180));
+    _energyAt=now;
+    _clockOut.phase=beats*Math.PI*2; _clockOut.beats=beats; _clockOut.bpm=base*rate;
+    _clockOut.base=base; _clockOut.rate=rate; _clockOut.t=a.currentTime; _clockOut.name=name;
+    _clockOut.energy=_energyCur;                   // ADDITIONAL field: old phase/bpm fields untouched
+    return _clockOut;
+  }
+  function beat(){ const c=danceClock(); return c?c.phase:null; }
+  window.MV_BETA_AUDIO={play, titleEnergy, musicGuard, guarded:()=>guardN, place, unplace, stopAll, ensure, hurtTick, talk, bed, pathOf, recure, liftMix, duo, duoEnd, octaveDown, vinylBrake, vinylSpinUp, vinylHalt, vinylClear, vinylToOctave, applyVol, boom:spatial(boom), cageBoom, creak:spatial(creak), twang:spatial(twang), sizzle:spatial(sizzle), fanfare, sadTune, splash:spatial(splash), magClank:spatial(magClank), magHum, engine, engineOn:()=>!!eng, current:()=>current, els, bpmOf, energyOf, danceClock, beat, placedAt:n=>smoothed[n]?{g:+smoothed[n].g.toFixed(2),pan:+smoothed[n].p.toFixed(2),routed:!!routed[n]}:null};
 })();
