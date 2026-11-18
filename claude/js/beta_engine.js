@@ -272,7 +272,7 @@
     const live=typeof _gameState!=='undefined'&&_gameState==='game'&&typeof p!=='undefined'&&p&&!(typeof _paused!=='undefined'&&_paused)
       &&!(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)&&!(window.MV_BETA&&(MV_BETA.popup||MV_BETA.results||MV_BETA.loading));
     const t=a.currentTime, set=(pr,v,tc)=>{ try{ pr.setTargetAtTime(v,t,tc); }catch(e){} };
-    if(!live){ set(N.out.gain,0,0.08); N.core.port.postMessage({thr:0,rpm:IDLE}); return; }
+    if(!live){ set(N.out.gain,0,0.08); N.core.port.postMessage({thr:0,rpm:IDLE}); try{ if(window.MV_SFX_POSH&&MV_SFX_POSH.engine) MV_SFX_POSH.engine.set(0,false); }catch(e){} return; }
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
     const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
     const spd=Math.max(0,Math.abs(p.vx||0)/top);
@@ -408,6 +408,19 @@
       const px=(p.x||0)+(typeof SW==='number'?SW*0.5:32);
       set(N.pan.pan, MV_SPATIAL.screenPan(px)*0.4, 0.12);
     }
+    // Blend the posh sustained machine layer into the worklet core (Paulo, Nov 18).
+    // rpm is forced back to idle in the air / on a rope, so the committed no-rev
+    // rule holds; S.on cuts it after ~3 s standing still. Smooth setTargetAtTime
+    // steering — no engine_pop pulse train, just a low rumble following the revs.
+    try{
+      if(window.MV_SFX_POSH&&MV_SFX_POSH.engine){
+        const revBase=Math.max(0,Math.min(1,(S.rpm-IDLE)/(RED-IDLE)*0.9));
+        // In the air / on a rope rpm is pinned at idle, so keep the layer there too —
+        // no rev just because the stick is held. On the floor it follows the revs.
+        const drive=grounded?Math.max(0,Math.min(1,revBase+(sprinting?S.thr*0.25:0))):revBase*0.15;
+        MV_SFX_POSH.engine.set(drive,S.on);
+      }
+    }catch(e){}
   }
   window.MV_ENGINE={tick, state:S, _build:build, _bang:bang};
 })();

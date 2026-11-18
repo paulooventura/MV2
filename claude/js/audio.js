@@ -826,3 +826,77 @@ function sfx(t){
       break;
   }
 }
+
+// ── Continuous tire screech fallback (Paulo, Nov 18) ──────────
+// The one-shot case'tire_squeal' above still works for callers that fire it once.
+// For a long skid, beta_feel drives THIS instead of retriggering that one-shot,
+// so the squeal stays one smooth "schreeeeench" in every sound mode, even when
+// sfx_posh.js isn't loaded. Mirrors the posh sustained voice, kept deliberately
+// simple (no compressor / reverb send, scaled by sfxVol) and headed straight out.
+let _scxA=null,_scxV=null,_scxOn=false,_scxT0=0,_scxDrift=0,_scxNoiseBuf=null;
+function _scxVol(){ try{ return Math.max(0,Math.min(1,OPT.sfxVol||1)); }catch(e){ return 1; } }
+function _scxNoise(a){
+  if(!_scxNoiseBuf||_scxNoiseBuf.sampleRate!==a.sampleRate){
+    _scxNoiseBuf=a.createBuffer(1,a.sampleRate*1.5,a.sampleRate);
+    const d=_scxNoiseBuf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  }
+  return _scxNoiseBuf;
+}
+function _scxBuild(a,heat,solid){
+  const t=a.currentTime, h=Math.max(0,Math.min(1,heat||0)), s=solid!==false, k=_scxVol()*0.5;
+  const master=a.createGain(); master.gain.value=0.0001; master.connect(a.destination);
+  const s1=a.createOscillator(),s2=a.createOscillator(); s1.type=s2.type='sawtooth';
+  const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=(1400+1500*h)*(s?1:0.75); bp.Q.value=4.2;
+  const sg=a.createGain(); sg.gain.value=(0.10+0.10*h)*k;
+  s1.connect(bp); s2.connect(bp); bp.connect(sg); sg.connect(master);
+  const gsrc=a.createBufferSource(); gsrc.buffer=_scxNoise(a); gsrc.loop=true;
+  const grit=a.createBiquadFilter(); grit.type='bandpass'; grit.frequency.value=1400+1400*h; grit.Q.value=s?2.4:1.6;
+  const gg=a.createGain(); gg.gain.value=((s?0.05:0.035)+0.07*h)*k;
+  gsrc.connect(grit); grit.connect(gg); gg.connect(master);
+  const body=a.createOscillator(); body.type='triangle';
+  const bg=a.createGain(); bg.gain.value=(0.08+0.07*h)*k;
+  body.connect(bg); bg.connect(master);
+  const lfo=a.createOscillator(); lfo.frequency.value=0.6+Math.random()*0.7;
+  const ld=a.createGain(); ld.gain.value=20+12*h; lfo.connect(ld); ld.connect(s1.detune); ld.connect(s2.detune);
+  const lf=a.createGain(); lf.gain.value=90+130*h; lfo.connect(lf); lf.connect(grit.frequency);
+  for(const o of [s1,s2,body,gsrc,lfo]) o.start(t);
+  return {master,s1,s2,bp,sg,gsrc,grit,gg,body,bg,lfo,ld,lf};
+}
+function _scxSet(heat,solid){
+  const v=_scxV; if(!v||!_scxOn) return;
+  const a=_scxA,t=a.currentTime,h=Math.max(0,Math.min(1,heat||0)),s=solid!==false;
+  const run=Math.max(0,Math.min(1,(t-_scxT0)/4));
+  _scxDrift=Math.max(-0.12,Math.min(0.12,_scxDrift+(Math.random()-0.5)*0.03));
+  const f=(780+860*h)*(1+0.11*run+_scxDrift)*(s?1:0.82);
+  const set=(p,val,tc)=>{ try{ p.setTargetAtTime(val,t,tc); }catch(e){} };
+  set(v.s1.frequency,f,0.06); set(v.s2.frequency,f*1.006,0.06);
+  set(v.bp.frequency,(1400+1500*h+280*run)*(s?1:0.75),0.08);
+  set(v.grit.frequency,f*1.65+300*run,0.08);
+  set(v.body.frequency,96+80*h+18*run,0.12);
+  set(v.sg.gain,(0.10+0.10*h)*_scxVol()*0.5,0.08);
+  set(v.gg.gain,((s?0.05:0.035)+0.07*h)*_scxVol()*0.5,0.08);
+  set(v.bg.gain,(0.08+0.07*h)*_scxVol()*0.5,0.1);
+  set(v.lfo.frequency,0.6+0.7*h+0.25*Math.sin(t*0.7),0.2);
+}
+function _scxStart(heat,solid){
+  const a=ga(); if(!a) return;
+  if(_scxA!==a){ _scxA=a; _scxV=null; _scxOn=false; }
+  if(!_scxV){ _scxV=_scxBuild(a,heat,solid); _scxT0=a.currentTime; _scxDrift=0; }
+  _scxOn=true;
+  const t=a.currentTime,g=_scxV.master.gain;
+  try{ g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001,g.value),t); g.linearRampToValueAtTime(0.95,t+0.05); }catch(e){}
+  _scxSet(heat,solid);
+}
+function _scxStop(){
+  if(!_scxOn||!_scxV) return;
+  _scxOn=false;
+  const a=_scxA,t=a.currentTime,v=_scxV;
+  try{
+    const g=v.master.gain; g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001,g.value),t);
+    g.linearRampToValueAtTime(0.0001,t+0.18);
+    for(const o of [v.s1,v.s2,v.body,v.gsrc,v.lfo]) o.stop(t+0.22);
+  }catch(e){}
+  _scxV=null;
+}
+window.MV_TIRE_SCX={start:_scxStart,set:_scxSet,stop:_scxStop};

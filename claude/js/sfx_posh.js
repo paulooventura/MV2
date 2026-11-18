@@ -296,32 +296,143 @@
   };
   window.MV_SFX_POSH={names:Object.keys(R), bus:realBus};
 
-  // Wheel engine. Idle is 5 soft low pops a second. Speed and torque make them
-  // faster, higher, and sharper. Three seconds standing still shuts it off;
-  // a tap forward starts the cycle again.
-  let _engAcc=0, _engOn=true, _engIdle=0;
+  // ── Sustained machine voices (Paulo, Nov 18) ────────────────
+  // "When it's screeching for longer it's like schreeeeench." A skid and an
+  // engine are CONTINUOUS objects: build one fixed graph, steer it smoothly,
+  // fade it out on release. No fr%7 retrigger and no 5-16 Hz click train.
+  const clamp01=v=>Math.max(0,Math.min(1,v));
+  const setP=(p,v,tc,t)=>{ try{ p.setTargetAtTime(v,t,tc); }catch(e){} };
+
+  // Tire: 2 detuned saws (the sing) + looping band-passed noise (the grit) +
+  // a low triangle body (rubber). One slow wobble LFO and a slow random drift
+  // make it waver like real rubber instead of looping like a synth. The voice
+  // rises a little the longer it runs and scales with `_tireHeat`.
+  const SC={a:null,v:null,on:false,t0:0,drift:0,ph:0};
+  function _scBuild(a,heat,solid){
+    const B=bus(a), t=a.currentTime, h=clamp01(heat);
+    const master=a.createGain(); master.gain.value=0.0001;
+    master.connect(B.out);
+    const send=a.createGain(); send.gain.value=0.14; master.connect(send); send.connect(B.send);
+    const s1=a.createOscillator(), s2=a.createOscillator(); s1.type=s2.type='sawtooth';
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.Q.value=4.2;
+    const sg=a.createGain(); sg.gain.value=0.10+0.10*h;
+    s1.connect(bp); s2.connect(bp); bp.connect(sg); sg.connect(master);
+    const gritSrc=a.createBufferSource(); gritSrc.buffer=noise(a); gritSrc.loop=true;
+    const grit=a.createBiquadFilter(); grit.type='bandpass'; grit.Q.value=solid?2.4:1.6;
+    const gg=a.createGain(); gg.gain.value=(solid?0.05:0.035)+0.07*h;
+    gritSrc.connect(grit); grit.connect(gg); gg.connect(master);
+    const body=a.createOscillator(); body.type='triangle';
+    const bg=a.createGain(); bg.gain.value=0.08+0.07*h;
+    body.connect(bg); bg.connect(master);
+    const lfo=a.createOscillator(); lfo.frequency.value=0.6+Math.random()*0.7;
+    const ld=a.createGain(); ld.gain.value=20+12*h;                 // detune wobble
+    lfo.connect(ld); ld.connect(s1.detune); ld.connect(s2.detune);
+    const lf=a.createGain(); lf.gain.value=90+130*h;                // filter wobble
+    lfo.connect(lf); lf.connect(grit.frequency);
+    const ph=Math.random()*6.28;
+    for(const o of [s1,s2,body,gritSrc,lfo]) o.start(t);
+    return {master,send,s1,s2,bp,sg,gritSrc,grit,gg,body,bg,lfo,ld,lf,ph};
+  }
+  function _scStart(heat,solid){
+    const a=ctx(); if(!a) return;
+    if(SC.a!==a){ SC.a=a; SC.v=null; SC.on=false; }
+    if(!SC.v){ SC.v=_scBuild(a,heat,solid!==false); SC.t0=a.currentTime; SC.drift=0; SC.ph=SC.v.ph; }
+    SC.on=true;
+    const t=a.currentTime, g=SC.v.master.gain;
+    try{ g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001,g.value),t); g.linearRampToValueAtTime(0.95,t+0.05); }catch(e){}
+    _scSet(heat,solid);
+  }
+  function _scSet(heat,solid){
+    const v=SC.v; if(!v||!SC.on) return;
+    const a=SC.a, t=a.currentTime, h=clamp01(heat), s=solid!==false;
+    const run=clamp01((t-SC.t0)/4);
+    // slow random walk, kept small — organic waver, never a jump
+    SC.drift=Math.max(-0.12,Math.min(0.12,SC.drift+(Math.random()-0.5)*0.03));
+    const f=(780+860*h)*(1+0.11*run+SC.drift)*(s?1:0.82);
+    setP(v.s1.frequency,f,0.06,t); setP(v.s2.frequency,f*1.006,0.06,t);
+    setP(v.bp.frequency,(1400+1500*h+280*run)*(s?1:0.75),0.08,t);
+    setP(v.grit.frequency,f*1.65+300*run,0.08,t);
+    setP(v.body.frequency,96+80*h+18*run,0.12,t);
+    setP(v.sg.gain,0.10+0.10*h,0.08,t);
+    setP(v.gg.gain,(s?0.05:0.035)+0.07*h,0.08,t);
+    setP(v.bg.gain,0.08+0.07*h,0.1,t);
+    setP(v.lfo.frequency,0.6+0.7*h+0.25*Math.sin(t*0.7+SC.ph),0.2,t);
+  }
+  function _scStop(){
+    if(!SC.on||!SC.v) return;
+    SC.on=false;
+    const a=SC.a,t=a.currentTime,v=SC.v;
+    try{
+      const g=v.master.gain; g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001,g.value),t);
+      g.linearRampToValueAtTime(0.0001,t+0.18);
+      for(const o of [v.s1,v.s2,v.body,v.gritSrc,v.lfo]) o.stop(t+0.22);
+    }catch(e){}
+    SC.v=null; SC.drift=0;
+  }
+
+  // Engine: a low machine rumble that follows rpm/throttle smoothly — two
+  // detuned saws + a sine sub under a low-pass, with a whisper of noise that
+  // is only gently amplitude-rippled (texture, NOT a combustion click track).
+  const EN={a:null,v:null};
+  function _enBuild(a){
+    const t=a.currentTime, B=bus(a);
+    const master=a.createGain(); master.gain.value=0.0001; master.connect(B.out);
+    const o1=a.createOscillator(),o2=a.createOscillator(),sub=a.createOscillator();
+    o1.type=o2.type='sawtooth'; sub.type='sine';
+    const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=260; lp.Q.value=0.9;
+    const rg=a.createGain(); rg.gain.value=0.10;
+    o1.connect(lp); o2.connect(lp); sub.connect(lp); lp.connect(rg); rg.connect(master);
+    const ns=a.createBufferSource(); ns.buffer=noise(a); ns.loop=true;
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=420; bp.Q.value=1.1;
+    const ripple=a.createGain(); ripple.gain.value=0.9;
+    const lfo=a.createOscillator(); lfo.type='sine'; lfo.frequency.value=5;
+    const lg=a.createGain(); lg.gain.value=0.1; lfo.connect(lg); lg.connect(ripple.gain);
+    const ng=a.createGain(); ng.gain.value=0.03;
+    ns.connect(bp); bp.connect(ripple); ripple.connect(ng); ng.connect(master);
+    for(const o of [o1,o2,sub,ns,lfo]) o.start(t);
+    return {master,o1,o2,sub,lp,rg,ns,bp,ripple,lfo,lg,ng};
+  }
+  function _enSet(drive,on){
+    const a=ctx(); if(!a) return;
+    if(EN.a!==a){ EN.a=a; EN.v=null; }
+    const d=clamp01(drive||0), want=!!on;
+    if(want&&!EN.v) EN.v=_enBuild(a);
+    const v=EN.v; if(!v) return;
+    const t=a.currentTime, f=44+118*d;
+    setP(v.o1.frequency,f,0.08,t); setP(v.o2.frequency,f*1.008,0.08,t); setP(v.sub.frequency,f*0.5,0.1,t);
+    setP(v.lp.frequency,240+680*d,0.08,t);
+    setP(v.rg.gain,0.09+0.11*d,0.08,t);
+    setP(v.bp.frequency,380+900*d,0.08,t);
+    setP(v.ng.gain,0.02+0.04*d,0.08,t);
+    setP(v.lfo.frequency,4+11*d,0.12,t); setP(v.lg.gain,0.08+0.05*d,0.12,t);
+    setP(v.master.gain,want?(0.10+0.46*d)*vol():0.0001,want?0.09:0.24,t);
+  }
+  function _enStop(){ if(EN.v){ const a=EN.a||ctx(); if(a) setP(EN.v.master.gain,0.0001,0.2,a.currentTime); } }
+
+  window.MV_SFX_POSH.tire={start:_scStart,set:_scSet,stop:_scStop};
+  window.MV_SFX_POSH.engine={set:_enSet,stop:_enStop};
+
+  // Fallback driver for builds without beta_engine.js (which owns the real
+  // worklet + rev gating and normally drives engine.set itself). It used to
+  // schedule engine_pop one-shots at 5-16 Hz — a click train. Now it just
+  // steers the sustained layer with the same idle / 3s-cut / ground rules.
+  let _engOn=true, _engIdle=0;
   function _engineTick(){
-    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return;
-    if(typeof _paused!=='undefined'&&_paused) return;
-    if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0) return;
+    if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p){ _enSet(0,false); return; }
+    if(typeof _paused!=='undefined'&&_paused){ _enSet(0,false); return; }
+    if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0){ _enSet(0,false); return; }
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
     const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
     const spd=Math.max(0,Math.min(1,Math.abs(p.vx||0)/top));
-    const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
+    const grounded=(typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og)&&!(p.hook&&p.hook.st==='on');
     if(dir){ _engOn=true; _engIdle=0; }
-    else if(grounded&&spd<0.06){
-      if(++_engIdle>=180) _engOn=false;
-    }else _engIdle=0;
-    if(!_engOn){ _engAcc=0; return; }
+    else if(grounded&&spd<0.06){ if(++_engIdle>=180) _engOn=false; }
+    else _engIdle=0;
     const sprint=typeof isSprintHeld==='function'&&isSprintHeld()&&dir;
     const torque=dir?Math.min(1,0.28+(sprint?0.42:0.12)+((p.runRamp||0)*0.3)):0;
-    const drive=Math.max(0,Math.min(1,Math.max(spd,torque)));
-    const hz=5+11*drive;
-    _engAcc+=1/60;
-    const step=1/hz;
-    if(_engAcc<step) return;
-    _engAcc=Math.min(_engAcc-step,step*0.5);
-    try{ sfx('engine_pop',drive); }catch(e){}
+    const drive=clamp01(Math.max(spd,torque));
+    const rev=grounded?drive:0;                 // no rev in the air or on a rope (committed engine fix)
+    _enSet(rev,_engOn);
   }
   window.MV_ENGINE={tick:_engineTick};
 
