@@ -208,13 +208,18 @@
     drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200||small?2:3);
     if(h>=200&&!small) drawTextC(H0.tag,cx,ny+70,sel?H0.col:'#8aa090',2);
     ctx.restore();
-    // badge: LEAD / ALLY (or P1 in local co-op)
-    const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
-    const bt=badge!=null?badge:(sel?lead:ally), bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-16;
-    ctx.save(); ctx.translate(bx+bw/2,by+15); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+15));
-    ctx.fillStyle='#020a04'; uiRound(bx+2,by+3,bw,30,4); ctx.fill();
-    ctx.fillStyle=sel?H0.col:'#2a3036'; uiRound(bx,by,bw,30,4); ctx.fill();
-    drawTextC(bt,bx+bw/2,by+7,sel?'#0a0410':'#9aa0a8',2);
+    // badge: an unmistakable P1 / P2 chip in co-op (P1 rides the picked card,
+    // P2 the other one); LEAD / ALLY in the single-human modes.
+    const coop=(typeof _playerCount!=='undefined'&&_playerCount===2);
+    const lead=coop?'P1':'LEAD', ally=coop?'P2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
+    const bt=badge!=null?badge:(sel?lead:ally);
+    const bs=coop?3:2, bh=coop?38:30, bw=Math.max(textW(bt,bs)+26,coop?66:0);
+    const bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-(coop?22:16);
+    ctx.save(); ctx.translate(bx+bw/2,by+bh/2); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+bh/2));
+    ctx.fillStyle='#020a04'; uiRound(bx+3,by+4,bw,bh,coop?9:4); ctx.fill();
+    ctx.fillStyle=coop?(sel?'#ffe39a':'#7ad8ff'):(sel?H0.col:'#2a3036'); uiRound(bx,by,bw,bh,coop?9:4); ctx.fill();
+    if(coop){ ctx.strokeStyle='#ffffff'; ctx.lineWidth=2; uiRound(bx+2,by+2,bw-4,bh-4,7); ctx.stroke(); }
+    drawTextC(bt,bx+bw/2,by+(coop?9:7),coop?'#0a0410':(sel?'#0a0410':'#9aa0a8'),bs);
     ctx.restore();
     if(sel&&fr%3===0) spark(x+Math.random()*w, y+h-20-Math.random()*h*0.6, H0.col);
     if(sel){
@@ -249,7 +254,7 @@
     const tx=box.x+pw+22;
     drawText(H0.name, tx, box.y+Math.max(8,box.h*0.22), sel?H0.col:'#d8ffc8', 3);
     drawText(H0.role, tx, box.y+Math.max(40,box.h*0.58), sel?'#ffffff':'#b7c8b4', 2);
-    if(sel) drawTextR('LEAD', box.x+box.w-12, box.y+10, H0.col, 2);
+    if(sel) drawTextR(_playerCount===2?'P1':'LEAD', box.x+box.w-12, box.y+10, _playerCount===2?'#ffe39a':H0.col, 2);
     return box;
   }
   function phonePills(label,opts,cur,x,y,w,row,focus){
@@ -272,7 +277,7 @@
   function drawPhoneHeroes(){
     const L=uiLayout();
     const top=Math.max(10,(L.inset&&L.inset.t)||0)+6;
-    const showSwitches=_playerCount!==2&&window.MV_SIBLING;
+    const showSwitches=!!window.MV_SIBLING;   // SOLO | WITH | CO-OP stays on screen in co-op too
     const yHint=hintY();
     const bottom=Math.min(H-12, yHint-(showSwitches?8:0));
     const x0=Math.max(12,(L.inset&&L.inset.l)||0);
@@ -345,13 +350,15 @@
   }
   function drawHeroes(){
     const mSel=_heroChoice==='mind';
+    syncCoopHero();                                      // P2 is always the brother P1 did NOT pick
     if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; anim.swF=fr; eyeT=1; eyeKey=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
     eyeT*=0.9;
     anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
     const one=window.uiLayout&&uiLayout().oneCol;
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
-    title('CHOOSE YOUR LEAD', _playerCount===2?'PLAYER 1 PICKS. PLAYER 2 RIDES.':(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    const coopSub='P1 — '+HERO[_heroChoice].name+'   ·   P2 — '+HERO[_heroChoice==='mind'?'venture':'mind'].name;
+    title('CHOOSE YOUR LEAD', _playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
     // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
     // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
     // qualities panel fills the middle between them.
@@ -368,7 +375,9 @@
     const gapL=pos.mind.cx+170*pos.mind.scl+sk(pos.mind.scl)+18, gapR=pos.venture.cx-170*pos.venture.scl-sk(pos.venture.scl)-18;
     qualities(gapL, gapR);
     sparkTick();
-    if(_playerCount!==2&&window.MV_SIBLING) sibToggle();
+    // Keep the SOLO | WITH | CO-OP row visible in co-op too, with CO-OP lit —
+    // Paulo still wants to see (and switch) that row on the cards he likes.
+    if(window.MV_SIBLING) sibToggle();
     hints();
   }
   // Paulo (Oct 22): on this screen, under the heroes, two switches â€”
@@ -377,8 +386,8 @@
   // ^ v moves between the hero row and the two switches, < > changes the focused one. Mouse / touch: tap.
   let sibRects=[], selRow=0;
   // Paulo: the BROTHER row stays exactly as it looks — SOLO / WITH — with a
-  // third CO-OP segment beside it. CO-OP hands off to the party screen so each
-  // human can pick which brother he rides.
+  // third CO-OP segment beside it. CO-OP means 2 HUMAN players and stays right
+  // here on the hero cards (no party screen): P1 picks a brother, P2 gets the other.
   const BROTHER_OPTS=[
     {k:0,label:'SOLO',col:'#9ef58a'},
     {k:1,label:'WITH',col:'#ffb86a'},
@@ -388,6 +397,12 @@
     if(typeof _playerCount!=='undefined'&&_playerCount===2) return 2;
     return (window.MV_SIBLING&&MV_SIBLING.on)?1:0;
   }
+  // One rule, used by the screen and by gameplay: in 2-human co-op P2 always
+  // rides the brother P1 didn't pick. There can never be two Minds or two Ventures.
+  function syncCoopHero(){
+    if(typeof _playerCount!=='undefined'&&_playerCount===2&&typeof _p2HeroChoice!=='undefined')
+      _p2HeroChoice=_heroChoice==='mind'?'venture':'mind';
+  }
   function setCompanion(on){
     if(!window.MV_SIBLING||_playerCount===2) return;
     MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
@@ -395,14 +410,20 @@
   function setBrotherChoice(v){
     v=((v|0)+3)%3;
     if(v===2){
+      // Straight to the SAME select screen — never _gameState='partysetup'.
       if(typeof _playerCount!=='undefined') _playerCount=2;
       if(typeof _playModeIdx!=='undefined') _playModeIdx=2;
       if(window.MV_SIBLING) MV_SIBLING.on=false;
-      if(typeof openPartySetup==='function') openPartySetup();
+      if(typeof _selectStep!=='undefined') _selectStep=1;
+      syncCoopHero();
       try{ sfx('confirm'); }catch(e2){}
       return;
     }
-    setCompanion(v===1);
+    // Back to one human: clear co-op, then apply SOLO / WITH as before.
+    if(typeof _playerCount!=='undefined') _playerCount=1;
+    if(window.MV_SIBLING) setCompanion(v===1);
+    else if(typeof _playModeIdx!=='undefined') _playModeIdx=v;
+    syncCoopHero();
   }
   function pillGroup(label,opts,cur,x,y,focus,row){
     const h=34;
@@ -462,7 +483,8 @@
       startGame();
       return;
     }
-    if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
+    // The BROTHER row stays tappable in co-op too, so a player can switch back to SOLO / WITH.
+    if(window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
       selRow=b.row;
       if(b.row===1&&brotherChoice()!==b.k){ setBrotherChoice(b.k); beep(); }
       return;
@@ -485,8 +507,6 @@
   },{capture:true,passive:true});
   // the pad (player.js): dy moves between rows, dx changes the focused row. Returns true if it took it.
   window.MV_SELECT_NAV=function(dx,dy){
-    // The title's party screen uses the very same nav (rows + left/right changes).
-    if(_gameState==='partysetup') return partyNav(dx,dy);
     if(_gameState!=='select'||(!dx&&!dy)) return false;
     const one=window.uiLayout&&uiLayout().oneCol;
     if(_selectStep===0){
@@ -507,11 +527,13 @@
       try{ sfx('menu'); }catch(e2){}
       return true;
     }
-    if(_playerCount===2||!window.MV_SIBLING){
+    if(!window.MV_SIBLING){
       if(dx<0||(one&&dy<0)) _heroChoice='mind';
       if(dx>0||(one&&dy>0)) _heroChoice='venture';
       return true;
     }
+    // Co-op uses the very same hero row + BROTHER row navigation as SOLO / WITH:
+    // dx on the hero row flips P1's brother; dx on the BROTHER row switches mode.
     if(one&&selRow===0&&dy){
       if(dy>0&&_heroChoice==='mind'){ _heroChoice='venture'; try{ sfx('menu'); }catch(e2){} return true; }
       if(dy<0&&_heroChoice==='venture'){ _heroChoice='mind'; try{ sfx('menu'); }catch(e2){} return true; }
@@ -522,7 +544,7 @@
   };
   window.MV_SELECT_FF_TOGGLE=function(){ window.MV_SELECT_NAV(0,1); };
   window.addEventListener('keydown',e=>{
-    if(_gameState!=='select'||_selectStep!==1||_playerCount===2||!window.MV_SIBLING) return;
+    if(_gameState!=='select'||_selectStep!==1||!window.MV_SIBLING) return;
     const dy={ArrowUp:-1,KeyW:-1,ArrowDown:1,KeyS:1}[e.code]||0, dx={ArrowLeft:-1,KeyA:-1,ArrowRight:1,KeyD:1}[e.code]||0;
     if(dx||dy){ window.MV_SELECT_NAV(dx,dy); e.preventDefault(); e.stopImmediatePropagation(); }
     if(e.code==='Escape'||e.code==='Backspace') selRow=0;
@@ -643,128 +665,8 @@
     ctx.restore(); ctx.imageSmoothingEnabled=true;
   };
 
-  // ── Couch co-op party setup (title → party → game) ──────────────
-  // Directly from the title, before the story / timeline: party size, then
-  // which brother each human rides. It reuses MODES, heroCard() and the very
-  // same MV_SELECT_NAV handler as the select screen (see above).
-  const PARTY_LABEL=['SOLO','WITH BROTHER','CO-OP 2P'];
-  let partyRects=[], lastPartyTouch=0;
-  function partyRows(){ return _partyMode===2?[0,1,2,3]:[0,1,3]; }
-  function partyNav(dx,dy){
-    if(_gameState!=='partysetup'||(!dx&&!dy)) return false;
-    const rows=partyRows();
-    if(dy){
-      let i=rows.indexOf(_partyRow); if(i<0) i=0;
-      i=(i+(dy>0?1:-1)+rows.length)%rows.length;
-      _partyRow=rows[i];
-    }
-    if(dx){
-      if(_partyRow===0) _partyMode=(_partyMode+(dx>0?1:-1)+3)%3;
-      else if(_partyRow===1) _partyP1=dx<0?'mind':'venture';
-      else if(_partyRow===2) _partyP2=dx<0?'mind':'venture';
-    }
-    try{ sfx('menu'); }catch(e2){}
-    return true;
-  }
-  // Keyboard / either pad funnels through MV_SELECT_NAV → partyNav.
-  window.MV_PARTY_NAV=function(dx,dy){ return window.MV_SELECT_NAV(dx,dy); };
-  function drawPartySetup(){
-    const now=performance.now();
-    if(now-lastDraw>200){ rayPrev=[]; bgN=0; }
-    lastDraw=now; lastStep=-1;
-    ctx.save(); ctx.imageSmoothingEnabled=false;
-    bg();
-    const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,oneCol:false,inset:{t:0}};
-    const one=!!L.oneCol;
-    title('COUCH CO-OP','PICK YOUR PARTY · P1 + P2');
-    partyRects=[];
-    // ── party size: the same MODES / baked mode cards as the select screen ──
-    // The canvas is a fixed 1024×768: three cards across always fit, whatever
-    // UI profile the window reports (a 1024×768 desktop window reads "tablet").
-    const top=148, gap=18;
-    const cw=Math.min(300,Math.floor((W-72-gap*2)/3));
-    const ch=116;
-    const rowW=cw*3+gap*2, x0=Math.round((W-rowW)/2);
-    MODES.slice(0,3).forEach((m,i)=>{
-      const sel=_partyMode===i, x=x0+i*(cw+gap), y=top+(sel?Math.sin(fr*0.08)*2:0);
-      partyRects.push({kind:'mode',i,x,y,w:cw,h:ch});
-      if(sel&&_partyRow===0){
-        ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.5+0.35*Math.sin(fr*0.12))+')';
-        ctx.lineWidth=2; uiRound(x-6,y-6,cw+12,ch+12,12); ctx.stroke(); ctx.restore();
-      }
-      const body=modeBody(m,sel,cw,ch,one?8:12);
-      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(body,x-12-4,y-4,body.width,body.height); ctx.restore();
-      icon(m.icon,x+cw/2,y+ch*(one?0.34:0.30),sel?m.col:'#5a7a62',one?0.9:1.05);
-      ctx.save(); if(!sel) ctx.globalAlpha=0.72;
-      uiLogo(m.name,x+cw/2,y+ch-46,m.name.length>9?18:22,{col:sel?m.col:'#8aa090',sweep:180});
-      drawTextC(m.sub,x+cw/2,y+ch-20,sel?'#ffffff':'#9ab0a0',2);
-      ctx.restore();
-      if(sel&&_partyRow===0&&fr%4===0) spark(x+cw*0.5+(Math.random()-0.5)*cw,y+ch-12,m.col);
-    });
-    // ── which brother each human controls: the same heroCard() art ─────────
-    const heroTop=top+ch+34;
-    const heroH=160;
-    const heroGap=24, heroW=Math.min(310,Math.floor((W-72-heroGap)/2));
-    const heroX0=Math.round((W-heroW*2-heroGap)/2);
-    const heroRow=(row,label,key)=>{
-      const y=heroTop+(row===1?0:heroH+heroGap+(one?0:8));
-      const focus=_partyRow===row;
-      drawTextC(label,W/2,y-16,focus?'#ffe39a':'#8aa090',2);
-      ['mind','venture'].forEach((k,i)=>{
-        const sel=key===k, box={x:heroX0+i*(heroW+heroGap),y,w:heroW,h:heroH};
-        const badge=row===1?(sel?'PLAYER 1':'P1'):(sel?'PLAYER 2':'P2');
-        heroCard(k,box.x+box.w/2,sel,sel?1:0.2,box,true,null,badge);
-        partyRects.push({kind:'hero',row,k,x:box.x,y:box.y,w:box.w,h:box.h});
-        if(focus&&sel&&fr%4===0) spark(box.x+Math.random()*box.w,box.y+box.h-18,HERO[k].col);
-      });
-    };
-    heroRow(1,'PLAYER 1',_partyP1);
-    if(_partyMode===2) heroRow(2,'PLAYER 2',_partyP2);
-    else{
-      const y=heroTop+heroH+heroGap+(one?0:8);
-      uiPanel(heroX0,y,heroW*2+heroGap,heroH,{r:14,flat:true,alpha:0.7});
-      drawTextC('P2 JOINS IN CO-OP 2P',W/2,y+heroH*0.4,'#7a8a80',2);
-      drawTextC('OR PRESS A ON THE SECOND PAD',W/2,y+heroH*0.6,'#9ab0a0',2);
-    }
-    // ── start ──────────────────────────────────────────────────────
-    const sy=Math.min(H-96,heroTop+(heroH+heroGap)*2+(one?14:20));
-    const sw=260, sx=W/2-sw/2, selStart=_partyRow===3;
-    partyRects.push({kind:'start',x:sx,y:sy,w:sw,h:42});
-    uiPanel(sx,sy,sw,42,{sel:selStart,r:12,flat:!selStart,accent:'#b8f5a0'});
-    drawTextC('START',W/2,sy+11,selStart?'#ffffff':'#c8b8ff',3);
-    drawTextC('MODE: '+PARTY_LABEL[_partyMode]+'    P1: '+HERO[_partyP1].name+
-      (_partyMode===2?'    P2: '+HERO[_partyP2].name:''),W/2,sy-24,'#ffe39a',2);
-    hints();
-    if(typeof _drawUiToast==='function') _drawUiToast();
-    rayPrev=rayNext; rayNext=[];
-    ctx.restore(); ctx.imageSmoothingEnabled=true;
-  }
-  window.drawPartySetup=drawPartySetup;
-  function partyTap(cx,cy){
-    const c=document.getElementById('c'); if(!c) return;
-    const r=c.getBoundingClientRect(); if(!r.width||!r.height) return;
-    const mx=(cx-r.left)*(W/r.width), my=(cy-r.top)*(H/r.height);
-    for(const b of partyRects){
-      if(mx<b.x||mx>b.x+b.w||my<b.y||my>b.y+b.h) continue;
-      if(b.kind==='mode'){ _partyMode=b.i; _partyRow=0; }
-      else if(b.kind==='hero'){ if(b.row===1)_partyP1=b.k; else _partyP2=b.k; _partyRow=b.row; }
-      else if(b.kind==='start'){ _partyConfirm(); return; }
-      try{ sfx('menu'); }catch(e2){}
-      return;
-    }
-  }
-  document.addEventListener('click',e=>{
-    if(_gameState!=='partysetup') return;
-    e.stopImmediatePropagation();
-    if(performance.now()-lastPartyTouch<700) return;
-    if(typeof _unlockAudio==='function') _unlockAudio();
-    partyTap(e.clientX,e.clientY);
-  },true);
-  document.addEventListener('touchstart',e=>{
-    if(_gameState!=='partysetup'||!e.touches||!e.touches[0]) return;
-    if(e.target&&e.target.id!=='c') return;
-    e.stopImmediatePropagation(); lastPartyTouch=performance.now();
-    if(typeof _unlockAudio==='function') _unlockAudio();
-    partyTap(e.touches[0].clientX,e.touches[0].clientY);
-  },{capture:true,passive:true});
+  // The COUCH CO-OP party screen is gone: CO-OP now stays on the hero cards
+  // (BROTHER row -> CO-OP). main.js still calls drawPartySetup() on the old
+  // partysetup state, so leave a harmless no-op to keep that path safe.
+  window.drawPartySetup = function(){};
 })();

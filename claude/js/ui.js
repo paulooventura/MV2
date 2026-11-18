@@ -47,9 +47,6 @@ function _togglePause(){
   }
 }
 function _driveMenusFromPads(){
-  // The party screen is driven directly by readGamepad() for BOTH pads (P2 can
-  // join/confirm there), so don't also act on the P1 key edges in Kj here.
-  if(_gameState==='partysetup') return;
   const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
   const ok=!!Kj['Space'], back=!!Kj['Escape'];
   if(!(up||dn||lf||rt||ok||back)) return;
@@ -143,13 +140,10 @@ function _filterName(){
   return 'NONE';
 }
 let _playerCount=1;
-let _heroChoice='mind';
-let _p2HeroChoice='venture';       // human P2 in 2P local (ui_select.js party setup)
+let _heroChoice='mind';                 // P1's brother — picked first on the select screen
+let _p2HeroChoice='venture';            // human P2 always rides the other brother
 let _selectStep=0;
 let _playModeIdx=0;
-// Party setup, straight from the title (before the story / timeline).
-// These are the pending choices; they are committed only on CONFIRM.
-let _partyRow=0, _partyMode=0, _partyP1='mind', _partyP2='venture';
 // T137 (store gate A): the Steam build (served from app://) does not show the 2P ONLINE "coming soon"
 // card: it has 3 modes, the web build keeps all 4. ?store=1 shows the store menu in a browser.
 const MV_STORE_BUILD=(()=>{ try{ return location.protocol==='app:'||/[?&]store=1\b/.test(location.search); }catch(e){ return false; } })();
@@ -595,30 +589,27 @@ function startGame(){
       _selectStep=1; return;
     }
     if(window.MV_SELECT_GATE&&MV_SELECT_GATE()) return;
-    // The classic select screen keeps P2 as the other brother; only the
-    // title's party setup lets you pick which brother each human rides.
+    // Co-op: P1 picks first, human P2 always gets the other brother — never two
+    // Minds or two Ventures. This stays the single source of truth for gameplay.
     if(_playerCount===2) _p2HeroChoice=_heroChoice==='mind'?'venture':'mind';
     _launchGameplay(true);
   }
 }
-// ── Couch co-op party setup (title → party → game) ─────────────
+// ── Co-op entry shim ──────────────────────────────────────────
+// The COUCH CO-OP party screen is gone. Choosing CO-OP in the select screen's
+// BROTHER row now stays on the hero cards Paulo likes. These two shims are
+// kept only so stale callers (the in-game self-test, for one) land on that
+// same select screen in co-op mode instead of erroring or seeing the old screen.
 function openPartySetup(){
   _unlockAudio();
-  _partyMode=_playerCount===2?2:(window.MV_SIBLING&&MV_SIBLING.on?1:0);
-  _partyP1=_heroChoice;
-  _partyP2=(_p2HeroChoice&&_p2HeroChoice!==_partyP1)?_p2HeroChoice:(_partyP1==='mind'?'venture':'mind');
-  _partyRow=0;
-  _gameState='partysetup';
+  _playerCount=2;
+  _playModeIdx=2;
+  _selectStep=1;
+  if(window.MV_SIBLING) MV_SIBLING.on=false;
+  _p2HeroChoice=_heroChoice==='mind'?'venture':'mind';
+  _gameState='select';
 }
-function _partyConfirm(){
-  if(_gameState!=='partysetup') return;
-  _playerCount=_partyMode===2?2:1;
-  _heroChoice=_partyP1;
-  _p2HeroChoice=_partyMode===2?_partyP2:(_partyP1==='mind'?'venture':'mind');
-  if(window.MV_SIBLING) MV_SIBLING.on=_partyMode===1;
-  try{ sfx('confirm'); }catch(e){}
-  _launchGameplay(false);
-}
+function _partyConfirm(){ /* no party screen to confirm — co-op starts from the select screen */ }
 function _startGameAtZone(idx){
   _pendingZone=idx; _gameState='game'; _stopBGM('title'); initWorld();
   if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
@@ -626,7 +617,6 @@ function _startGameAtZone(idx){
 }
 function _onInteract(e){
   _unlockAudio();
-  if(_gameState==='partysetup') return;   // ui_select.js handles taps on the party cards
   if(_gameState==='title'){
     if(_titleSlideInput()){ _ensureTitleMusic(); return; }  // first press fades the still back to the title
     _titleT=0; _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return;
@@ -656,14 +646,6 @@ document.addEventListener('keydown',e=>{
   if(_gameState==='testmode'&&window.MV_TEST_INPUT){
     MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space'||e.code==='KeyA',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
     e.preventDefault();return;
-  }
-  if(_gameState==='partysetup'){
-    if(e.code==='Escape'||e.code==='Backspace'){ _gameState='title'; e.preventDefault(); return; }
-    const dx=(e.code==='ArrowLeft'||e.code==='KeyA')?-1:(e.code==='ArrowRight'||e.code==='KeyD')?1:0;
-    const dy=(e.code==='ArrowUp'||e.code==='KeyW')?-1:(e.code==='ArrowDown'||e.code==='KeyS')?1:0;
-    if((dx||dy)&&window.MV_PARTY_NAV){ window.MV_PARTY_NAV(dx,dy); e.preventDefault(); return; }
-    if(e.code==='Enter'||e.code==='Space'){ _partyConfirm(); e.preventDefault(); return; }
-    return;
   }
   if(_gameState==='title'){
     if(_titleSlideInput()){ e.preventDefault(); return; }  // first key fades the still back, no menu action
@@ -841,11 +823,8 @@ function drawHUD(){
     uiRound(railX,railTop,6,railH,3); ctx.fillStyle='rgba(10,6,24,0.55)'; ctx.fill();
     const rh=railH*prog; if(rh>3){ const gg=ctx.createLinearGradient(0,railTop+railH-rh,0,railTop+railH); gg.addColorStop(0,'#b0ffcf'); gg.addColorStop(1,'#2a9a6a'); uiRound(railX,railTop+railH-rh,6,rh,3); ctx.fillStyle=gg; ctx.fill(); }
   }
-  const _ch=_playerChargeInfo(p), _chargeShow=_ch.chargeFrac;
-  if((p.og&&_chargeShow>0)||p.duckBoostReady||p._wallChargeReady||p.wallGrip>0||_ch.sprinting){
-    const ready=p.duckBoostReady||p._wallChargeReady||_ch.ready;
-    uiBar(left,top+lh+8,lw,12,_chargeShow,'#3ad07a',ready?'#d8ffb0':'#7dffcf',8,{pulse:ready});
-  }
+  // Paulo (Nov 18): no on-screen charge / sprint bar. The mechanics stay exactly
+  // as they are — only this HUD readout is gone. The stage-progress rail above is kept.
 }
 
 // ── Test Mode ─────────────────────────────────────────────────
