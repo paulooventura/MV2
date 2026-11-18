@@ -805,15 +805,33 @@
     const m=typeof window.MV_FOE_MOOD==='function'?window.MV_FOE_MOOD():'neutral';
     return m==='gore'?gore:m==='cute'?cute:base;
   }
+  // Paulo (Nov 18): mock laughter should sound like *that foe's* voice — a big body
+  // gets a deep guffaw, a little one a high giggle. Read the size off the collision
+  // box (or a radius, if a caller only supplies that) and pitch inversely to it.
+  // The heptagon's box is 112px: that is the reference, so its existing mean 210 Hz
+  // laugh is untouched; half the size doubles the pitch, double the size halves it.
+  // Clamped so nothing turns sub-audible or chipmunk-squeaky.
+  const LAUGH_REF=112;
+  function laughPitch(e){
+    let s=0;
+    if(e){
+      if(typeof e.r==='number'&&e.r>0) s=e.r*2;                 // radius -> diameter
+      if(typeof e.w==='number'&&e.w>0) s=Math.max(s,e.w);
+      if(typeof e.h==='number'&&e.h>0) s=Math.max(s,e.h);
+    }
+    if(!(s>0)) s=LAUGH_REF;
+    return Math.max(0.55,Math.min(2.4,LAUGH_REF/s));
+  }
   function laugh(e){
     let a=null; try{ a=typeof ga==='function'?ga():null; }catch(er){} if(!a||a.state!=='running') return;
-    const v=(typeof OPT!=='undefined'&&OPT.sfxVol!=null?OPT.sfxVol:1), t0=a.currentTime+0.02;
+    const v=(typeof OPT!=='undefined'&&OPT.sfxVol!=null?OPT.sfxVol:1), t0=a.currentTime+0.02, pitch=laughPitch(e);
     const out=a.createGain(); out.gain.value=0.5*v; out.connect(a.destination);
     for(let k=0;k<4;k++){                                   // "ha" x4, each a little lower, a mean growl under it
-      const s=t0+k*0.17, f0=210-k*18, o=a.createOscillator(), o2=a.createOscillator(), f1=a.createBiquadFilter(), f2=a.createBiquadFilter(), g=a.createGain(), g2=a.createGain();
+      const s=t0+k*0.17, f0=(210-k*18)*pitch, o=a.createOscillator(), o2=a.createOscillator(), f1=a.createBiquadFilter(), f2=a.createBiquadFilter(), g=a.createGain(), g2=a.createGain();
       o.type='sawtooth'; o.frequency.setValueAtTime(f0*1.12,s); o.frequency.exponentialRampToValueAtTime(f0*0.86,s+0.13);
       o2.type='square'; o2.frequency.value=f0/2; const gg=a.createGain(); gg.gain.value=0.25; o2.connect(gg);
-      f1.type='bandpass'; f1.frequency.value=760; f1.Q.value=6; f2.type='bandpass'; f2.frequency.value=1250; f2.Q.value=7;
+      // the "ha" formants ride with the pitch: a small voicebox is brighter, a big one darker
+      f1.type='bandpass'; f1.frequency.value=760*pitch; f1.Q.value=6; f2.type='bandpass'; f2.frequency.value=1250*pitch; f2.Q.value=7;
       o.connect(f1); o.connect(f2); gg.connect(f1); f1.connect(g); f2.connect(g2); g2.gain.value=0.6; g2.connect(g);
       g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.7,s+0.02); g.gain.exponentialRampToValueAtTime(0.0001,s+0.15); g.connect(out);
       const n=a.createBufferSource(), b=a.createBuffer(1,Math.round(a.sampleRate*0.04),a.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
