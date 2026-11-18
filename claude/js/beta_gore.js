@@ -35,10 +35,56 @@
     if(r>200&&g>110) return 'rgba(150,160,185,'+(a*0.55).toFixed(3)+')';         // the gloss on wet ink
     const L=r/255; return 'rgba('+Math.round(8+22*L)+','+Math.round(7+20*L)+','+Math.round(12+28*L)+','+a+')';
   }
-  const estains=[];                                                             // ink stuck on foes
-  // a character's speaker box (where a splash can stick): above the wheel, the box's width; Venture is drawn at 92%
-  function bodyBox(pl){ const WR=typeof WHEEL_R==='number'?WHEEL_R:12, k=pl.hero==='venture'?0.92:1, feet=pl.y+FEET_OFF, cx=pl.x+SW/2;
-    const h=50*k, bot=feet-(2*WR+6)*k, w=40*k; return {x:cx-w/2, y:bot-h, w, h}; }
+  const estains=[];                                                             // blood / ink stuck to a body's real box
+  // Paulo (this task): "blood blobs on the character look like a sheet ... we want it on its
+  // collision box, of the character and of the foes too, like it does with the floor and walls."
+  // The old hand-rolled bodyBox() was a fake 40x50 rectangle; use the SAME box combat uses.
+  // Kept in world coords and re-read every frame, so a stain rides the actor as it walks /
+  // crouches. Player + sibling use playerCoreHB; foes use their own combat hitbox (mind foes
+  // -> core, signol -> rim box, eye / cube / boss -> e.x/e.y/e.w/e.h).
+  function actorHB(a){
+    if(!a||!isFinite(a.x)||!isFinite(a.y)) return null;
+    try{
+      if(typeof _enemyItemHB==='function'&&typeof ENEMS!=='undefined'&&ENEMS.indexOf(a)>=0)
+        return _enemyItemHB(a);                       // a zero box means "body absent": no stain
+    }catch(e){}
+    try{
+      if(typeof playerCoreHB==='function'&&(a===p||a===p2||a.hero||a._aiCompanion||a._betaSib))
+        return playerCoreHB(a);
+    }catch(e){}
+    if(isFinite(a.w)&&isFinite(a.h)&&a.w>0&&a.h>0) return {x:a.x,y:a.y,w:a.w,h:a.h};
+    return null;
+  }
+  // Which edge of the box did a splash come through, and where along it? A moving drop's
+  // velocity gives the physical entry face (down -> top, rightward -> left face, ...).
+  // A splash created at the actor's own centre has no travel, so favour the visible side
+  // faces (where blood can run down) with the odd pool on the top — never a flat scatter.
+  function surfaceOnBox(hb,wx,wy,vx,vy){
+    const cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+    let side;
+    const ax=Math.abs(vx||0), ay=Math.abs(vy||0);
+    if(ax>=ay&&ax>0.05) side=(vx>0)?'left':'right';
+    else if(ay>0.05)    side=(vy>0)?'top':'bottom';
+    else{ const r=Math.random(); side=r<0.4?'left':r<0.8?'right':r<0.94?'top':'bottom'; }
+    const t=(side==='top'||side==='bottom')?cl((wx-hb.x)/hb.w,0.06,0.94):cl((wy-hb.y)/hb.h,0.05,0.95);
+    return {side,t};
+  }
+  // World point of an edge-anchored stain on the CURRENT box.
+  function boxPoint(hb,side,t){
+    if(side==='top')    return {x:hb.x+t*hb.w, y:hb.y};
+    if(side==='bottom') return {x:hb.x+t*hb.w, y:hb.y+hb.h};
+    if(side==='left')   return {x:hb.x, y:hb.y+t*hb.h};
+    return {x:hb.x+hb.w, y:hb.y+t*hb.h};
+  }
+  // A few chunky blots per splash, stuck to a perimeter point — not a dense wash.
+  function bodyStain(a,hb,wx,wy,vx,vy,me){
+    const s=surfaceOnBox(hb,wx,wy,vx,vy), chunk=Math.random()<0.24;
+    estains.push({e:a, me:!!me, side:s.side, t:s.t,
+      r:(chunk?3.2:1.5)+Math.random()*(chunk?2.6:1.7),
+      len:0, max:(s.side==='left'||s.side==='right')?9+Math.random()*24:3+Math.random()*8,
+      age:0, chunk});
+    if(estains.length>110) estains.splice(0,estains.length-110);
+  }
   // (build 407 fix) Ink & Vinyl has blood (bloodAmt) but none of GORE's look or sound: goreAmt is GORE's alone —
   // it drove the red grade and the metal hit layer, which turned I&V red and made the shutdowns loud
   // T549/T552: past the last floor the ride keeps deepening - extra blood below
@@ -126,21 +172,23 @@
       drops.push({x,y,px:x,py:y,vx:Math.cos(a)*sp*(chunk?0.7:1),vy:Math.sin(a)*sp-1.6,r:(chunk?3.8:1.3)+Math.random()*(chunk?4.4:2.8),t:0,max:(chunk?46:20)+Math.random()*26|0,chunk});
     }
     if(n>=8){ splashN+=n; burstN++; burstT=22; }
-    // T553: the blot sticks to the SURFACE that was hit, not the middle of the face.
-    // Which edge the impact is closest to is the side we slashed from.
-    if(INK()&&typeof ENEMS!=='undefined'){ for(const e of ENEMS){ if(!e||!isFinite(e.x)||x<e.x-6||x>e.x+(e.w||32)+6||y<e.y-6||y>e.y+(e.h||32)+6) continue;
-      const w=e.w||32, h=e.h||32, rx=x-e.x, ry=y-e.y;
-      const ds=[rx, w-rx, ry, h-ry]; let side=0; for(let s=1;s<4;s++) if(ds[s]<ds[side]) side=s;
-      for(let k=0;k<3;k++){
-        const jitter=(Math.random()-0.5)*8;
-        let ox,oy;
-        if(side===0){ ox=1+Math.random()*3; oy=Math.max(3,Math.min(h-4,ry+jitter)); }
-        else if(side===1){ ox=w-1-Math.random()*3; oy=Math.max(3,Math.min(h-4,ry+jitter)); }
-        else if(side===2){ ox=Math.max(3,Math.min(w-4,rx+jitter)); oy=1+Math.random()*3; }
-        else{ ox=Math.max(3,Math.min(w-4,rx+jitter)); oy=h-1-Math.random()*3; }
-        estains.push({e, ox, oy, side, r:2+Math.random()*3, len:0, max:10+Math.random()*28, t:0});
+    // T553 / Paulo (this task): a direct splash sticks to the SURFACE of whoever was hit —
+    // MIND, the sibling, or a foe (boss included) — on that actor's REAL collision box.
+    // Ink & Vinyl takes the same geometry but IC() keeps it ink, never GORE red.
+    try{
+      const cands=[];
+      if(typeof p!=='undefined'&&p) cands.push(p);
+      const Sib=window.MV_SIBLING&&MV_SIBLING.state?MV_SIBLING.state():null;
+      if(Sib) cands.push(Sib);
+      if(typeof ENEMS!=='undefined') for(const e of ENEMS) if(e) cands.push(e);
+      for(const a of cands){
+        if(!a||!isFinite(a.x)) continue;
+        const hb=actorHB(a); if(!hb||hb.w<=0||hb.h<=0) continue;
+        if(x<hb.x-6||x>hb.x+hb.w+6||y<hb.y-6||y>hb.y+hb.h+6) continue;
+        if(Math.random()<0.75) bodyStain(a,hb,x,y,0,0,a===p||a===Sib);  // a blot or two, not a scatter
+        break;
       }
-      if(estains.length>110) estains.splice(0,estains.length-110); break; } }
+    }catch(e){}
     if(drops.length>500) drops.splice(0,drops.length-500);
   }
   // A pile of hits in the same moment throws blood on the glass.
@@ -328,19 +376,34 @@
     if(B0.waterStain>0) B0.waterStain=Math.max(0,B0.waterStain-0.00003);
     for(let i=clouds.length-1;i>=0;i--){ const c=clouds[i]; c.t++; c.r+=0.25; c.y-=0.05; if(c.t>90) clouds.splice(i,1); }
     // stains on a body under water wash off (and colour the water)
-    for(const q of estains){ const e=q.e; if(!e||!B0.inWater) continue; let x, y;
-      if(q.me){ const b=bodyBox(e); x=b.x+q.u*b.w; y=b.y+q.v*b.h; } else { x=e.x+q.ox; y=e.y+q.oy; }
-      if(B0.inWater(x,y)){ q.t+=25; B0.waterStain=Math.min(1,(B0.waterStain||0)+0.0015); if(Math.random()<0.2) clouds.push({x,y,r:3,t:0}); } }
+    for(const q of estains){ const e=q.e; if(!e||!B0.inWater) continue;
+      const hb=actorHB(e); if(!hb||hb.w<=0) continue;
+      const pt=boxPoint(hb,q.side,q.t);
+      if(B0.inWater(pt.x,pt.y)){ q.age+=25; B0.waterStain=Math.min(1,(B0.waterStain||0)+0.0015); if(Math.random()<0.2) clouds.push({x:pt.x,y:pt.y,r:3,t:0}); } }
     for(let i=drops.length-1;i>=0;i--){
       const d=drops[i];
       d.px=d.x; d.py=d.y;
       d.vy+=0.32; d.x+=d.vx; d.y+=d.vy; d.vx*=0.985; d.t++;
       // (Paulo, Nov 13) into the water it dilutes: no splat, a little cloud, and the water takes the colour
       if(B0.inWater&&B0.inWater(d.x,d.y)){ B0.waterStain=Math.min(1,(B0.waterStain||0)+0.004*Math.max(0.5,d.r)); clouds.push({x:d.x,y:d.y,r:3+d.r*2,t:0}); if(clouds.length>60) clouds.shift(); drops.splice(i,1); continue; }
-      // (Paulo, Nov 13) flying at MIND, it lands on him: a stain on his body that runs down
-      if(d.t>3&&typeof p!=='undefined'&&p&&!d.drip&&!d.own){ for(const pl of [p, window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null]){ if(!pl) continue;
-        const b=bodyBox(pl); if(d.x>b.x&&d.x<b.x+b.w&&d.y>b.y&&d.y<b.y+b.h){ const u=(d.x-b.x)/b.w, v=(d.y-b.y)/b.h; estains.push({e:pl, u:Math.max(0.08,Math.min(0.92,u)), v:Math.max(0.05,Math.min(0.85,v)), r:1.4+Math.random()*2, len:0, max:4+Math.random()*14, t:0, me:true}); if(estains.length>110) estains.shift(); drops.splice(i,1); d._gone=true; break; } }
-        if(d._gone) continue; }
+      // (Paulo, Nov 13 / this task) a drop that flies into an actor sticks to the edge of
+      // his REAL box and runs down it — the same way a drop lands on a wall or a floor.
+      if(d.t>3&&!d.drip&&!d._bodyChk){
+        const cands=[];
+        if(!d.own&&typeof p!=='undefined'&&p) cands.push(p);
+        const Sib=window.MV_SIBLING&&MV_SIBLING.on&&MV_SIBLING.state?MV_SIBLING.state():null;
+        if(Sib&&!d.own) cands.push(Sib);
+        if(typeof ENEMS!=='undefined') for(const e of ENEMS) if(e&&!e._gone) cands.push(e);
+        for(const a of cands){
+          const hb=actorHB(a); if(!hb||hb.w<=0||hb.h<=0) continue;
+          if(d.x>hb.x&&d.x<hb.x+hb.w&&d.y>hb.y&&d.y<hb.y+hb.h){
+            d._bodyChk=true;                                    // one chance per drop
+            if(Math.random()<0.35){ bodyStain(a,hb,d.x,d.y,d.vx,d.vy,a===p||a===Sib); d._gone=true; drops.splice(i,1); }
+            break;
+          }
+        }
+        if(d._gone) continue;
+      }
       if(d.t>4&&(hitFloor(d.x,d.y+2)||hitFloor(d.x,d.y))){ splat(d.px,d.py,d.r*0.4); drops.splice(i,1); continue; }
       if(d.t>=Math.max(d.max,600)||d.y>(typeof MV_GRID!=='undefined'&&MV_GRID?MV_GRID.rows*MV_GRID.tile:1e5)){ drops.splice(i,1); }   // (out of the world or very old: gone, never a stain in the air)
     }
@@ -400,18 +463,37 @@
       if(s.drip>0){ ctx.fillStyle=IC('rgba(120,0,12,'+s.a.toFixed(2)+')'); ctx.fillRect(-0.6,0,1.2,sw(3)); }
       ctx.restore();
     }
-    // ink on the foes: blots stuck to their bodies, each running down in a thin line
-    for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.t++;
-      if(!e||!isFinite(e.x)||e._gone||e._hidden||q.t>1500||(!q.me&&ENEMS.indexOf(e)<0)){ estains.splice(i,1); continue; }
-      if(q.len<q.max) q.len+=0.25;
-      let X0, Y0;
-      if(q.me){ if(window.MV_LIFT&&MV_LIFT.inClosedCab&&MV_LIFT.inClosedCab(e)) continue;   // hidden with him in a closed car
-        const b=bodyBox(e); q.len=Math.min(q.len,(1-q.v)*b.h-2); X0=sx(b.x+q.u*b.w); Y0=sy(b.y+q.v*b.h); }
-      else { X0=sx(e.x+q.ox); Y0=sy(e.y+q.oy); }
-      const al=Math.min(1,(1500-q.t)/200);
+    // Blood / ink clinging to a character's REAL collision box: blots on the perimeter,
+    // a pooling line along the top face, and drips running down the side faces.
+    // The world-space anchor is re-read from the live box each frame, so it rides the
+    // actor as he moves or crouches; IC() keeps I&V's version ink, never GORE red.
+    for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.age++;
+      if(!e||!isFinite(e.x)||e._gone||e._hidden||q.age>1500||(!q.me&&ENEMS.indexOf(e)<0)){ estains.splice(i,1); continue; }
+      const hb=actorHB(e); if(!hb||hb.w<=0||hb.h<=0){ estains.splice(i,1); continue; }
+      if(q.me&&window.MV_LIFT&&MV_LIFT.inClosedCab&&MV_LIFT.inClosedCab(e)) continue;   // hidden with him in a closed car
+      const pt=boxPoint(hb,q.side,q.t);
+      if(!nearView(pt.x,pt.y,60)) continue;                              // draw-time camera cull
+      const X0=sx(pt.x), Y0=sy(pt.y), al=Math.min(1,(1500-q.age)/200);
+      const vert=(q.side==='left'||q.side==='right'), top=(q.side==='top');
+      if(q.len<q.max) q.len+=0.22;
+      const run=Math.min(q.len,Math.max(0,vert?(hb.y+hb.h-pt.y-2):hb.h*0.38));
+      if(top){                                                           // puddle line on the top face
+        const half=Math.max(3,sw(3+q.r*1.6));
+        ctx.fillStyle=IC('rgba(110,0,14,'+(0.78*al).toFixed(3)+')');
+        ctx.fillRect(X0-half,Y0-Math.max(1,sw(1.6)),half*2,Math.max(2,sw(2.6)));
+        ctx.fillStyle=IC('rgba(170,10,24,'+(0.6*al).toFixed(3)+')');
+        ctx.fillRect(X0-half*0.7,Y0-Math.max(1,sw(2.2)),half*1.4,Math.max(1,sw(1)));
+        ctx.fillStyle=IC('rgba(255,170,180,'+(0.4*al).toFixed(3)+')');
+        ctx.fillRect(X0-half*0.5,Y0-Math.max(1,sw(2.6)),half,Math.max(1,sw(0.7)));
+      }
       ctx.fillStyle=IC('rgba(120,0,14,'+(0.85*al).toFixed(3)+')'); ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
-      ctx.fillRect(X0-Math.max(0.6,sw(0.7)),Y0,Math.max(1,sw(1.4)),sw(q.len)); ctx.beginPath(); ctx.arc(X0,Y0+sw(q.len),Math.max(1,sw(1.3)),0,Math.PI*2); ctx.fill();
-      ctx.fillStyle=IC('rgba(255,170,180,'+(0.35*al).toFixed(3)+')'); ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
+      if(run>0){                                                         // a drip down the face it stuck to
+        const dx=vert?X0:(q.t<0.5?sx(hb.x)+1:sx(hb.x+hb.w)-1), dy=vert?Y0:Y0-Math.max(1,sw(1));
+        ctx.fillStyle=IC('rgba(120,0,14,'+(0.8*al).toFixed(3)+')');
+        ctx.fillRect(dx-Math.max(0.6,sw(0.7)),dy,Math.max(1,sw(1.4)),sw(run));
+        ctx.beginPath(); ctx.arc(dx,dy+sw(run),Math.max(1,sw(1.3+q.r*0.15)),0,Math.PI*2); ctx.fill();
+      }
+      if(q.chunk){ ctx.fillStyle=IC('rgba(255,170,180,'+(0.35*al).toFixed(3)+')'); ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); } }
     ctx.lineCap='round';
     for(const d of drops){
       if(!nearView(d.x,d.y,60)) continue;                               // draw-time camera cull
