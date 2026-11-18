@@ -358,7 +358,7 @@
       // T544 (Paulo 11-16): the arrival ding-dong leans clearly up going up and
       // down going down. Use the direction captured at launch (S.dir decays as
       // soon as the doors open), with a shift big enough to actually hear.
-      const dir=Math.sign(S._rideDir||S.dir||0)||0, k=dir>0?1.19:dir<0?0.84:1;
+      const dir=Math.sign(S._rideDir||S.dir||0)||0, k=dir>0?1.26:dir<0?0.79:1;
       tone(a,t,90*k,48*k,0.2,0.16,'triangle');
       tone(a,t+0.08,523*k,523*k,0.18,0.34,'sine');
       tone(a,t+0.26,784*k,784*k,0.16,0.46,'sine');
@@ -416,6 +416,10 @@
     y=Math.max(m.ya+4, Math.min(m.yb-4, y));
     const delta=y-m.y;
     for(const c of btn.cabs) c._called=c===m;
+    // T544b: a summoned car never goes through go(), so capture its travel
+    // direction here too — otherwise the arrival ding-dong reuses a stale
+    // direction and the pitch does not follow whether the car came up or down.
+    S._rideDir=Math.sign(delta)||S._rideDir||0;
     shiftColumn(btn.cabs, delta, 'summon');
     pressSfx();
   }
