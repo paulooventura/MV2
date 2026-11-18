@@ -3173,10 +3173,35 @@ function _resetCombatProgress(){
   if(typeof _resetTrsFlames==='function') _resetTrsFlames();
 }
 function _syncLivesFromHp(pl){ pl.lives=Math.max(0,Math.ceil(pl.hp/PLAYER_HIT_DMG)); }
+// Paulo (Nov 18): the 'ouch' yelp pitches with the victim's remaining energy.
+// ratio is hp/maxHp (0 = empty, 1 = full); map it to a 0.55..1.30 multiplier so a
+// nearly-empty character/foe sounds distinctly lower than a healthy one.
+function _ouchSfxPitch(ratio){
+  const r=(typeof ratio==='number'&&isFinite(ratio))?Math.max(0,Math.min(1,ratio)):1;
+  return Math.max(0.5,Math.min(1.4,0.55+0.75*r));
+}
+// Co-op P2 is hurt on its own code path (weapons.js, the only caller of
+// sfx('hurt')), which is outside this file. Hook that cue so P2 gets the same
+// energy-pitched yelp. p2.hp has already been reduced when 'hurt' fires.
+(function(){
+  const _sfx0=window.sfx;
+  if(typeof _sfx0!=='function') return;
+  window.sfx=function(t){
+    const r=_sfx0.apply(this,arguments);
+    if(t==='hurt'){
+      try{
+        const q=(typeof p2!=='undefined'&&p2)?p2:null;
+        if(q) sfx('ouch',_ouchSfxPitch(q.hp/(q.maxHp||100)));
+      }catch(e){}
+    }
+    return r;
+  };
+})();
 function applyPlayerHit(knockX,knockY,dmg=PLAYER_HIT_DMG){
   if(_shutdownTimer>0||_gameOver) return;
   if(_awdjooTutorial) _stageDamageFree=false;
   p.hp=Math.max(0,p.hp-dmg);
+  try{sfx('ouch',_ouchSfxPitch(p.hp/(p.maxHp||100)));}catch(e){}
   _syncLivesFromHp(p);
   p._lifeRegenT=0;
   p.inv=0;
@@ -3437,6 +3462,12 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
   if(e.mind&&!e.alive){ if(e._mindOff==='rebooting') return _tryInterruptMindReboot(e); return false; }
   if(!e.alive) return false;
   e.hp=Math.max(0,e.hp-dmg);
+  // Paulo (Nov 18): every foe hit gets the energy-pitched 'ouch'. Foes normally
+  // carry mhp (sometimes maxHp); fall back to a sensible default if neither is set.
+  try{
+    const _foeMax=e.mhp||e.maxHp||(typeof MINION_HP==='number'?MINION_HP:50);
+    sfx('ouch',_ouchSfxPitch(e.hp/_foeMax));
+  }catch(e){}
   e.hitF=14;
   e._pwrHits=(e._pwrHits||0)+1;
   const _lives=(e._downs||0)+(e.mind?(e._shutCount||0):0);

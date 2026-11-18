@@ -675,7 +675,7 @@ function MV_SPATIAL_from(o){ try{ if(o&&isFinite(o.x)&&isFinite(o.y)) window._sf
 function sfxAt(o){ MV_SPATIAL_from(o); return sfx.apply(this,Array.prototype.slice.call(arguments,1)); }
 function sfx(t){
   if(!_audioUnlocked) return;
-  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed'||t==='enemy_shut'||t==='enemy_dead'||t==='tire_squeal';   // (build 405) foe shutdowns are pitched by how many times it's gone down; tire_squeal by heat
+  const pitchable=t==='player_hit'||t==='hurt'||t==='hit_enemy'||t==='hit'||t==='ouch'||t==='laser'||t==='laser_charged_fire'||t==='jump'||t==='jump_reg'||t==='jump_spring'||t==='jump_good'||t==='knowl_seed'||t==='enemy_shut'||t==='enemy_dead'||t==='tire_squeal';   // (build 405) foe shutdowns are pitched by how many times it's gone down; tire_squeal by heat; 'ouch' by the victim's remaining energy
   const pitch=(pitchable&&typeof arguments[1]==='number')?arguments[1]:1;
   const sampleAlias={
     jump:'jump_reg',
@@ -743,6 +743,18 @@ function sfx(t){
     case'xlr':o(200,640,.15,.14);break;
     case'mag':o(460,130,.12,.12);break;
     case'hit':o(240*pitch,90*pitch,.06,.1);nz(.04,.1);break;
+    // 'ouch' (Paulo, Nov 18): a short descending, voice-like yelp, distinct from the
+    // percussive hit thuds. `pitch` is the victim's remaining-energy multiplier —
+    // lower hp gives a lower, sadder "ow". The base/PSG voice mirrors the posh one
+    // so the cue carries in every sound mode, not just Posh.
+    case'ouch':{
+      const ouchP=Math.max(0.5,Math.min(1.4,pitch));
+      o(520*ouchP,300*ouchP,.16,.16,0,'triangle');
+      o(780*ouchP,450*ouchP,.12,.07,0.01,'square');
+      o(260*ouchP,150*ouchP,.18,.08,0,'sine');
+      nz(.07,.06,false,1.1*ouchP,0.02);
+      break;
+    }
     case'hit_enemy':o(240*pitch,90*pitch,.06,.1);nz(.04,.1);break;
     case'player_hit':o(340*pitch,90*pitch,.12,.12);nz(.08,.08,true,0.7*pitch);break;
     case'stomp':o(200,60,.08,.14);nz(.05,.12,true);break;

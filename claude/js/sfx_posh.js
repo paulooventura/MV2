@@ -136,6 +136,19 @@
     punch_hit_heavy(a){ tone(a,{f:90,f1:28,d:0.34,v:0.4}); tone(a,{f:48,f1:22,d:0.38,v:0.24}); hiss(a,{type:'lowpass',f:1100,f1:140,d:0.18,v:0.28,at:0.001,rev:0.3}); tone(a,{f:420,f1:160,d:0.04,v:0.08,type:'triangle'}); },
     punch_wall(a){ tone(a,{f:105,f1:44,d:0.12,v:0.2}); for(let k=0;k<3;k++) hiss(a,{f:rnd(1500,3500),q:5,dt:0.01+k*0.02,d:0.03,v:0.07}); },
     bed_boing(a){ tone(a,{f:150,f1:330,d:0.28,v:0.14,type:'triangle',vib:11,vibd:40}); tone(a,{f:75,f1:120,d:0.22,v:0.12}); hiss(a,{type:'lowpass',f:500,d:0.08,v:0.06}); },
+    // 'ouch' (Paulo, Nov 18): a short, voice-like yelp when a character or foe is hurt.
+    // `p` is the pitch multiplier driven by the victim's remaining energy — a low-hp
+    // victim sounds distinctly lower. Two detuned formant-ish bodies with a downward
+    // glide and a breathy edge read as a little "ow", not a percussive hit, so it
+    // layers cleanly beside the existing hit/player_hit thuds.
+    ouch(a,p){
+      p=Math.max(0.5,Math.min(1.4,typeof p==='number'&&isFinite(p)?p:1));
+      const f=520*p, f1=310*p, d=0.21;
+      tone(a,{f,f1,d,v:0.16,type:'triangle',lp:2600,vib:22,vibd:26,at:0.006,rev:0.12});
+      tone(a,{f:f*1.5,f1:f1*1.5,d:d*0.82,v:0.06,type:'sine',at:0.008});
+      tone(a,{f:f*0.5,f1:f1*0.5,d:d*1.1,v:0.07,type:'triangle',lp:900,at:0.006});
+      hiss(a,{f:1500*p,f1:700*p,q:1,d:0.09,v:0.05,at:0.004});
+    },
     hit(a,p){ tone(a,{f:190*p,f1:60,d:0.16,v:0.22}); hiss(a,{type:'lowpass',f:1800*p,d:0.1,v:0.16}); tone(a,{f:2200,d:0.02,v:0.05,type:'triangle',hp:1500}); },
     hit_enemy(a,p){ R.hit(a,p*1.15); bell(a,{f:420*p,ratio:1.41,index:3,d:0.18,v:0.05,rev:0.2}); },
     player_hit(a,p){ tone(a,{f:150*p,f1:48,d:0.3,v:0.26}); tone(a,{f:340*p,f1:180,d:0.28,v:0.07,type:'triangle'}); tone(a,{f:358*p,f1:190,d:0.28,v:0.06,type:'triangle'}); hiss(a,{type:'lowpass',f:1200,d:0.16,v:0.14}); },
