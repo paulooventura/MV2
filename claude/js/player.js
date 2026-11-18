@@ -268,25 +268,24 @@ function _updateRunEntry(pl){
   }
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
-  // T521: the old 16-frame double-tap arm window is gone - spamming the item
-  // button must never flip Sports-Mode. Only a deliberate press after 2 s of
-  // complete idleness can toggle it.
+  // Paulo: Sports-Mode (Turbo) is now the PUNCH button, not the item button —
+  // after 2 s of complete idleness standing still, a deliberate double tap of
+  // Punch switches it on/off. Item-run/sprint stay on the item button.
   pl._standTapT=0;
-  // T448 (Paulo, Nov 11): only standing idle and aiming at no direction — shooting down at a
-  // platform (or up) with a double tap no longer flips turbo
+  const punch=(typeof isPunch==='function')&&isPunch();
+  const punchWas=!!pl._punchWas; pl._punchWas=punch;
+  const punchRise=punch&&!punchWas;
+  // standing idle, no aim direction (no down-shot / up-shot double-tap)
   const aimNone=!(typeof isUp==='function'&&isUp())&&!(typeof isDn==='function'&&isDn());
   const standing=!dir&&aimNone&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
-  // Paulo, Nov 4 (build 370): turbo (sports mode) flips on a fast double tap of the item button
-  // only after half a second standing still, on and off alike (a jack in hand or not). Running
-  // around spamming the button never touches it.
-  // (build 409, Paulo: "after 1.5 s of COMPLETE idleness") any input but the item button itself resets the count
-  let _otherKey=false; try{ const sw=(OPT&&OPT.binds&&OPT.binds.swap)||[]; for(const k in K){ if(K[k]&&sw.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
+  // any input except Punch resets the idle count (item button included now)
+  let _otherKey=false; try{ const pb=(OPT&&OPT.binds&&OPT.binds.punch)||[]; for(const k in K){ if(K[k]&&pb.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
-  // Paulo: a double tap after the idle gate must engage Sports-Mode, not flip it
-  // on and straight back off. Ignore the second press of the pair briefly.
+  // a double tap after the idle gate engages Turbo, not on-then-off: ignore
+  // the second press of the pair briefly.
   if((pl._ignTapLock||0)>0) pl._ignTapLock--;
-  if(btn&&!was&&standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0)){
-    pl._ignition=!pl._ignition; pl._ignEat=8; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
+  if(punchRise&&standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0)){
+    pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)
