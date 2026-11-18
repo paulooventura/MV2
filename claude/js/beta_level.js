@@ -2111,10 +2111,13 @@
         const L=B.laitu;
         drawLaituFigure(cx, feet, sw(LAITU_SCALE), {faceR:(L.face||1)>0, walkPhase:L.moving?L.stepT:0});
         const top=Math.max(4,feet-sw(84*LAITU_SCALE));
-        const zz=typeof camZoom==='number'?camZoom:1;          // drawn later on the (unzoomed) HUD pass
-        B._laituTag={cx:cx*zz, top:top*zz, body:L.talkT>0?LAITU_TALK[L.line]:null, name:!L.met&&fr%48<36};
-      }
-    }
+        // The balloon is drawn in the zoomed post-character pass (the drawFgLampGlow
+        // hook below), the same pass drawLaituFigure uses. Keep cx/top in that same
+        // world/screen space (no camZoom multiply) so the balloon lines up with the
+        // head and scales together with Laitu. Cleared when he is off screen.
+        B._laituTag={cx, top, body:L.talkT>0?LAITU_TALK[L.line]:null, name:!L.met&&fr%48<36};
+      }else B._laituTag=null;
+    }else B._laituTag=null;
   };
   // The stage HUD goes on with the main HUD (the console's text layer, see console16.js)
   const _origDrawHUD=window.drawHUD;
@@ -2275,6 +2278,7 @@
     if(typeof _dp==='function') window.drawPauseMenu=function(){ const r=_dp.apply(this,arguments); try{ if(B.on&&B.stats) drawPauseStats(); }catch(e){} return r; }; }
   function drawLaituTag(){
     const tg=B._laituTag; B._laituTag=null; if(!tg) return;
+    ctx.save();                                   // don't leak stroke/font state into the world pass
     const {cx, top}=tg;
     if(tg.body){
       const txt=tg.body, tw=textW(txt,1)+28;
@@ -2286,7 +2290,24 @@
       ctx.lineWidth=1.5; ctx.strokeStyle='#c09a5a'; uiRound(cx-tw/2+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
       ctx.save(); ctx.fillStyle='#3a2410'; ctx.font='15px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.fillText(txt.toUpperCase(), cx, top-15); ctx.restore();
     }else if(tg.name) drawTextC('LAITU', cx, top-14, '#a8d4ff');
+    ctx.restore();
   }
+  // Paulo (Nov 18): draw the balloon in the zoomed FOREGROUND pass, right after
+  // drawCharacter() (main.js draws drawFgLampGlow there). The HUD pass runs before
+  // the characters, so a balloon drawn there ended up behind Laitu's head. This is
+  // the same window-function hook beta_decor.js uses for treeHeartGlow().
+  let _laituTagHooked=false;
+  function hookLaituTag(){
+    if(_laituTagHooked) return;
+    if(typeof window.drawFgLampGlow!=='function'){ setTimeout(hookLaituTag,50); return; }
+    const prev=window.drawFgLampGlow;
+    if(prev._laituTagGlow){ _laituTagHooked=true; return; }
+    const wrapped=function(){ const r=prev.apply(this,arguments); try{ drawLaituTag(); }catch(e){} return r; };
+    wrapped._laituTagGlow=true;
+    window.drawFgLampGlow=wrapped;
+    _laituTagHooked=true;
+  }
+  hookLaituTag();
   // Text that belongs to the world (signs, labels, crate names) is drawn on the
   // console's text layer, so it stays legible at the console's resolution.
   B.textQ=[];
@@ -2329,7 +2350,9 @@
   }
   function drawBetaHud(){
     if(B.textQ.length){ if(typeof _worldZoomBegin==='function') _worldZoomBegin(); try{ for(const [fn,args] of B.textQ) fn(...args); } finally{ if(typeof _worldZoomEnd==='function') _worldZoomEnd(); } } B.textQ.length=0;
-    drawLaituTag();
+    // Paulo (Nov 18): Laitu's balloon is no longer drawn here — the HUD pass runs
+    // before the character pass, which painted the balloon BEHIND his head. It is
+    // now drawn by the post-character drawFgLampGlow hook below.
     // Paulo, Nov 4 (build 358): no bottom panels while playing. The stage name, the time and
     //   the crystals / seeds are on the pause menu (drawPauseStats).
     const n=counts();
