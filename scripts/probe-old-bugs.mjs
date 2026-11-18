@@ -541,6 +541,76 @@ const PROBES = {
     return { pass: out.length > 0 && !bad.length, note: `${out.length} downed-foe runs, ${bad.length} shunt/pit/teleport`, samples: out };
   },
 
+  // T530b REGRESSION — walking into a wall / foe / ledge must NEVER teleport MIND to the
+  // top of the level. Any upward position jump > 2 tiles in one frame, or landing in the
+  // top few rows while starting near the floor, is a FAIL. This is the "spawn at top" glitch.
+  noTopTeleport() {
+    const H = __PH; H.hold();
+    const T = H.T;
+    const bottom = MV_GRID.rows * T;
+    const topBand = 3 * T;                       // "top of the screen"
+    const out = [];
+
+    // Setup helper: place MIND on solid ground, record start, run a direction, watch for teleports.
+    const runCase = (label, setup, frames, dirKeys) => {
+      setup();
+      const startY = p.y, startX = p.x;
+      H.safe();
+      let maxUpJump = 0, reachedTop = false, lp = { x: p.x, y: p.y };
+      H.clearKeys(); for (const k of dirKeys) K[k] = true;
+      H.step(frames, () => {
+        H.safe();
+        const dy = p.y - lp.y;                   // negative = moved up
+        if (-dy > maxUpJump) maxUpJump = -dy;
+        // a teleport to the top: y suddenly inside the top band from a lower start
+        if (startY > topBand * 2 && p.y < topBand) reachedTop = true;
+        lp = { x: p.x, y: p.y };
+        if (p.y < 0 || p.y > bottom + 200) return false;
+      });
+      H.clearKeys();
+      const ok = !reachedTop && maxUpJump < T * 2.2;
+      out.push({ label, maxUpJump: Math.round(maxUpJump), reachedTop, ok });
+    };
+
+    // 1) RUN INTO A WALL near the floor from a mid-level start
+    const wallCase = () => {
+      const rf = Math.floor((bottom - T) / T);
+      let cx = 6 * T;
+      for (let c = 4; c < MV_GRID.cols - 2; c++) {
+        const fx = (c + 0.5) * T, fy = (rf + 0.5) * T;
+        if (gridSolid(c, rf - 2)) { cx = (c - 2) * T; break; }   // stand before the wall
+      }
+      H.put(cx, rf * T);
+    };
+    runCase('wall', wallCase, 120, ['KeyD']);
+
+    // 2) RUN INTO LIVE FOES from a mid-level ledge (parked foes are disabled in most probes)
+    const foes = ENEMS.filter((e) => e && e.alive && (e._ai || e._boss));
+    let tested = 0;
+    for (const e of foes) {
+      if (tested >= 3) break;
+      const ex = e.x + e.w / 2;
+      const g = H.groundBelow(ex, e.y - T, 5 * T);
+      if (g == null || g < topBand * 2) continue;                // need a floor well below the top
+      let startCx = null;
+      for (let d = 2; d <= 7; d++) {
+        const tx = ex - d * T;
+        const g2 = H.groundBelow(tx, g - 3 * T, 4 * T);
+        if (g2 != null && Math.abs(g2 - g) < T * 0.6) { startCx = tx; break; }
+      }
+      if (startCx == null) continue;
+      const orig = { x: e.x, y: e.y, vx: e.vx, vy: e.vy };
+      e.x = ex - e.w / 2; e.y = g - e.h; e.vx = 0; e.vy = 0; e.alive = true;
+      runCase('foe-' + (e._ai || 'boss'), () => H.put(startCx, g), 120, ['KeyD']);
+      Object.assign(e, orig);
+      tested++;
+    }
+    if (!tested) out.push({ label: 'foe', ok: true, note: 'no testable live foe (skipped)' });
+
+    const bad = out.filter((o) => !o.ok);
+    return { pass: !bad.length, note: `${out.length} cases, ${bad.length} top-teleports`, samples: out };
+  },
+
   // #3a #8 #171d — an enemy without an Isolator dropped into the pool shorts out; one with an Isolator doesn't
   enemiesWater() {
     const H = __PH; H.hold();
@@ -788,5 +858,6 @@ PROBES.passRamp.lvls = ['1.1'];
 PROBES.editorEnts.lvls = ['1.1', '1.2'];
 PROBES.editorGone.lvls = ['1.1', '1.2'];
 PROBES.downedFoeShove.lvls = ['1.2'];
+PROBES.noTopTeleport.lvls = ['1.2'];
 
 main().catch((e) => { console.error('probe runner failed:', e.message); process.exitCode = 2; });
