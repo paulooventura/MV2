@@ -240,6 +240,10 @@
     if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return;
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
     const sport=typeof isSprintHeld==='function'&&isSprintHeld();
+    // Paulo: a rev is the wheel driving against the FLOOR. In the air or on a rope the
+    // engine never revs — it only idles. _playerOnGround() alone misses the rope, so
+    // exclude that too (physics.js:2658 defines airborne as hook-on OR not grounded).
+    const onFloor=(typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og)&&!(p.hook&&p.hook.st==='on');
     // Paulo, Nov 4 (build 359): the sports-mode switch (standing double-tap) starts the engine
     // with its start-up sound and turns it off with the shut-down, even standing still; it no
     // longer starts and stops every time he does. Shift-run keeps the old start/stop.
@@ -253,7 +257,7 @@
     if(modeOn&&pressed){
       const now=performance.now(), dbl=dir===S._lastPressDir&&now-(S._lastPressT||0)<300;
       S._lastPressDir=dir; S._lastPressT=dbl?0:now;
-      if(dbl){
+      if(dbl&&onFloor){                 // only rev the wheel when it actually has the floor to push against
         bark(); pop(0.9,0.01); pop(0.7,0.07); crackle(3+(Math.random()*2|0), true); bang(0.3);
         S.rev=12; S.blip=Math.max(S.blip||0, 14);
         cornerSparks(22, 1); exhaustPuff(0.9); exhaustPuff(0.6);
@@ -272,7 +276,7 @@
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
     const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
     const spd=Math.max(0,Math.abs(p.vx||0)/top);
-    const grounded=typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og;
+    const grounded=(typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og)&&!(p.hook&&p.hook.st==='on');
     const sport=typeof isSprintHeld==='function'&&isSprintHeld();
     const sprint=sport&&dir;
     const ax=Math.abs((p.vx||0)-(S._vx0||0));
@@ -283,9 +287,10 @@
     S.raw=thr;
     // ── the gearbox ──
     let target;
-    if(!grounded||burn){                                          // free-revving: up to the limiter, which bounces
-      const wspd=Math.abs(p._wSpin||0)*(typeof WHEEL_R==='number'?WHEEL_R:20)/top;   // the free-spinning wheel (rope, mid-air)
-      const lim=burn?Math.min(LIMIT,6200+spd*7600):Math.min(LIMIT,IDLE+1200+Math.max(spd,wspd)*11000);                    // Paulo: the top of the scream belongs to top speed — standing still it revs only so far
+    if(!grounded){                                                // airborne / on a rope: the wheel has no grip, so the engine IDLES — it never revs (Paulo)
+      target=IDLE+220; S.rev=0; S.lim=0;
+    }else if(burn){                                               // burnout: wheelspin AGAINST the floor — this one does rev
+      const lim=Math.min(LIMIT,6200+spd*7600);
       target=thr>0?lim+400:IDLE+900;
       if(S.rpm>=lim&&thr>0&&!(S.lim>0)) S.lim=5;
     }else{
