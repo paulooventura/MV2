@@ -30,6 +30,9 @@
   const B=window.MV_BETA; if(!B) return;
   const T=32;
   const DIFF=()=>B.difficulty||2;
+  // GORE filter only: the rank-and-file go on the hunt. The heptagon (beta_foes.js)
+  // never reads this — its behaviour and difficulty stay exactly as they are.
+  const GORE_HUNT=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
   try{ const d=+localStorage.getItem('mv2.difficulty'); if(d>=1&&d<=3) B.difficulty=d; }catch(e){}
   if(!B.difficulty) B.difficulty=2;
   B.setDifficulty=function(d){ B.difficulty=Math.max(1,Math.min(3,d|0)); try{ localStorage.setItem('mv2.difficulty',B.difficulty); }catch(e){} };
@@ -608,7 +611,10 @@
     if(near&&!wet&&!(e._hopCd>0)&&e.alive){ const m=mindCenter(), c=center(e), adx=Math.abs(m.x-c.x);
       if(adx<230&&Math.abs(m.y-c.y)<120&&Math.random()<(adx<120?0.06:0.02)){
         const away=m.x<c.x?1:-1; e._hop={n:0,dir:away}; e.vy=-6.2; e.vx=away*3; e.og=false; e._falling=true; e._hopCd=170; try{ sfxAt(e,'land'); }catch(_e){} B.foeHops=(B.foeHops|0)+1; return; } }
-    const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5):0.9)*(wet?0.55:1);
+    // GORE: they charge instead of meandering. Idle drift quickens too, so a
+    // foe that has lost him still closes the gap rather than loitering at home.
+    const gore=GORE_HUNT();
+    const spd=(near?(DIFF()===3?2.3:DIFF()===2?1.9:1.5)*(gore?1.6:1):0.9*(gore?1.3:1))*(wet?0.55:1);
     const dir=near?face:e.dir, nx=e.x+dir*spd, feet=e.y+e.h;
     const lead=dir>0?nx+e.w-12:nx+12;
     if(!boxFree(nx,e.y,e.w,e.h)&&!enemyIn(e,nx,e.y,e.w,e.h)){   // a slope: climb it a few px at a time
@@ -761,20 +767,32 @@
   function think(e){
     if(!e._iso&&shortIfWet(e)) return;
     const c=center(e), m=mindCenter(), dx=m.x-c.x, dist=Math.hypot(dx,m.y-c.y);
+    const gore=GORE_HUNT();
     // they notice MIND as soon as they're on screen together, and go for him
-    const near=onScreen(e);
-    const los=near&&sees(e);
+    const near=onScreen(e);                       // combat stays on-screen: no unseen hits
+    // GORE: the rank-and-file are hunters. With line of sight they pick him up
+    // from further away and keep coming long after he has left the room.
+    const hunting=near||(gore&&dist<(DIFF()===3?620:480)&&sees(e));
+    const los=hunting&&sees(e);
     // ── seeing MIND, losing him, looking for him ──
     if(e.look==null){ e.look={x:0,y:0}; e.leash=e.leash||8*T; }
-    if(los){
+    if(gore) e.leash=Math.max(e.leash||0,26*T);   // home is the whole floor in GORE
+    if(hunting){
       e.lastSeen={x:m.x,y:m.y}; e.lostT=0; e.searchT=0;
       if(!e.aware){ e.aware=true; e.mark={c:'!',t:0}; try{ sfxAt(e,'enemy_alert'); }catch(_e){} }
-    }else if(e.aware&&++e.lostT>(DIFF()===3?130:95)){
-      e.aware=false; e.mark={c:'?',t:0}; e.searchT=DIFF()===3?600:420; try{ sfxAt(e,'enemy_huh'); }catch(_e){}
+    }else if(e.aware&&++e.lostT>(gore?Math.round((DIFF()===3?130:95)*0.6):DIFF()===3?130:95)){
+      e.aware=false; e.mark={c:'?',t:0}; e.searchT=gore?Math.round((DIFF()===3?600:420)*1.5):DIFF()===3?600:420; try{ sfxAt(e,'enemy_huh'); }catch(_e){}
     }
     if(e.mark&&++e.mark.t>60) e.mark=null;
     if(e.searchT>0) e.searchT--;
     let goal=e.aware?m:(e.searchT>0?e.lastSeen:null);
+    // GORE: coordinate the pack. Each foe keeps its own side of MIND, and a
+    // different attack cadence, so a group surrounds him instead of queueing up.
+    if(gore&&e._flank==null){
+      const i=(typeof ENEMS!=='undefined'?ENEMS.indexOf(e):0);
+      e._flank=(i%2?1:-1); e._atkStagger=Math.abs(i)%3*12;
+    }
+    if(gore&&goal===m&&e.aware&&dist<280) goal={x:m.x+e._flank*e.w*0.45, y:m.y};
     // the eyes lock onto him; searching, they sweep around the last place he was seen
     { let lx,ly;
       if(e.aware){ const l=dist||1; lx=dx/l; ly=(m.y-c.y)/l; }
@@ -794,20 +812,25 @@
       e.cool--; e.heat=0;
       if(e.cool%5===0) PFXS.push({x:c.x+(Math.random()-0.5)*e.w*0.6,y:e.y+4,vx:(Math.random()-0.5)*0.6,vy:-0.8-Math.random()*0.6,life:24,maxLife:24,r:3+Math.random()*3,col:'rgba(220,220,230,0.6)'});
     }else{
-      const want=near?Math.max(0,Math.min(1,(HEAT_FAR-gap)/(HEAT_FAR-T))):0;
-      e.heat+=(want-e.heat)*0.06;
-      if(gap<=T*1.05&&near&&!e.fuse) { e.fuse=1; try{ sfxAt(e,'chargeReady'); }catch(_e){} }
-      if(e.fuse){ e.heat=1; if(++e.fuse>=FUSE){ explode(e); return; } }
+      const want=(near||gore)?Math.max(0,Math.min(1,((gore?HEAT_FAR+T:HEAT_FAR)-gap)/((gore?HEAT_FAR+T:HEAT_FAR)-T))):0;
+      e.heat+=(want-e.heat)*(gore?0.09:0.06);
+      if(gap<=T*(gore?1.25:1.05)&&near&&!e.fuse) { e.fuse=1; try{ sfxAt(e,'chargeReady'); }catch(_e){} }
+      if(e.fuse){ e.heat=1; if(++e.fuse>=(gore?FUSE*0.7:FUSE)){ explode(e); return; } }
     }
     if(e.pushCd>0) e.pushCd--;
     if(e.ropeCd>0) e.ropeCd--;
     const face=dx>=0?1:-1;
-    // push when MIND is in front and close
-    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<Math.max(2*T,e.h*0.6)){ push(e,face); e.pushCd=DIFF()===1?220:DIFF()===2?160:110; }
+    // push when MIND is in front and close. GORE: roughly twice as often, and
+    // the per-foe stagger keeps a pack from shoving in one synchronized spike.
+    if(!cooling&&near&&!e.fuse&&e.pushCd<=0&&Math.abs(dx)<PUSH_R+e.w/2&&Math.abs(m.y-c.y)<Math.max(2*T,e.h*0.6)){
+      push(e,face);
+      e.pushCd=Math.max(6,Math.round((DIFF()===1?220:DIFF()===2?160:110)*(gore?0.5:1))-(gore?(e._atkStagger||0):0));
+    }
     // rope (square + triangle)
     // rope him from range (it can't be dodged by just standing back), then reel
-    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<ROPE_R+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)&&!(window.MV_LIFT&&(MV_LIFT.sealed||MV_LIFT.hold))){
-      throwRope(e,m.x,m.y,'mind'); e.ropeCd=DIFF()===1?300:DIFF()===2?220:160;
+    if(!cooling&&e._ai!=='circle'&&los&&!e.fuse&&e.ropeCd<=0&&!ropeOf(e)&&dist<(gore?ROPE_R+2*T:ROPE_R)+e.w/2&&gap>T*1.5&&!(B.hasIsolator&&B.mindWet>0.3)&&!(window.MV_LIFT&&(MV_LIFT.sealed||MV_LIFT.hold))){
+      throwRope(e,m.x,m.y,'mind');
+      e.ropeCd=Math.max(8,Math.round((DIFF()===1?300:DIFF()===2?220:160)*(gore?0.55:1))-(gore?(e._atkStagger||0):0));
     }
     if(e.travCd>0) e.travCd--;
     const rp=ropeOf(e); if(rp&&(rp.kind==='travel'||rp.kind==='ledge')) return;   // on its rope
@@ -836,7 +859,7 @@
         const wantGo=hunt?Math.abs(gdx)>e.w*0.5+T||(e.aware&&(above||below)):Math.random()<0.35;
         if(!(wantGo&&ropeTravel(e,dir,goal))&&!hunt) e.dir*=-1;
       }
-      e.stepCd=(hunt?(DIFF()===3?14:DIFF()===2?22:32):46)+Math.random()*16|0;
+      e.stepCd=((hunt?(DIFF()===3?14:DIFF()===2?22:32):46)*(gore?0.55:1))+Math.random()*(gore?10:16)|0;
     }
   }
 

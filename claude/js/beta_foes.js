@@ -25,6 +25,9 @@
   const B=window.MV_BETA; if(!B) return;
   const T=32;
   const on=()=>B.on&&typeof p!=='undefined'&&p&&_gameState==='game';
+  // GORE filter makes the small foes (E eye / F cube) press the attack. The
+  // heptagon below never reads this: its patterns, timings and rage are unchanged.
+  const GORE=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
   const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
   const boxFree=(x,y,w,h)=>!(solid(x+3,y+3)||solid(x+w-3,y+3)||solid(x+3,y+h-3)||solid(x+w-3,y+h-3)||solid(x+w/2,y+h/2));
   // T534: the E eye is a floater, but it must never be *inside* a wall. If a bad
@@ -147,18 +150,22 @@
   }
   function eyeTick(e){
     depenetrate(e);                                       // T534: never stay buried in rock
-    const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
-    const sees=d<480&&clearLine(c.x,c.y,P.x,P.y);
+    const gore=GORE(), c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
+    const sees=d<(gore?620:480)&&clearLine(c.x,c.y,P.x,P.y);
     if(e.cd>0) e.cd--;
     let tx=e.homeX+e.w/2+Math.sin(fr*0.02+e.phase)*70, ty=e.homeY+e.h/2+Math.sin(fr*0.031+e.phase)*30;
-    if(sees){ e.aware=true; const side=dx>0?-1:1; tx=P.x+side*210; ty=P.y-70; }
+    // GORE: it hunts closer and a pack splits left / right of MIND instead of
+    // every eye sitting on the same sniping spot.
+    if(sees){ e.aware=true; if(gore&&e._flank==null) e._flank=(ENEMS.indexOf(e)%2?1:-1);
+      const side=gore?(e._flank|| (dx>0?-1:1)):(dx>0?-1:1);
+      tx=P.x+side*(gore?140:210); ty=P.y-(gore?40:70); }
     if(e.st==='hover'){
       if(sees&&e.cd<=0){ e.st='aim'; e.stT=0; S('chargeReady',1.6); }
     }else if(e.st==='aim'){
       e.stT++; e.look={x:dx/d,y:dy/d};
       const L=rayEnd(c.x,c.y,e.look.x,e.look.y,760);
       bendEyeBeam(e,c,e.look.x,e.look.y,L,false);
-      if(e.stT>=32){ e.st='fire'; e.stT=0; e.beam={ux:e.look.x,uy:e.look.y}; S('laser',0.7); }
+      if(e.stT>=(gore?20:32)){ e.st='fire'; e.stT=0; e.beam={ux:e.look.x,uy:e.look.y}; S('laser',0.7); }
     }else if(e.st==='fire'){
       e.stT++; const b=e.beam, L=rayEnd(c.x,c.y,b.ux,b.uy,760); b.len=L;
       b.kink=bendEyeBeam(e,c,b.ux,b.uy,L,true);
@@ -172,7 +179,7 @@
         hurtMind(kx*6,-4,barely);
       }
       // a caught beam stays up long enough to steer; an uncaught one is still a flash
-      if(e.stT>=(b.kink?48:16)){
+      if(e.stT>=(b.kink?(gore?34:48):(gore?12:16))){
         e.st='turned'; e.stT=0; e.beam=null; e.bend=null;
         const fx=-(b.ux>0.2?1:b.ux<-0.2?-1:(dx>0?1:-1));
         e.look={x:fx,y:0};
@@ -180,7 +187,7 @@
     }else if(e.st==='turned'){
       e.stT++;
       tx=c.x+e.look.x*160; ty=c.y;
-      if(e.stT>150){ e.st='hover'; e.cd=40; }
+      if(e.stT>=(gore?80:150)){ e.st='hover'; e.cd=gore?16:40; }
     }else if(e.st==='fall'||e._downed){
       e.vy=Math.min((e.vy||0)+0.45,11); e.vx*=0.86;
       if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else { e.vy=0; e.y=Math.round(e.y); e.st='down'; e._downed=true; if(e._blown){ e.alive=false; e.hp=0; e._permOff=true; e._stayDown=true; e._downs=3; } }
@@ -191,7 +198,7 @@
     else if(e.st==='hover'&&sees) e.look={x:e.look.x+(dx/d-e.look.x)*0.2, y:e.look.y+(dy/d-e.look.y)*0.2};
     // FAST: a stiff, quick steer, capped at 5 px/frame; it slides along rock
     e.vx=(e.vx||0)*0.86+(tx-c.x)*0.012; e.vy=(e.vy||0)*0.86+(ty-c.y)*0.012;
-    const sp=Math.hypot(e.vx,e.vy); if(sp>5){ e.vx*=5/sp; e.vy*=5/sp; }
+    const cap=gore?6.5:5, sp=Math.hypot(e.vx,e.vy); if(sp>cap){ e.vx*=cap/sp; e.vy*=cap/sp; }
     if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx*=-0.4;
     if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy*=-0.4;
   }
@@ -199,7 +206,7 @@
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.55), off=!e.alive;
     ctx.save();
     if(e.beam&&e.alive){                                           // the beam, kinked where the XLR catches it
-      const L=e.beam.len||600, kn=e.beam.kink, life=kn?48:16, k=Math.max(0.2,Math.min(1,(life-e.stT)/8));
+      const L=e.beam.len||600, kn=e.beam.kink, life=kn?(GORE()?34:48):(GORE()?12:16), k=Math.max(0.2,Math.min(1,(life-e.stT)/8));
       const x1=kn?sx(kn.x):cx+e.beam.ux*sw(L), y1=kn?sy(kn.y):cy+e.beam.uy*sw(L);
       const x2=kn?sx(kn.x+kn.ux*kn.len):x1, y2=kn?sy(kn.y+kn.uy*kn.len):y1;
       ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
@@ -307,7 +314,7 @@
     e._fx=false;
     if(B._fBubFr!==fr){ B._fBubFr=fr; try{ bubbleTick(); }catch(er){} }
     if(e.mhp>=9999){ e.hp=e.mhp=90; }                    // (build 368) beta_enemy_f's 9999 HP stuck after its notch rules were switched off
-    const c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
+    const gore=GORE(), c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
     if(e.cd>0) e.cd--;
     e.spin+=e.st==='zap'?0.08:(e.og?0:0.008);
     e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
@@ -323,7 +330,9 @@
       e._lift=R*(1-Math.cos(ph))*0.9;
       if(Math.abs(ph)<0.04&&Math.abs(e.vx)>0.6&&(e._thudCd||0)<=fr){ e._thudCd=fr+10; try{ if(typeof sfxAt==='function') sfxAt(e,'land',0.7); }catch(er){} }   // a face lands
     }else{ if(e._lift>0) e._lift*=0.8; if(e.og) cubeFlat(e); }      // resting: down onto its nearest flat face
-    const close=d<260;
+    // GORE: it wakes from further out, closes on him and zaps about twice as often.
+    const close=d<(gore?360:260);
+    if(gore&&close&&e.alive&&e.st!=='zap') e.vx+=Math.sign(dx)*0.42;
     // Paulo, Nov 4 (build 368): waking up (MIND comes close, or a hit) opens a 3 s window in
     // which it can be hurt, and only by a loaded punch, a loaded TRS shot or the kiritsuke
     if((e.fVulnT||0)>0) e.fVulnT--;
@@ -334,11 +343,12 @@
     if(!close){ e.st='sleep'; e.beams=null; return; }
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
     else {
-      e.st='zap'; e.cd=240; e.elecT=18;
+      e.st='zap'; e.cd=gore?130:240; e.elecT=18;
       const wet=B.inWater&&B.inWater(c.x,c.y)&&B.inWater(P.x,P.y);
       if(wet) hexHurt((dx/d)*2,-2,22);
       e.beams=[];
-      for(let i=0;i<4;i++) e.beams.push({a:Math.atan2(dy,dx)+(i-1.5)*0.42, life:16});
+      const beams=gore?5:4;
+      for(let i=0;i<beams;i++) e.beams.push({a:Math.atan2(dy,dx)+(i-(beams-1)/2)*0.42, life:16});
       S('laser',0.55); S('zap',0.8);
     }
     if(e.beams){

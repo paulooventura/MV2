@@ -21,7 +21,7 @@
   const FLASH_MIN_MS=7000;                // red lightning, far under 3 flashes per second
   const BPM_FALLBACK=132;
   let lite=false; try{ lite=!!(window.matchMedia&&matchMedia('(pointer: coarse)').matches); }catch(e){}
-  const CAP={pools:lite?6:12, streaks:lite?30:70, prints:lite?16:36, props:lite?8:16, flecks:lite?16:40};
+  const CAP={pools:lite?8:16, streaks:lite?30:70, prints:lite?16:36, props:lite?8:16, flecks:lite?16:40};
   const gibs=[], embers=[], calls=[], splats=[], bats=[];
   const pools=[], streaks=[], prints=[], flecks=[];
   let hotNow=[], hotNext=[], props=null, propsFor=null, bloody=0, stepSide=0;
@@ -95,14 +95,14 @@
     }catch(e){ return false; }
   }
   function gibBurst(x,y,dir){
-    const n=7+(Math.random()*5|0);
+    const n=10+(Math.random()*7|0);
     for(let i=0;i<n;i++){
       const a=dir+(Math.random()-0.5)*2.2;
       const sp=3+Math.random()*6;
       gibs.push({x,y,vx:Math.cos(a)*sp,vy:-3-Math.random()*5,w:3+Math.random()*5,h:2+Math.random()*4,
         rot:Math.random()*6,vr:(Math.random()-0.5)*0.5,bone:i%4===0,stuck:false,bounce:0,drip:0,dripMax:10+Math.random()*30,life:600+Math.random()*300|0});
     }
-    if(gibs.length>90) gibs.splice(0,gibs.length-90);
+    if(gibs.length>120) gibs.splice(0,gibs.length-120);
   }
   const WORDS=['BRUTAL','SHREDDED','\\m/','SLAUGHTER','UNHOLY','BRUTAL'];
   // Paulo, Nov 13: the metal words only when a foe is OFF FOR GOOD; a 1st / 2nd shutdown, it talks back
@@ -201,9 +201,9 @@
   }
   function pool(x,feet,w){
     const fy=floorBelow(x,feet-4); if(fy==null) return;
-    for(const q of pools) if(Math.abs(q.x-x)<q.r&&q.y===fy){ q.r=Math.min(q.r+w*0.3,120); q.life=1; if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(2,w*0.08)); return; }
-    pools.push({x,y:fy,r:Math.max(26,w*0.6),grow:0,life:1,smeared:0});
-    if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(3,w*0.12));   // (build 362) drawn as liquid, runs off edges
+    for(const q of pools) if(Math.abs(q.x-x)<q.r&&q.y===fy){ q.r=Math.min(q.r+w*0.4,150); q.life=1; if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(3,w*0.12)); return; }
+    pools.push({x,y:fy,r:Math.max(34,w*0.8),grow:0,life:1,smeared:0});
+    if(window.MV_BLOOD) MV_BLOOD.pour(x,fy,Math.max(5,w*0.2));   // (build 362) drawn as liquid, runs off edges
     if(pools.length>CAP.pools) pools.shift();
   }
   function smearTick(){
@@ -489,9 +489,11 @@
     if(typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawChar(); }catch(e){}
     for(const g of gibs){
+      const GX=sx(g.x), GY=sy(g.y);
+      if(GX<-40||GX>W+40||GY<-40||GY>H+40) continue;               // draw-time camera cull
       const a=Math.min(1,g.life/90);
       ctx.save(); ctx.globalAlpha=a;
-      ctx.translate(sx(g.x),sy(g.y)); ctx.rotate(g.rot);
+      ctx.translate(GX,GY); ctx.rotate(g.rot);
       const w=Math.max(2,sw(g.w)), h=Math.max(2,sw(g.h));
       ctx.fillStyle=g.bone?'#e8dccb':'#6a0010'; ctx.fillRect(-w/2,-h/2,w,h);
       ctx.fillStyle=g.bone?'#8a0014':'#a8001a'; ctx.fillRect(-w/2,-h/2,w*0.5,h*0.45);
