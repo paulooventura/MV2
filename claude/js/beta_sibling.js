@@ -42,11 +42,15 @@
   const KEY='mv2.sibling';
   const read=()=>{ try{ const v=localStorage.getItem(KEY); return v==null?true:v==='1'; }catch(e){ return true; } };
   let on=read();
-  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0, playBows:0};
+  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0, playBows:0, punchBacks:0};
   let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return true; }, set ff(v){ ff=true; try{ localStorage.setItem(KEY+'.ff','1'); }catch(e){} },   // a hit on your brother always counts
-    state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail, probe:()=>({floorStep, walkable, inView, standOk, deadly}) };
+    state:()=>S, npc:()=>npc&&npc.s, stats, trail:()=>trail, probe:()=>({floorStep, walkable, inView, standOk, deadly}),
+    // test hooks: the playful "3 punches -> punch back" counter and the pitched ouch (both read-only apart from the manual trigger)
+    punchBack:()=>({t:S&&S._punchBackT||0, count:_pbCount, total:stats.punchBacks}),
+    punchBackNow:()=>{ if(!S||!p) return false; return startPunchBack(); },
+    lastOuch:()=>({fr:_lastOuchFr, pitch:_lastOuchPitch, hp:_lastOuchHp}) };
   // the XLR's blast on release throws the companion like a foe of its weight (build 370)
   B.sibBlast=function(ox,oy,ux,uy,k,range){ const b=S&&typeof active==='function'&&active()?S:null; if(!b) return false;
     const c=centre(b), dx=c.x-ox, dy=c.y-oy, d=Math.hypot(dx,dy)||1; if(d>range||(dx*ux+dy*uy)/d<0.72||!clearLine(ox,oy,c.x,c.y)) return false;
@@ -732,6 +736,86 @@
     S._playT=38; stats.playBows++;
   }
 
+  // ── "three punches and he punches back" (Paulo). A purely VISUAL, playful counter:
+  //    each of YOUR punches that connects with the brother is counted in a short window;
+  //    on the third he winds up, jabs toward you with a light spark at your end and a
+  //    soft punch sound, then recovers. No damage to you, no change to the real punch /
+  //    knockback. The friendly-fire-off "snap" (_madT) still does its own (damaging)
+  //    thing and simply takes priority — this beat only plays when he isn't already busy. ──
+  const PB_WINDOW=180, PB_TOTAL=30;                 // 3 s to land three, half-second animation
+  let _pbCount=0, _pbT0=0, _pbPrevHit=false, _pbPrevPt=0;
+  function sibBusy(){
+    // the horseplay guard (line ~715) minus the states your punches themselves cause:
+    // "free" is the knockback you just gave him, and _act/_threat are transient jobs —
+    // none of them should cancel the playful beat. Mad/down/flying/zip/rope really should.
+    return !!(S&&(S._madT>0||S._downT>0||S._fly||S._zip||(S.hook&&S.hook.st!=='idle')));
+  }
+  // Did one of your punches land on the brother THIS frame? The game's own flag
+  // (interact() -> knock() sets _pHit) is primary; the self-contained aim/fist test is
+  // a fallback for when that path is skipped. Edge-guarded so one punch counts once.
+  // Nothing in here touches damage or the player's punch.
+  function punchLandedOnSib(){
+    if(!S||!p) return false;
+    const hit=S._pHit===true&&!_pbPrevHit;
+    let self=false;
+    const pt=p.pt||0;
+    if(pt>0&&_pbPrevPt<=0){                          // a fresh punch started this frame
+      const P=centre(p), c=centre(S);
+      const ax=p.aimDX||(p.fc?1:-1), ay=p.aimDY||0, al=Math.hypot(ax,ay)||1, ux=ax/al, uy=ay/al;
+      const rx=P.x+ux*52, ry=P.y+uy*52, d=Math.hypot(c.x-P.x,c.y-P.y)||1;
+      self=(Math.hypot(c.x-rx,c.y-ry)<64||(Math.abs(c.x-P.x)<SW&&Math.abs(c.y-P.y)<70&&((c.x-P.x)*ux+(c.y-P.y)*uy)/(al*d)>0.2))&&clearLine(P.x,P.y,c.x,c.y);
+    }
+    _pbPrevHit=!!S._pHit; _pbPrevPt=pt;
+    return hit||self;
+  }
+  function startPunchBack(){
+    if(!S||!p||sibBusy()) return false;
+    S._punchBackT=PB_TOTAL; S._punchBackHit=false;
+    S._punchCd=Math.max(S._punchCd||0,PB_TOTAL+10);   // no real sibPunch mid-jab
+    S._act=null; S._threat=null; _pbCount=0;          // the normal brain stands down
+    stats.punchBacks++;
+    return true;
+  }
+  function punchBackTick(){
+    const t=S._punchBackT; if(!(t>0)) return;
+    const P=centre(p), c=centre(S), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d;
+    S.fc=dx>=0; S.aimDX=S.tAimDX=ux; S.aimDY=S.tAimDY=uy;
+    const k=PB_TOTAL-t;
+    if(k<9){                                         // wind-up: lean back, coil the glove
+      S.crouchAmt=Math.max(S.crouchAmt||0,0.36*Math.min(1,k/4));
+      S.pCharging=true; S.pCharge=Math.min(28,k*4); S.pt=0;
+      S.vx=-ux*0.4; S.vy=Math.min((S.vy||0)+GRAV,12);
+    }else if(k<16){                                  // jab: the glove travels toward you
+      S.crouchAmt=Math.max(0,(S.crouchAmt||0)-0.18);
+      S.pCharging=false; S.pCharge=22; S.pt=Math.max(1,16-k);
+      S.vx=ux*Math.min(3.4,1.2+d*0.012); S.vy=Math.min((S.vy||0)+GRAV*0.4,8);
+      if(!S._punchBackHit&&k>=12){                   // one light impact at your end — no damage
+        S._punchBackHit=true;
+        for(let i=0;i<9;i++) PFXS.push({x:P.x+(Math.random()-0.5)*16,y:P.y+(Math.random()-0.5)*16,vx:ux*(2+Math.random()*3),vy:uy*2-Math.random()*2,life:12,maxLife:12,r:2.1,col:i%2?'#ffe0a0':'#ff8866'});
+        try{ sfx('punch_hit',1.05); }catch(e){}
+      }
+    }else{                                           // recover
+      S.crouchAmt=Math.max(0,(S.crouchAmt||0)-0.12);
+      S.pt=0; S.pCharge=0; S.pCharging=false;
+      S.vx*=0.8; S.vy=Math.min((S.vy||0)+GRAV,12);
+    }
+    if(typeof _movePlayerWithColl==='function') _movePlayerWithColl(S,S.vx,S.vy||0); else { S.x+=S.vx; S.y+=S.vy; }
+    if(S.og&&S.vy>0) S.vy=0;
+    S.wheelAngle=(S.wheelAngle||0)+(S.vx||0)/(typeof WHEEL_R!=='undefined'?WHEEL_R:20);
+    if(--S._punchBackT<=0){ S._punchBackT=0; S.pt=0; S.pCharge=0; S.pCharging=false; S.crouchAmt=0; }
+  }
+  function punchBackWatch(){
+    if(!S||!p) return;
+    const landed=punchLandedOnSib();                // always keep the edge trackers fresh
+    if(S._punchBackT>0) return;                     // already playing: don't re-count
+    if(landed){
+      if(sibBusy()||(_pbCount&&fr-_pbT0>PB_WINDOW)) _pbCount=0;
+      if(!_pbCount) _pbT0=fr;
+      _pbCount++;
+      if(_pbCount>=3) startPunchBack();
+    }else if(_pbCount&&fr-_pbT0>PB_WINDOW) _pbCount=0;
+  }
+
   // ── SOLO: the other sibling at home, pottering about like Laitu ──
   let npc=null;
   function npcSpawn(){
@@ -778,10 +862,21 @@
   //    (it can be knocked out for a few seconds); OFF it just gets moved.
   // Paulo (Oct 22): friendly fire is only about what YOU and IT do to each other — the world hurts
   // it like it hurts you: the live yellow cage blocks, live water, lightning, a block chain going off
+  // Paulo: an "ouch" on a REAL hit, pitched by how much energy is left (the audio lane owns the
+  // sfx itself). A short cooldown keeps continuous chip damage from machine-gunning it. ──
+  let _lastOuchFr=-999, _lastOuchPitch=1, _lastOuchHp=100;
+  function ouch(b){
+    if(!b||fr-(b._ouchFr||-999)<16) return;
+    b._ouchFr=fr;
+    const hp=b.sibHp==null?100:Math.max(0,Math.min(100,b.sibHp));
+    const pitch=Math.max(0.5,Math.min(1.4,0.55+0.75*(hp/100)));
+    _lastOuchFr=fr; _lastOuchPitch=pitch; _lastOuchHp=hp;
+    try{ sfx('ouch',pitch); }catch(e){}
+  }
   function envHurt(b,dmg,kx,ky,kind){
     if(!b||b._downT>0||dmg<=0) return;
     ropeIdle(b);
-    b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=16; b._hurtFr=fr;
+    b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=16; b._hurtFr=fr; ouch(b);
     b.vx=kx; b.vy=ky; b.og=false; b.free=Math.max(b.free||0,40); b._prevLandFeet=b.y+FEET_OFF;
     try{ sfx('player_hit',1.35); }catch(e){}
     const c=centre(b); for(let k=0;k<12;k++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*4; PFXS.push({x:c.x,y:c.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:10+Math.random()*10|0,maxLife:20,r:1.6,col:k%3?'#fff6a0':'#80d8ff'}); }
@@ -891,24 +986,40 @@
     if(typeof _hud==='function') window.drawLdtkLabHud=function(){
       const r=_hud.apply(this,arguments);
       try{ if(B.on) veins(); }catch(e){}
-      try{ if(say&&S&&B.on&&typeof sx==='function'){
-        const a=Math.min(1,say.t/12,(say.max-say.t)/8+0.2), cx=sx(S.x+SW/2), top=sy(S.y+FEET_OFF-STAND_H-30);
-        const txt=say.txt; ctx.save(); ctx.font='15px "MV Pixel", monospace'; const tw=ctx.measureText(txt).width+28; ctx.restore();
-        const x0=Math.max(8,Math.min(W-tw-8,cx-tw/2));
-        ctx.save(); ctx.globalAlpha=a; ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
-        const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fff6f6'); bg.addColorStop(1,'#f3d8d8');
-        ctx.fillStyle=bg; uiRound(x0, top-32, tw, 24, 12); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
-        ctx.shadowColor='transparent'; ctx.lineWidth=1.5; ctx.strokeStyle='#c05a6a'; uiRound(x0+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
-        ctx.fillStyle='#3a1018'; ctx.font='15px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.fillText(txt, x0+tw/2, top-15);
-        ctx.restore(); } }catch(e){}
+      /* the talking balloon now draws in a post-character pass, below */
       return r;
     }; }
+   // The balloon used to draw inside drawLdtkLabHud(), which main.js calls at ~1504 —
+   // BEFORE drawLaitu()/drawCharacter() (~1509/1512) — so the brothers painted over it
+   // and it read as "behind" them. Draw it in a POST-character pass instead (the same
+   // hook beta_decor.js uses for its tree-heart halo): main.js calls drawFgLampGlow() at
+   // ~1515 (and ~1421 in the split view), right after every character. The anchor is
+   // unchanged — same screen coords, ~30px above the head, tail pointing down at it.
+   function drawSay(){
+     if(!say||!S||!B.on||typeof sx!=='function') return;
+     const a=Math.min(1,say.t/12,(say.max-say.t)/8+0.2), cx=sx(S.x+SW/2), top=sy(S.y+FEET_OFF-STAND_H-30);
+     const txt=say.txt; ctx.save(); ctx.font='15px "MV Pixel", monospace'; const tw=ctx.measureText(txt).width+28; ctx.restore();
+     const x0=Math.max(8,Math.min(W-tw-8,cx-tw/2));
+     ctx.save(); ctx.globalAlpha=a; ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+     const bg=ctx.createLinearGradient(0,top-32,0,top-6); bg.addColorStop(0,'#fff6f6'); bg.addColorStop(1,'#f3d8d8');
+     ctx.fillStyle=bg; uiRound(x0, top-32, tw, 24, 12); ctx.fill();
+     ctx.beginPath(); ctx.moveTo(cx-7,top-9); ctx.lineTo(cx+7,top-9); ctx.lineTo(cx,top-1); ctx.fill();
+     ctx.shadowColor='transparent'; ctx.lineWidth=1.5; ctx.strokeStyle='#c05a6a'; uiRound(x0+0.5, top-31.5, tw-1, 23, 11.5); ctx.stroke();
+     ctx.fillStyle='#3a1018'; ctx.font='15px "MV Pixel", monospace'; ctx.textAlign='center'; ctx.fillText(txt, x0+tw/2, top-15);
+     ctx.restore();
+   }
+   (function hookSay(){
+     if(typeof window.drawFgLampGlow!=='function'){ setTimeout(hookSay,50); return; }   // render.js loads first, but be safe
+     const prev=window.drawFgLampGlow;
+     if(prev._sibSay) return;
+     const wrapped=function(){ const r=prev.apply(this,arguments); try{ drawSay(); }catch(e){} return r; };
+     wrapped._sibSay=true; window.drawFgLampGlow=wrapped;
+   })();
   function knock(b,vx,vy,kind,dmg){
     ropeIdle(b);
     b.vx=vx; b.vy=vy; b.og=false; b.free=Math.max(b.free||0,46); b._prevLandFeet=b.y+FEET_OFF;
     if(ff&&dmg>0&&!(b._downT>0)){
-      b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=14;
+      b.sibHp=(b.sibHp==null?100:b.sibHp)-dmg; b.flashF=14; ouch(b);
       try{ sfx('player_hit',1.35); }catch(e){}
       if(b.sibHp<=0){ b._downT=240; b.sibHp=100; try{ sfx('enemy_shut',1.2); }catch(e){} }
     }else if(kind!=='bump'){ try{ sfx('hit',1.5); }catch(e){} }
@@ -1086,8 +1197,10 @@
       if(typeof _updateBattleEye==='function') _updateBattleEye(S);   // its eye: looks at the nearest enemy, squints, gets mad — like yours
       interact(S);
       envTick(S); sayTick(S);
+      try{ punchBackWatch(); }catch(e){}   // three of your punches landing -> playful jab back
       if(S._madT>0){ madTick(S); boltsTick(); return r; }
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
+      if(S._punchBackT>0){ punchBackTick(); boltsTick(); return r; }   // the jab owns this frame (no follow/assist/horseplay)
       watchBlocks(); readAction();
       if(S.free>0){ bodyPhysics(S); assist(); boltsTick(); S._catch=30; return r; }      // moved by you: it lands, then rides back to your trail
       assist(); follow(); idlePlay(); boltsTick();
@@ -1112,7 +1225,7 @@
       const swing=who===S&&S.hook&&S.hook.st!=='idle';
       const carry=who===S&&S._carry!=null?S._carry:null;   // a jack it took from an A+B drop (beta_knife)
       const jack=carry!=null?carry:(ITEM===4?-1:(ITEM>=0?ITEM:-1));   // the kiritsuke is the lead's alone; the brother keeps fists
-      const show=who._madT>0?-1:(who!==S?-1:(swing?1:S._magShow?3:S._shootT>0?(carry!=null?carry:0):S._flying?2:jack));   // a loaded punch is bare fists; otherwise its own jack
+      const show=(who._madT>0||S._punchBackT>0)?-1:(who!==S?-1:(swing?1:S._magShow?3:S._shootT>0?(carry!=null?carry:0):S._flying?2:jack));   // a loaded punch / the playful jab is bare fists; otherwise its own jack
       B.ropeClip=null; B.magPark=null; ITEM=show;
       try{
         who._armPose=computeConnectorArmPose(who);
