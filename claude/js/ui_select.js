@@ -164,7 +164,7 @@
     return (FEATHER[ck]=off);
   }
   // scl (desktop only): the card's size, 1 = full; smaller cards sit centred on the full card's height
-  function heroCard(key,cx,sel,k,box,topName,scl){
+  function heroCard(key,cx,sel,k,box,topName,scl,badge){
     const H0=HERO[key], im=IMG[key];
     const sc=scl!=null?scl:0.9+0.1*k;
     let w,h,x,y,sk;
@@ -210,7 +210,7 @@
     ctx.restore();
     // badge: LEAD / ALLY (or P1 in local co-op)
     const lead=_playerCount===2?'PLAYER 1':'LEAD', ally=_playerCount===2?'PLAYER 2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
-    const bt=sel?lead:ally, bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-16;
+    const bt=badge!=null?badge:(sel?lead:ally), bw=textW(bt,2)+28, bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-16;
     ctx.save(); ctx.translate(bx+bw/2,by+15); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+15));
     ctx.fillStyle='#020a04'; uiRound(bx+2,by+3,bw,30,4); ctx.fill();
     ctx.fillStyle=sel?H0.col:'#2a3036'; uiRound(bx,by,bw,30,4); ctx.fill();
@@ -292,7 +292,7 @@
     if(showSwitches){
       sibRects=[];
       const y=top+h+8;
-      phonePills('BROTHER',[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH',col:'#ffb86a'}],!!MV_SIBLING.on,x0,y,full,1,selRow===1);
+      phonePills('BROTHER',BROTHER_OPTS,brotherChoice(),x0,y,full,1,selRow===1);
     }
     hints();
   }
@@ -376,15 +376,40 @@
   //   FRIENDLY FIRE: OFF / ON (it can always be punched, blown, pulled and shoved; ON it also gets hurt)
   // ^ v moves between the hero row and the two switches, < > changes the focused one. Mouse / touch: tap.
   let sibRects=[], selRow=0;
+  // Paulo: the BROTHER row stays exactly as it looks — SOLO / WITH — with a
+  // third CO-OP segment beside it. CO-OP hands off to the party screen so each
+  // human can pick which brother he rides.
+  const BROTHER_OPTS=[
+    {k:0,label:'SOLO',col:'#9ef58a'},
+    {k:1,label:'WITH',col:'#ffb86a'},
+    {k:2,label:'CO-OP',col:'#7ad8ff'},
+  ];
+  function brotherChoice(){
+    if(typeof _playerCount!=='undefined'&&_playerCount===2) return 2;
+    return (window.MV_SIBLING&&MV_SIBLING.on)?1:0;
+  }
   function setCompanion(on){
     if(!window.MV_SIBLING||_playerCount===2) return;
     MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
+  }
+  function setBrotherChoice(v){
+    v=((v|0)+3)%3;
+    if(v===2){
+      if(typeof _playerCount!=='undefined') _playerCount=2;
+      if(typeof _playModeIdx!=='undefined') _playModeIdx=2;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+      if(typeof openPartySetup==='function') openPartySetup();
+      try{ sfx('confirm'); }catch(e2){}
+      return;
+    }
+    setCompanion(v===1);
   }
   function pillGroup(label,opts,cur,x,y,focus,row){
     const h=34;
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
     const ws=opts.map(o=>Math.max(108,ctx.measureText(o.label).width+56)); ctx.restore();
-    const lw=textW(label,2)+14, tw=lw+ws[0]+ws[1]+8;
+    const lw=textW(label,2)+14;
+    const tw=lw+ws.reduce((a,b)=>a+b,0)+(opts.length-1)*8;
     if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.55+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x-8,y-6,tw+16,h+12,12); ctx.stroke(); ctx.restore(); }
     drawText(label,x,y+8,focus?'#ffffff':'#d8ffc8',2);
     let xx=x+lw;
@@ -401,21 +426,21 @@
   }
   function sibToggle(){
     sibRects=[];
-    const g1=[{k:false,label:'SOLO',col:'#9ef58a'},{k:true,label:'WITH BROTHER',col:'#ffb86a'}];
     const L=window.uiLayout?uiLayout():{oneCol:false,panelX:40,panelW:520,pad:{b:0}};
+    const cur=brotherChoice();
     if(L.oneCol){
       const y=H-Math.max(110,(L.pad.b||0)+110);
-      pillGroup('COMPANION',g1,!!MV_SIBLING.on,L.panelX+12,y,selRow===1,1);
+      pillGroup('BROTHER',BROTHER_OPTS,cur,L.panelX+12,y,selRow===1,1);
       return;
     }
     ctx.save(); ctx.font='22px "MV Pixel", monospace';
-    const w1=g1.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+8+textW('COMPANION',2)+14; ctx.restore();
-    pillGroup('COMPANION',g1,!!MV_SIBLING.on,W/2-w1/2,H-108,selRow===1,1);
+    const w1=BROTHER_OPTS.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+16+textW('BROTHER',2)+14; ctx.restore();
+    pillGroup('BROTHER',BROTHER_OPTS,cur,W/2-w1/2,H-108,selRow===1,1);
   }
   function rowChange(dx){
     if(ask){ ask.sel=dx>0?1:0; try{ sfx('menu'); }catch(e2){} return; }
     if(selRow===0){ _heroChoice=dx<0?'mind':'venture'; return; }
-    if(selRow===1) setCompanion(dx>0);
+    if(selRow===1) setBrotherChoice(brotherChoice()+(dx>0?1:-1));
     try{ sfx('menu'); }catch(e2){}
   }
   // Paulo (Oct 22): pick with the mouse / a finger â€” a tap on a card picks it, a tap on the picked
@@ -439,7 +464,7 @@
     }
     if(_playerCount!==2&&window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
       selRow=b.row;
-      if(b.row===1&&!!MV_SIBLING.on!==b.k){ setCompanion(b.k); beep(); }
+      if(b.row===1&&brotherChoice()!==b.k){ setBrotherChoice(b.k); beep(); }
       return;
     }
     for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
@@ -460,6 +485,8 @@
   },{capture:true,passive:true});
   // the pad (player.js): dy moves between rows, dx changes the focused row. Returns true if it took it.
   window.MV_SELECT_NAV=function(dx,dy){
+    // The title's party screen uses the very same nav (rows + left/right changes).
+    if(_gameState==='partysetup') return partyNav(dx,dy);
     if(_gameState!=='select'||(!dx&&!dy)) return false;
     const one=window.uiLayout&&uiLayout().oneCol;
     if(_selectStep===0){
@@ -615,4 +642,129 @@
     if(typeof _drawUiToast==='function') _drawUiToast();
     ctx.restore(); ctx.imageSmoothingEnabled=true;
   };
+
+  // ── Couch co-op party setup (title → party → game) ──────────────
+  // Directly from the title, before the story / timeline: party size, then
+  // which brother each human rides. It reuses MODES, heroCard() and the very
+  // same MV_SELECT_NAV handler as the select screen (see above).
+  const PARTY_LABEL=['SOLO','WITH BROTHER','CO-OP 2P'];
+  let partyRects=[], lastPartyTouch=0;
+  function partyRows(){ return _partyMode===2?[0,1,2,3]:[0,1,3]; }
+  function partyNav(dx,dy){
+    if(_gameState!=='partysetup'||(!dx&&!dy)) return false;
+    const rows=partyRows();
+    if(dy){
+      let i=rows.indexOf(_partyRow); if(i<0) i=0;
+      i=(i+(dy>0?1:-1)+rows.length)%rows.length;
+      _partyRow=rows[i];
+    }
+    if(dx){
+      if(_partyRow===0) _partyMode=(_partyMode+(dx>0?1:-1)+3)%3;
+      else if(_partyRow===1) _partyP1=dx<0?'mind':'venture';
+      else if(_partyRow===2) _partyP2=dx<0?'mind':'venture';
+    }
+    try{ sfx('menu'); }catch(e2){}
+    return true;
+  }
+  // Keyboard / either pad funnels through MV_SELECT_NAV → partyNav.
+  window.MV_PARTY_NAV=function(dx,dy){ return window.MV_SELECT_NAV(dx,dy); };
+  function drawPartySetup(){
+    const now=performance.now();
+    if(now-lastDraw>200){ rayPrev=[]; bgN=0; }
+    lastDraw=now; lastStep=-1;
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    bg();
+    const L=window.uiLayout?uiLayout():{panelW:520,panelX:(W-520)/2,oneCol:false,inset:{t:0}};
+    const one=!!L.oneCol;
+    title('COUCH CO-OP','PICK YOUR PARTY · P1 + P2');
+    partyRects=[];
+    // ── party size: the same MODES / baked mode cards as the select screen ──
+    // The canvas is a fixed 1024×768: three cards across always fit, whatever
+    // UI profile the window reports (a 1024×768 desktop window reads "tablet").
+    const top=148, gap=18;
+    const cw=Math.min(300,Math.floor((W-72-gap*2)/3));
+    const ch=116;
+    const rowW=cw*3+gap*2, x0=Math.round((W-rowW)/2);
+    MODES.slice(0,3).forEach((m,i)=>{
+      const sel=_partyMode===i, x=x0+i*(cw+gap), y=top+(sel?Math.sin(fr*0.08)*2:0);
+      partyRects.push({kind:'mode',i,x,y,w:cw,h:ch});
+      if(sel&&_partyRow===0){
+        ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.5+0.35*Math.sin(fr*0.12))+')';
+        ctx.lineWidth=2; uiRound(x-6,y-6,cw+12,ch+12,12); ctx.stroke(); ctx.restore();
+      }
+      const body=modeBody(m,sel,cw,ch,one?8:12);
+      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(body,x-12-4,y-4,body.width,body.height); ctx.restore();
+      icon(m.icon,x+cw/2,y+ch*(one?0.34:0.30),sel?m.col:'#5a7a62',one?0.9:1.05);
+      ctx.save(); if(!sel) ctx.globalAlpha=0.72;
+      uiLogo(m.name,x+cw/2,y+ch-46,m.name.length>9?18:22,{col:sel?m.col:'#8aa090',sweep:180});
+      drawTextC(m.sub,x+cw/2,y+ch-20,sel?'#ffffff':'#9ab0a0',2);
+      ctx.restore();
+      if(sel&&_partyRow===0&&fr%4===0) spark(x+cw*0.5+(Math.random()-0.5)*cw,y+ch-12,m.col);
+    });
+    // ── which brother each human controls: the same heroCard() art ─────────
+    const heroTop=top+ch+34;
+    const heroH=160;
+    const heroGap=24, heroW=Math.min(310,Math.floor((W-72-heroGap)/2));
+    const heroX0=Math.round((W-heroW*2-heroGap)/2);
+    const heroRow=(row,label,key)=>{
+      const y=heroTop+(row===1?0:heroH+heroGap+(one?0:8));
+      const focus=_partyRow===row;
+      drawTextC(label,W/2,y-16,focus?'#ffe39a':'#8aa090',2);
+      ['mind','venture'].forEach((k,i)=>{
+        const sel=key===k, box={x:heroX0+i*(heroW+heroGap),y,w:heroW,h:heroH};
+        const badge=row===1?(sel?'PLAYER 1':'P1'):(sel?'PLAYER 2':'P2');
+        heroCard(k,box.x+box.w/2,sel,sel?1:0.2,box,true,null,badge);
+        partyRects.push({kind:'hero',row,k,x:box.x,y:box.y,w:box.w,h:box.h});
+        if(focus&&sel&&fr%4===0) spark(box.x+Math.random()*box.w,box.y+box.h-18,HERO[k].col);
+      });
+    };
+    heroRow(1,'PLAYER 1',_partyP1);
+    if(_partyMode===2) heroRow(2,'PLAYER 2',_partyP2);
+    else{
+      const y=heroTop+heroH+heroGap+(one?0:8);
+      uiPanel(heroX0,y,heroW*2+heroGap,heroH,{r:14,flat:true,alpha:0.7});
+      drawTextC('P2 JOINS IN CO-OP 2P',W/2,y+heroH*0.4,'#7a8a80',2);
+      drawTextC('OR PRESS A ON THE SECOND PAD',W/2,y+heroH*0.6,'#9ab0a0',2);
+    }
+    // ── start ──────────────────────────────────────────────────────
+    const sy=Math.min(H-96,heroTop+(heroH+heroGap)*2+(one?14:20));
+    const sw=260, sx=W/2-sw/2, selStart=_partyRow===3;
+    partyRects.push({kind:'start',x:sx,y:sy,w:sw,h:42});
+    uiPanel(sx,sy,sw,42,{sel:selStart,r:12,flat:!selStart,accent:'#b8f5a0'});
+    drawTextC('START',W/2,sy+11,selStart?'#ffffff':'#c8b8ff',3);
+    drawTextC('MODE: '+PARTY_LABEL[_partyMode]+'    P1: '+HERO[_partyP1].name+
+      (_partyMode===2?'    P2: '+HERO[_partyP2].name:''),W/2,sy-24,'#ffe39a',2);
+    hints();
+    if(typeof _drawUiToast==='function') _drawUiToast();
+    rayPrev=rayNext; rayNext=[];
+    ctx.restore(); ctx.imageSmoothingEnabled=true;
+  }
+  window.drawPartySetup=drawPartySetup;
+  function partyTap(cx,cy){
+    const c=document.getElementById('c'); if(!c) return;
+    const r=c.getBoundingClientRect(); if(!r.width||!r.height) return;
+    const mx=(cx-r.left)*(W/r.width), my=(cy-r.top)*(H/r.height);
+    for(const b of partyRects){
+      if(mx<b.x||mx>b.x+b.w||my<b.y||my>b.y+b.h) continue;
+      if(b.kind==='mode'){ _partyMode=b.i; _partyRow=0; }
+      else if(b.kind==='hero'){ if(b.row===1)_partyP1=b.k; else _partyP2=b.k; _partyRow=b.row; }
+      else if(b.kind==='start'){ _partyConfirm(); return; }
+      try{ sfx('menu'); }catch(e2){}
+      return;
+    }
+  }
+  document.addEventListener('click',e=>{
+    if(_gameState!=='partysetup') return;
+    e.stopImmediatePropagation();
+    if(performance.now()-lastPartyTouch<700) return;
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    partyTap(e.clientX,e.clientY);
+  },true);
+  document.addEventListener('touchstart',e=>{
+    if(_gameState!=='partysetup'||!e.touches||!e.touches[0]) return;
+    if(e.target&&e.target.id!=='c') return;
+    e.stopImmediatePropagation(); lastPartyTouch=performance.now();
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    partyTap(e.touches[0].clientX,e.touches[0].clientY);
+  },{capture:true,passive:true});
 })();

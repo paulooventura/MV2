@@ -442,7 +442,7 @@
     B.safe={x:p.x,y:p.y};
     p2=null;
     if(_playerCount===2&&typeof mkP==='function'){
-      p2=mkP(); p2.hero=p.hero==='venture'?'mind':'venture';
+      p2=mkP(); p2.hero=(_playerCount===2&&_p2HeroChoice)?_p2HeroChoice:(p.hero==='venture'?'mind':'venture');
       p2.x=p.x+48; p2.y=p.y; p2.vx=0; p2.vy=0; p2.og=true; p2.hp=p2.maxHp; p2.fc=true; p2._aiCompanion=false;
     }
     _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;

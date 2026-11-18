@@ -14,6 +14,9 @@
 
   var CI = /[?&]ci/i.test(location.search);
   var QUICK = /[?&]quick/i.test(location.search);
+  // ?coop=1 drives the title → party setup → 2P local path and checks that the
+  // two halves have independent cameras and that pad 1 really reads P2.
+  var COOP = /[?&]coop/i.test(location.search) || !!window.__MV_SELFTEST_COOP;
   var RUN_FRAMES = QUICK ? 1200 : (CI ? 1800 : 3600);
   var CAP_PER_TYPE = 25;
   var SLOW_MS = 12;
@@ -405,6 +408,7 @@
     if(dt>perf.maxUpdateMs) perf.maxUpdateMs=+dt.toFixed(2);
     if(dt>SLOW_MS) perf.slowFrames++;
     try{ checkInvariants(ph); checkCampaignContent(); checkBasementReach(); checkOmniblockCorner(); checkSlopeAndOpening(); checkSlopeCorner(); }catch(e){}
+    if(COOP&&lf===30) try{ checkCoopCameras(); }catch(e){}
     if(typeof p!=='undefined'&&p&&(p._grindF||0)>=4&&phaseFrame>36){
       phaseIdx++; phaseFrame=0; baselineY=null; idleMaxDev=0; xHist.length=0;
     }else advancePhase();
@@ -433,8 +437,19 @@
       if(typeof _unlockAudio==='function') _unlockAudio();
       if(typeof _gameState==='undefined') return 'waiting…';
       if(_gameState==='title'){
+        if(COOP&&typeof openPartySetup==='function'){
+          openPartySetup();
+          return 'auto: couch co-op party setup';
+        }
         if(typeof startStoryMode==='function') startStoryMode();
         return 'auto: story mode';
+      }
+      if(_gameState==='partysetup'){
+        if(typeof _partyMode!=='undefined'){
+          _partyMode=2; _partyP1='mind'; _partyP2='venture'; _partyRow=3;
+        }
+        if(typeof _partyConfirm==='function') _partyConfirm();
+        return 'auto: confirm CO-OP 2P party';
       }
       if(_gameState==='story'){
         if(typeof startGame==='function') startGame();
@@ -456,12 +471,83 @@
     }catch(e){ return 'menu error: '+e.message; }
   }
 
+  // One-shot co-op checks. These only run in the ?coop=1 pass so the classic
+  // 1P self-test keeps exactly the same behaviour as before.
+  function checkCoopCameras(){
+    if(!COOP) return;
+    if(typeof _playerCount==='undefined'||_playerCount!==2) rec('coopNotTwoPlayers',{n:typeof _playerCount==='undefined'?-1:_playerCount});
+    if(typeof p2==='undefined'||!p2||p2._aiCompanion) rec('coopP2Missing',{});
+    if(typeof _p2HeroChoice!=='undefined'&&p2&&p2.hero!==_p2HeroChoice) rec('coopP2WrongHero',{hero:p2.hero,want:_p2HeroChoice});
+    if(typeof _coopSplitWanted!=='function'||!_coopSplitWanted()) rec('coopSplitOff',{});
+    if(typeof window.__mvCoopCameras!=='function'||typeof p==='undefined'||!p||!p2) return;
+    var ox=p2.x, oy=p2.y;
+    try{
+      // Push P2 well away from P1: a shared midpoint camera cannot pass this.
+      p2.x=Math.min((typeof WW!=='undefined'?WW:20000)-400,p.x+900); p2.y=p.y;
+      var c=window.__mvCoopCameras();
+      if(!c||!c.p1||!c.p2) rec('coopNoCameras',{});
+      else{
+        if(Math.abs(c.p1.x-c.p2.x)<1&&Math.abs(c.p1.y-c.p2.y)<1)
+          rec('coopCameraShared',{x:Math.round(c.p1.x),y:Math.round(c.p1.y)});
+        if(typeof camClampX==='function'&&typeof camViewW==='function'){
+          var wantX=function(pl){ return camClampX(pl.x+(typeof SW!=='undefined'?SW:64)*0.5-camViewW()*0.4); };
+          if(Math.abs(c.p1.x-wantX(p))>2) rec('coopP1CameraOff',{got:Math.round(c.p1.x),want:Math.round(wantX(p))});
+          if(Math.abs(c.p2.x-wantX(p2))>2) rec('coopP2CameraOff',{got:Math.round(c.p2.x),want:Math.round(wantX(p2))});
+        }
+        // Both halves use the same half-height framing. A camera pushed to the
+        // wrong world Y puts the player outside his viewport (often underground).
+        var z=(typeof camZoom!=='undefined'&&camZoom)||1, half=c.half||(H/2|0);
+        var FO=(typeof FEET_OFF!=='undefined'?FEET_OFF:88);
+        var maxY=Math.max(0,(typeof WH!=='undefined'?WH:20000)-half/z);
+        var y1=Math.max(0,Math.min(maxY,p.y+FO-half/(2*z)));
+        var y2=Math.max(0,Math.min(maxY,p2.y+FO-half/(2*z)));
+        if(Math.abs(c.p1.y-y1)>2) rec('coopP1CameraYOff',{got:Math.round(c.p1.y),want:Math.round(y1)});
+        if(Math.abs(c.p2.y-y2)>2) rec('coopP2CameraYOff',{got:Math.round(c.p2.y),want:Math.round(y2)});
+        var v1=z*(p.y+FO-c.p1.y), v2=z*(p2.y+FO-c.p2.y);
+        if(v1<0||v1>half) rec('coopP1OutOfView',{localY:Math.round(v1),half:half});
+        if(v2<0||v2>half) rec('coopP2OutOfView',{localY:Math.round(v2),half:half});
+      }
+    }catch(e){ rec('coopCameraError',{msg:String(e&&e.message||e)}); }
+    finally{ p2.x=ox; p2.y=oy; }
+  }
+  function checkSecondPad(){
+    if(!COOP||!_origReadGP||typeof navigator==='undefined') return;
+    var old=navigator.getGamepads;
+    try{
+      function pad(idx,down,axes){
+        return {connected:true,index:idx,id:'MV Selftest Pad',axes:axes||[0,0],
+          buttons:down.map(function(v){ return {pressed:!!v,value:v?1:0}; })};
+      }
+      var off=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+      var on =[1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0];   // A + B + Y
+      if(typeof GP!=='undefined'&&GP.pads) delete GP.pads[1];
+      Object.keys(K2).forEach(function(k){ delete K2[k]; });
+      Object.keys(Kj2).forEach(function(k){ delete Kj2[k]; });
+      // First sight: all buttons up, so nothing is swallowed as "already held".
+      navigator.getGamepads=function(){ return [pad(0,off),pad(1,off)]; };
+      _origReadGP();
+      // Left stick left + A/B/Y on pad 1 must land in K2 / Kj2 for P2.
+      navigator.getGamepads=function(){ return [pad(0,off),pad(1,on,[-1,0])]; };
+      _origReadGP();
+      if(!K2['ArrowLeft']) rec('pad2NoMove',{});
+      if(!K2['ArrowUp']) rec('pad2NoJump',{});
+      if(!Kj2['ArrowUp']) rec('pad2NoJumpEdge',{});
+      if(!Kj2['Numpad1']) rec('pad2NoItem',{});
+      if(!Kj2['Numpad2']) rec('pad2NoPunch',{});
+      navigator.getGamepads=function(){ return [pad(0,off),pad(1,off,[0,0])]; };
+      _origReadGP();
+      if(K2['ArrowLeft']||K2['ArrowUp']) rec('pad2Stuck',{});
+    }catch(e){ rec('pad2Error',{msg:String(e&&e.message||e)}); }
+    finally{ try{ navigator.getGamepads=old; }catch(e){} }
+  }
+
   function start(){
     if(running) return;
     if(typeof update!=='function'){ overlay('SELF-TEST: update() not found','#f88'); return; }
     _orig=update; update=wrappedUpdate;
     if(typeof draw==='function'){ _origDraw=draw; draw=wrappedDraw; }
     if(typeof readGamepad==='function'){ _origReadGP=readGamepad; readGamepad=wrappedReadGamepad; }
+    if(COOP) try{ checkSecondPad(); }catch(e){}
     window.__MV_SELFTEST_ACTIVE=true;
     running=true; lf=0; t0=Date.now(); renderFrames=0;
     violations={}; perf={maxUpdateMs:0,slowFrames:0};

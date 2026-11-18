@@ -1266,9 +1266,10 @@ function updateCoopPlayer2(){
   _coopRollX0=p2.x; _coopRollY0=p2.y;
   const lf=!!K2['ArrowLeft'], rt=!!K2['ArrowRight'];
   p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
-  const ms=MOVE_WALK*MOVE_PEAK;
-  if(lf) p2.vx=Math.max(p2.vx-MOVE_ACCEL,-ms);
-  else if(rt) p2.vx=Math.min(p2.vx+MOVE_ACCEL,ms);
+  const run=!!K2['Sprint_gp2'];                    // LB on P2's pad
+  const ms=run?MOVE_RUN:MOVE_WALK*MOVE_PEAK, ac=run?MOVE_RUN_ACCEL:MOVE_ACCEL;
+  if(lf) p2.vx=Math.max(p2.vx-ac,-ms);
+  else if(rt) p2.vx=Math.min(p2.vx+ac,ms);
   else{ const gf=p2.og?MOVE_STOP:AIR_DRIFT; p2.vx*=gf; if(p2.og&&Math.abs(p2.vx)<0.22)p2.vx=0; else if(Math.abs(p2.vx)<0.12)p2.vx=0; }
   if(lf)p2.fc=false; else if(rt)p2.fc=true;
   const up2=!!K2['ArrowUp'];

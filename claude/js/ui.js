@@ -47,6 +47,9 @@ function _togglePause(){
   }
 }
 function _driveMenusFromPads(){
+  // The party screen is driven directly by readGamepad() for BOTH pads (P2 can
+  // join/confirm there), so don't also act on the P1 key edges in Kj here.
+  if(_gameState==='partysetup') return;
   const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
   const ok=!!Kj['Space'], back=!!Kj['Escape'];
   if(!(up||dn||lf||rt||ok||back)) return;
@@ -141,8 +144,12 @@ function _filterName(){
 }
 let _playerCount=1;
 let _heroChoice='mind';
+let _p2HeroChoice='venture';       // human P2 in 2P local (ui_select.js party setup)
 let _selectStep=0;
 let _playModeIdx=0;
+// Party setup, straight from the title (before the story / timeline).
+// These are the pending choices; they are committed only on CONFIRM.
+let _partyRow=0, _partyMode=0, _partyP1='mind', _partyP2='venture';
 // T137 (store gate A): the Steam build (served from app://) does not show the 2P ONLINE "coming soon"
 // card: it has 3 modes, the web build keeps all 4. ?store=1 shows the store menu in a browser.
 const MV_STORE_BUILD=(()=>{ try{ return location.protocol==='app:'||/[?&]store=1\b/.test(location.search); }catch(e){ return false; } })();
@@ -345,6 +352,8 @@ function _drawUiToast(){
 function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
+    // Couch co-op: pick the party here, before the story / timeline.
+    {label:'LOCAL PLAY', activate:()=>openPartySetup()},
     // Paulo (Oct 22): Creative Mode is on the menu, locked until the Alpha.
     // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
     {label:'CREATIVE MODE', locked:true, note:'OPENS IN ALPHA', activate:()=>{}},
@@ -552,6 +561,29 @@ function _ensureTitleMusic(){
   if(_titleMusicPlaying&&_openingAudioEl&&!_openingAudioEl.paused) return;
   _unlockAudio(); _playBGM('title',OPT.musicVol);
 }
+// Shared launch for the story→select flow and the title's party setup. The
+// party setup comes straight from the title (before the story / timeline), so
+// it stops title music rather than story music. _playBGM('game') stops every
+// other track (T522: one soundtrack at a time) in both cases.
+function _launchGameplay(fromStory){
+  const wasStory=fromStory!==false;
+  // Story mode plays the new stages: Awdjoo Town 1.1 → 1.2 (beta_level.js).
+  // The self-test keeps driving the classic Awdjoo map.
+  if(window.MV_STORY_STAGES&&typeof startBetaLab==='function'&&!/[?&]selftest=1/.test(location.search)){
+    _gameState='game';
+    if(wasStory) _stopBGM('story'); else _stopBGM('title');
+    if(typeof _stopAllBgm==='function') _stopAllBgm();
+    if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
+    if(wasStory&&window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv,'select'); return; }   // the timeline picked a saved run: on from its save, with the hero just chosen
+    startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
+    return;
+  }
+  _gameState='game';
+  if(wasStory) _stopBGM('story'); else _stopBGM('title');
+  initWorld();
+  if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
+  _playBGM('game',OPT.musicVol);
+}
 function startGame(){
   _unlockAudio();
   if(_gameState==='story'){
@@ -564,20 +596,30 @@ function startGame(){
       _playerCount=_playModeIdx===2?2:1; if(_playModeIdx<2&&window.MV_SIBLING) MV_SIBLING.on=_playModeIdx===1;
       _selectStep=1; return;
     }
-    // Story mode plays the new stages: Awdjoo Town 1.1 → 1.2 (beta_level.js).
-    // The self-test keeps driving the classic Awdjoo map.
     if(window.MV_SELECT_GATE&&MV_SELECT_GATE()) return;
-    if(window.MV_STORY_STAGES&&typeof startBetaLab==='function'&&!/[?&]selftest=1/.test(location.search)){
-      _gameState='game'; _stopBGM('story'); if(typeof _stopAllBgm==='function') _stopAllBgm();
-      if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
-      if(window.MV_BETA&&MV_BETA.pendingSave&&MV_BETA.storyPlay){ const sv=MV_BETA.pendingSave; MV_BETA.pendingSave=null; MV_BETA.storyPlay(sv,'select'); return; }   // the timeline picked a saved run: on from its save, with the hero just chosen
-      startBetaLab('1.1',0,{fresh:true}).catch(err=>console.error('stage load failed',err));
-      return;
-    }
-    _gameState='game'; _stopBGM('story'); initWorld();
-    if(typeof _pickAndSetGameMusic==='function') _pickAndSetGameMusic();
-    _playBGM('game',OPT.musicVol);
+    // The classic select screen keeps P2 as the other brother; only the
+    // title's party setup lets you pick which brother each human rides.
+    if(_playerCount===2) _p2HeroChoice=_heroChoice==='mind'?'venture':'mind';
+    _launchGameplay(true);
   }
+}
+// ── Couch co-op party setup (title → party → game) ─────────────
+function openPartySetup(){
+  _unlockAudio();
+  _partyMode=_playerCount===2?2:(window.MV_SIBLING&&MV_SIBLING.on?1:0);
+  _partyP1=_heroChoice;
+  _partyP2=(_p2HeroChoice&&_p2HeroChoice!==_partyP1)?_p2HeroChoice:(_partyP1==='mind'?'venture':'mind');
+  _partyRow=0;
+  _gameState='partysetup';
+}
+function _partyConfirm(){
+  if(_gameState!=='partysetup') return;
+  _playerCount=_partyMode===2?2:1;
+  _heroChoice=_partyP1;
+  _p2HeroChoice=_partyMode===2?_partyP2:(_partyP1==='mind'?'venture':'mind');
+  if(window.MV_SIBLING) MV_SIBLING.on=_partyMode===1;
+  try{ sfx('confirm'); }catch(e){}
+  _launchGameplay(false);
 }
 function _startGameAtZone(idx){
   _pendingZone=idx; _gameState='game'; _stopBGM('title'); initWorld();
@@ -586,6 +628,7 @@ function _startGameAtZone(idx){
 }
 function _onInteract(e){
   _unlockAudio();
+  if(_gameState==='partysetup') return;   // ui_select.js handles taps on the party cards
   if(_gameState==='title'){
     if(_titleSlideInput()){ _ensureTitleMusic(); return; }  // first press fades the still back to the title
     _titleT=0; _ensureTitleMusic(); if(e&&e.clientX!=null) _titleMenuClick(e); return;
@@ -615,6 +658,14 @@ document.addEventListener('keydown',e=>{
   if(_gameState==='testmode'&&window.MV_TEST_INPUT){
     MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space'||e.code==='KeyA',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
     e.preventDefault();return;
+  }
+  if(_gameState==='partysetup'){
+    if(e.code==='Escape'||e.code==='Backspace'){ _gameState='title'; e.preventDefault(); return; }
+    const dx=(e.code==='ArrowLeft'||e.code==='KeyA')?-1:(e.code==='ArrowRight'||e.code==='KeyD')?1:0;
+    const dy=(e.code==='ArrowUp'||e.code==='KeyW')?-1:(e.code==='ArrowDown'||e.code==='KeyS')?1:0;
+    if((dx||dy)&&window.MV_PARTY_NAV){ window.MV_PARTY_NAV(dx,dy); e.preventDefault(); return; }
+    if(e.code==='Enter'||e.code==='Space'){ _partyConfirm(); e.preventDefault(); return; }
+    return;
   }
   if(_gameState==='title'){
     if(_titleSlideInput()){ e.preventDefault(); return; }  // first key fades the still back, no menu action

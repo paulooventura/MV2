@@ -14,19 +14,22 @@
 
 // ── Input state ───────────────────────────────────────────────
 const K={}, Kj={}, K2={}, Kj2={};
+// Which P2 keys are physically held on the keyboard — the 2nd pad ORs into the
+// same K2 slots without stealing the arrows/numpad keys from a keyboard player.
+const KB2={};
 function _bindDown(a){ return (OPT.binds[a]||[]).some(c=>K[c]); }
 function _bindJ(a){   return (OPT.binds[a]||[]).some(c=>Kj[c]); }
 
 window.addEventListener('keydown',e=>{
   if(_gameState==='game'&&!_audioUnlocked) _unlockAudio();
-  if(_gameState==='title'||_gameState==='story'||_gameState==='select'||
+  if(_gameState==='title'||_gameState==='story'||_gameState==='select'||_gameState==='partysetup'||
      _gameState==='options'||_gameState==='levels'||_gameState==='stagedesign'||
      _gameState==='cutscene'||_gameState==='tutorial') return;
   const _isArrow=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code);
   const _isP2Action=['Numpad1','Numpad2','Numpad3'].includes(e.code);
   if(_playerCount===2&&(_isArrow||_isP2Action)){
-    if(!K2[e.code]) Kj2[e.code]=true;
-    K2[e.code]=true; e.preventDefault(); return;
+    if(!KB2[e.code]) Kj2[e.code]=true;
+    KB2[e.code]=true; K2[e.code]=true; e.preventDefault(); return;
   }
   if(!K[e.code]) Kj[e.code]=true;
   K[e.code]=true;
@@ -38,7 +41,7 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{
   if(_playerCount===2&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Numpad1','Numpad2','Numpad3'].includes(e.code)){
-    K2[e.code]=false; return;
+    KB2[e.code]=false; K2[e.code]=false; return;
   }
   K[e.code]=false;
   if(e.code==='Space') K['Space_kb']=false;
@@ -127,29 +130,41 @@ function _initDpadEightWay(){
 }
 
 // ── Gamepad ───────────────────────────────────────────────────
-const GP={pad:null,prev:{},ignore:{}};
-window.addEventListener('gamepadconnected',e=>{
-  GP.pad=e.gamepad;
-  setTimeout(()=>{
-    const pads=navigator.getGamepads();
-    const g=pads[GP.pad.index];
-    if(!g) return;
-    GP.ignore={};
-    g.buttons.forEach((b,i)=>{ if(b.value>0.1) GP.ignore[i]=true; });
-    console.log('GP connected. Ignoring resting buttons:',Object.keys(GP.ignore));
-  },200);
+// Poll the pad list every frame: a controller that was already connected when
+// the page loaded never fires `gamepadconnected`, so that event can't be the
+// only way in. Pad 0 drives P1, pad 1 drives P2 (and both drive the party menu).
+const GP={pad:null,pads:{},selX:0,selY:0,prevSy:0,manX:0};
+const GP_BTN=[0,1,2,3,4,8,9,12,13,14,15];
+window.addEventListener('gamepadconnected',e=>{ GP.pad=GP.pad||e.gamepad; });
+window.addEventListener('gamepaddisconnected',e=>{
+  delete GP.pads[e.gamepad.index];
+  if(GP.pad&&GP.pad.index===e.gamepad.index) GP.pad=null;
 });
-window.addEventListener('gamepaddisconnected',e=>{GP.pad=null;});
-
-function readGamepad(){
-  if(!GP.pad) return;
-  const pads=navigator.getGamepads(); if(!pads) return;
-  const g=pads[GP.pad.index]; if(!g) return;
+function _gpSlot(g,idx){
+  let s=GP.pads[idx];
+  if(!s){
+    s=GP.pads[idx]={prev:{},ignore:{}};
+    // Buttons already held the first time we see a pad are not fresh presses.
+    (g.buttons||[]).forEach((b,i)=>{ if(b&&(b.pressed||b.value>0.1)) s.ignore[i]=true; });
+  }
+  (g.buttons||[]).forEach((b,i)=>{ if(s.ignore[i]&&!(b&&(b.pressed||b.value>0.1))) delete s.ignore[i]; });
+  return s;
+}
+function _gpStick(g,s){
   const DEAD=0.5;
   const ax=Math.abs(g.axes[0]||0)>DEAD?g.axes[0]:0;
   const ay=Math.abs(g.axes[1]||0)>DEAD?g.axes[1]:0;
-  const pressed=i=>!GP.ignore[i]&&g.buttons[i]&&g.buttons[i].pressed===true;
-  const rose=i=>pressed(i)&&!GP.prev[i];
+  const sx=ax<0?-1:ax>0?1:0, sy=ay<0?-1:ay>0?1:0;
+  const px=s.selX||0, py=s.selY||0;
+  const edges={left:sx<0&&px>=0,right:sx>0&&px<=0,up:sy<0&&py>=0,down:sy>0&&py<=0};
+  s.selX=sx; s.selY=sy;
+  return {ax,ay,sx,sy,edges};
+}
+// Pad 0 → P1 (K/Kj), exactly the old mapping plus the party menu.
+function _readPad1(g){
+  const s=_gpSlot(g,0), st=_gpStick(g,s), ax=st.ax, ay=st.ay;
+  const pressed=i=>!s.ignore[i]&&!!(g.buttons[i]&&g.buttons[i].pressed===true);
+  const rose=i=>pressed(i)&&!s.prev[i];
   if(ax<0) K['KeyA']=true; else if(!g.buttons[14]?.pressed) K['KeyA']=false;
   if(ax>0) K['KeyD']=true; else if(!g.buttons[15]?.pressed) K['KeyD']=false;
   if(ay<0) K['KeyW']=true; else if(!g.buttons[12]?.pressed) K['KeyW']=false;
@@ -158,11 +173,10 @@ function readGamepad(){
   if(pressed(15)) K['KeyD']=true;
   if(pressed(12)) K['KeyW']=true;
   if(pressed(13)) K['KeyS']=true;
-  // By the letters on an Xbox-style pad (standard mapping): 0 = A (bottom),
-  // 1 = B (right), 2 = X (left), 3 = Y (top).
+  // Xbox letters: 0 A (bottom), 1 B (right), 2 X (left), 3 Y (top).
   // A jump · B item select · X run + use item · Y punch
   const bJump=pressed(0);
-  if(bJump&&!GP.prev[0]) Kj['Space']=true;
+  if(bJump&&!s.prev[0]) Kj['Space']=true;
   K['Space']=(K['Space_kb']||bJump);
   if(rose(2)) Kj['KeyQ']=true;
   if(rose(1)&&_gameState!=='options') Kj['KeyE']=true;
@@ -171,7 +185,13 @@ function readGamepad(){
   K['KeyE']=(K['KeyE_kb']||pressed(1));
   K['KeyF']=(K['KeyF_kb']||pressed(3));
   if(pressed(4)) K['KeyS']=true;
-  if(_gameState==='title'){
+  if(_gameState==='partysetup'){
+    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
+    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
+    if((dX||dY)&&window.MV_PARTY_NAV) window.MV_PARTY_NAV(dX,dY);
+    if(rose(0)||rose(9)){ if(typeof _partyConfirm==='function') _partyConfirm(); }
+    if(rose(1)||rose(3)) _gameState='title';
+  }else if(_gameState==='title'){
     const ok=rose(0)||rose(9);                          // A or START confirms
     if(!_titleMusicPlaying&&ok) _onInteract();
     else if(_titleMusicPlaying){
@@ -196,10 +216,8 @@ function readGamepad(){
   }
   if(_gameState==='select'){
     // d-pad, or the stick pushed past half (one step per push) — Paulo, Oct 22
-    const sx=ax<-0.5?-1:ax>0.5?1:0, sy2=ay<-0.5?-1:ay>0.5?1:0;
-    const px0=GP.selX||0, py0=GP.selY||0, stL=sx<0&&px0>=0, stR=sx>0&&px0<=0, stV=sy2!==0&&py0===0;
-    GP.selX=sx; GP.selY=sy2;
-    const dX=(rose(14)||stL)?-1:(rose(15)||stR)?1:0, dY=(rose(12)||(stV&&sy2<0))?-1:(rose(13)||(stV&&sy2>0))?1:0;
+    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
+    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
     if((dX||dY)&&!(window.MV_SELECT_NAV&&MV_SELECT_NAV(dX,dY))){
       if(dX<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+MV_MODE_N-1)%MV_MODE_N; else _heroChoice='mind'; }
       if(dX>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; }
@@ -207,16 +225,60 @@ function readGamepad(){
   }
   // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
   // d-pad or stick moves the cursor, A picks, B resumes
-  if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
-  if(rose(3)) Kj['KeyF']=true;   // Y is punch in play, and Back on the options screen and the manual
-  if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;      // B backs out of menus. Options, the manual, and Test Mode use Y.
-  if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){   // pause menu / continue screen: d-pad + stick move the cursor
-    const sy=ay<-0.5?-1:ay>0.5?1:0;
-    if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
-    if(rose(13)||(sy>0&&GP.prevSy<=0)) Kj['ArrowDown']=true;
-    GP.prevSy=sy;
+  if(_gameState!=='partysetup'){
+    if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
+    if(rose(3)) Kj['KeyF']=true;   // Y is punch in play, and Back on the options screen and the manual
+    if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;
+    if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){
+      const sy=ay<-0.5?-1:ay>0.5?1:0;
+      if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
+      if(rose(13)||(sy>0&&GP.prevSy<=0)) Kj['ArrowDown']=true;
+      GP.prevSy=sy;
+    }
   }
-  [0,1,2,3,4,8,9,12,13,14,15].forEach(i=>GP.prev[i]=pressed(i));
+  GP_BTN.forEach(i=>s.prev[i]=pressed(i));
+}
+// Pad 1 → P2 (K2/Kj2, read by weapons.js updateCoopPlayer2) and the party menu.
+// A jumps, B uses the item, X cycles items, Y punches, LB runs, d-pad/stick moves.
+function _readPad2(g){
+  const s=_gpSlot(g,1), st=_gpStick(g,s);
+  const pressed=i=>!s.ignore[i]&&!!(g.buttons[i]&&g.buttons[i].pressed===true);
+  const rose=i=>pressed(i)&&!s.prev[i];
+  const setK=(code,on)=>{ K2[code]=!!KB2[code]||!!on; };
+  const jump=pressed(0)||pressed(12)||st.sy<0;
+  setK('ArrowLeft',pressed(14)||st.sx<0);
+  setK('ArrowRight',pressed(15)||st.sx>0);
+  setK('ArrowUp',jump);                                  // held jump (variable height)
+  setK('ArrowDown',pressed(13)||st.sy>0);
+  if(rose(0)||rose(12)||st.edges.up) Kj2['ArrowUp']=true;   // A = jump
+  if(rose(2)) Kj2['Numpad3']=true;                       // X = cycle item
+  if(rose(1)) Kj2['Numpad1']=true;                       // B = use item
+  if(rose(3)) Kj2['Numpad2']=true;                       // Y = punch
+  setK('Numpad1',pressed(1));                            // hold B for XLR / MEG
+  K2['Sprint_gp2']=pressed(4);                           // LB = run
+  if(_gameState==='partysetup'){
+    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
+    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
+    if((dX||dY)&&window.MV_PARTY_NAV) window.MV_PARTY_NAV(dX,dY);
+    if(rose(0)||rose(9)){
+      // A second player pressing A joins as CO-OP 2P; pressing it again starts.
+      if(typeof _partyMode!=='undefined'&&_partyMode!==2){ _partyMode=2; _partyRow=2; try{ sfx('menu'); }catch(e){} }
+      else if(typeof _partyConfirm==='function') _partyConfirm();
+    }
+    if(rose(1)||rose(3)) _gameState='title';
+  }
+  GP_BTN.forEach(i=>s.prev[i]=pressed(i));
+}
+function readGamepad(){
+  let pads;
+  try{ pads=navigator.getGamepads?navigator.getGamepads():[]; }catch(e){ return; }
+  if(!pads||!pads.length) return;
+  for(let i=0;i<2;i++){
+    const g=pads[i];
+    if(!g||!g.connected) continue;
+    if(!GP.pad) GP.pad=g;
+    try{ if(i===0) _readPad1(g); else _readPad2(g); }catch(err){ console.error('MV pad '+i,err); }
+  }
 }
 function clkj(){ Object.keys(Kj).forEach(k=>delete Kj[k]); }
 
@@ -438,7 +500,9 @@ function _spawnPartner(){
     p2=null; return;
   }
   p2=mkP();
-  p2.hero=(_heroChoice==='mind'?'venture':'mind');
+  // In human co-op both brothers are chosen in the party setup; the AI ally
+  // in solo is still the opposite brother.
+  p2.hero=(_playerCount===2&&_p2HeroChoice)?_p2HeroChoice:(_heroChoice==='mind'?'venture':'mind');
   p2._aiCompanion=_playerCount!==2;
   p2.x=p.x+36; p2.y=p.y; p2.vx=0; p2.vy=0; p2.og=true;
   p2.fc=!!p.fc;

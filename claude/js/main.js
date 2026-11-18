@@ -809,7 +809,7 @@ function initWorld(){
     else GOALPL={x:-999,y:0,w:1,h:1};
     console.info('MV world boot:',ENEMS.length,'enemies,',KDROP.length,'knowls, spawn',_spawnX,_spawnY,'cam',Math.round(camX),Math.round(camY),'segs',COLL_SEGS.length,'tmj',!!_tmjDraw);
     if(typeof _spawnPartner==='function') _spawnPartner();
-    else if(_playerCount===2){ p2=mkP(); p2.hero=(_heroChoice==='mind'?'venture':'mind'); p2.x=p.x+34; p2.y=p.y; p2.vx=0;p2.vy=0;p2.og=true; }
+    else if(_playerCount===2){ p2=mkP(); p2.hero=(_p2HeroChoice||(_heroChoice==='mind'?'venture':'mind')); p2.x=p.x+34; p2.y=p.y; p2.vx=0;p2.vy=0;p2.og=true; }
     else p2=null;
     if(_pendingZone>0){const z=_pendingZone;_pendingZone=0;_enterZone(z);}
   };
@@ -1355,12 +1355,30 @@ function drawSparks(){
 // a local co-op split. `_splitHide` tells the character drawers which of the
 // two players to leave out of a given pass (render.js).
 let _coopSplit=false, _splitHide=null;
+// Human co-op is ALWAYS split — even shoulder to shoulder, each brother needs
+// his own view centred on himself. The old distance hysteresis made the screen
+// pop between views and, with one shared camera, both halves showed the same
+// thing; neither belongs in couch co-op.
 function _coopSplitWanted(){
-  if(typeof _playerCount==='undefined'||_playerCount!==2||!p||!p2||p2._aiCompanion) return false;
-  const d=Math.hypot(p.x-p2.x,p.y-p2.y);                  // world px apart
-  if(!_coopSplit) return d>Math.max(W,960)*0.9;           // split with hysteresis
-  return d>Math.max(W,960)*0.62;                          // merge only once clearly close
+  return typeof _playerCount!=='undefined'&&_playerCount===2&&!!p&&!!p2&&!p2._aiCompanion;
 }
+// Each half is its own W × H/2 window and both use the SAME framing: centre the
+// player's feet at half/2 of that window. The lower pass then translates the
+// drawing down by half, so its locally-centred player lands in the middle of
+// the lower viewport. Never aim a half camera with the full-height follow
+// target (that is what sent the lower view underground).
+function _coopCameraTargets(){
+  const z=camZoom||1, half=Math.floor(H/2), hh=half/(2*z);
+  const maxY=Math.max(0,WH-half/z);
+  const aim=pl=>{
+    if(!pl) return {x:0,y:0};
+    const x=camClampX(pl.x+SW*0.5-camViewW()*0.4);
+    const y=Math.max(0,Math.min(maxY,pl.y+FEET_OFF-hh));
+    return {x,y};
+  };
+  return {half,p1:aim(p),p2:aim(p2)};
+}
+window.__mvCoopCameras=_coopCameraTargets;     // selftest: independent-camera check
 function drawWorldPass(){
   if(_tmjDraw) drawTmjMap();
   if(typeof drawCampaignPlats==='function') drawCampaignPlats();
@@ -1403,28 +1421,38 @@ function drawWorldPass(){
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
 }
-// T545: two stacked equal viewports when the human co-op players drift apart.
-// Each pass clips to its half and aims its own camera at its own player; the
-// world art is identical, no stretching (one zoom, one scale for both).
+// T545: two stacked equal viewports for human co-op. Each pass clips to its
+// own half and aims its own camera at its own player — the world art is the
+// same, but P1 watches P1 and P2 watches P2, with no shared midpoint.
 function _drawCoopSplit(){
   _coopSplit=true;
-  // Sonic 2 co-op: ONE world and ONE camera (so both halves show the same
-  // floor), split into an upper and lower window; each window just leaves the
-  // other player out so you can always pick yours out.
-  const cx=(p.x+p2.x)*0.5+SW*0.5, cy=(p.y+p2.y)*0.5+FEET_OFF;
-  const vw=camViewW(), vh=camViewH();
-  _rcamX=Math.max(0,Math.min(Math.max(0,WW-vw),cx-vw*0.5));
-  _rcamY=Math.max(0,Math.min(Math.max(0,WH-vh),cy-vh*0.5));
-  const half=Math.floor(H/2);
-  // upper window — Player 1 only
-  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,half); ctx.clip();
-  _splitHide='p2'; drawWorldPass(); ctx.restore();
-  // lower window — Player 2 only, same camera, scrolled down by half a screen
-  ctx.save(); ctx.beginPath(); ctx.rect(0,half,W,H-half); ctx.clip();
-  _splitHide='p1'; drawWorldPass(); ctx.restore();
-  _splitHide=null;
+  const cams=_coopCameraTargets(), half=cams.half;
+  const pass=(y0,h,hide,cam,lower)=>{
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0,y0,W,h); ctx.clip();
+    if(lower) ctx.translate(0,half);        // screen-space clip, then shift the lower world down
+    _rcamX=cam.x; _rcamY=cam.y;
+    _splitHide=hide;
+    _worldZoomBegin();                      // world layers zoom, just like the single view
+    try{ drawWorldPass(); } finally{ _worldZoomEnd(); _splitHide=null; }
+    ctx.restore();
+  };
+  pass(0,half,'p2',cams.p1,false);           // upper window: P1's camera, P2 left out
+  pass(half,H-half,'p1',cams.p2,true);       // lower window: P2's camera, P1 left out
   ctx.fillStyle=C.BLACK; ctx.fillRect(0,half-2,W,4);
   ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,half,W,1);
+  // Small owner tags with HP, tucked above the seam / the bottom edge so the
+  // regular HUD's top corners stay clear for P1.
+  const tag=(y,label,pl,col)=>{
+    ctx.save();
+    ctx.fillStyle='rgba(4,2,10,0.75)'; ctx.fillRect(10,y,158,26);
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.strokeRect(11,y+1,156,24);
+    drawText(label,20,y+7,col,2);
+    if(pl) drawText(Math.max(0,Math.round(pl.hp||0))+'/'+Math.round(pl.maxHp||PLAYER_MAX_HP),80,y+7,'#ffb0b8',2);
+    ctx.restore();
+  };
+  tag(half-34,'P1',p,C.PURPLE_L||'#a060ff');
+  tag(H-34,'P2',p2,C.RED_L||'#ff6a5a');
 }
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);
@@ -1434,6 +1462,7 @@ function draw(){
   if(_gameState==='stagedesign'){drawStageDesignHub();return;}
   if(_gameState==='options'){drawOptions();return;}
   if(_gameState==='testmode'){ if(typeof drawTestMode==='function') drawTestMode(); return; }
+  if(_gameState==='partysetup'){ if(typeof drawPartySetup==='function') drawPartySetup(); return; }
   if(_gameState==='story'){_storyFr++;drawStory();return;}
   // a stage is loading (beta_level.js): a dark veil, never the old world; then the new one fades in
   if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }
