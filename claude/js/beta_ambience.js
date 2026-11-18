@@ -11,6 +11,10 @@
 //   - near water: lapping;
 //   - MIND's wheel: a rolling rumble with grit that follows his speed on
 //     the ground, and a heavier thud on a hard landing.
+//  Paulo, Nov 18 ("living world"): village birds, a bright water trickle and the
+//  low motor + slow clank of distant machinery join the wind / crickets / water /
+//  hum beds so the opening (the song is still away at the house) isn't dead quiet.
+//  Still all synthesized, still SFX only — never a second soundtrack.
 //  Everything fades with OPT.sfxVol, on pause, on popups and off the game.
 //  Build 222: heard from MIND's spot (beta_spatial.js) — crickets sit on real grass, drips
 //  fall from real ceilings, frogs on the water, the hum on the lamp posts, each one
@@ -75,6 +79,20 @@
     g.gain.value=0.0001; const d0=x!=null?at(x,y,1.6):N.out; if(!d0) return; o.connect(g); g.connect(p); p.connect(d0);
     for(let i=0;i<pulses;i++){ const s=t+i*0.055; g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.05,s+0.008); g.gain.exponentialRampToValueAtTime(0.0001,s+0.04); }
     o.start(t); o.stop(t+pulses*0.055+0.05);
+  }
+  // (living world) a few chirps from up in the air over the village — a real spot,
+  // so it pans and dims behind walls with everything else.
+  function bird(x,y){
+    const d0=x!=null?at(x,y,1.3):N.out; if(!d0) return;
+    const t=A.currentTime, f0=1750+Math.random()*950, n=2+((Math.random()*3)|0), pan=(Math.random()*2-1)*0.7;
+    for(let i=0;i<n;i++){
+      const s=t+i*(0.075+Math.random()*0.05), o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner();
+      o.type='sine'; o.frequency.setValueAtTime(f0,s);
+      o.frequency.exponentialRampToValueAtTime(f0*(1.22+Math.random()*0.3),s+0.03);
+      o.frequency.exponentialRampToValueAtTime(f0*0.88,s+0.075);
+      p.pan.value=pan; env(g,s,0.024,0.006,0.07);
+      o.connect(g); g.connect(p); p.connect(d0); o.start(s); o.stop(s+0.09);
+    }
   }
   function owl(){
     const t=A.currentTime, L=window.MV_SPATIAL?MV_SPATIAL.listener():null, d0=L?at(L.x+(Math.random()<0.5?-1:1)*22*32,L.y-8*32,2.2):N.out; if(!d0) return;
@@ -286,6 +304,33 @@
     placeLoop(Lwd,inW?Math.min(0.12,sp*0.02):0,inW?3500+sp*600:200,0,0.2,0.08);
     if(inW!==waterWas&&waterWas!==null&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x:p.x+SW/2,y:p.y+FEET_OFF-14}); MV_BETA_AUDIO.splash(Math.min(1,0.35+Math.abs(p.vy||0)/9)); }
     waterWas=inW;
+    // ── (living world) a trickle: the small bright run of water beside a stream,
+    //    distinct from the slow lapping of N.lG — from the nearest real surface ──
+    const Ltr=mkLoop('trickle',inp=>{
+      const bp=A.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2450; bp.Q.value=1.1;
+      const g=A.createGain(); g.gain.value=0.65; loopNoise(A,bp); bp.connect(g); g.connect(inp);
+      const lfo=A.createOscillator(), lg=A.createGain(); lfo.frequency.value=5.8; lg.gain.value=0.28; lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      const lp=A.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=850; const g2=A.createGain(); g2.gain.value=0.25; loopNoise(A,lp); lp.connect(g2); g2.connect(inp);
+    });
+    const tr=waterSpot(B,true);
+    if(tr){ const P=SP.params(tr.x,tr.y); if(P&&P.g>0.02) placeLoop(Ltr,0.075*P.g,P.lp,P.pan,P.wet,0.25); else placeLoop(Ltr,0,200,0); }
+    else placeLoop(Ltr,0,200,0);
+    // ── (living world) distant machinery: a low motor and a slow clank at the
+    //    works (the crane / the lift / an elevator), far off in the mix ──
+    const Lm=mkLoop('machine',inp=>{
+      const o=A.createOscillator(), g=A.createGain(), lp=A.createBiquadFilter();
+      o.type='sawtooth'; o.frequency.value=57; lp.type='lowpass'; lp.frequency.value=210; g.gain.value=0.14;
+      o.connect(lp); lp.connect(g); g.connect(inp); o.start();
+      const wob=A.createOscillator(), wg=A.createGain(); wob.frequency.value=0.9; wg.gain.value=0.08; wob.connect(wg); wg.connect(g.gain); wob.start();
+      const bp=A.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1300; bp.Q.value=3.2;
+      const cg=A.createGain(); cg.gain.value=0.035; loopNoise(A,bp); bp.connect(cg); cg.connect(inp);
+      const cl=A.createOscillator(), clg=A.createGain(); cl.frequency.value=0.62; clg.gain.value=0.03; cl.connect(clg); clg.connect(cg.gain); cl.start();
+    });
+    let mach=null;
+    for(const d of (B.decor||[])){ if(/crane|lift|elevator|machine|fan|generator|pump/i.test(d.kind||'')){ mach=d; break; } }
+    if(mach){ const mx=mach.x+(mach.w||32)/2, my=mach.y+(mach.h||32)/2, P=SP.params(mx,my);
+      placeLoop(Lm,P?0.17*(0.35+0.65*P.g):0,P?Math.min(1600,P.lp):200,P?P.pan:0,P?P.wet:0.2,0.6);
+    } else placeLoop(Lm,0,200,0);
     // ── the yellow blocks ──
     let sum=0, lpW=0, panW=0, wetW=0; const near=[];
     for(const b of yellows()){ const x=b.x+(b.w||32)/2, y=b.y+(b.h||32)/2, P=SP.params(x,y); if(!P||P.g<0.01) continue; sum+=P.g; lpW+=P.lp*P.g; panW+=P.pan*P.g; wetW+=P.wet*P.g; near.push([x,y,P.g]); }
@@ -333,6 +378,11 @@
     // the creatures and the drips, each from a real spot
     if(SP){
       if(Math.random()<0.12*S.crickets*(1-0.95*hush)){ const g=grassSpot(B); if(g) cricket(0,g.x,g.y); }
+      // (living world) village birds from a spot off in the air, when it isn't pouring
+      if((B.stageId==='1.1'||B.stageId==='1.2')&&E.wind>0.2&&Math.random()<0.006*(1-hush)){
+        const L=SP.listener(), side=Math.random()<0.5?-1:1;
+        bird(L.x+side*(220+Math.random()*360), L.y-110-Math.random()*170);
+      }
       if(S.owl&&E.wind>0.2&&Math.random()<0.0016*(1-hush)) owl();
       if(S.frogs&&Math.random()<0.02*(1+storm)){ const f=waterSpot(B,false); if(f) frog(0,f.x,f.y-6); }
       if(!E.room&&Math.random()<0.06){ const c=ceilingSpot(B); if(c) drip(0,0.8,c.x,c.y); }
@@ -348,5 +398,9 @@
     lastOg=og; lastVy=p.vy||0;
   }
   setInterval(()=>{ try{ tick(); }catch(e){} },50);
-  window.MV_AMBIENCE={STAGE, tick, loops:()=>loops, state:()=>N&&A?{out:N.out.gain.value, wind:N.wG.gain.value, hum:N.hG.gain.value, drone:N.dG.gain.value, lap:N.lG.gain.value, wheel:N.whG.gain.value}:null};
+  window.MV_AMBIENCE={STAGE, tick, loops:()=>loops, state:()=>N&&A?{
+    out:N.out.gain.value, wind:N.wG.gain.value, hum:N.hG.gain.value, drone:N.dG.gain.value,
+    lap:N.lG.gain.value, wheel:N.whG.gain.value,
+    trickle:loops.trickle?loops.trickle.g.gain.value:0, machine:loops.machine?loops.machine.g.gain.value:0
+  }:null};
 })();

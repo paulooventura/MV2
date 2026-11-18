@@ -1280,6 +1280,29 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
 }
 
 /* -- Full character draw â€” MV2 vector composition -- */
+// ── idle groove (Paulo: "when we stay idle too long, have the characters bop to the music") ──
+// Beat period comes from the ONE live soundtrack's BPM (the same table beta_audio uses
+// to tempo-match its crossfades); cached every couple of seconds, never a second track.
+const GROOVE_BPM={'canopy-quest-gold':99.2,'crystal-cavern-drift-gold':100.2,'pixel-quasar-gold-boss':129.2,
+  'chaos-theory':130.8,'chaos-theory-2':94,'kiyoki-senritsu-1go':143.5,'kiyoki-senritsu-stori':91.5,
+  'snes-awdjoo':105.5,'snes-awdjoo-2':107.8,'genesis-awdjoo':145.5,'crystal-memory-gate':92.2,'lost-save-shrine-diam':136};
+const GROOVE_LIFT=[0,1.8,0.6,2.4];
+let _grooveBpm=112, _grooveAt=-999;
+function beatFrames(){
+  if(!(typeof fr==='number')||fr-_grooveAt>120){
+    _grooveAt=typeof fr==='number'?fr:0;
+    let bpm=112;
+    try{
+      const AU=window.MV_BETA_AUDIO, cur=AU&&AU.current&&AU.current(), path=cur&&AU.pathOf?AU.pathOf(cur):null;
+      const m=path&&/([^/]+)\.mp3/.exec(path), k=m&&m[1];
+      if(k&&GROOVE_BPM[k]) bpm=GROOVE_BPM[k];
+      else{ const mode=window.MV_CONSOLE&&MV_CONSOLE.mode;
+        if(mode==='gore') bpm=130; else if(mode==='ink') bpm=100; else if(mode==='snes'||mode==='md') bpm=110; }
+    }catch(e){}
+    _grooveBpm=bpm;
+  }
+  return 3600/_grooveBpm;                          // frames per beat at 60 fps
+}
 function drawCharacter(){
   // T545: skip the other viewport's player. drawCharacterFor() swaps `p` to its
   // target before calling this, so test identity rather than the call site.
@@ -1299,6 +1322,30 @@ function drawCharacter(){
   const suspC=p.suspComp||0;
   const walkBob=(!onRope&&p.og&&!p._onSlope&&Math.abs(p.vx)>0.5&&p.landF<=0)?Math.sin(fr*0.28+p.x*0.015)*0.45:0;
   const idleSway=0;
+  // (living world) after ~2 s of standing still, bop in time with the song. Each
+  // filter dances differently: GORE headbangs, INK has a vinyl sway + snap,
+  // A/B do a stepped chip-bob, POSH gets an easy two-beat bounce.
+  const idleOK=!!p.og&&!onRope&&Math.abs(p.vx||0)<0.4&&Math.abs(p.vy||0)<0.4
+    &&!(p.pt>0)&&!(p.pCharging)&&!(p.hook&&p.hook.st!=='idle')&&!(p._madT>0)&&!(p._downT>0);
+  p._idleT=idleOK?(p._idleT||0)+1:0;
+  const groove=Math.max(0,Math.min(1,(p._idleT-120)/45));
+  let gDX=0, gDY=0, gHead=0;
+  if(groove>0){
+    const ph=(typeof fr==='number'?fr:0)/beatFrames()*Math.PI*2;
+    const mode=window.MV_CONSOLE?window.MV_CONSOLE.mode:'off';
+    if(window.MV_GORE_SOUND&&MV_GORE_SOUND()){
+      gDY=-1.1*groove*Math.sin(ph*0.5); gHead=3.6*groove*Math.pow(Math.max(0,Math.sin(ph)),5);   // headbang
+    }else if(window.MV_INK_SOUND&&MV_INK_SOUND()){
+      gDX=2.2*groove*Math.sin(ph*0.5); gDY=-1.0*groove*Math.cos(ph);                              // vinyl sway
+      gHead=0.7*groove*Math.sin(ph+0.6);                                                          // + snap
+    }else if(mode==='snes'||mode==='md'){
+      const step=(Math.floor((typeof fr==='number'?fr:0)/(beatFrames()/2))&3);                     // chip-bob
+      gDY=-groove*GROOVE_LIFT[step]; gDX=(step&1)?groove*1.1:-groove*1.1;
+    }else{
+      gDY=-groove*(1.6*Math.max(0,Math.sin(ph))+0.5*Math.sin(ph*0.5));                            // easy bop
+      gHead=0.6*groove*Math.sin(ph+0.4);
+    }
+  }
   const suspDrop=onRope?0:suspC*SUSP_TRAVEL;
   // the cabinet rides the fork. suspComp dips it on a landing and lifts it on the rebound; the wheel stays put
   const forkDip=onRope?0:Math.max(-2,Math.min(10,((p._tireSq||0)-TIRE_LOAD_SQ)*1.6));
@@ -1356,6 +1403,7 @@ function drawCharacter(){
   if(!flicker) drawWheel(wcx,wcy,p.wheelAngle,p);
   if(!flicker) drawWheelKit(wcx,wcy,sy(bodyTop+BODY_H),fc,p);
   if(_jabK>0) ctx.translate((fc?1:-1)*sw(p._comboHook?9:6)*_jabK,0);   // the lean (build 370)
+  if(groove>0) ctx.translate(gDX,gDY);            // idle groove: everything above the wheel rides it
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
   // (build 356) during the left jab this right glove holds its guard; the left hand punches
@@ -1408,8 +1456,9 @@ function drawCharacter(){
     headCY-=peekLift;
     peekAmt=0.22+Math.sin(fr*0.18)*0.05;
   }
+  if(groove>0) hatTY+=gHead*0.5;                  // the hat lags the head a touch on the beat
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
-  drawHead(wcx,sy(headCY),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  drawHead(wcx,sy(headCY+gHead),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
   window._mindHeadDmg=0;
 
   // 4. BODY BOX â€” in front of glove arm + head

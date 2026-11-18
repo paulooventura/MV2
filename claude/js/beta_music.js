@@ -137,16 +137,52 @@
   }
   // how it sounds from where MIND is
   function solidAt(x,y){ return typeof gridWorldSolid==='function'&&gridWorldSolid(x,y); }
+  // Paulo: "with the music sources and doors, make sure the doors also muffle the sound."
+  // A CLOSED door on the straight line between MIND and the source swallows some of
+  // the song (a low-pass you can hear through a shut door, not an on/off cut).
+  // Liang–Barsky segment / axis-aligned-rect — all scalars, so hear() allocates nothing.
+  function segRect(x0,y0,x1,y1,ax,ay,bx,by){
+    const dx=x1-x0, dy=y1-y0; let lo=0, hi=1;
+    if(dx===0){ if(x0<ax||x0>bx) return false; }
+    else{ let a=(ax-x0)/dx, b=(bx-x0)/dx; if(a>b){ const s=a; a=b; b=s; } if(a>lo)lo=a; if(b<hi)hi=b; if(lo>hi) return false; }
+    if(dy===0){ if(y0<ay||y0>by) return false; }
+    else{ let a=(ay-y0)/dy, b=(by-y0)/dy; if(a>b){ const s=a; a=b; b=s; } if(a>lo)lo=a; if(b<hi)hi=b; if(lo>hi) return false; }
+    return hi>0.12&&lo<0.88;                    // ignore the listener's and the speaker's own tile
+  }
+  function doorHits(x0,y0,x1,y1){
+    let n=0;
+    // 1.1's house doors (beta_doors). Guard the stage: that module keeps its last
+    // list after you leave 1.1, so stale shut doors must not muffle 1.2 / 1.3.
+    if(B.stageId==='1.1'&&window.MV_DOORS){
+      const ds=window.MV_DOORS.doors;
+      if(ds) for(let i=0;i<ds.length;i++){ const d=ds[i];
+        if(d.st!=='shut'&&d.st!=='closing') continue;
+        if(segRect(x0,y0,x1,y1,d.c*T,d.r0*T,(d.c+1)*T,(d.r1+1)*T)&&++n>=3) return n;
+      }
+    }
+    // 1.3's elevator cabs (beta_city). m.door → 1 when the cab is shut.
+    if(B.stageId==='1.3'&&B.platforms){
+      const ps=B.platforms;
+      for(let i=0;i<ps.length;i++){ const m=ps[i];
+        if(!m.vert||!(m.door>0.55)) continue;
+        if(segRect(x0,y0,x1,y1,m.x,m.y-4*T+6,m.x+(m.w||32),m.y)&&++n>=3) return n;
+      }
+    }
+    return n;
+  }
   function hear(at){
     const ox=p.x+SW/2, oy=p.y+FEET_OFF-50, dx=at.x-ox, dy=at.y-oy, d=Math.hypot(dx,dy);
     const near=Math.max(0,1-d/1500);
     let rock=0; const n=Math.min(40,Math.ceil(d/T));
     for(let i=1;i<n;i++){ if(solidAt(ox+dx*i/n,oy+dy*i/n)) rock++; }
     const occ=Math.min(1,rock/12);
+    const doors=doorHits(ox,oy,at.x,at.y), muffle=doors>0?1-0.42*Math.min(1,doors/2):1;
     // Loudest on the source, still clearly on across the stage. A floor under
     // about half was reading as the song switching off inside the house.
     // (build 370) the source is where the music is: full on it, faint far off (it was never under 62%)
-    return {gain:0.1+0.9*Math.pow(near,1.6)*(1-0.45*occ), pan:Math.max(-0.9,Math.min(0.9,dx/520)), lp:Math.max(900,(2600+15400*Math.pow(near,1.3))*(1-0.55*occ))};
+    return {gain:(0.1+0.9*Math.pow(near,1.6)*(1-0.45*occ))*muffle,
+            pan:Math.max(-0.9,Math.min(0.9,dx/520)),
+            lp:Math.max(600,(2600+15400*Math.pow(near,1.3))*(1-0.55*occ)*muffle)};
   }
   function direct(){
     if(!on()||!p||!A()) return;

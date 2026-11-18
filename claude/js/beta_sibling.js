@@ -42,7 +42,7 @@
   const KEY='mv2.sibling';
   const read=()=>{ try{ const v=localStorage.getItem(KEY); return v==null?true:v==='1'; }catch(e){ return true; } };
   let on=read();
-  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0};
+  const stats={reenter:0, zip:0, hoverF:0, hoverMax:0, jumps:0, swaps:0, clocks:0, punches:0, spots:0, playBows:0};
   let ff=(()=>{ try{ return localStorage.getItem(KEY+'.ff')==='1'; }catch(e){ return false; } })();
   window.MV_SIBLING={ get on(){ return on; }, set on(v){ on=!!v; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }, toggle(){ this.on=!on; },
     get ff(){ return true; }, set ff(v){ ff=true; try{ localStorage.setItem(KEY+'.ff','1'); }catch(e){} },   // a hit on your brother always counts
@@ -69,7 +69,7 @@
     S.hero=p.hero==='venture'?'mind':'venture';
     S.x=p.x-(p.fc?1:-1)*MIN_GAP; S.y=p.y; S.fc=p.fc; S.og=true; S.hp=S.maxHp;
     S._shotCd=40; S._sideT=0; S._fcT=0; S._stuck=0; S._fly=false; S._side=null; S.vx=0; S.vy=0; trail.length=0; bolts.length=0; S._blink=0;
-    S._pref=96+Math.random()*50; S._act=null; S._spot=null; S._bang=0; S._punchCd=0;
+    S._pref=96+Math.random()*50; S._act=null; S._spot=null; S._bang=0; S._punchCd=0; S._playT=0;
     lastLevel=B.level; lastHero=p.hero;
     record(); reenter();
   }
@@ -705,6 +705,32 @@
     const A=S._act; if(A&&A.tgt) return {x:A.tgt.x+(A.tgt.w||0)/2};
     return null;
   }
+  // ── (living world) idle horseplay: when you're BOTH standing around, it glances
+  //    at you, gives a little play-bow with a couple of sparks, and you glance
+  //    back. Every 6–11 s at most, never while there's a job, threat or motion.
+  //    Just a few body fields + particles — no new AI state machine. ──
+  let playCd=300+(Math.random()*240|0);
+  function idlePlay(){
+    if(!S||!p) return;
+    if(S._madT>0||S._downT>0||S._fly||S._zip||S._act||S._threat||S.free>0||(S.hook&&S.hook.st!=='idle')){ S._playT=0; return; }
+    const P=centre(p), me=centre(S), d=Math.hypot(P.x-me.x,P.y-me.y);
+    const calm=!!p.og&&!!S.og&&Math.abs(p.vx||0)<0.4&&Math.abs(S.vx||0)<0.4
+      &&!(p.pt>0)&&!(p.pCharging)&&d>32&&d<170&&clearLine(P.x,P.y,me.x,me.y);
+    if(!calm){ S._playT=0; if(playCd<120) playCd=120; return; }
+    S.fc=P.x>me.x;                                                      // the glance
+    S.pupilX=(P.x-me.x)/d*2.4; S.pupilY=(P.y-me.y)/d*1.6;
+    if(!(p._madT>0)) p.pupilX+=((me.x-P.x)/d*1.6-(p.pupilX||0))*0.12;  // you glance back
+    if((S._playT||0)>0){
+      const t=S._playT, k=t<9?t/9:(t>25?(38-t)/13:1);
+      S.crouchAmt=Math.max(S.crouchAmt||0,0.5*Math.max(0,k));           // the play-bow
+      if(t%9===0){ const col=S.hero==='venture'?'#ff9ab0':'#cfb0ff';
+        PFXS.push({x:(P.x+me.x)/2+(Math.random()-0.5)*16,y:(P.y+me.y)/2-8,vx:(Math.random()-0.5)*0.6,vy:-0.45,life:16,maxLife:16,r:2,col}); }
+      if(--S._playT<=0){ S.crouchAmt=0; playCd=360+(Math.random()*300|0); }
+      return;
+    }
+    if(playCd>0){ playCd--; return; }
+    S._playT=38; stats.playBows++;
+  }
 
   // ── SOLO: the other sibling at home, pottering about like Laitu ──
   let npc=null;
@@ -1064,7 +1090,7 @@
       if(S._downT>0){ S._downT--; S.crouchAmt=Math.min(1,(S.crouchAmt||0)+0.1); if(S.free>0) bodyPhysics(S); if(S._downT===0){ S.crouchAmt=0; S._blink=12; } boltsTick(); return r; }   // knocked out (friendly fire): back in a few seconds
       watchBlocks(); readAction();
       if(S.free>0){ bodyPhysics(S); assist(); boltsTick(); S._catch=30; return r; }      // moved by you: it lands, then rides back to your trail
-      assist(); follow(); boltsTick();
+      assist(); follow(); idlePlay(); boltsTick();
     }catch(e){ console.warn('sibling',e); }
     return r;
   };
