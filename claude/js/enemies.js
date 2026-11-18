@@ -332,7 +332,28 @@ function _enemyItemHB(e){
 function _enemyHookHB(e){ return _enemyItemHB(e); }
 function _playerHitKnock(kx,ky,dmg=PLAYER_HIT_DMG){
   const sc=_knockScaleFromDmg(dmg);
-  p.vx=Math.max(-11,Math.min(11,(p.vx||0)*0.28+kx*sc));
+  let vx=Math.max(-11,Math.min(11,(p.vx||0)*0.28+kx*sc));
+  // T530b (Paulo): a foe hit must not knock MIND off his ledge into a pit and
+  // reboot him at the stage top. If he is standing on solid ground, damp the
+  // horizontal knock so the next step would still have ground under the wheel.
+  try{
+    const B=(typeof window!=='undefined'&&window.MV_BETA)?window.MV_BETA:null;
+    const SW_=typeof SW!=='undefined'?SW:28, FEET_=typeof FEET_OFF!=='undefined'?FEET_OFF:88;
+    const onGridGround=(typeof gridWorldSolid==='function')&&gridWorldSolid(p.x+SW_/2,p.y+FEET_+6);
+    // only damp on confirmed grid ground — platforms / foe-tops keep full knockback
+    if(onGridGround&&vx&&typeof gridWorldSolid==='function'){
+      const feet=p.y+FEET_, dir=Math.sign(vx);
+      const steps=Math.max(1,Math.ceil(Math.abs(vx)));
+      let ok=0;
+      for(let i=1;i<=steps;i++){
+        const nx=p.x+dir*i, cx=nx+SW_/2;
+        if(!gridWorldSolid(cx,feet+6)) break;   // next step leaves the ledge — stop here
+        ok=dir*i;
+      }
+      vx=ok;
+    }
+  }catch(e){}
+  p.vx=vx;
   p.vy=Math.max(-9,Math.min(9,(p.vy||0)*0.28+ky*sc));
 }
 function applyPlayerHitFromEnemy(e,dmg=PLAYER_HIT_DMG){

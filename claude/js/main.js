@@ -247,7 +247,30 @@ function _canvasFloorFeetAt(cx,markerFeet,maxRows=10){
   }
   return null;
 }
-function _respawnPlayer(){ _placePlayerAtSpawn(); }
+// T530b (Paulo): a foe shove/knock into a pit must not reboot MIND at the stage
+// entrance (top of the level). The level records the last stable footing in
+// B.safe every grounded frame; use it when it is a sane in-world spot. This is
+// the pit / fall-out reboot — a deliberate stage start still uses _spawnX/Y.
+function _rebootAtSafeFooting(){
+  const B=(typeof window!=='undefined'&&window.MV_BETA)?window.MV_BETA:null;
+  const s=B&&B.safe;
+  if(s&&typeof s.x==='number'&&isFinite(s.x)&&typeof s.y==='number'&&isFinite(s.y)
+     &&s.x>=0&&s.x<=WW&&s.y>=0&&s.y<=WH){
+    if(!p) p=mkP();
+    p.x=s.x; p.y=s.y;
+    p.vx=0; p.vy=0; p.og=false;
+    p.hp=p.maxHp; _syncLivesFromHp(p);
+    p.inv=0; _shutdownTimer=0;
+    p.hook={st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0};
+    p.xlrOn=false; p.magOn=false; p.wallGrip=0;
+    p.crouchAmt=0; p.runRamp=0; p._fallRespawnCd=0;
+    _resolveSpawnPlacement(p);
+    _snapCameraToPlayer(p);
+    return true;
+  }
+  return false;
+}
+function _respawnPlayer(){ if(!_rebootAtSafeFooting()) _placePlayerAtSpawn(); }
 function _goalRect(){ const g=GOALPL; if(Array.isArray(g)) return{x:g[0],y:g[1],w:g[2],h:g[3]}; return{x:g.x,y:g.y,w:g.w,h:g.h}; }
 function _isBasementSpawnRow(row,gid){
   if(row==null||row<TMJ_BASEMENT_ROW) return false;
@@ -1258,15 +1281,17 @@ function update(){
   if(!isFinite(p.y)||(p.y+FEET_OFF>WH+64&&p.vy>0.25)){
     if(_mapApplied&&!_battleTestMode&&!_runTestMode&&_zoneIdx===0){
       if((p._fallRespawnCd||0)<=0){
+        // T530b: reboot on the last stable footing, not the stage top. Set the
+        // cooldown AFTER the reboot — _placePlayerAtSpawn / safe reboot clear it.
+        if(!_rebootAtSafeFooting()) _placePlayerAtSpawn();
         p._fallRespawnCd=60;
-        _placePlayerAtSpawn();
       } else p._fallRespawnCd--;
     }
     else{
       const recoverX=Math.max(0,Math.min(WW-SW,p.x));
       const feetY=_surfaceYAt(recoverX+SW/2,Math.min(WH,p.y+FEET_OFF),96);
       if(feetY<WH-30){p.x=recoverX;p.y=feetY-FEET_OFF;p.vy=0;p.vx*=0.5;p.og=true;}
-      else if(p.y>WH+240) _placePlayerAtSpawn();
+      else if(p.y>WH+240){ if(!_rebootAtSafeFooting()) _placePlayerAtSpawn(); }
     }
   }
 

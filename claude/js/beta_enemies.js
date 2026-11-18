@@ -104,6 +104,27 @@
     return null;
   }
   const floorUnder=(x,w,feet)=>solidAt(x+4,feet+4)||solidAt(x+w-4,feet+4)||solidAt(x+w/2,feet+4)||!!platUnder(x,w,feet);
+  // T530b (Paulo): a foe must never shove/carry a player off his ledge into a
+  // pit (that rebooted him at the stage top). Sweep a horizontal push, keeping
+  // only steps that leave the wheel on solid ground / a platform / a foe top.
+  // Shared by body separation, co-op P2, and the standing-on-foe carry.
+  function clampShoveX(pl,ax){
+    if(!ax||!pl) return 0;
+    let ph;
+    try{ ph=actorSeparationHB(pl); }catch(e){ return 0; }
+    if(!ph) return 0;
+    const bw=ph.w, bh=ph.h, feet=pl.y+FEET_OFF;
+    const supported=(typeof _playerOnGround==='function'?_playerOnGround(pl):pl.og)||B.ridePlat||B.rideEnemy;
+    const n=Math.max(1,Math.ceil(Math.abs(ax)/(T*0.4))), st=ax/n; let ok=0;
+    for(let k=0;k<n;k++){
+      const nx=ph.x+ok+st;
+      if(nx<0||nx+bw>WW||!boxFree(nx,ph.y,bw,bh)) break;
+      if(supported && !floorUnder(nx,bw,feet)
+         && !(B.rideEnemy&&support(B.rideEnemy,nx+bw/2)!=null)) break;
+      ok+=st;
+    }
+    return ok;
+  }
   const wetAt=(x,y)=>!!(B.inWater&&B.inWater(x,y));
   // another story enemy (alive or a shut-down body) in the way: they're solid to each other
   function enemyIn(e,x,y,w,h){
@@ -839,21 +860,8 @@
       e.vx=(e.vx||0)*0.5+moved*0.5; if(e._ai==='circle') e.roll=(e.roll||0)+moved/(e.w/2); if(e._plat) e._platOff=e.x-e._plat.x;
     }
     const s2={ax:tx*(1-kE), ay:ty, bx:0, by:0};
-    // T530: a shove off a (downed) foe may never push MIND into rock or off his
-    // ledge — that shunt is what dropped him into 1.2's pit and rebooted him at
-    // the stage top. Sweep the horizontal push, keeping only safe steps.
-    if(s2.ax&&pl===p){
-      const ph=actorSeparationHB(pl), bw=ph.w, bh=ph.h, feet=pl.y+FEET_OFF;
-      const wasG=!!pl.og;
-      const n=Math.max(1,Math.ceil(Math.abs(s2.ax)/(T*0.4))), st=s2.ax/n; let ok=0;
-      for(let k=0;k<n;k++){
-        const nx=ph.x+ok+st, cx=nx+bw/2;
-        if(nx<0||nx+bw>WW||!boxFree(nx,ph.y,bw,bh)) break;
-        if(wasG&&!solidAt(cx,feet+6)&&!platUnder(nx,bw,feet)) break;   // never shove him off a ledge
-        ok+=st;
-      }
-      s2.ax=ok;
-    }
+    // T530 / T530b: clamp the shove so it never pushes a player off a ledge.
+    s2.ax=clampShoveX(pl,s2.ax);
     return _origSep.call(this, pl, {x:e.x,y:e.y,w:e.w,h:e.h,alive:e.alive,vx:0,vy:0,og:true}, s2);
   };
   // ── standing on enemies (Paulo, Oct 20) ─────────────────────────
@@ -902,7 +910,11 @@
     }
     if(!best){ B.rideEnemy=null; return; }
     const e=best;
-    if(B.rideEnemy===e&&e._pdx) pl.x+=e._pdx;                    // it carries him as it moves
+    if(B.rideEnemy===e&&e._pdx){
+      // T530b: the carry is a horizontal shove too — clamp it so a moving foe
+      // cannot carry MIND off his ledge into a pit.
+      pl.x+=clampShoveX(pl,e._pdx);
+    }
     const sx1=support(e,pl.x+SW/2), s1=sx1!=null?surf(e,sx1):null;
     pl.y=(s1!=null?s1:bs)-FEET_OFF;
     if(pl.vy>0) pl.vy=0; pl.og=true; B.rideEnemy=e; B.rideEnemyFr=fr;
