@@ -600,8 +600,14 @@ function _tmjClipSlopeCell(col,row,px,py,dw,dh){
 function _drawTmjTileLayer(data,mw,mh,tw,th,sc,skipCells,skipGids,mode){
   if(!data)return;
   const tws=tw*sc,ths=th*sc;
-  const col0=Math.max(0,Math.floor(camX/(tws))-1), col1=Math.min(mw-1,Math.floor((camX+camViewW())/tws)+2);
-  const row0=Math.max(0,Math.floor(camY/(ths))-1), row1=Math.min(mh-1,Math.floor((camY+camViewH())/ths)+2);
+  // Co-op (T546): cull against the RENDER camera, not the single-player logic
+  // camera. In split mode _rcamX/_rcamY point at each half's own view while
+  // camX/camY still follow P1 — culling with those hid the floor/walls of the
+  // half that was far away ("the scenario doesn't load"). sx/sy already use
+  // _rcamX/_rcamY, so this keeps the cull window and the drawn tiles in sync.
+  const rx=typeof _rcamX==='number'?_rcamX:camX, ry=typeof _rcamY==='number'?_rcamY:camY;
+  const col0=Math.max(0,Math.floor(rx/(tws))-1), col1=Math.min(mw-1,Math.floor((rx+camViewW())/tws)+2);
+  const row0=Math.max(0,Math.floor(ry/(ths))-1), row1=Math.min(mh-1,Math.floor((ry+camViewH())/ths)+2);
   for(let row=row0;row<=row1;row++){
     for(let col=col0;col<=col1;col++){
       const raw=data[row*mw+col];
@@ -1351,16 +1357,68 @@ function drawSparks(){
   }
   ctx.restore();
 }
-// T545: one world-render pass, reused for the single view and for each half of
-// a local co-op split. `_splitHide` tells the character drawers which of the
-// two players to leave out of a given pass (render.js).
-let _coopSplit=false, _splitHide=null;
-// Human co-op is ALWAYS split — even shoulder to shoulder, each brother needs
-// his own view centred on himself. The old distance hysteresis made the screen
-// pop between views and, with one shared camera, both halves showed the same
-// thing; neither belongs in couch co-op.
-function _coopSplitWanted(){
-  return typeof _playerCount!=='undefined'&&_playerCount===2&&!!p&&!!p2&&!p2._aiCompanion;
+// T545/T546: one world-render pass, reused for the single view, for the shared
+// co-op camera and for each half of a co-op split. BOTH brothers are drawn in
+// every pass — neither is ever hidden from the other.
+let _coopSplit=false;
+// Paulo (Nov 18): couch co-op shares ONE full-screen camera while the brothers
+// stay close, and only splits into two half-height views when one of them gets
+// near the edge of that shared frame. Two thresholds (hysteresis) plus a short
+// hold keep the screen from popping back and forth at the boundary.
+const COOP_SPLIT_AT=0.72, COOP_JOIN_AT=0.55, COOP_HOLD_MS=120;
+let _coopSplitState=false, _coopSplitSince=0, _coopSplitPrevKey='';
+function _coopPair(){
+  return (typeof _playerCount!=='undefined'&&_playerCount===2&&!!p&&!!p2&&!p2._aiCompanion)?{a:p,b:p2}:null;
+}
+// Separation in world units, normalised by the visible camera frame. max() of
+// the two axes is what "too close to the edge of the screen" means for a
+// shared view: each brother sits sep/2 from the midpoint, so sep>0.72 leaves
+// less than a 14% margin on that axis.
+function _coopSeparation(){
+  const pair=_coopPair();
+  if(!pair) return 0;
+  const vw=Math.max(1,camViewW()), vh=Math.max(1,camViewH());
+  return Math.max(Math.abs(pair.a.x-pair.b.x)/vw,
+                  Math.abs((pair.a.y+FEET_OFF)-(pair.b.y+FEET_OFF))/vh);
+}
+// Pure decision, no debounce — the co-op selftest teleports P2 and checks the
+// decision on the very next call.
+function _coopWouldSplit(){
+  if(!_coopPair()) return false;
+  return _coopSeparation()>(_coopSplitState?COOP_JOIN_AT:COOP_SPLIT_AT);
+}
+// Called once per rendered frame from draw(). The hold timer only runs while
+// the wanted state differs from the current one, so a brief spike (or a couple
+// of frames of jitter at the boundary) does not flip the view. Time-based so a
+// slow headless render does not stretch the hold to half a second.
+function _updateCoopSplit(){
+  const key=(typeof _playerCount!=='undefined'?_playerCount:0)+':'+(p?1:0)+':'+(p2?1:0)+':'+(p2&&p2._aiCompanion?1:0);
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(key!==_coopSplitPrevKey){_coopSplitPrevKey=key;_coopSplitState=false;_coopSplitSince=0;}
+  if(!_coopPair()){_coopSplitState=false;_coopSplitSince=0;return;}
+  const want=_coopSeparation()>(_coopSplitState?COOP_JOIN_AT:COOP_SPLIT_AT);
+  if(want!==_coopSplitState){
+    if(!_coopSplitSince) _coopSplitSince=now;
+    if(now-_coopSplitSince>=COOP_HOLD_MS){_coopSplitState=want;_coopSplitSince=0;}
+  } else _coopSplitSince=0;
+}
+function _coopSplitWanted(){ return _coopSplitState; }
+// The single shared camera: centred on the midpoint of the two brothers and
+// clamped to the level. A small bounded pull-back keeps both inside the frame
+// with a margin while they are still close enough to share it.
+function _coopSharedCamera(){
+  const pair=_coopPair();
+  if(!pair) return null;
+  const vw=Math.max(1,camViewW()), vh=Math.max(1,camViewH());
+  const sxw=Math.abs(pair.a.x-pair.b.x), syh=Math.abs((pair.a.y+FEET_OFF)-(pair.b.y+FEET_OFF));
+  const fit=Math.min(1,0.62*vw/Math.max(1,sxw),0.62*vh/Math.max(1,syh));
+  const zoom=Math.max(0.86,Math.min(1,fit));
+  const saved=camZoom;
+  camZoom=zoom;                                 // camClamp* use camViewW/H at this zoom
+  const cx=(pair.a.x+pair.b.x)*0.5+SW*0.5, cy=(pair.a.y+pair.b.y)*0.5+FEET_OFF;
+  const cam={x:camClampX(cx-camViewW()*0.5),y:camClampY(cy-camViewH()*0.5),zoom};
+  camZoom=saved;
+  return cam;
 }
 // Each half is its own W × H/2 window and both use the SAME framing: centre the
 // player's feet at half/2 of that window. The lower pass then translates the
@@ -1376,9 +1434,10 @@ function _coopCameraTargets(){
     const y=Math.max(0,Math.min(maxY,pl.y+FEET_OFF-hh));
     return {x,y};
   };
-  return {half,p1:aim(p),p2:aim(p2)};
+  return {half,p1:aim(p),p2:aim(p2),shared:_coopSharedCamera(),
+          split:_coopSplitState,sep:_coopSeparation()};
 }
-window.__mvCoopCameras=_coopCameraTargets;     // selftest: independent-camera check
+window.__mvCoopCameras=_coopCameraTargets;     // selftest: camera check, shared + split
 function drawWorldPass(){
   if(_tmjDraw) drawTmjMap();
   if(typeof drawCampaignPlats==='function') drawCampaignPlats();
@@ -1415,8 +1474,8 @@ function drawWorldPass(){
   drawLaitu();
   p._armPose=computeConnectorArmPose(p); if(p2)p2._armPose=computeConnectorArmPose(p2);
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
-  if(_splitHide!=='p1'){try{drawCharacter();}catch(err){console.error('player draw',err);}}
-  if(p2&&_splitHide!=='p2'){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  try{drawCharacter();}catch(err){console.error('player draw',err);}
+  if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
@@ -1427,18 +1486,24 @@ function drawWorldPass(){
 function _drawCoopSplit(){
   _coopSplit=true;
   const cams=_coopCameraTargets(), half=cams.half;
-  const pass=(y0,h,hide,cam,lower)=>{
+  const pass=(y0,h,cam,lower)=>{
     ctx.save();
     ctx.beginPath(); ctx.rect(0,y0,W,h); ctx.clip();
     if(lower) ctx.translate(0,half);        // screen-space clip, then shift the lower world down
-    _rcamX=cam.x; _rcamY=cam.y;
-    _splitHide=hide;
+    // T547 (Paulo: "the scenario still doesn't load in co-op"): the beta world,
+    // decor, weather, sky and foes cull/position from the LOGIC camera camX/camY,
+    // while sx/sy use the render camera _rcamX/_rcamY. In split mode only _rcam
+    // was moved, so the half far from the shared logic camera drew an empty or
+    // cut-off stage. Keep both cameras in step for the whole pass, then restore
+    // camX/camY so the next physics tick still lerps from its own value.
+    const camXWas=camX, camYWas=camY;
+    _rcamX=cam.x; _rcamY=cam.y; camX=cam.x; camY=cam.y;
     _worldZoomBegin();                      // world layers zoom, just like the single view
-    try{ drawWorldPass(); } finally{ _worldZoomEnd(); _splitHide=null; }
+    try{ drawWorldPass(); } finally{ _worldZoomEnd(); camX=camXWas; camY=camYWas; }
     ctx.restore();
   };
-  pass(0,half,'p2',cams.p1,false);           // upper window: P1's camera, P2 left out
-  pass(half,H-half,'p1',cams.p2,true);       // lower window: P2's camera, P1 left out
+  pass(0,half,cams.p1,false);                // upper window: P1's camera, both brothers drawn
+  pass(half,H-half,cams.p2,true);            // lower window: P2's camera, both brothers drawn
   ctx.fillStyle=C.BLACK; ctx.fillRect(0,half-2,W,4);
   ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,half,W,1);
   // Small owner tags with HP, tucked above the seam / the bottom edge so the
@@ -1468,10 +1533,19 @@ function draw(){
   if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }
   if(_gameState==='cutscene'){_cutsceneFr++;drawCutscene();return;}
   if(_gameState==='select'){drawSelect();return;}
+  _updateCoopSplit();
   if(_coopSplitWanted()){ _drawCoopSplit(); }
   else{
   _coopSplit=false;
   _snapRenderCam();
+  // Close brothers share one full-screen camera centred on their midpoint —
+  // no clip, no seam, no hidden player. Reuse this same single-view pass.
+  const sharedCam=_coopSharedCamera(), zoomWas=camZoom, camXWas=camX, camYWas=camY;
+  if(sharedCam){
+    // Same fix as the split pass: beta layers cull on camX/camY, so the shared
+    // midpoint camera must be visible there too, not just through sx/sy.
+    _rcamX=sharedCam.x;_rcamY=sharedCam.y;camX=sharedCam.x;camY=sharedCam.y;camZoom=sharedCam.zoom;
+  }
   _worldZoomBegin();                                   // world layers zoom with speed (physics.js); the HUD doesn't
   try{
   if(_tmjDraw) drawTmjMap();
@@ -1514,7 +1588,10 @@ function draw(){
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
-  } finally { _worldZoomEnd(); }
+  } finally {
+    _worldZoomEnd();
+    if(sharedCam){camZoom=zoomWas;camX=camXWas;camY=camYWas;}
+  }
   }
   if(typeof _drawSportBlur==='function') _drawSportBlur();
   drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();

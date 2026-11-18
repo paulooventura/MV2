@@ -478,12 +478,16 @@
     if(typeof _playerCount==='undefined'||_playerCount!==2) rec('coopNotTwoPlayers',{n:typeof _playerCount==='undefined'?-1:_playerCount});
     if(typeof p2==='undefined'||!p2||p2._aiCompanion) rec('coopP2Missing',{});
     if(typeof _p2HeroChoice!=='undefined'&&p2&&p2.hero!==_p2HeroChoice) rec('coopP2WrongHero',{hero:p2.hero,want:_p2HeroChoice});
-    if(typeof _coopSplitWanted!=='function'||!_coopSplitWanted()) rec('coopSplitOff',{});
     if(typeof window.__mvCoopCameras!=='function'||typeof p==='undefined'||!p||!p2) return;
     var ox=p2.x, oy=p2.y;
     try{
       // Push P2 well away from P1: a shared midpoint camera cannot pass this.
-      p2.x=Math.min((typeof WW!=='undefined'?WW:20000)-400,p.x+900); p2.y=p.y;
+      // Co-op shares one camera until the brothers drift apart, so check the
+      // pure split decision here (after the teleport); the debounced draw state
+      // catches up a few frames later.
+      var hi=(typeof WW!=='undefined'?WW:20000)-400;
+      p2.x=(hi-p.x>=p.x-400)?Math.min(hi,p.x+900):Math.max(400,p.x-900); p2.y=p.y;
+      if(typeof _coopWouldSplit!=='function'||!_coopWouldSplit()) rec('coopSplitOff',{});
       var c=window.__mvCoopCameras();
       if(!c||!c.p1||!c.p2) rec('coopNoCameras',{});
       else{
