@@ -275,12 +275,30 @@
     // dust motes in the lantern light
     for(let i=0;i<18;i++){ const t=(fr*0.004+hash(i,7))%1, mx=6.5*T+hash(i,8)*18*T+Math.sin(fr*0.01+i)*8, my=17.8*T-t*4.4*T; ctx.fillStyle='rgba(255,230,190,'+(0.5*(1-Math.abs(t-0.5)*2))+')'; ctx.fillRect(X(mx),Y(my),W2(2),W2(2)); }
     ctx.restore();
-    // the extra life: a little battery-heart, bobbing in its glow
+    // the extra life: MIND's spare Knowl battery (the green charge-cell on his back),
+    // bobbing in a warm green-gold pickup glow — reads as both a battery and a 1UP
     const L=S.life; if(L&&!L.got){ const bob=Math.sin(fr*0.1)*4, x=X(L.x), y=Y(L.y-10+bob), r=W2(11);
-      const gg=ctx.createRadialGradient(x,y,2,x,y,r*3.4); gg.addColorStop(0,'rgba(255,90,120,0.5)'); gg.addColorStop(1,'rgba(255,90,120,0)'); ctx.fillStyle=gg; ctx.fillRect(x-r*3.4,y-r*3.4,r*6.8,r*6.8);
-      ctx.fillStyle='#ff4a6a'; ctx.beginPath(); ctx.moveTo(x,y+r); ctx.bezierCurveTo(x-r*1.6,y-r*0.2,x-r*0.7,y-r*1.4,x,y-r*0.5); ctx.bezierCurveTo(x+r*0.7,y-r*1.4,x+r*1.6,y-r*0.2,x,y+r); ctx.fill();
-      ctx.fillStyle='#ffffff'; ctx.fillRect(x-W2(1),y-W2(4),W2(2),W2(6)); ctx.fillRect(x-W2(3),y-W2(2),W2(6),W2(2));
-      if(typeof drawTextC==='function'&&L.t<200) drawTextC('1UP',x,y-r*2.4,'#ffe0e8',2); }
+      const gg=ctx.createRadialGradient(x,y,2,x,y,r*3.4); gg.addColorStop(0,'rgba(200,255,120,0.5)'); gg.addColorStop(0.5,'rgba(150,240,130,0.15)'); gg.addColorStop(1,'rgba(120,230,140,0)'); ctx.fillStyle=gg; ctx.fillRect(x-r*3.4,y-r*3.4,r*6.8,r*6.8);
+      // a mini version of the back cell: dark casing, green charge level, segment bars, terminal
+      const bw=r*1.7, bh=r*1.9, bx=x-bw/2, by=y-bh/2+r*0.18, rad=Math.max(1,W2(2));
+      // terminal nub with its gold contact, poking out of the top
+      ctx.fillStyle='#20241f'; ctx.fillRect(x-r*0.32,by-r*0.34,r*0.64,r*0.38);
+      ctx.fillStyle='#c8a040'; ctx.fillRect(x-r*0.32,by-r*0.34,r*0.64,Math.max(1,W2(1.2)));
+      // black casing then the dark-green well inside it
+      ctx.fillStyle='#000'; ctx.beginPath(); ctx.roundRect(bx-W2(1),by-W2(1),bw+W2(2),bh+W2(2),rad+W2(1)); ctx.fill();
+      ctx.fillStyle='#0a1a10'; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,rad); ctx.fill();
+      // the charge, filled ~90% like a full Knowl tank
+      const pad=W2(1), iw=bw-pad*2, ih=bh-pad*2, ix=bx+pad, iy=by+pad, liq=ih*0.88, ly=iy+ih-liq;
+      const hg=ctx.createRadialGradient(x,ly+liq/2,1,x,ly+liq/2,r*2.2); hg.addColorStop(0,'rgba(80,255,130,0.35)'); hg.addColorStop(1,'rgba(80,255,130,0)'); ctx.fillStyle=hg; ctx.fillRect(x-r*2.4,ly-r,r*4.8,liq+r*2);
+      const cg=ctx.createLinearGradient(0,ly,0,ly+liq); cg.addColorStop(0,'#d8ff9a'); cg.addColorStop(0.22,'#3dff7a'); cg.addColorStop(1,'#0e9a3a');
+      ctx.fillStyle=cg; ctx.beginPath(); ctx.roundRect(ix,ly,iw,liq,Math.max(1,rad-pad)); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.fillRect(ix,ly,iw,Math.max(1,W2(0.8)));                 // bright meniscus
+      ctx.fillStyle='rgba(0,0,0,0.55)'; for(let i=1;i<4;i++) ctx.fillRect(ix,ly+Math.floor(liq*i/4),iw,Math.max(1,W2(0.7))); // charge bars
+      ctx.fillStyle='rgba(230,255,230,0.7)'; ctx.fillRect(ix+iw*0.3,ly+liq*0.35,W2(1),W2(1)); ctx.fillRect(ix+iw*0.62,ly+liq*0.62,W2(1),W2(1)); // bubbles
+      ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(ix+W2(0.8),iy,W2(1),ih-W2(2));               // glass sheen
+      ctx.fillStyle='#00cc44'; ctx.beginPath(); ctx.arc(x,by+bh+W2(2),W2(1.6),0,Math.PI*2); ctx.fill();  // power dot / terminal at the base
+      ctx.fillStyle='#7dff9a'; ctx.beginPath(); ctx.arc(x,by+bh+W2(2),W2(0.9),0,Math.PI*2); ctx.fill();
+      if(typeof drawTextC==='function'&&L.t<200) drawTextC('1UP',x,y-r*2.4,'#e8ffd0',2); }
   }
   // the bedroom shelf under the hatch
   function drawShelf(){
