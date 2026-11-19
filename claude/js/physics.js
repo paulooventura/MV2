@@ -441,14 +441,75 @@ function hbH(ca){ return STAND_H-(STAND_H-DUCK_H)*ca; }
 function hb(){ return playerCoreHB(p); }
 function cpt(){ return {x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5}; }
 
-function playerCoreHB(pl){
+// ── Drawn-art footprint ────────────────────────────────────────
+// Paulo's universal rule: every hitbox must sit where its art is drawn.
+// drawCharacter() (render.js) rides the cabinet on the fork: suspComp dips it,
+// the tire squash nudges it, spring float lifts it, the bulb tucks on landing
+// and peeks when a charge is ready. The old hitbox helpers used the static rest
+// formulas, so during those (very common) states the drawn cabinet/bulb and the
+// colliding cabinet/bulb were up to ~45 px apart. We mirror the render formulas
+// here so what you see is what collides.
+//
+// Deliberately NOT mirrored (documented exceptions):
+//  • idle-groove gDX/gDY, jab lean and rope-swing tilt are ctx.translate/rotate
+//    screen-space transforms — they move the sprite a couple of pixels on screen
+//    without changing its world footing. Folding them in would put a music-synced
+//    wobble into collision, so the world-space footprint stays put.
+//  • e.mind rivals are drawn by drawMindEnemy() with the plain rest geometry
+//    (bodyTop = rest, bulb at bodyTop-18, R=14). They keep that exact geometry —
+//    only the drawCharacter()-driven actors get the transient offsets.
+const _charGeomScratch={bodyTop:0,headCY:0,headR:0,wheelCY:0};
+function _charArtGeom(pl,out){
+  const px=pl.x, py=pl.y;
+  const F=(typeof fr==='number'?fr:0);
   const ca2=pl.crouchAmt||0;
-  const wcy=pl.y+FEET_OFF-WHEEL_R;
-  const standBodyCY=pl.y+FEET_OFF-STAND_H-WHEEL_R+10;
+  const foe=!!pl.mind;                       // drawMindEnemy(): no transient offsets
+  const wcy=py+FEET_OFF-WHEEL_R;
+  const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
   const duckBodyBottom=wcy+WHEEL_R*0.5;
   const duckBodyCY=duckBodyBottom-BODY_H;
-  const bodyTop=standBodyCY+ca2*(duckBodyCY-standBodyCY);
-  return {x:pl.x+SW/2-BODY_W/2, y:bodyTop, w:BODY_W, h:BODY_H};
+  const duckDrop=Math.max(0,duckBodyCY-standBodyCY);
+  let bodyTop=foe?standBodyCY:standBodyCY+ca2*(duckBodyCY-standBodyCY);
+  let headTuckVis=0, landEase=0;
+  if(!foe){
+    const onRope=!!(pl.hook&&pl.hook.st==='on');
+    const landAmp=pl._landAmp||0;
+    const landDur=10+landAmp*22;
+    const landRaw=pl.landF>0?Math.min(1,pl.landF/landDur):0;
+    landEase=landRaw*landRaw*(3-2*landRaw);
+    const walkBob=(!onRope&&pl.og&&!pl._onSlope&&Math.abs(pl.vx||0)>0.5&&pl.landF<=0)
+      ?Math.sin(F*0.28+px*0.015)*0.45:0;    // idleSway is 0 in render.js
+    const suspDrop=onRope?0:(pl.suspComp||0)*SUSP_TRAVEL;
+    const forkDip=onRope?0:Math.max(-2,Math.min(10,((pl._tireSq||0)-TIRE_LOAD_SQ)*1.6));
+    const bob=Math.sin(F*0.046)*3.2;
+    const floatY=(pl._springFloat||0)*(duckDrop*0.32+6+bob);
+    bodyTop+=suspDrop+forkDip-walkBob-floatY;
+    headTuckVis=onRope?ca2:Math.max(ca2,pl._autoHeadTuck||0);
+    if((pl._springFloat||0)>0) headTuckVis*=1-(pl._springFloat||0)*0.28;
+  }
+  // drawHead() computes R=round(14-ca2*3-landTuck*2); drawCharacter() uses the
+  // landTuck-free R only for shellHeadCY. Mirror both, including the rounding.
+  const artHeadR=Math.round(14-headTuckVis*3);
+  const headR=Math.round(14-headTuckVis*3-landEase*2);
+  const standHeadCY=bodyTop-(foe?18:21);
+  const shellHeadCY=bodyTop+artHeadR*1.05;
+  let headCY=standHeadCY+headTuckVis*(shellHeadCY-standHeadCY);
+  if(!foe){
+    const springReady=!!pl.duckBoostReady;
+    const wallReady=(pl.wallGrip>0)&&!!pl._wallChargeReady;
+    if(springReady||wallReady){
+      // drawCharacter lifts the bulb, then drawHead() subtracts round(peek*11).
+      headCY-=((springReady?5:4)+Math.sin(F*0.22)*1.1);
+      headCY-=Math.round((0.22+Math.sin(F*0.18)*0.05)*11);
+    }
+  }
+  out.bodyTop=bodyTop; out.headCY=headCY; out.headR=headR; out.wheelCY=wcy;
+  return out;
+}
+function playerCoreHB(pl){
+  if(!pl) return {x:0,y:0,w:0,h:0};
+  const g=_charArtGeom(pl,_charGeomScratch);
+  return {x:pl.x+SW/2-BODY_W/2, y:g.bodyTop, w:BODY_W, h:BODY_H};
 }
 // Full-body hull for actor–actor separation (wheel + torso, not just core).
 function actorSeparationHB(pl){
@@ -462,20 +523,15 @@ function actorSeparationHB(pl){
   const h=Math.max(core.h+pad*2,feet-top+pad);
   return {x:Math.round(cx-w*0.5),y:Math.round(top),w:Math.round(w),h:Math.round(h)};
 }
-function playerWheelCol(pl){ return {cx:pl.x+SW/2, cy:pl.y+FEET_OFF-WHEEL_R, r:WHEEL_R}; }
+function playerWheelCol(pl){
+  if(!pl) return {cx:0,cy:0,r:0};
+  const g=_charArtGeom(pl,_charGeomScratch);
+  return {cx:pl.x+SW/2, cy:g.wheelCY, r:WHEEL_R};
+}
 function playerHeadWorld(pl){
-  const ca2=pl.crouchAmt||0;
-  const px=pl.x, py=pl.y;
-  const wcy=py+FEET_OFF-WHEEL_R;
-  const standBodyCY=py+FEET_OFF-STAND_H-WHEEL_R+10;
-  const duckBodyCY=(wcy+WHEEL_R*0.5)-BODY_H;
-  const bodyCY=standBodyCY+ca2*(duckBodyCY-standBodyCY);
-  const tuck=Math.max(ca2,pl._autoHeadTuck||0);
-  const headR=14-tuck*3;
-  const standHeadCY=bodyCY-18;
-  const shellHeadCY=bodyCY+headR*1.05;
-  const headCY=standHeadCY+tuck*(shellHeadCY-standHeadCY);
-  return {cx:px+SW/2, cy:headCY, r:headR};
+  if(!pl) return {cx:0,cy:0,r:0};
+  const g=_charArtGeom(pl,_charGeomScratch);
+  return {cx:pl.x+SW/2, cy:g.headCY, r:g.headR};
 }
 function _playerChargeInfo(pl){
   const wallWC=pl.wallGrip>0?(90-pl.wallGrip):0;

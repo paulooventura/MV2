@@ -82,15 +82,18 @@ function _mvDebugContactNormals(pl){
 }
 
 function _mvDebugCollect(pl){
+  // Pull the exact shapes the engine collides with — body cabinet rect, bulb
+  // circle and wheel rim circle — so the debug view is the real footprint.
   const body = typeof playerCoreHB === 'function' ? playerCoreHB(pl) : null;
   const wheel = typeof playerWheelCol === 'function' ? playerWheelCol(pl) : null;
+  const head = typeof playerHeadWorld === 'function' ? playerHeadWorld(pl) : null;
   const fL = pl.x + (typeof FEET_L !== 'undefined' ? FEET_L : 12);
   const fR = fL + (typeof FEET_W !== 'undefined' ? FEET_W : 40);
   const feet = pl.y + (typeof FEET_OFF !== 'undefined' ? FEET_OFF : 88);
   const tile = _mvDebugTileInfo(pl);
   const wt = typeof _wallTouchInfo === 'function' ? _wallTouchInfo(pl) : { touch: false, dir: 0 };
   return {
-    body, wheel,
+    body, wheel, head,
     fL, fR, feet,
     grounded: !!(pl.og || (typeof _playerOnGround === 'function' && _playerOnGround(pl))),
     blocked: !!pl._moveBlocked,
@@ -106,6 +109,16 @@ function _mvDebugCollect(pl){
   };
 }
 
+// World layers are drawn inside _worldZoomBegin()'s ctx.scale(camZoom,camZoom)
+// (physics.js). The hitbox outlines are world shapes, so apply the same zoom;
+// the HUD panel stays in raw screen space.
+function _mvDebugWorldBegin(){
+  const z = (typeof camZoom === 'number' && isFinite(camZoom)) ? camZoom : 1;
+  if(Math.abs(z - 1) < 0.0005) return false;
+  ctx.save(); ctx.scale(z, z); return true;
+}
+function _mvDebugWorldEnd(saved){ if(saved) ctx.restore(); }
+
 function _mvDebugStrokeRect(wx, wy, ww, wh, col){
   ctx.strokeStyle = col;
   ctx.lineWidth = 1;
@@ -114,9 +127,19 @@ function _mvDebugStrokeRect(wx, wy, ww, wh, col){
 
 function _mvDebugDrawHitboxes(pl, d){
   if(!d.body) return;
+  // These are the very same rect + two circles the collision code tests:
+  // red dashed = cabinet (playerCoreHB), blue = bulb (playerHeadWorld),
+  // green = wheel rim (playerWheelCol). No approximated/legacy outlines.
   ctx.setLineDash([3, 3]);
   _mvDebugStrokeRect(d.body.x, d.body.y, d.body.w, d.body.h, '#ff4444');
   ctx.setLineDash([]);
+  if(d.head){
+    ctx.beginPath();
+    ctx.strokeStyle = '#44aaff';
+    ctx.lineWidth = 1;
+    ctx.arc(sx(d.head.cx), sy(d.head.cy), d.head.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   if(d.wheel){
     ctx.beginPath();
     ctx.strokeStyle = '#44ff44';
@@ -192,8 +215,10 @@ function drawMvDebugOverlay(){
   if(!_mvDebugOn || typeof _gameState === 'undefined' || _gameState !== 'game') return;
   if(typeof p === 'undefined' || !p) return;
   const d = _mvDebugCollect(p);
+  const zoomed = _mvDebugWorldBegin();
   _mvDebugDrawHitboxes(p, d);
   _mvDebugDrawNormals(d);
+  _mvDebugWorldEnd(zoomed);
   _mvDebugDrawPanel(p, d);
   ctx.fillStyle = '#0f0';
   ctx.font = '9px monospace';
