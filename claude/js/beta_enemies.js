@@ -1140,8 +1140,10 @@
     ctx.translate(cx,cy);
     // audio-locked idle dance (visual only): a few px of bob/sway/tilt about the foe's
     // own centre, on the same beat as MIND. No hitbox, AI or timing is touched.
+    // foeGroove already gives each shape (circle roll / square step / triangle
+    // wobble) its own curve; `wave` is the secondary offbeat body wobble.
     const gr=typeof foeGroove==='function'?foeGroove(e):null;
-    if(gr){ ctx.translate(gr.dx,gr.dy); ctx.rotate(gr.rot*0.5); }
+    if(gr){ const wob=gr.wave||0; ctx.translate(gr.dx,gr.dy+wob*0.5); ctx.rotate(gr.rot*0.5+wob*0.004); }
     if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
     else if(nsh){ ctx.translate(0,sw(nsh.cOff-(e._lift||0))); ctx.rotate(e.ang||0); ctx.translate(0,-sw(nsh.cOff)); }   // on a notch, swinging, tumbling
     else if(e.ang) ctx.rotate(e.ang);

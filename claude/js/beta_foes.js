@@ -222,7 +222,8 @@
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); if(kn) ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
     }
     const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked idle dance (visual only)
-    ctx.translate(cx+(gr?gr.dx:0),cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2))+(gr?gr.dy:0));
+    const wob=gr?gr.wave:0;                                        // second-harmonic eye bob
+    ctx.translate(cx+(gr?gr.dx:0),cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2))+(gr?gr.dy+wob:0));
     ctx.rotate((e.ang||0)+(gr?gr.rot:0));                          // down, it lies on a face (the notches, beta_enemies.js)
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
@@ -232,9 +233,10 @@
     // the lens
     const lx=e.look.x*R*0.25, ly=e.look.y*R*0.25, glow=e.st==='aim'?e.stT/32:0;
     ctx.fillStyle='#16060a'; ctx.beginPath(); ctx.arc(lx*0.5,ly*0.5,R*0.38,0,Math.PI*2); ctx.fill();
+    const throb=(gr&&!off)?gr.pulse*0.05:0;                         // lens swells on the beat
     ctx.fillStyle=off?'#402020':(glow>0?'rgb(255,'+(120+120*glow|0)+','+(120*glow|0)+')':'#ff3a3a');
-    ctx.beginPath(); ctx.arc(lx,ly,R*(0.16+0.06*glow),0,Math.PI*2); ctx.fill();
-    if(glow>0){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,90,90,'+(0.4*glow)+')'; ctx.beginPath(); ctx.arc(lx,ly,R*(0.4+0.4*glow),0,Math.PI*2); ctx.fill(); }
+    ctx.beginPath(); ctx.arc(lx,ly,R*(0.16+0.06*glow+throb),0,Math.PI*2); ctx.fill();
+    if(glow>0){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,90,90,'+(0.4*glow)+')'; ctx.beginPath(); ctx.arc(lx,ly,R*(0.4+0.4*glow+(gr?gr.pulse*0.12:0)),0,Math.PI*2); ctx.fill(); }
     ctx.restore();
   }
 
@@ -368,10 +370,11 @@
     if(!e.alive){ e.fVulnT=0; e._wakeT=0; e.fSolidK=0; }      // T487 (Paulo, Nov 11): shut down, it stops pulsing
     const awake=e.alive&&(e.st==='hunt'||e.st==='zap'||!!e._wasClose||(e.fVulnT||0)>0);
     if(e._wakeT>0&&!over) e._wakeT--;
-    const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0);
-    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56)*swell;
     const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked idle dance (visual only)
-    const gx=cx+(gr?gr.dx:0), gy=cy+(gr?gr.dy:0);
+    const bp=(gr&&e.alive)?gr.pulse:0;                             // beat pulse drives a spin/swell accent
+    const wk=(e._wakeT||0)/30, swell=1+0.18*Math.sin(Math.PI*(1-wk))*(wk>0?1:0)+((e.fVulnT||0)>0?0.03*Math.sin(fr*0.4):0)+0.03*bp;
+    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.56)*swell;
+    const gx=cx+(gr?gr.dx:0), gy=cy+(gr?gr.dy+(gr.wave||0):0);
     const a=e.alive?(awake?0.62:0.22):0.35;                        // nearly invisible while it sleeps
     if(wk>0){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(220,245,255,'+(0.5*wk)+')'; ctx.beginPath(); ctx.arc(gx,gy-sw(e._lift||0),R*(1.6-0.5*wk),0,Math.PI*2); ctx.fill(); ctx.restore(); }   // the wake flash
     ctx.save(); ctx.translate(gx,gy-sw(e._lift||0)); ctx.rotate((e.spin||0)+(e.ang||0)+(gr?gr.rot:0));
@@ -552,7 +555,8 @@
     },1300);
   }
   function drawBoss(e){
-    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2)-sw(e._lift||0), R=sw(56), off=!e.alive;
+    const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked heavy sway (visual only)
+    const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2)-sw(e._lift||0)+(gr?gr.dy:0), R=sw(56), off=!e.alive;
     ctx.save();
     // beams / telegraphs
     if(e.beams&&!off){
@@ -569,14 +573,14 @@
     // the body: a heptagon, stone-dark with a red rim, an angry face
     ctx.translate(cx,cy);
     if(e.awake&&!off){ const g0=ctx.createRadialGradient(0,0,R*0.5,0,0,R*1.8); g0.addColorStop(0,'rgba(255,60,60,'+(e.phase===3?(0.45+0.2*Math.sin(fr*0.3)).toFixed(3):'0.25')+')'); g0.addColorStop(1,'rgba(255,60,60,0)'); ctx.fillStyle=g0; ctx.beginPath(); ctx.arc(0,0,R*1.8,0,Math.PI*2); ctx.fill(); }
-    ctx.save(); ctx.rotate(e.rot);
+    ctx.save(); ctx.rotate(e.rot+(gr?gr.rot:0));                  // heavy half-time body sway
     ctx.beginPath(); for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const rg=off?0:bossRage(e), mixC=(a,b2,t)=>'rgb('+a.map((v,i)=>Math.round(v+(b2[i]-v)*t)).join(',')+')';
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#3a3440':mixC([74,60,88],[178,34,48],rg)); g.addColorStop(1,off?'#1a161e':mixC([28,20,36],[86,10,18],rg));
     ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=sw(4+2*rg); ctx.strokeStyle=e.hitF>0?'#ffffff':(off?'#4a2a2a':'#c02838'); ctx.stroke();
     if(rg>0.05){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=rg*(0.35+0.25*Math.sin(fr*(0.12+0.2*rg))); ctx.fillStyle='#ff2030'; ctx.fill(); ctx.restore(); }   // a hot red pulse through the body
     for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2, x=Math.cos(a)*R, y=Math.sin(a)*R;   // the angle nodes
-      const hot=e.beams&&!off?(e.beams.tel?e.beams.k:1):(e.awake&&!off?0.3+0.2*Math.sin(fr*0.2+i):0.1);
+      const hot=Math.min(1,(e.beams&&!off?(e.beams.tel?e.beams.k:1):(e.awake&&!off?0.3+0.2*Math.sin(fr*0.2+i):0.1))+(gr&&!off?0.25*gr.pulse:0));
       ctx.fillStyle='rgba(255,'+(80+120*hot|0)+','+(80+60*hot|0)+','+(0.4+0.6*hot)+')'; ctx.beginPath(); ctx.arc(x,y,sw(6+3*hot),0,Math.PI*2); ctx.fill(); }
     ctx.restore();
     // the face (it doesn't turn with the body)

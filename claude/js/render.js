@@ -1322,27 +1322,61 @@ function grooveClock(){
 // One intensity curve for every dancer: calm tracks stay restrained, GORE metal
 // and boss tracks get noticeably exaggerated. GORE gets the biggest push.
 function _grooveAmp(gc,gore){ return (0.55+0.9*gc.energy)*(gore?1.25:1); }
+// Reduced motion: the SAME audio clock, but a much smaller movement budget.
+// (The world-cadence pulse already holds steady with this same _cadReduce flag.)
+function _grooveMotionScale(){ return _cadReduce?0.22:1; }
 // Foe groove: the SAME audio clock, visual only. It never touches hitboxes, AI,
 // attack timing, boss patterns or difficulty — just a few px of bob/sway/tilt.
-const _foeGrooveOut={dx:0,dy:0,rot:0};
+// Each foe TYPE gets its own move so a crowd doesn't bob as one blob:
+//   eye = upright bob + lens throb · cube = spin-pulse/orbit · boss = heavy
+//   half-time sway · triangle = quick wobble · circle = rolling bob · square = step.
+// All curves are smooth sine sums on the shared phase; the reused object has no
+// per-frame allocation. `pulse`/`off`/`wave` are extra channels the draws may use.
+const _foeGrooveOut={dx:0,dy:0,rot:0,pulse:0,off:0,wave:0};
 function foeGroove(e){
   if(!e||!e.alive||e.mind) return null;
   if((e.hitF||0)>0||e._downed||e.st==='down'||(e.fuse||0)>0||e._shorted||(e._shortT||0)>0) return null;
   const gc=grooveClock(), ph=gc.ph;
   const gore=!!(window.MV_GORE_SOUND&&MV_GORE_SOUND());
-  const amp=_grooveAmp(gc,gore);                    // energy scales the whole foe dance
+  const ink=!!(window.MV_INK_SOUND&&MV_INK_SOUND());
   const mode=window.MV_CONSOLE?window.MV_CONSOLE.mode:'off';
-  _foeGrooveOut.dx=0; _foeGrooveOut.dy=0; _foeGrooveOut.rot=0;
-  if(gore){
-    _foeGrooveOut.dy=amp*1.6*Math.sin(ph); _foeGrooveOut.rot=amp*0.05*Math.sin(ph);  // headbang
-  }else if(window.MV_INK_SOUND&&MV_INK_SOUND()){
-    _foeGrooveOut.dx=amp*1.8*Math.sin(ph*0.5); _foeGrooveOut.dy=amp*0.9*Math.cos(ph); _foeGrooveOut.rot=amp*0.04*Math.sin(ph+0.6); // vinyl sway
+  const amp=_grooveAmp(gc,gore)*_grooveMotionScale(); // energy scales the whole foe dance
+  const beat=0.5+0.5*Math.cos(ph), off=1-beat;        // smooth downbeat / offbeat envelopes
+  const kind=(e._boss||e._foe==='boss')?'boss':(e._foe||e._ai||e.type||'');
+  const o=_foeGrooveOut;
+  o.dx=0; o.dy=0; o.rot=0; o.wave=0; o.pulse=beat; o.off=off;
+  if(kind==='boss'){
+    // Heavy: a slow half-time sway, a big downward press, a lazy tilt.
+    o.dy=amp*(1.6*Math.sin(ph*0.5)+0.5*Math.cos(ph)); o.rot=amp*0.035*Math.sin(ph*0.5+0.4);
+    o.wave=amp*0.8*Math.sin(ph*0.5);
+  }else if(kind==='eye'){
+    // Eye: vertical bob with a quick second harmonic; the lens throbs on the beat.
+    o.dy=amp*(1.7*Math.sin(ph)+0.3*Math.sin(2*ph)); o.rot=amp*0.04*Math.sin(ph+0.5);
+    o.wave=amp*0.5*Math.sin(2*ph+0.7);
+  }else if(kind==='cube'){
+    // Cube: a spin-pulse (slow rotational swell) plus a tiny orbit — not a plain bob.
+    o.rot=amp*0.11*Math.sin(ph*0.5+0.3); o.dx=amp*0.7*Math.cos(ph*0.5);
+    o.dy=amp*0.6*Math.sin(ph); o.wave=amp*0.6*Math.sin(2*ph);
+  }else if(kind==='triangle'){
+    // Triangle: a fast, nervous wobble (twice the beat) with a side shift.
+    o.dy=amp*(1.2*Math.sin(ph)+0.6*Math.sin(2*ph+0.5)); o.dx=amp*0.8*Math.sin(ph*0.5);
+    o.rot=amp*0.06*Math.sin(2*ph); o.wave=amp*1.0*Math.sin(2*ph+0.4);
+  }else if(kind==='circle'){
+    // Circle: a rolling bob that leans into its spin.
+    o.dy=amp*1.4*Math.sin(ph); o.dx=amp*0.6*Math.sin(ph*0.5); o.rot=amp*0.05*Math.sin(ph+0.3);
+  }else if(kind==='square'){
+    // Square: a crisp step-bounce with a chip-like third harmonic.
+    o.dy=amp*(1.3*Math.sin(ph)+0.4*Math.sin(3*ph)); o.dx=amp*0.5*Math.sin(ph*0.5+0.3);
+  }else if(gore){
+    o.dy=amp*1.6*Math.sin(ph); o.rot=amp*0.05*Math.sin(ph);                                  // headbang fallback
+  }else if(ink){
+    o.dx=amp*1.8*Math.sin(ph*0.5); o.dy=amp*0.9*Math.cos(ph); o.rot=amp*0.04*Math.sin(ph+0.6); // vinyl sway fallback
   }else if(mode==='snes'||mode==='md'){
-    _foeGrooveOut.dy=amp*(1.2*Math.sin(ph)+0.4*Math.sin(3*ph)); _foeGrooveOut.dx=amp*0.7*Math.sin(ph*0.5+0.3); // chip-bob
+    o.dy=amp*(1.2*Math.sin(ph)+0.4*Math.sin(3*ph)); o.dx=amp*0.7*Math.sin(ph*0.5+0.3);       // chip-bob fallback
   }else{
-    _foeGrooveOut.dy=amp*(1.3*Math.sin(ph)+0.4*Math.sin(ph*0.5)); _foeGrooveOut.dx=amp*0.5*Math.sin(ph);       // easy bounce
+    o.dy=amp*(1.3*Math.sin(ph)+0.4*Math.sin(ph*0.5)); o.dx=amp*0.5*Math.sin(ph);             // easy bounce fallback
   }
-  return _foeGrooveOut;
+  return o;
 }
 // ── world cadence FX (Paulo: "the whole world must stimulate the player to dance") ──
 // Same audio-locked phase as the player and foes. Pre-rendered sprites are cached
@@ -1401,6 +1435,53 @@ function drawWorldCadence(){
   ctx.drawImage(_cadVignette(),0,0);
   ctx.restore();
 }
+// Layered player dance. One call per frame fills a reused object — no allocation.
+// `groove` is the 0..1 idle fade (further damped while the long-idle cutscene plays).
+// Body bounce, a phase-lagged head/hat follow, an offbeat arm/shoulder sway, a
+// slow weight-shift between the feet and a small wheel bob all ride the SAME
+// audio phase. Every curve is a smooth sine sum; the downbeat/offbeat envelopes
+// punctuate and hold WITHOUT a stepped lift or a peaky pow() spike. Per-filter
+// base moves stay distinct (GORE headbang, INK vinyl sway+snap, A/B chip double,
+// POSH easy bounce) and energy/reduced-motion scale the whole thing.
+const _poseOut={dx:0,dy:0,head:0,headX:0,armX:0,armY:0,wheel:0};
+function groovePose(gc,groove,gore,mode,ink){
+  const ph=gc.ph;
+  const amp=groove*_grooveAmp(gc,gore)*_grooveMotionScale();
+  const beat=0.5+0.5*Math.cos(ph), off=1-beat;
+  const half=Math.sin(ph*0.5), twice=Math.sin(2*ph);
+  let dx=0,dy=0,head=0,headX=0,armX=0,armY=0,wheel=0;
+  if(gore){
+    // GORE headbang: big, delayed double-pulse head; shoulders whip on the offbeat.
+    dy=-amp*(1.0*Math.sin(ph)+0.35*half);
+    head=amp*(2.6*Math.sin(ph-0.5)+0.9*Math.sin(2*(ph-0.5)+0.4));
+    headX=amp*0.8*Math.sin(ph-0.7); dx=amp*0.7*half;
+    armX=amp*1.4*twice; armY=amp*0.5*Math.sin(ph+1.0); wheel=amp*0.7*Math.cos(ph);
+  }else if(ink){
+    // INK vinyl sway + snap: wide side-to-side glide, snapped head recovery.
+    dx=amp*2.0*half; dy=-amp*(0.9*Math.cos(ph)+0.25*Math.sin(2*ph));
+    head=amp*(0.7*Math.sin(ph-0.5+0.6)+0.25*Math.sin(2*(ph-0.5)-0.3));
+    headX=amp*1.0*Math.sin(ph*0.5+0.4);
+    armX=amp*1.1*Math.sin(ph+0.8); armY=amp*0.45*Math.cos(ph*0.5); wheel=amp*0.5*Math.sin(ph);
+  }else if(mode==='snes'||mode==='md'){
+    // A/B chip: snappy double-bounce with a third-harmonic edge.
+    dy=-amp*(1.3*Math.sin(ph)+0.55*Math.sin(3*ph)+0.2*half);
+    head=amp*(0.8*Math.sin(ph-0.45)+0.3*Math.sin(3*(ph-0.45)));
+    headX=amp*0.6*twice; dx=amp*1.0*Math.sin(ph*0.5+0.3);
+    armX=amp*1.2*Math.sin(2*ph+0.6); armY=amp*0.35*Math.cos(2*ph); wheel=amp*0.7*Math.cos(ph);
+  }else{
+    // POSH: easy two-beat bounce, gentle head and arm follow.
+    dy=-amp*(1.6*Math.sin(ph)+0.5*half);
+    head=amp*0.6*Math.sin(ph-0.45+0.4);
+    headX=amp*0.55*Math.sin(ph*0.5); dx=amp*0.7*half;
+    armX=amp*1.0*twice; armY=amp*0.3*Math.sin(ph+0.8); wheel=amp*0.5*Math.cos(ph);
+  }
+  // Accent layer (shared): a sharper downward punctuate on the beat, a slight
+  // held lift between beats, and the offbeat arm pose. Kept smooth + tiny.
+  dy-=amp*0.30*beat; dy+=amp*0.12*off; armY+=amp*0.30*off;
+  _poseOut.dx=dx; _poseOut.dy=dy; _poseOut.head=head; _poseOut.headX=headX;
+  _poseOut.armX=armX; _poseOut.armY=armY; _poseOut.wheel=wheel;
+  return _poseOut;
+}
 function drawCharacter(){
   // Co-op: BOTH players are drawn in BOTH viewports. The old _splitHide filter
   // hid the other player per half, so each screen only showed its own character.
@@ -1426,26 +1507,20 @@ function drawCharacter(){
   const idleOK=!!p.og&&!onRope&&Math.abs(p.vx||0)<0.4&&Math.abs(p.vy||0)<0.4
     &&!(p.pt>0)&&!(p.pCharging)&&!(p.hook&&p.hook.st!=='idle')&&!(p._madT>0)&&!(p._downT>0);
   p._idleT=idleOK?(p._idleT||0)+1:0;
-  const groove=Math.max(0,Math.min(1,(p._idleT-120)/45));
-  let gDX=0, gDY=0, gHead=0;
+  // NOTE (T486): the long-idle "looks at his arms / looks around" cutscene in main.js
+  // drives pupilX/pupilY + the arm aim, NOT these transforms — so the two coexist.
+  // While that deliberate routine plays we just ease the bounce down so its poses
+  // stay legible (the head/hat/arm/wheel motion keeps the same beat-lock).
+  let groove=Math.max(0,Math.min(1,(p._idleT-120)/45));
+  if(p._idling) groove*=0.6;
+  let gDX=0, gDY=0, gHead=0, gHeadX=0, gArmX=0, gArmY=0, gWheel=0;
   if(groove>0){
-    const gc=grooveClock(), ph=gc.ph;
+    const gc=grooveClock();
     const gore=!!(window.MV_GORE_SOUND&&MV_GORE_SOUND());
-    const k=groove*_grooveAmp(gc,gore);               // energy-scaled intensity (GORE exaggerated most)
+    const ink=!!(window.MV_INK_SOUND&&MV_INK_SOUND());
     const mode=window.MV_CONSOLE?window.MV_CONSOLE.mode:'off';
-    if(gore){
-      gDY=-0.9*k*Math.sin(ph*0.5);
-      gHead=k*(2.6*Math.sin(ph)+0.9*Math.sin(2*ph+0.4));   // fluid double-pulse headbang
-    }else if(window.MV_INK_SOUND&&MV_INK_SOUND()){
-      gDX=2.0*k*Math.sin(ph*0.5); gDY=-0.9*k*Math.cos(ph);
-      gHead=k*(0.7*Math.sin(ph+0.6)+0.25*Math.sin(2*ph-0.3)); // sway + smooth snap
-    }else if(mode==='snes'||mode==='md'){
-      gDY=-k*(1.3*Math.sin(ph)+0.55*Math.sin(3*ph));       // chip shape, continuous
-      gDX=k*1.0*Math.sin(ph*0.5+0.3);
-    }else{
-      gDY=-k*(1.6*Math.sin(ph)+0.5*Math.sin(ph*0.5));      // easy two-beat bounce
-      gHead=k*0.6*Math.sin(ph+0.4);
-    }
+    const q=groovePose(gc,groove,gore,mode,ink);
+    gDX=q.dx; gDY=q.dy; gHead=q.head; gHeadX=q.headX; gArmX=q.armX; gArmY=q.armY; gWheel=q.wheel;
   }
   const suspDrop=onRope?0:suspC*SUSP_TRAVEL;
   // the cabinet rides the fork. suspComp dips it on a landing and lifts it on the rebound; the wheel stays put
@@ -1501,16 +1576,19 @@ function drawCharacter(){
   if(!flicker) drawCharShadow(wcx,wcy);
   // Paulo's sketch: hanging on the rope MIND tilts with the swing, round his body's centre
   if(pose.tilt){ const tx=sx(pose.tiltCX), ty=sy(pose.tiltCY); ctx.translate(tx,ty); ctx.rotate(pose.tilt); ctx.translate(-tx,-ty); }
-  if(!flicker) drawWheel(wcx,wcy,p.wheelAngle,p);
-  if(!flicker) drawWheelKit(wcx,wcy,sy(bodyTop+BODY_H),fc,p);
+  // A small beat-locked wheel bob — the tyre keeps ground contact, it just pulses.
+  if(!flicker) drawWheel(wcx,wcy+gWheel,p.wheelAngle,p);
+  if(!flicker) drawWheelKit(wcx,wcy+gWheel,sy(bodyTop+BODY_H),fc,p);
   if(_jabK>0) ctx.translate((fc?1:-1)*sw(p._comboHook?9:6)*_jabK,0);   // the lean (build 370)
   if(groove>0) ctx.translate(gDX,gDY);            // idle groove: everything above the wheel rides it
 
   // 2. GLOVE ARM â€” behind body box; always runs the punch hit logic
   // (build 356) during the left jab this right glove holds its guard; the left hand punches
   const _leftJab=p._punchHand==='L'&&p.pt>0;
-  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
-  else drawGloveArm(glovShX,shY,fc,glovShoulderWX,shoulderY,flicker);
+  // Offbeat shoulder/arm sway: nudge only the SCREEN shoulder; world coords
+  // (wall check + punch angle) stay untouched, and the rope arm's tip is not moved.
+  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX+gArmX,shY+gArmY,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
+  else drawGloveArm(glovShX+gArmX,shY+gArmY,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
 
   const drawConnArm=()=>{
@@ -1601,12 +1679,13 @@ function drawCharacter(){
     headCY-=peekLift;
     peekAmt=0.22+Math.sin(fr*0.18)*0.05;
   }
-  // The hat rides the already-bobbed head: drawHead() receives sy(headCY+gHead),
-  // and both hats build hatBrimY from that drawY, so gHead is followed in SAME
-  // pixel space. Do NOT add gHead to hatTY here — hatTY is in hat units (×9 px),
-  // so gHead*0.5 would shove the brim ~4.5×gHead px straight through the bulb.
+  // The hat rides the already-bobbed head: drawHead() receives sy(headCY+gHead)
+  // and wcx+gHeadX; both hats build hatBrimY from that same drawY/X, so head and
+  // hat follow together (no clipping). Do NOT fold gHead/gHeadX into hatTY —
+  // hatTY is in hat units (×9 px), so even gHead*0.5 would shove the brim through
+  // the bulb. These are pixel-space offsets, kept in the drawHead args only.
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
-  drawHead(wcx,sy(headCY+gHead),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  drawHead(wcx+gHeadX,sy(headCY+gHead),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
   window._mindHeadDmg=0;
 
   // 4. BODY BOX â€” in front of glove arm + head
