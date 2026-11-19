@@ -524,6 +524,9 @@ function _itemBoxSize(){
 
 function _heldItemFor(pl){
   if(pl&&pl._aiCompanion) return 0;
+  // drawCharacterFor(p2) swaps only `p`, not ITEM — read P2's own item so its
+  // arm draws the right jack and its XLR/MAG coil glow follows P2's state.
+  if(pl&&typeof p2!=='undefined'&&pl===p2&&!pl._aiCompanion&&typeof pl.item==='number') return pl.item;
   return ITEM;
 }
 function _itemUnlocked(idx){ return (_unlockedMask&ITEM_UNLOCK_BITS[idx])!==0; }
@@ -584,6 +587,7 @@ function mkP(){ return {
   fireRecoil:0, fireRecoilA:0, _lastRecoilMax:14,
   _lastWTap:-999, _wallJumpTap:0, _wallJumpTime:0, _wallAimFree:0, _jumpArmed:true,
   itemStamina:100, xlrOn:false, magOn:false, xlrHeld:0, magHeld:0,
+  item:ITEM,            // per-player selected item; P2 owns its own (P1 keeps the global ITEM canonical)
   laserCharging:false, laserCharge:0, laserCd:0,
   _hitDone:false, _punchHit:false, _pRecoil:0, fistWX:0, fistWY:0, fistSX:0, fistSY:0,
   hook:{st:'idle',ex:0,ey:0,evx:0,evy:0,ax:0,ay:0,rl:0,ox:NaN,oy:NaN,tgt:null,tox:0,toy:0},
@@ -686,7 +690,8 @@ function _updateCompanionAI(){
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
   if(p2.inv>0) p2.inv--;
   if(p2.y>(typeof WH!=='undefined'?WH:3000)+120){
-    p2.x=followX; p2.y=p.y; p2.vy=0; p2.og=true;
+    // Paulo: companion pit fall re-spawns at the stage entrance (MindSpawn).
+    p2.x=_spawnX+48; p2.y=_spawnY; p2.vx=0; p2.vy=0; p2.og=true;
   }
 }
 function _companionFight(threat, help){

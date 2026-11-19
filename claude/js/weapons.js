@@ -1445,7 +1445,18 @@ function updateBgParticles(){
 
 // ── Co-op P2 ──────────────────────────────────────────────────
 function hbFor(pl){ return playerCoreHB(pl); }
-function withPlayerContext(pl,fn){ const oldP=p; p=pl; try{return fn();}finally{p=oldP;} }
+function withPlayerContext(pl,fn){
+  const oldP=p, oldItem=ITEM;
+  // Human co-op P2 carries its OWN selected item in pl.item. Run item code with
+  // the canonical global ITEM swapped to it so fireItem / updateHook / updateXLR
+  // read P2's item and act on P2's body, never P1's. The AI companion (solo) and
+  // the beta sibling mimics set ITEM themselves around their calls, so leave it
+  // alone for them (their _aiCompanion flag / pl!==p2 distinguishes them).
+  const useP2Item = (pl && typeof p2!=='undefined' && pl===p2 && !pl._aiCompanion && typeof pl.item==='number');
+  p=pl;
+  if(useP2Item) ITEM=pl.item;
+  try{return fn();}finally{p=oldP; ITEM=oldItem;}
+}
 let _coopRollX0=0, _coopRollY0=0;
 function updateCoopPlayer2(){
   if(!p2) return;
@@ -1484,16 +1495,42 @@ function updateCoopPlayer2(){
     p2._dblJumpFx=14; try{ sfx('double_jump'); }catch(e){}
   }
   if(p2._dblJumpFx>0) p2._dblJumpFx--;
-  if(_bindJ2('use')) ITEM=(ITEM+1)%4;                   // item SELECT (cycle)
-  if(_bindJ2('swap')){
-    if(ITEM===0){withPlayerContext(p2,()=>fireItem(false));if(p2.shots&&p2.shots.length){p.shots.push(...p2.shots);p2.shots.length=0;}}
-    else if(ITEM===1) withPlayerContext(p2,()=>fireItem(false));
+  // ── P2 items ────────────────────────────────────────────────
+  // P2 owns its item now: cycling never touches the shared global ITEM / P1.
+  if(_bindJ2('use')) p2.item=((p2.item<0?-1:p2.item)+1)%4;   // item SELECT (cycle) — P2 only
+  const _p2SwapJ=_bindJ2('swap'), _p2SwapHeld=!!_bindDown2('swap');
+  if(_p2SwapJ){
+    if(p2.item===0){withPlayerContext(p2,()=>fireItem(false));if(p2.shots&&p2.shots.length){p.shots.push(...p2.shots);p2.shots.length=0;}}
+    else if(p2.item===1) withPlayerContext(p2,()=>fireItem(false));  // RCA hook via the REAL fireItem (p2 body + p2.item)
   }
-  if(_bindDown2('swap')&&ITEM===2){
-    const ca={x:p2.x+SW/2,y:p2.y+FEET_OFF-STAND_H*0.5}, range=155, dir=p2.fc?1:-1;
-    for(const e of ENEMS){ if(!_enemyBodyPresent(e))continue; const dx=e.x+e.w/2-ca.x,dy=e.y+e.h/2-ca.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.5)*2.1; _applyItemForceToEnemy(e,dir*str,dy/dist*0.15); }
-    for(const c of CRATES){ const dx=c.x+c.w/2-ca.x,dy=c.y+c.h/2-ca.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.4)*1.9; c.vx+=dir*str;c.vy+=dy/dist*0.12; }
-  }else if(_bindDown2('swap')&&ITEM===3){
+  if(p2.item===2&&_itemUnlocked(2)){
+    // XLR's state machine lives in main.js for P1 — we don't own that file, so
+    // mirror it here for P2, then run the REAL updateXLR() on p2 through
+    // withPlayerContext (P2's item becomes ITEM). That gives P2 the genuine
+    // stamina drain, rising-edge sfx, pulses, push field and wall reaction —
+    // not the old hand-rolled shove that ignored itemStamina / xlrOn / sfx.
+    const _enhX=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[2];
+    const wasOn=!!p2.xlrOn;
+    p2.xlrOn=_p2SwapHeld&&(p2.itemStamina||0)>0;
+    p2.magOn=false;
+    if(p2.xlrOn) p2.itemStamina=Math.max(0,(p2.itemStamina||0)-(_enhX?1.0:1.55));
+    if(p2.xlrOn&&!wasOn){ try{sfx('xlr');}catch(e){} p2.flashF=9; }
+    p2.xlrHeld=p2.xlrOn?(p2.xlrHeld||0)+1:0;
+    withPlayerContext(p2,()=>updateXLR());
+  }else if(p2.item===3&&_itemUnlocked(3)){
+    // MEG state mirror for P2. Keep the inline pull below (it already runs on
+    // p2's own state); do NOT call updateMAG — that drives P1's global magnet.
+    const _enhM=typeof _itemEnhanced!=='undefined'&&!!_itemEnhanced[3];
+    const wasOn=!!p2.magOn;
+    p2.magOn=_p2SwapHeld&&(p2.itemStamina||0)>0;
+    p2.xlrOn=false;
+    if(p2.magOn) p2.itemStamina=Math.max(0,(p2.itemStamina||0)-(_enhM?1.0:1.55));
+    if(p2.magOn&&!wasOn){ try{sfx('mag');}catch(e){} p2.flashF=7; }
+    p2.magHeld=p2.magOn?(p2.magHeld||0)+1:0;
+  }else{
+    p2.xlrOn=false; p2.magOn=false; p2.xlrHeld=0; p2.magHeld=0;
+  }
+  if(p2.item===3&&_p2SwapHeld&&_itemUnlocked(3)){
     const ca={x:p2.x+SW/2,y:p2.y+FEET_OFF-STAND_H*0.5}, range=190;
     for(const e of ENEMS){ if(!_enemyBodyPresent(e))continue; const hb=_enemyItemHB(e),dx=ca.x-(hb.x+hb.w/2),dy=ca.y-(hb.y+hb.h/2),dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.3)*2.2; _applyItemForceToEnemy(e,dx/dist*str,dy/dist*str); }
     for(const c of CRATES){ const dx=ca.x-(c.x+c.w/2),dy=ca.y-(c.y+c.h/2),dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.2)*1.9; c.vx+=dx/dist*str;c.vy+=dy/dist*str; }
@@ -1534,7 +1571,13 @@ function updateCoopPlayer2(){
   if(!st2) p2.vy=Math.min(p2.vy+(up2&&p2.jf>0&&p2.vy<0?GRAV*0.38:GRAV),14);
   _movePlayerWithColl(p2,p2.vx,p2.vy);
   if(p2.y<20){p2.y=20;p2.vy=Math.max(0,p2.vy);}
-  if(p2.y>WH+100){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.x=p.x+36;p2.y=p.y;}
+  if(p2.y>WH+100){
+    const ai=!!p2._aiCompanion,h=p2.hero;
+    p2=mkP(); p2.hero=h; p2._aiCompanion=ai;
+    // Paulo: a pit fall re-spawns P2 at the stage entrance (MindSpawn), like MIND.
+    // The +48 mirrors the co-op stage-start offset so P2 doesn't stack on P1.
+    p2.x=_spawnX+48; p2.y=_spawnY;
+  }
   if(p2.inv>0) p2.inv--;
   for(const e of ENEMS){
     if(!_enemyCombatActive(e)) continue;
