@@ -376,10 +376,11 @@ let _punchHoldF=0, _punchHoldFr=-1;
 // direction is the sprint. Shift still runs on its own. A plain hold is the item.
 const _SPRINT_TAP=12, _SPRINT_ARM=16;   // Paulo (Oct 22): sprint = a quick double-tap-and-hold while moving (16 f window, was 40)
 const _FWD_TAP=14, _FWD_GAP=16, _FWD_PAIR=6;   // forward tap length, gap before the second forward, button/forward pairing window
-// Paulo: the punch button is shared. A TAP after idle flips Sports/Turbo; a HOLD
-// charges the loaded punch. Keep the tap window below both heroes' load thresholds
-// (MIND loadF=24, Venture loadF=14) so a loaded punch is never read as a turbo tap.
-const _TURBO_TAP_F=12;
+// Paulo: the punch button is shared. A DOUBLE TAP after idle flips Sports/Turbo;
+// a HOLD charges the loaded punch. Keep the tap window below both heroes' load
+// thresholds (MIND loadF=24, Venture loadF=14) so a loaded punch is never read as
+// a turbo tap. A single short tap is just a normal light punch.
+const _TURBO_TAP_F=12, _TURBO_PAIR_F=24;   // short-press length, gap for the two-tap pair
 function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
@@ -404,10 +405,9 @@ function _updateRunEntry(pl){
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
   // Paulo: Sports-Mode (Turbo) is the PUNCH button, not the item button —
-  // after 2 s of complete idleness standing still, a deliberate TAP of Punch
-  // switches it on/off. A HOLD is the loaded-punch charge and must not flip Turbo.
-  // So the decision is made on the punch RELEASE, gated on a short hold (a tap),
-  // instead of on the press edge where it collided with the charge.
+  // after 2 s of complete idleness standing still, a DOUBLE TAP of Punch
+  // switches it on/off. The first short tap only starts the pair; the second
+  // one flips it. A HOLD is the loaded-punch charge and never touches Turbo.
   // Item-run/sprint stay on the item button.
   pl._standTapT=0;
   const punch=(typeof isPunch==='function')&&isPunch();
@@ -420,11 +420,13 @@ function _updateRunEntry(pl){
   // any input except Punch resets the idle count (item button included now)
   let _otherKey=false; try{ const pb=(OPT&&OPT.binds&&OPT.binds.punch)||[]; for(const k in K){ if(K[k]&&pb.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
-  // another tap soon after the last one doesn't switch Turbo straight back off:
-  // ignore it briefly (the 2 s idle counter does the rest).
+  // a follow-up double tap soon after the last one doesn't switch Turbo straight
+  // back off: ignore it briefly (the 2 s idle counter does the rest).
   if((pl._ignTapLock||0)>0) pl._ignTapLock--;
+  // the first tap of a pair only counts if the second lands inside the window
+  if(pl._turboTap1&&fr-(pl._turboTap1T||0)>_TURBO_PAIR_F) pl._turboTap1=false;
   // Arm only on the press edge, while the idle gate is open and no lock is pending.
-  // A held punch (loaded charge) is never armed — the flip happens at release below.
+  // A held punch (loaded charge) is never armed — flips happen on short releases.
   if(punchRise){
     pl._punchHoldN=0;
     pl._turboTapArmed=(standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0))||false;
@@ -432,8 +434,17 @@ function _updateRunEntry(pl){
     pl._punchHoldN=(pl._punchHoldN||0)+1;
   }
   if(punchFall){
-    if(pl._turboTapArmed&&(pl._punchHoldN||0)<=_TURBO_TAP_F&&!(pl._ignTapLock>0)){
-      pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
+    if(pl._turboTapArmed&&standing&&!_otherKey&&(pl._stillT||0)>=120&&(pl._punchHoldN||0)<=_TURBO_TAP_F&&!(pl._ignTapLock>0)){
+      // a short idle tap: remember the first one, flip only on the second
+      if(pl._turboTap1&&fr-(pl._turboTap1T||0)<=_TURBO_PAIR_F){
+        pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
+        pl._turboTap1=false;
+      }else{
+        pl._turboTap1=true; pl._turboTap1T=fr;
+      }
+    }else{
+      // a hold (loaded punch) or a non-idle press breaks the pair
+      pl._turboTap1=false;
     }
     pl._turboTapArmed=false; pl._punchHoldN=0;
   }

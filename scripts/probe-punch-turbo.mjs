@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Headless probe for the shared punch button:
- *   (a) tap after 2 s standing idle toggles Turbo on/off
+ *   (a) DOUBLE tap after 2 s standing idle toggles Turbo on/off; a single tap does not
  *   (b) hold-then-release after idle throws a LOADED punch (heavy sfx) and does NOT toggle Turbo
- *   (c) quick punches in combat still run the jab/jab/hook combo
- *   (d) item-hold run/sprint still works, and never toggles Turbo
+ *   (c) hold/tap mixed sequences never pair into a Turbo flip
+ *   (d) quick punches in combat still run the jab/jab/hook combo
+ *   (e) item-hold run/sprint still works, and never toggles Turbo
  *
  * Drives the real game loop with synthetic K-key input; measures fr/state directly.
  * No cursor, no installs, no writes to the game.
@@ -97,50 +98,85 @@ async function main() {
         p._ignTapLock = 0; p._stillT = 130;   // idle gate already open (2 s reached)
         p.pCharging = false; p.pCharge = 0; p.pCd = 0; p.pt = 0;
         p._turboTapArmed = false; p._punchHoldN = 0; p._punchWas = false;
+        p._turboTap1 = false; p._turboTap1T = -999;
         p._combo = 0; p._comboFr = -999;
         sfxLog.length = 0;
         await step(2);
       };
 
-      // ── (a) TAP after idle toggles Turbo (on then off) ───────────
       const tap = async (frames) => {
         K['KeyB'] = true; await step(frames);
         const held = { pCharge: p.pCharge, holdN: p._punchHoldN, still: p._stillT };
         K['KeyB'] = false; await step(1);
         return held;
       };
+      const doubleTap = async () => {
+        const first = await tap(3);
+        await step(2);                       // gap well inside the 24-frame pair window
+        const second = await tap(3);
+        return { first, second };
+      };
+      const hold = async (frames) => {
+        K['KeyB'] = true; await step(frames);
+        const h = { pCharge: p.pCharge, holdN: p._punchHoldN, still: p._stillT };
+        K['KeyB'] = false; await step(1);
+        return h;
+      };
+
+      // ── (a) DOUBLE tap after idle toggles Turbo ON, then OFF ──────
       await resetIdle(false);
       const a0 = p._ignition;
-      const aHeld = await tap(3);
+      const aPair = await doubleTap();
       const a1 = p._ignition;
-      push('a_tap_on', { ignBefore: a0, ignAfter: a1, ground: _playerOnGround(p), hold: aHeld, stillAfter: p._stillT, lock: p._ignTapLock, sfx: sfxLog.slice() });
+      push('a_double_on', { ignBefore: a0, ignAfter: a1, ground: _playerOnGround(p), pair: aPair, stillAfter: p._stillT, lock: p._ignTapLock, sfx: sfxLog.slice() });
 
       await resetIdle(true);
       const b0 = p._ignition;
-      await tap(3);
-      const b1 = p._ignition;
-      push('a_tap_off', { ignBefore: b0, ignAfter: b1, stillAfter: p._stillT, lock: p._ignTapLock, sfx: sfxLog.slice() });
+      await doubleTap();
+      push('a_double_off', { ignBefore: b0, ignAfter: p._ignition, stillAfter: p._stillT, lock: p._ignTapLock, sfx: sfxLog.slice() });
 
-      // ── (b) HOLD after idle = loaded punch, NO turbo flip ────────
+      // ── (b) ONE tap after idle: light punch only, NO turbo flip ───
+      await resetIdle(false);
+      const s0 = p._ignition;
+      const single = await tap(3);
+      push('b_single_tap', { ignBefore: s0, ignAfter: p._ignition, ground: _playerOnGround(p), hold: single, pendingFirst: !!p._turboTap1, sfx: sfxLog.slice() });
+
+      // A first tap whose pair window lapses (>24 f) must not pair with a later tap.
+      await resetIdle(false);
+      const x0 = p._ignition;
+      await tap(3); await step(30); await tap(3);
+      push('b_expired_pair', { ignBefore: x0, ignAfter: p._ignition, pendingFirst: !!p._turboTap1 });
+
+      // ── (c) HOLD after idle = loaded punch, NO turbo flip ─────────
       await resetIdle(false);
       const c0 = p._ignition;
-      K['KeyB'] = true; await step(30);
-      const cHeld = { pCharge: p.pCharge, holdN: p._punchHoldN, still: p._stillT };
-      K['KeyB'] = false; await step(1);
-      const c1 = p._ignition;
-      push('b_hold_loaded', {
-        ignBefore: c0, ignAfter: c1, loadF, ground: _playerOnGround(p), hold: cHeld,
+      const cHeld = await hold(30);
+      push('c_hold_loaded', {
+        ignBefore: c0, ignAfter: p._ignition, loadF, ground: _playerOnGround(p), hold: cHeld,
         pChargeAtRelease: p.pCharge, loaded: p.pCharge > loadF, pt: p.pt,
         heavySfx: sfxLog.includes('punch_heavy'), sfx: sfxLog.slice(),
       });
 
-      // Also: a loaded punch while Turbo is already ON must not flip it off.
+      // Loaded punch while Turbo is already ON must not flip it off.
       await resetIdle(true);
       const d0 = p._ignition;
-      K['KeyB'] = true; await step(30); K['KeyB'] = false; await step(1);
-      push('b_hold_loaded_keeps_turbo', { ignBefore: d0, ignAfter: p._ignition, pCharge: p.pCharge, loaded: p.pCharge > loadF, heavySfx: sfxLog.includes('punch_heavy') });
+      await hold(30);
+      push('c_hold_keeps_turbo', { ignBefore: d0, ignAfter: p._ignition, pCharge: p.pCharge, loaded: p.pCharge > loadF, heavySfx: sfxLog.includes('punch_heavy') });
 
-      // ── (c) combat jab combo, idle gate closed ───────────────────
+      // ── (d) hold+tap and tap+hold must NOT pair into a turbo flip ──
+      await resetIdle(false);
+      await hold(30);
+      const e0 = p._ignition;
+      await tap(3);
+      push('d_hold_then_tap', { ignBefore: e0, ignAfter: p._ignition, pendingFirst: !!p._turboTap1, sfx: sfxLog.slice() });
+
+      await resetIdle(false);
+      await tap(3);
+      const f0 = p._ignition;
+      await hold(30);
+      push('d_tap_then_hold', { ignBefore: f0, ignAfter: p._ignition, pendingFirst: !!p._turboTap1, sfx: sfxLog.slice() });
+
+      // ── (e) combat jab combo, idle gate closed ────────────────────
       await resetIdle(false);
       p._stillT = 0; // recently moved => idle gate closed
       const combos = [], igns = [];
@@ -148,9 +184,9 @@ async function main() {
         K['KeyB'] = true; await step(2); K['KeyB'] = false; await step(6);
         combos.push(p._combo); igns.push(p._ignition);
       }
-      push('c_combo', { combos, ignitions: igns, sfx: sfxLog.slice() });
+      push('e_combo', { combos, ignitions: igns, sfx: sfxLog.slice() });
 
-      // ── (d) item-hold run/sprint still works ─────────────────────
+      // ── (e) item-hold run/sprint still works ──────────────────────
       await resetIdle(false);
       p._stillT = 0;
       // forward tap, release, second forward, then hold the item button
@@ -162,27 +198,35 @@ async function main() {
         ignAfter: p._ignition,
       };
       clearKeys();
-      push('d_item_run', run);
+      push('e_item_run', run);
 
       return out;
     });
 
     // ---- verdicts ----
     const by = (n) => results.find((r) => r.name === n);
-    const aOn = by('a_tap_on'), aOff = by('a_tap_off'), bHold = by('b_hold_loaded'),
-      bKeep = by('b_hold_loaded_keeps_turbo'), combo = by('c_combo'), run = by('d_item_run');
+    const aOn = by('a_double_on'), aOff = by('a_double_off'), single = by('b_single_tap'),
+      expired = by('b_expired_pair'),
+      hLoaded = by('c_hold_loaded'), hKeep = by('c_hold_keeps_turbo'),
+      ht = by('d_hold_then_tap'), th = by('d_tap_then_hold'),
+      combo = by('e_combo'), run = by('e_item_run');
     const verdicts = [
-      ['a idle gate open / grounded', !!aOn && aOn.ground === true && aOn.hold.still >= 120],
-      ['a tap ON', !!aOn && aOn.ignBefore === false && aOn.ignAfter === true],
-      ['a tap OFF', !!aOff && aOff.ignBefore === true && aOff.ignAfter === false],
-      ['b idle gate open / grounded', !!bHold && bHold.ground === true && bHold.hold.still >= 120],
-      ['b loaded punch thrown', !!bHold && bHold.loaded && bHold.pChargeAtRelease > bHold.loadF && bHold.heavySfx && bHold.pt >= 4],
-      ['b hold does NOT flip turbo', !!bHold && bHold.ignBefore === bHold.ignAfter],
-      ['b loaded keeps turbo ON', !!bKeep && bKeep.ignBefore === bKeep.ignAfter && bKeep.loaded],
-      ['c jab combo 0,1,2 (jab,jab,hook)', !!combo && JSON.stringify(combo.combos) === '[0,1,2]' && combo.sfx.filter((s) => s === 'punch').length >= 2 && combo.sfx.includes('punch_heavy')],
-      ['c no turbo in combat', !!combo && combo.ignitions.every((x) => x === false)],
-      ['d item run works', !!run && (run.sprintMode || run.sprintHeld) && run.runRamp > 0],
-      ['d item run no turbo', !!run && run.ignAfter === false],
+      ['a idle gate open / grounded', !!aOn && aOn.ground === true && aOn.pair.first.still >= 120],
+      ['a DOUBLE tap ON', !!aOn && aOn.ignBefore === false && aOn.ignAfter === true],
+      ['a DOUBLE tap OFF', !!aOff && aOff.ignBefore === true && aOff.ignAfter === false],
+      ['b single tap: no turbo flip', !!single && single.ignBefore === single.ignAfter],
+      ['b single tap = light punch', !!single && single.sfx.filter((s) => s === 'punch').length >= 1 && !single.sfx.includes('punch_heavy')],
+      ['b lapsed pair: no flip', !!expired && expired.ignBefore === expired.ignAfter],
+      ['c idle gate open / grounded', !!hLoaded && hLoaded.ground === true && hLoaded.hold.still >= 120],
+      ['c loaded punch thrown', !!hLoaded && hLoaded.loaded && hLoaded.pChargeAtRelease > hLoaded.loadF && hLoaded.heavySfx && hLoaded.pt >= 4],
+      ['c hold does NOT flip turbo', !!hLoaded && hLoaded.ignBefore === hLoaded.ignAfter],
+      ['c loaded keeps turbo ON', !!hKeep && hKeep.ignBefore === hKeep.ignAfter && hKeep.loaded],
+      ['d hold then tap: no flip', !!ht && ht.ignBefore === ht.ignAfter],
+      ['d tap then hold: no flip', !!th && th.ignBefore === th.ignAfter],
+      ['e jab combo 0,1,2 (jab,jab,hook)', !!combo && JSON.stringify(combo.combos) === '[0,1,2]' && combo.sfx.filter((s) => s === 'punch').length >= 2 && combo.sfx.includes('punch_heavy')],
+      ['e no turbo in combat', !!combo && combo.ignitions.every((x) => x === false)],
+      ['e item run works', !!run && (run.sprintMode || run.sprintHeld) && run.runRamp > 0],
+      ['e item run no turbo', !!run && run.ignAfter === false],
     ];
 
     for (const r of results) console.log(JSON.stringify(r));
