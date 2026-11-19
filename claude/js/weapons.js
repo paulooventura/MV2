@@ -1459,6 +1459,20 @@ function updateCoopPlayer2(){
   else if(rt) p2.vx=Math.min(p2.vx+ac,ms);
   else{ const gf=p2.og?MOVE_STOP:AIR_DRIFT; p2.vx*=gf; if(p2.og&&Math.abs(p2.vx)<0.22)p2.vx=0; else if(Math.abs(p2.vx)<0.12)p2.vx=0; }
   if(lf)p2.fc=false; else if(rt)p2.fc=true;
+  // P2 duck/crouch — mirrors P1's down-to-duck in main.js, but reads P2's own
+  // bind (ArrowDown / pad d-pad-down / stick-down all land in K2['down'] via
+  // _bindDown2). Paulo: P2 had no crouch at all, so he couldn't duck under low
+  // ceilings. Drive the same crouchAmt/crouchInput state P1 uses.
+  const _dn2=_bindDown2('down')&&!p2.magOn;
+  const _gnd2=!!_playerOnGround(p2);
+  p2.crouchInput=!!(_gnd2&&_dn2);
+  const _airDuck2=!_gnd2&&_dn2;
+  const _head2=(window.MV_DOORS&&MV_DOORS.headroom)?MV_DOORS.headroom(p2,measureHeadroom):measureHeadroom(p2);
+  const _tunnel2=_head2<6?Math.min(1,(6-_head2)/6):0;
+  const _tgt2=Math.max((p2.crouchInput||_airDuck2||p2._idleSit)?1:0,_tunnel2);
+  p2.crouchAmt+=(_tgt2-p2.crouchAmt)*(_tgt2>p2.crouchAmt?0.28:0.16);
+  if(p2.crouchAmt<0.02)p2.crouchAmt=0;
+  if(p2.crouchAmt>0.98)p2.crouchAmt=1;
   const up2=_bindDown2('jump');                         // held jump (variable height)
   if(p2.og||(p2.hook&&p2.hook.st==='on')){ p2._airJumps=0; p2._airBoost=0; }
   if(_bindJ2('jump')&&p2.og){p2.vy=JI;p2.jf=JMH;p2._airBoost=0;p2.og=false;sfx('jump');}
@@ -1486,7 +1500,13 @@ function updateCoopPlayer2(){
     for(const k of KDROP){ if(k.got)continue; const dx=ca.x-k.x,dy=ca.y-k.y,dist=Math.hypot(dx,dy)||1; if(dist>range)continue; const str=Math.pow(1-dist/range,1.25)*1.8; k.vx+=dx/dist*str;k.vy+=dy/dist*str; }
   }
   if(_bindJ2('punch')){
-    const fistCX=p2.fc?p2.x+SW/2+AIM_LEN:p2.x+SW/2-AIM_LEN, fistCY=p2.y+20, fistR=4;
+    // Drive the punch animation as well as the damage. main.js ticks p2.pt down
+    // and drawCharacterFor(p2) reads it to swing the glove — without this P2's
+    // punch connected but never animated (Paulo: "not punching"). Mark the hit
+    // done so the later render pass doesn't apply this same punch a second time.
+    p2.pt=5; p2._hitDone=true;
+    try{ sfx('punch'); }catch(e){}
+    const fistCX=p2.fc?p2.x+SW/2+AIM_LEN:p2.x+SW/2-AIM_LEN, fistCY=p2.y+20, fistR=12;
     let hitAny=false;
     for(const e of ENEMS){
       if(!_enemyPunchable(e)) continue;
