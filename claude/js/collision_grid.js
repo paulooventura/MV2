@@ -141,44 +141,35 @@ function gridSlopeLive(c,r){
   return want==='climb'||want==='drop';
 }
 
+/**
+ * The collision surface IS the drawn edge — no collision-only rounding.
+ *
+ * Paulo's rule: an angled platform's hit box sits on the same pixels as its
+ * visible slope. A ramp tile paints a triangle whose hypotenuse runs corner to
+ * corner (beta_decor.js:1199-1207, and the 8x8 tilesheet art for GIDs 31/44);
+ * a KEEP OUT diagonal is drawn straight from its two Tiled vertices. Both are
+ * plain line segments here, so the wheel rolls on the line the player sees.
+ *
+ * The old "fillet" rounded only the crest of a run, up to ~3px below the drawn
+ * tip, but nothing drew it: the art stayed sharp while the wheel floated in it.
+ * Collision now follows the art, and the art's 1px seam overdraw / 5px stroke
+ * straddle the line, so no extra offset is applied. Rounding belongs in the
+ * wheel's suspension (physics), never in the surface height map.
+ */
 function gridSlopeY(c,r,wx){
   if(!_gridReady()) return null;
-  const t=MV_GRID.tile;
   const kind=gridSlopeKind(c,r);
   if(!kind) return null;
   const s=gridSlopeAt(c,r);
-  let y;
   if(s){
     const dx=s.x2-s.x1;
-    if(Math.abs(dx)<0.001) y=Math.min(s.y1,s.y2);
-    else{
-      const u=Math.max(0,Math.min(1,(wx-s.x1)/dx));
-      y=s.y1+(s.y2-s.y1)*u;
-    }
-  }else{
-    const local=Math.max(0,Math.min(t,(wx-c*t)));
-    y=kind==='L'?r*t+local:r*t+(t-local);
+    if(Math.abs(dx)<0.001) return Math.min(s.y1,s.y2);
+    const u=Math.max(0,Math.min(1,(wx-s.x1)/dx));
+    return s.y1+(s.y2-s.y1)*u;
   }
-  // Round only the true foot/crest of a run — per-tile fillets make stairs.
-  const contHigh=kind==='R'
-    ? gridSlopeKind(c+1,r-1)==='R'
-    : gridSlopeKind(c-1,r-1)==='L';
-  if(contHigh) return y;
-  const fillet=Math.min(t*0.28, 10);
-  if(kind==='L'){
-    const d=wx-c*t;
-    if(d>=0&&d<fillet){
-      const bump=fillet-Math.sqrt(Math.max(0,fillet*fillet-(fillet-d)*(fillet-d)));
-      y+=bump*0.35;
-    }
-  }else{
-    const d=(c+1)*t-wx;
-    if(d>=0&&d<fillet){
-      const bump=fillet-Math.sqrt(Math.max(0,fillet*fillet-(fillet-d)*(fillet-d)));
-      y+=bump*0.35;
-    }
-  }
-  return y;
+  const t=MV_GRID.tile;
+  const local=Math.max(0,Math.min(t,wx-c*t));
+  return kind==='L'?r*t+local:r*t+(t-local);
 }
 
 function _gridReadTilesetSlopes(data){
@@ -286,8 +277,14 @@ function gridRayHit(x1,y1,x2,y2,opts){
     const tNear=0;
     const hit=latch(startC,startR,tNear,nx,ny);
     if(hit){
-      if(uy<0){ hit.ty=(startR+1)*tile; hit.ny=1; hit.nx=0; }
-      else if(uy>0){ hit.ty=startR*tile; hit.ny=-1; hit.nx=0; }
+      const st=gridCell(startC,startR);
+      // A slab has a flat near face. A ramp does not: its near face IS the
+      // drawn hypotenuse, so keep the slope's angle/normal (rope anchors and
+      // ledge clamps lean the same way the visible ramp does).
+      if(st!==MV_GRID_SLOPE_L&&st!==MV_GRID_SLOPE_R){
+        if(uy<0){ hit.ty=(startR+1)*tile; hit.ny=1; hit.nx=0; }
+        else if(uy>0){ hit.ty=startR*tile; hit.ny=-1; hit.nx=0; }
+      }
       return hit;
     }
   }
@@ -379,6 +376,11 @@ function _gridRasterizeRegions(regions, grid, cols, rows, tile){
  * Every diagonal edge of a solid outline becomes a real slope surface, clipped
  * per cell. This is why the hill reads as one clean ramp instead of a stair of
  * guessed tile GIDs — the geometry comes from the line the level was drawn with.
+ *
+ * One row can cross several columns (a shallow roof lip) and one column can
+ * cross several rows (a steep face). Stamp EVERY cell the drawn edge crosses,
+ * with the exact piece of that edge inside the cell — stamping only the
+ * midpoint cell left the rest of a shallow diagonal as a flat tile top.
  */
 function _gridStampRegionSlopes(regions, grid, slopeSurf, cols, rows, tile){
   for(const rg of regions){
@@ -388,21 +390,37 @@ function _gridStampRegionSlopes(regions, grid, slopeSurf, cols, rows, tile){
       const a=pts[i], b=pts[(i+1)%pts.length];
       const dx=b.x-a.x, dy=b.y-a.y;
       if(Math.abs(dx)<0.5||Math.abs(dy)<0.5) continue;
-      const yLo=Math.min(a.y,b.y), yHi=Math.max(a.y,b.y);
-      const xAt=y=>a.x+dx*((y-a.y)/dy);
+      // Just under the edge must be inside this solid ring: only then is the
+      // drawn line its top outline (a ceiling or a ring side has rock above).
+      if(!_gridPointInPoly(pts,(a.x+b.x)*0.5,(a.y+b.y)*0.5+Math.min(2,tile*0.25))) continue;
+      const yLo=Math.max(0,Math.min(a.y,b.y)), yHi=Math.min(rows*tile,Math.max(a.y,b.y));
+      const xLo=Math.max(0,Math.min(a.x,b.x)), xHi=Math.min(cols*tile,Math.max(a.x,b.x));
       const r0=Math.floor(yLo/tile), r1=Math.floor((yHi-0.001)/tile);
       for(let r=r0;r<=r1;r++){
         if(r<0||r>=rows) continue;
-        const yTop=Math.max(yLo, r*tile), yBot=Math.min(yHi, (r+1)*tile);
+        const yTop=Math.max(yLo,r*tile), yBot=Math.min(yHi,(r+1)*tile);
         if(yBot-yTop<0.001) continue;
-        let p1={x:xAt(yTop),y:yTop}, p2={x:xAt(yBot),y:yBot};
-        if(p1.x>p2.x){ const s=p1; p1=p2; p2=s; }
-        const c=Math.floor((p1.x+p2.x)*0.5/tile);
-        if(c<0||c>=cols) continue;
-        // A diagonal with rock overhead is a ceiling, not something to ride.
-        if(r>0&&grid[r-1][c]===MV_GRID_SOLID) continue;
-        grid[r][c]=p2.y>p1.y?MV_GRID_SLOPE_L:MV_GRID_SLOPE_R;
-        slopeSurf[r*cols+c]={x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,angle:Math.atan2(p2.y-p1.y,p2.x-p1.x)};
+        const xA=a.x+dx*((yTop-a.y)/dy), xB=a.x+dx*((yBot-a.y)/dy);
+        const xa=Math.max(xLo,Math.min(xA,xB)), xb=Math.min(xHi,Math.max(xA,xB));
+        for(let c=Math.floor(xa/tile);c<=Math.floor((xb-0.001)/tile);c++){
+          if(c<0||c>=cols) continue;
+          // A diagonal with rock overhead is a ceiling, not something to ride.
+          if(r>0&&grid[r-1][c]===MV_GRID_SOLID) continue;
+          const lx=Math.max(xa,c*tile), rx=Math.min(xb,(c+1)*tile);
+          if(rx-lx<0.001) continue;
+          let ly=a.y+dy*((lx-a.x)/dx), ry=a.y+dy*((rx-a.x)/dx);
+          ly=Math.max(yTop,Math.min(yBot,ly));
+          ry=Math.max(yTop,Math.min(yBot,ry));
+          // Where two edges meet in one cell, keep the topmost drawn outline.
+          const key=r*cols+c, prev=slopeSurf[key];
+          if(prev){
+            const px=(lx+rx)*0.5, pdx=prev.x2-prev.x1;
+            const oldY=prev.y1+(prev.y2-prev.y1)*(pdx?Math.max(0,Math.min(1,(px-prev.x1)/pdx)):0);
+            if(oldY<=(ly+ry)*0.5) continue;
+          }
+          grid[r][c]=ry>ly?MV_GRID_SLOPE_L:MV_GRID_SLOPE_R;
+          slopeSurf[key]={x1:lx,y1:ly,x2:rx,y2:ry,angle:Math.atan2(ry-ly,rx-lx)};
+        }
       }
     }
   }
