@@ -380,7 +380,12 @@ const _FWD_TAP=14, _FWD_GAP=16, _FWD_PAIR=6;   // forward tap length, gap before
 // a HOLD charges the loaded punch. Keep the tap window below both heroes' load
 // thresholds (MIND loadF=24, Venture loadF=14) so a loaded punch is never read as
 // a turbo tap. A single short tap is just a normal light punch.
-const _TURBO_TAP_F=12, _TURBO_PAIR_F=24;   // short-press length, gap for the two-tap pair
+// Real keyboard/gamepad taps are NOT 3 frames - in a real browser a quick tap is
+// ~10-20 frames (60 fps). The old 12-frame window rejected every real tap as a
+// "hold", so turbo never toggled in actual play (only in synthetic probes).
+// A tap is now anything released before it becomes a LOADED punch; the pair gap
+// is generous. A genuine loaded punch (held past hero loadF) is excluded below.
+const _TURBO_TAP_F=30, _TURBO_PAIR_F=48;
 function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
@@ -434,7 +439,9 @@ function _updateRunEntry(pl){
     pl._punchHoldN=(pl._punchHoldN||0)+1;
   }
   if(punchFall){
-    if(pl._turboTapArmed&&standing&&!_otherKey&&(pl._stillT||0)>=120&&(pl._punchHoldN||0)<=_TURBO_TAP_F&&!(pl._ignTapLock>0)){
+    // A real loaded punch (charge reached the hero's loadF) is NEVER a turbo tap.
+    const _wasLoaded=(pl.pCharge||0)>((typeof _heroPunch==='function')?_heroPunch(pl).loadF:24);
+    if(pl._turboTapArmed&&!_wasLoaded&&standing&&!_otherKey&&(pl._stillT||0)>=120&&(pl._punchHoldN||0)<=_TURBO_TAP_F&&!(pl._ignTapLock>0)){
       // a short idle tap: remember the first one, flip only on the second
       if(pl._turboTap1&&fr-(pl._turboTap1T||0)<=_TURBO_PAIR_F){
         pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
@@ -603,6 +610,10 @@ function _spawnPartner(){
     p2=null; return;
   }
   p2=mkP();
+  // Paulo: P2 must NOT start holding every item. mkP() copies the global ITEM,
+  // so a fresh partner would inherit P1's jack (and the unlock mask already
+  // grants all four). Start him empty-handed (-1); he picks jacks up in play.
+  p2.item=-1; p2.xlrOn=false; p2.magOn=false;
   // In human co-op both brothers are chosen in the party setup; the AI ally
   // in solo is still the opposite brother.
   p2.hero=(_playerCount===2&&_p2HeroChoice)?_p2HeroChoice:(_heroChoice==='mind'?'venture':'mind');
