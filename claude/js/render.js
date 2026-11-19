@@ -1242,6 +1242,34 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           sfx('hit');
         }
       }
+      // Nov 18 (Paulo): a LOADED punch on your human co-op brother knocks the jack
+      // clean out of his hands so you can scoop it up. Playful horseplay only —
+      // no damage, no knockback of the brother, and a light punch does nothing.
+      // The AI sibling (S in beta_sibling.js) keeps its own 3-punch punch-back beat;
+      // this check is human co-op P2 only.
+      if(!p._hitDone && typeof p2!=='undefined' && p2 && p2!==p && !p2._aiCompanion &&
+         typeof _playerCount!=='undefined' && _playerCount===2){
+        const bh=typeof playerCoreHB==='function'?playerCoreHB(p2):{x:p2.x+6,y:p2.y+18,w:52,h:42};
+        if(bh.w>0&&bh.h>0){
+          const bw=26,bhgt=26;
+          if(_fistHitsHB(_wx-bw*0.5,_wy-bhgt*0.5,bw,bhgt,bh)&&_punchReach(shWX,shWY,_wx,_wy,bh)){
+            const loaded=_charged||(p.pCd>4);            // same loaded read as the enemy hit above
+            if(loaded){
+              p._hitDone=true;_hit=true;_hitKind='brother';
+              const cx=p2.x+SW/2, cy=p2.y+FEET_OFF-8;
+              if(p2.item>=0&&typeof _spawnItemDrop==='function'){
+                // flag the drop as co-op horseplay so it can be re-picked even when
+                // the jack is already in the shared unlock mask (weapons.js)
+                _spawnItemDrop(p2.item,cx,cy,{coopDrop:true});
+                p2.item=-1; p2.xlrOn=false; p2.magOn=false;
+                if(typeof spawnHitBurst==='function') spawnHitBurst(cx,cy,Math.cos(punchAngle)*2,Math.sin(punchAngle)*2-1,'#ffe0a0',9);
+              }
+              p._pRecoil=10;
+              try{ sfx('hit'); }catch(e){}
+            }
+          }
+        }
+      }
       // Paulo (Oct 20): a punch that lands should look and sound like it (beta_impact.js)
       if(_hit&&typeof _punchConnect==='function') try{ _punchConnect(_wx,_wy,punchAngle,_charged,_hitKind); }catch(e){}
     }

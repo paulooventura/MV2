@@ -1325,13 +1325,15 @@ let ITEM_DROPS=[];
 function _spawnItemDrop(item, x, y, opts){
   if(item<0||item>3) return;
   const enhanced=!!(opts&&opts.enhanced);
+  // co-op horseplay drop: re-collectable even when the jack is already unlocked
+  const coopDrop=!!(opts&&opts.coopDrop);
   let fy=y, fx=x;
   if(typeof gridStandY==='function'&&typeof _gridReady==='function'&&_gridReady()){
     const s=gridStandY(x, y+8, {maxUp:48, maxDrop:160});
     if(s!=null) fy=s;
   }
   const sz=typeof _itemBoxSize==='function'?_itemBoxSize():{w:36,h:36};
-  ITEM_DROPS.push({item, enhanced, x:fx-sz.w*0.5, y:fy-sz.h, w:sz.w, h:sz.h, got:false, bob:Math.random()*Math.PI*2});
+  ITEM_DROPS.push({item, enhanced, coopDrop, x:fx-sz.w*0.5, y:fy-sz.h, w:sz.w, h:sz.h, got:false, bob:Math.random()*Math.PI*2});
 }
 function _collectItemDrop(d){
   if(!d||d.item<0||d.item>3) return false;
@@ -1386,7 +1388,7 @@ function updateItemDrops(){
       const h=playerCoreHB(p);
       if(ov(h.x-4,h.y-4,h.w+8,h.h+8,d.x,d.y,d.w,d.h)){
         const lab=typeof _itemLabMode!=='undefined'&&_itemLabMode;
-        const canTake=lab||!_itemUnlocked(d.item)||d.enhanced;
+        const canTake=lab||d.coopDrop||!_itemUnlocked(d.item)||d.enhanced;
         if(canTake&&_collectItemDrop(d)){
           d.got=true;
           for(let pi=0;pi<10;pi++){
@@ -1561,6 +1563,24 @@ function updateCoopPlayer2(){
         spawnDebris(bw,8); hitAny=true;
       }
     }
+    // Nov 18 (Paulo): mirror of P1's horseplay — a punch that connects with your
+    // brother knocks his jack loose so it can be picked back up. Playful only, no
+    // damage. P2 has no separate charge meter (its punch is a single throw), so a
+    // connected P2 punch is the "loaded" one for this rule.
+    if(typeof _playerCount!=='undefined'&&_playerCount===2&&!p2._aiCompanion&&
+       typeof p!=='undefined'&&p&&p!==p2&&ITEM>=0){
+      const ph=typeof playerCoreHB==='function'?playerCoreHB(p):{x:p.x+6,y:p.y+18,w:52,h:42};
+      if(ph.w>0&&ph.h>0&&ov(fistCX-fistR,fistCY-fistR,fistR*2,fistR*2,ph.x,ph.y,ph.w,ph.h)){
+        const cx=p.x+SW/2, cy=p.y+FEET_OFF-8;
+        if(typeof _spawnItemDrop==='function'){
+          _spawnItemDrop(ITEM,cx,cy,{coopDrop:true});
+          ITEM=-1;
+        }
+        hitAny=true;
+        if(typeof spawnHitBurst==='function') spawnHitBurst(cx,cy,(p2.fc?1:-1)*2,-1,'#ffe0a0',9);
+        try{ sfx('hit'); }catch(e){}
+      }
+    }
     if(hitAny) p2.vx+=(p2.fc?-1:1)*1.2;
   }
   withPlayerContext(p2,()=>{ if(p2.hook&&p2.hook.st!=='idle') updateHook(); });
@@ -1574,6 +1594,8 @@ function updateCoopPlayer2(){
   if(p2.y>WH+100){
     const ai=!!p2._aiCompanion,h=p2.hero;
     p2=mkP(); p2.hero=h; p2._aiCompanion=ai;
+    // Nov 18 (Paulo): a fresh P2 starts empty-handed, not holding all of P1's jacks
+    p2.item=-1; p2.xlrOn=false; p2.magOn=false;
     // Paulo: a pit fall re-spawns P2 at the stage entrance (MindSpawn), like MIND.
     // The +48 mirrors the co-op stage-start offset so P2 doesn't stack on P1.
     p2.x=_spawnX+48; p2.y=_spawnY;
@@ -1590,7 +1612,7 @@ function updateCoopPlayer2(){
       p2.vx=Math.max(-5,Math.min(5,(p2.vx||0)*0.38+_k2.x));
       p2.vy=Math.max(-3,Math.min(1,Math.min(p2.vy||0,0.4)+_k2.y));
       sfx('hurt',_hitSfxPitch(p2.hp,p2.maxHp||PLAYER_MAX_HP));
-      if(p2.hp<=0){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.x=p.x+36;p2.y=p.y;}
+      if(p2.hp<=0){const ai=!!p2._aiCompanion,h=p2.hero;p2=mkP();p2.hero=h;p2._aiCompanion=ai;p2.item=-1;p2.xlrOn=false;p2.magOn=false;p2.x=p.x+36;p2.y=p.y;}
       break;
     }
   }

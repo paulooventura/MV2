@@ -444,6 +444,8 @@
     p2=null;
     if(_playerCount===2&&typeof mkP==='function'){
       p2=mkP(); p2.hero=(_playerCount===2&&_p2HeroChoice)?_p2HeroChoice:(p.hero==='venture'?'mind':'venture');
+      // Nov 18 (Paulo): a fresh P2 starts empty-handed, not holding all of P1's jacks
+      p2.item=-1; p2.xlrOn=false; p2.magOn=false;
       p2.x=p.x+48; p2.y=p.y; p2.vx=0; p2.vy=0; p2.og=true; p2.hp=p2.maxHp; p2.fc=true; p2._aiCompanion=false;
     }
     _unlockedMask=B.carryMask|0; ITEM=_unlockedMask?[1,2,3,0].find(i=>_unlockedMask&(1<<i)):-1; B.lastMask=_unlockedMask;
