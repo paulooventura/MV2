@@ -9,6 +9,135 @@
 //  Depends on: physics.js, player.js, enemies.js, audio.js
 // ============================================================
 
+// ── "What you see is what hits" collision primitives ──────────
+// Paulo's universal rule: a prop's hitbox follows its drawn form. Break-walls
+// and crates are DRAWN as rectangles that spin about their centre (bw.rot /
+// c.rot), and laser shots are DRAWN as a streak along the velocity with a
+// round head. The old code collided a centre AABB: rotated art had an AABB
+// footprint (wrong corners), and the long visible trail could pass through a
+// foe without touching it. These local helpers close both gaps. physics.js
+// gives us _pointInPoly but no OBB overlap, so the small SAT / capsule tests
+// live here (weapons.js owns props & projectiles). All math is world-space,
+// so it is camera-safe, and every test is O(4 edges) - bounded cost.
+
+// 4 world corners of {x,y,w,h,rot} (x,y = top-left of the unrotated box,
+// rotation about its centre) - exactly the frame render.js uses.
+function _obbCorners(b){
+  const x=b.x||0, y=b.y||0, w=b.w||0, h=b.h||0, rot=b.rot||0;
+  const hw=w*0.5, hh=h*0.5;
+  if(!rot) return [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+  const cx=x+hw, cy=y+hh, c=Math.cos(rot), s=Math.sin(rot);
+  return [{x:cx-hw*c+hh*s, y:cy-hw*s-hh*c},
+          {x:cx+hw*c+hh*s, y:cy+hw*s-hh*c},
+          {x:cx+hw*c-hh*s, y:cy+hw*s+hh*c},
+          {x:cx-hw*c-hh*s, y:cy-hw*s+hh*c}];
+}
+function _polyCentroid2(pts){
+  let x=0,y=0;
+  for(const v of pts){ x+=v.x; y+=v.y; }
+  return {x:x/pts.length, y:y/pts.length};
+}
+// Separating-axis test for two convex quads. Returns the minimum translation
+// vector that pushes A OUT of B ({nx,ny,depth}), or null when separated.
+// For two AABBs this is identical to the old overlapX / overlapY logic.
+function _satMTV(A,B){
+  const ac=_polyCentroid2(A), bc=_polyCentroid2(B);
+  let best=Infinity, bx=0, by=0;
+  for(const poly of [A,B]){
+    for(let i=0;i<poly.length;i++){
+      const p=poly[i], q=poly[(i+1)%poly.length];
+      let nx=-(q.y-p.y), ny=q.x-p.x;
+      const len=Math.hypot(nx,ny);
+      if(len<1e-6) continue;
+      nx/=len; ny/=len;
+      let aMin=Infinity,aMax=-Infinity,bMin=Infinity,bMax=-Infinity;
+      for(const v of A){ const d=v.x*nx+v.y*ny; if(d<aMin)aMin=d; if(d>aMax)aMax=d; }
+      for(const v of B){ const d=v.x*nx+v.y*ny; if(d<bMin)bMin=d; if(d>bMax)bMax=d; }
+      if(aMax<=bMin||bMax<=aMin) return null;              // a separating axis exists
+      const depth=Math.min(aMax-bMin,bMax-aMin);
+      if(depth<best){
+        best=depth;
+        const dir=(ac.x-bc.x)*nx+(ac.y-bc.y)*ny;           // point B -> A
+        bx=dir<0?-nx:nx; by=dir<0?-ny:ny;
+      }
+    }
+  }
+  return {nx:bx,ny:by,depth:best};
+}
+function _boxHitsRect(box,rect){
+  if(!box||!rect||!(rect.w>0)||!(rect.h>0)) return false;
+  return !!_satMTV(_obbCorners(box),_obbCorners(rect));
+}
+
+// Capsule (thick segment) vs oriented box. The capsule is the shot's visible
+// streak; the box is a prop's rotated footprint or an actor's AABB.
+function _capPtSegD2(px,py,x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1, L2=dx*dx+dy*dy;
+  let t=L2>1e-9?((px-x1)*dx+(py-y1)*dy)/L2:0;
+  t=t<0?0:t>1?1:t;
+  const ex=px-(x1+t*dx), ey=py-(y1+t*dy);
+  return ex*ex+ey*ey;
+}
+function _capSegCross(ax,ay,bx,by,cx,cy,dx,dy){
+  const d1=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+  const d2=(bx-ax)*(dy-ay)-(by-ay)*(dx-ax);
+  const d3=(dx-cx)*(ay-cy)-(dy-cy)*(ax-cx);
+  const d4=(dx-cx)*(by-cy)-(dy-cy)*(bx-cx);
+  return ((d1>0)!==(d2>0))&&((d3>0)!==(d4>0));
+}
+function _capPtInPoly(px,py,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const a=pts[i], b=pts[j];
+    if(((a.y>py)!==(b.y>py))&&(px<(b.x-a.x)*(py-a.y)/(b.y-a.y)+a.x)) inside=!inside;
+  }
+  return inside;
+}
+function _capsuleHitsBox(x1,y1,x2,y2,r,box){
+  if(!box||!(box.w>0)||!(box.h>0)) return false;
+  const pts=_obbCorners(box), r2=r*r;
+  if(_capPtInPoly(x1,y1,pts)||_capPtInPoly(x2,y2,pts)) return true;
+  for(const v of pts) if(_capPtSegD2(v.x,v.y,x1,y1,x2,y2)<=r2) return true;
+  for(let i=0;i<4;i++){
+    const a=pts[i], b=pts[(i+1)%4];
+    if(_capSegCross(x1,y1,x2,y2,a.x,a.y,b.x,b.y)) return true;
+    if(_capPtSegD2(x1,y1,a.x,a.y,b.x,b.y)<=r2||_capPtSegD2(x2,y2,a.x,a.y,b.x,b.y)<=r2) return true;
+  }
+  return false;
+}
+
+// The OFFENSIVE hitbox: the whole drawn streak, from its tail to the bright
+// head. Mirrors drawFX (render.js) so the visible trail actually hits. The
+// tail is pulled back to also cover the previous position (anti-tunnelling)
+// and the radius matches the drawn head / bright core width.
+function _shotStrikeCapsule(s){
+  const sp=Math.hypot(s.vx,s.vy)||1, ux=s.vx/sp, uy=s.vy/sp;
+  const isEnemy=s.owner==='enemy'||s.col==='#ff4400'||s.col==='#ff3355'||s.col==='#ff5533';
+  const charged=!!s.charged, enh=!!s.enhanced&&!isEnemy;
+  const spdFac=isEnemy?1:Math.min(1,sp/16);
+  const trail=(charged?34:20)*Math.max(isEnemy?0.95:0.7,spdFac)*(enh?2.15:1);
+  const head=(charged?10:6)*Math.max(0.7,spdFac);
+  const px=s.x-(s.vx||0), py=s.y-(s.vy||0);
+  const swept=Math.max(0,-((px-s.x)*ux+(py-s.y)*uy));
+  const back=Math.max(trail,swept);
+  const r=charged?(enh?5.5:4.5):(enh?3.6:3);
+  return {x1:s.x-ux*back,y1:s.y-uy*back,x2:s.x+ux*head,y2:s.y+uy*head,r,ux,uy,head,trail};
+}
+// The STOPPING hitbox for world solids: a short swept capsule from the
+// previous position to the bright head. The trailing motion-blur ghost must
+// not glue a freshly-fired shot to the wall it just left.
+function _shotHeadCapsule(s){
+  const sp=Math.hypot(s.vx,s.vy)||1, ux=s.vx/sp, uy=s.vy/sp;
+  const head=(s.charged?10:6)*Math.max(0.7,Math.min(1,sp/16));
+  return {x1:s.x-(s.vx||0),y1:s.y-(s.vy||0),x2:s.x+ux*head,y2:s.y+uy*head,r:s.charged?4:2.8,ux,uy,head};
+}
+function _shotCapsuleHitsEnemy(s,e){
+  const hb=typeof _enemyItemHB==='function'?_enemyItemHB(e):{x:e.x,y:e.y,w:e.w,h:e.h};
+  if(!hb||hb.w<=0||hb.h<=0) return false;
+  const c=_shotStrikeCapsule(s);
+  return _capsuleHitsBox(c.x1,c.y1,c.x2,c.y2,c.r,hb);
+}
+
 // ── Breakable wall constants ──────────────────────────────────
 const BWALL_IMPACT_DMG=6.5, BWALL_IMPACT_HARD=10.5;
 
@@ -204,7 +333,7 @@ function _bwallSolids(skip){
   const out=TR.map(_normPlat);
   for(const bw of BWALLS){
     if(bw===skip||bw.hp<=0||bw.movable) continue;
-    out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,tp:'solid'});
+    out.push({x:bw.x,y:bw.y,w:bw.w,h:bw.h,rot:bw.rot||0,tp:'solid'});
   }
   return out;
 }
@@ -226,6 +355,25 @@ function _resolveBwallAgainstSolids(bw,solids,prevY){
   for(let pass=0;pass<10;pass++){
     let any=false;
     for(const q of solids){
+      if(bw.rot){
+        // Oriented footprint: resolve on the rotated box's real edges. The
+        // 4-corner SAT footprint is what drawBreakWall / drawCrate actually
+        // paint, so an empty AABB corner can no longer block the box and a
+        // rotated corner can no longer pass through a solid.
+        const mtv=_satMTV(_obbCorners(bw),_obbCorners(q));
+        if(!mtv) continue;
+        bw.x+=mtv.nx*mtv.depth; bw.y+=mtv.ny*mtv.depth;
+        if(mtv.ny<-0.5){                                  // pushed up: landed on q
+          if(live&&bw.vy>3.4){ bw.vy=-bw.vy*0.55; bw.spin=(bw.spin||0)+(bw.vx||0)*0.04; bw.og=false; }
+          else{ bw.vy=0; bw.og=true; }
+        }else if(Math.abs(mtv.nx)>Math.abs(mtv.ny)){
+          if(live&&Math.abs(bw.vx)>0.6){ bw.vx=-bw.vx*0.58; bw.spin=(bw.spin||0)-Math.sign(mtv.nx)*0.12; }
+          else bw.vx=0;
+        }else if(mtv.ny>0){ bw.vy=0; }                   // pushed down: hit a ceiling
+        else{ bw.vy=0; bw.og=true; }
+        any=true;
+        continue;
+      }
       if(!ov(bw.x,bw.y,bw.w,bw.h,q.x,q.y,q.w,q.h)) continue;
       const overlapX=Math.min(bw.x+bw.w,q.x+q.w)-Math.max(bw.x,q.x);
       const overlapY=Math.min(bw.y+bw.h,q.y+q.h)-Math.max(bw.y,q.y);
@@ -255,24 +403,33 @@ function _resolveBwallAgainstSolids(bw,solids,prevY){
 function _boxEdgeSupport(box, solids){
   const y=box.y+box.h;
   const inset=Math.max(3, box.w*0.14);
-  const pts=[box.x+inset, box.x+box.w*0.5, box.x+box.w-inset];
+  // For a rotated box sample along the DRAWN bottom edge (bottom-left corner
+  // to bottom-right corner), not the flat AABB bottom line.
+  const pts=box.rot?(()=>{ const cs=_obbCorners(box);
+    return [0,0.5,1].map(t=>({x:cs[3].x+(cs[2].x-cs[3].x)*t, y:cs[3].y+(cs[2].y-cs[3].y)*t}));
+  })():[box.x+inset, box.x+box.w*0.5, box.x+box.w-inset];
+  const pxOf=i=>box.rot?pts[i].x:pts[i], pyOf=i=>box.rot?pts[i].y:y;
   const hit=[false,false,false];
   for(const q of solids){
     if(!q||q.tp==='ceil') continue;
+    let qx=q.x,qy=q.y,qw=q.w,qh=q.h;
+    if(q.rot){ const cs=_obbCorners(q); qx=Math.min(...cs.map(v=>v.x)); qy=Math.min(...cs.map(v=>v.y));
+      qw=Math.max(...cs.map(v=>v.x))-qx; qh=Math.max(...cs.map(v=>v.y))-qy; }
     for(let i=0;i<3;i++){
-      const px=pts[i];
-      if(px>=q.x&&px<=q.x+q.w&&y>=q.y-4&&y<=q.y+10&&box.y<q.y) hit[i]=true;
+      const px=pxOf(i), py=pyOf(i);
+      if(px>=qx&&px<=qx+qw&&py>=qy-4&&py<=qy+10&&box.y<qy) hit[i]=true;
     }
   }
   if(typeof _gridReady==='function'&&_gridReady()){
     const t=MV_GRID.tile;
     for(let i=0;i<3;i++){
       if(hit[i]) continue;
-      const c=Math.floor(pts[i]/t), r=Math.floor((y+1)/t);
-      if(gridSolid(c,r)&&Math.abs(y-r*t)<=5) hit[i]=true;
+      const px=pxOf(i), py=pyOf(i);
+      const c=Math.floor(px/t), r=Math.floor((py+1)/t);
+      if(gridSolid(c,r)&&Math.abs(py-r*t)<=5) hit[i]=true;
       else if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){
-        const sy=gridSlopeY(c,r,pts[i]);
-        if(sy!=null&&Math.abs(y-sy)<=5) hit[i]=true;
+        const sy=gridSlopeY(c,r,px);
+        if(sy!=null&&Math.abs(py-sy)<=5) hit[i]=true;
       }
     }
   }
@@ -514,17 +671,19 @@ function _reflectShot(s,q,keep){
 }
 function _shotHitsPermanent(s,plats){
   if(!plats) return false;
+  const c=_shotHeadCapsule(s);
   for(const q of plats){
     if(!q||q.mv||q.mp||q.tp==='oneway') continue;
     if(q.tp&&q.tp!=='solid'&&q.tp!=='ceil') continue;
-    if(ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h)) return true;
+    if(_capsuleHitsBox(c.x1,c.y1,c.x2,c.y2,c.r,q)) return true;
   }
   return false;
 }
 function _shotHitsMovingPlat(s){
+  const c=_shotHeadCapsule(s);
   for(const q of _movingShotPlats()){
     if(!q||q.w==null) continue;
-    if(ov(s.x-4,s.y-4,8,8,q.x,q.y,q.w,q.h||14)) return q;
+    if(_capsuleHitsBox(c.x1,c.y1,c.x2,c.y2,c.r,{x:q.x,y:q.y,w:q.w,h:q.h||14})) return q;
   }
   return null;
 }
@@ -557,14 +716,15 @@ function updatePlayerShots(){
     s.x+=s.vx; s.y+=s.vy; s.life--;
     _trsTraceShot(s);
     if(s.life<=0&&!s._fizzle){ spawnLaserFizzle(s); p.shots.splice(i,1); continue; }
+    const strike=_shotStrikeCapsule(s);
     let dead=false;
     for(const e of ENEMS){
       if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner}); _tryInterruptMindReboot(e); dead=true; break; }
+        if(_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,e)){ spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12); if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner}); _tryInterruptMindReboot(e); dead=true; break; }
         continue;
       }
       if(!_enemyCombatActive(e)) continue;
-      if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
+      if(_shotCapsuleHitsEnemy(s,e)){
         const ldmg=_trsLaserDmg(s);
         spawnHitBurst(s.x,s.y,s.vx,s.vy,'#44ff88',12);
         if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
@@ -582,7 +742,7 @@ function updatePlayerShots(){
     if(dead){p.shots.splice(i,1);continue;}
     for(const bw of BWALLS){
       if(bw.hp<=0) continue;
-      if(!ov(s.x-4,s.y-4,8,8,bw.x,bw.y,bw.w,bw.h)) continue;
+      if(!_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,bw)) continue;
       _damageBwall(bw,s.charged?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2,vx:bw.movable?s.vx*0.2:0,vy:bw.movable?s.vy*0.2:0});
       if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       p.shots.splice(i,1); dead=true; break;
@@ -598,7 +758,7 @@ function updatePlayerShots(){
       if(!enh){ s.vx*=0.88; s.vy*=0.88; s.life=Math.min(s.life,180); }
       spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'laser_bounce',bounces);
       if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
-    }else if((typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y))||_shotHitsPermanent(s,pl)){
+    }else if((typeof gridWorldSolid==='function'&&(gridWorldSolid(s.x,s.y)||gridWorldSolid(s.x+strike.ux*strike.head,s.y+strike.uy*strike.head)))||_shotHitsPermanent(s,pl)){
       spawnSpark(s.x,s.y,s.vx,s.vy);
       if(enh) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       spawnLaserFizzle(s); p.shots.splice(i,1); continue;
@@ -730,7 +890,9 @@ function _resolvePoolBodies(){
   const bodies=[];
   const add=(kind,a,x,y,w,h,mass)=>{
     if(!a||!isFinite(x)||!isFinite(y)||w<=0||h<=0) return;
-    bodies.push({kind,a,x,y,w,h,mass:mass||1});
+    // Only props spin; enemies / players keep an axis-aligned item HB.
+    const rot=(kind==='box'||kind==='crate')?(a.rot||0):0;
+    bodies.push({kind,a,x,y,w,h,mass:mass||1,rot});
   };
   for(const bw of BWALLS){
     if(bw.hp<=0||!bw.movable) continue;
@@ -760,15 +922,26 @@ function _resolvePoolBodies(){
         const bx=B.kind==='player'?(playerCoreHB(p).x):B.a.x;
         const by=B.kind==='player'?(playerCoreHB(p).y):B.a.y;
         A.x=ax; A.y=ay; B.x=bx; B.y=by;
-        if(!ov(A.x,A.y,A.w,A.h,B.x,B.y,B.w,B.h)) continue;
-        const overlapX=Math.min(A.x+A.w,B.x+B.w)-Math.max(A.x,B.x);
-        const overlapY=Math.min(A.y+A.h,B.y+B.h)-Math.max(A.y,B.y);
-        if(overlapX<=0||overlapY<=0) continue;
+        // SAT on the 4 drawn corners: a rotated crate/wall separates along
+        // its real edge, not the empty corner of its unrotated AABB. The
+        // rot=0 path stays the original AABB math, unchanged.
+        let nx,ny,pen;
+        if(!A.rot&&!B.rot){
+          if(!ov(A.x,A.y,A.w,A.h,B.x,B.y,B.w,B.h)) continue;
+          const overlapX=Math.min(A.x+A.w,B.x+B.w)-Math.max(A.x,B.x);
+          const overlapY=Math.min(A.y+A.h,B.y+B.h)-Math.max(A.y,B.y);
+          if(overlapX<=0||overlapY<=0) continue;
+          const horiz=overlapX<=overlapY;
+          nx=horiz?(A.x+A.w*0.5<=B.x+B.w*0.5?-1:1):0;
+          ny=horiz?0:(A.y+A.h*0.5<=B.y+B.h*0.5?-1:1);
+          pen=horiz?overlapX:overlapY;
+        }else{
+          const mtv=_satMTV(_obbCorners({x:A.x,y:A.y,w:A.w,h:A.h,rot:A.rot}),
+                            _obbCorners({x:B.x,y:B.y,w:B.w,h:B.h,rot:B.rot}));
+          if(!mtv) continue;
+          nx=mtv.nx; ny=mtv.ny; pen=mtv.depth;
+        }
         hits++;
-        const horiz=overlapX<=overlapY;
-        const nx=horiz?(A.x+A.w*0.5<=B.x+B.w*0.5?-1:1):0;
-        const ny=horiz?0:(A.y+A.h*0.5<=B.y+B.h*0.5?-1:1);
-        const pen=horiz?overlapX:overlapY;
         // Push-only / pull-only blocks don't get shoved by bodies: only their item moves them.
         const aKey=A.kind==='box'&&(A.a.only==='push'||A.a.only==='pull');
         const bKey=B.kind==='box'&&(B.a.only==='push'||B.a.only==='pull');
@@ -977,19 +1150,22 @@ function updateEnemyShots(){
       s.deflected=true;
       const _spd2=Math.hypot(s.vx,s.vy); if(_spd2>12){s.vx=s.vx/_spd2*12;s.vy=s.vy/_spd2*12;}
     }
+    // The visible streak is the hitbox for enemy shots too (render.js draws
+    // player and enemy lasers with the same drawFX streak + round head).
+    const strike=_shotStrikeCapsule(s);
     // Friendly fire: lasers hit other enemies (skip the shooter)
     let eHitShot=false;
     for(const e of ENEMS){
       if(s.src&&e===s.src) continue;
       if(e.mind&&!e.alive&&e._mindOff==='rebooting'){
-        if(ov(s.x-6,s.y-6,12,12,e.x,e.y,e.w,e.h)){
+        if(_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,e)){
           e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
           _tryInterruptMindReboot(e); ESHOTS.splice(i,1); eHitShot=true; break;
         }
         continue;
       }
       if(!_enemyCombatActive(e)) continue;
-      if(_shotHitsEnemy(s.x-6,s.y-6,12,12,e)){
+      if(_shotCapsuleHitsEnemy(s,e)){
         e.vx+=s.vx*0.22;e.vy+=s.vy*0.15;
         _damageEnemy(e,Math.round(ENM_DMG.laser*(s.power||1)),s.x,s.y);
         ESHOTS.splice(i,1); eHitShot=true; break;
@@ -998,7 +1174,7 @@ function updateEnemyShots(){
     if(eHitShot) continue;
     // Hit player
     const _pCoreS=playerCoreHB(p);
-    if(_shutdownTimer<=0&&ov(s.x-6,s.y-6,12,12,_pCoreS.x,_pCoreS.y,_pCoreS.w,_pCoreS.h)){
+    if(_shutdownTimer<=0&&_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,_pCoreS)){
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff4444',10);
       window._hitShotSrc=s.src||null;                      // who fired it (beta_mirror: D knocks your jack loose)
       try{ applyPlayerHit(s.vx*0.7,-2.4,PLAYER_HIT_DMG); } finally{ window._hitShotSrc=null; }
@@ -1008,7 +1184,9 @@ function updateEnemyShots(){
     // break electro blocks; push / pull blocks just take the hit)
     let eBlk=false;
     for(const bw of BWALLS){
-      if(bw.hp<=0||!ov(s.x-4,s.y-4,8,8,bw.x+(bw._ox||0),bw.y+(bw._oy||0),bw.w,bw.h)) continue;
+      if(bw.hp<=0) continue;
+      const _bwBox={x:bw.x+(bw._ox||0),y:bw.y+(bw._oy||0),w:bw.w,h:bw.h,rot:bw.rot||0};
+      if(!_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,_bwBox)) continue;
       if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfxAt(s,'omniblock_chip'); }catch(e){} }
       else _damageBwall(bw,(s.power||1)>1.5?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2});
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff6644',8);
@@ -1027,7 +1205,7 @@ function updateEnemyShots(){
         if(!s.born) s.born=fr;
         spawnSpark(s.x,s.y,s.vx,s.vy); sfxAt(s,'ping');
       }
-    }else if((typeof gridWorldSolid==='function'&&gridWorldSolid(s.x,s.y))||_shotHitsPermanent(s,allP())){
+    }else if((typeof gridWorldSolid==='function'&&(gridWorldSolid(s.x,s.y)||gridWorldSolid(s.x+strike.ux*strike.head,s.y+strike.uy*strike.head)))||_shotHitsPermanent(s,allP())){
       spawnSpark(s.x,s.y,-s.vx,-s.vy);
       ESHOTS.splice(i,1); eHit=true;
     }
@@ -1047,7 +1225,15 @@ function updateCrates(){
     c.movable=true;
     _updateRigidBox(c, solids);
     for(const q of pl){
-      if(ov(c.x,c.y,c.w,c.h,q.x,q.y,q.w,q.h)){
+      if(c.rot){
+        // Rotated crate: separate on its drawn edge via the SAT normal.
+        const mtv=_satMTV(_obbCorners(c),_obbCorners(q));
+        if(!mtv) continue;
+        c.x+=mtv.nx*mtv.depth; c.y+=mtv.ny*mtv.depth;
+        if(mtv.ny<-0.5){ c.vy=0; c.og=true; c.vx*=0.78; }
+        else if(mtv.ny>0.5){ c.vy=0; }
+        else{ const dir=-Math.sign(mtv.nx)||1; c.vx=(q.vx||0)*0.82+dir*0.35; }
+      }else if(ov(c.x,c.y,c.w,c.h,q.x,q.y,q.w,q.h)){
         if(c.vy>=0&&c.y+c.h<=q.y+8+Math.abs(c.vy)+2){c.y=q.y-c.h;c.vy=0;c.og=true;c.vx*=0.78;}
         else if(c.vy<0){c.y=q.y+q.h;c.vy=0;}
         else{
@@ -1313,7 +1499,7 @@ function updateCoopPlayer2(){
     }
     for(const bw of BWALLS){
       if(bw.hp<=0)continue;
-      if(ov(fistCX-fistR,fistCY-fistR,fistR*2,fistR*2,bw.x,bw.y,bw.w,bw.h)){
+      if(_boxHitsRect(bw,{x:fistCX-fistR,y:fistCY-fistR,w:fistR*2,h:fistR*2})){
         _damageBwall(bw,'punch',{shakeX:(p2.fc?1:-1)*4,shakeY:-2,vx:bw.movable?(p2.fc?6:-6):0,vy:bw.movable?-2:0});
         spawnDebris(bw,8); hitAny=true;
       }

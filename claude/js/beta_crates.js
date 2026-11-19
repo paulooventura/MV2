@@ -193,7 +193,15 @@
       for(const c of L){
         const b=box(c); if(b.broken) continue;                  // T490: a loose item doesn't stop shots (only a closed crate does)
         const R=rectOf(c);
-        if(s.x>R.x&&s.x<R.x+R.w&&s.y>R.y&&s.y<R.y+R.h){
+        // The shot's hitbox is its drawn streak (weapons.js), not a point at
+        // its centre - a fast bolt must not tunnel through a pallet it visibly
+        // crosses. Guarded so this module still works if loaded standalone.
+        let onIt=s.x>R.x&&s.x<R.x+R.w&&s.y>R.y&&s.y<R.y+R.h;
+        if(!onIt&&typeof _shotStrikeCapsule==='function'&&typeof _capsuleHitsBox==='function'){
+          const cap=_shotStrikeCapsule(s);
+          onIt=_capsuleHitsBox(cap.x1,cap.y1,cap.x2,cap.y2,cap.r,R);
+        }
+        if(onIt){
           damage(c, s.charged?CR.LASER_LOADED:CR.LASER, Math.atan2(s.vy||0,s.vx||1), s.charged?8:5, 'laser');
           try{ if(typeof spawnHitBurst==='function') spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ffcc66',10); }catch(e){}
           shots.splice(i,1); break;
