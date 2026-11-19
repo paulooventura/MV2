@@ -273,7 +273,14 @@ function _readPad1(g){
   set1('jump', bJump, bJump&&!s.prev[0]);
   set1('use',  false, rose(1));          // B = item SELECT (cycle)
   set1('swap', pressed(2), rose(2));     // X = USE item (held + tap)
-  set1('punch',false, rose(3));          // Y = punch
+  // Y = punch: write the HELD state too, not just the tap. Without this the pad
+  // only produced a one-frame just-press — no charge could build (loaded punch)
+  // and the held-idle gate could never see a punch press (turbo). This is why
+  // punch/loaded-punch/turbo were all dead when playing on an Xbox controller.
+  set1('punch', pressed(3), rose(3));
+  // Stale-save safety: an old browser may still have punch bound to KeyF. Mirror
+  // the pad's punch into both possible codes so either layout registers a hold.
+  for(const c of ['KeyB','KeyF']){ if((OPT.binds.punch||[]).indexOf(c)>=0) K[c]=!!KB1[c]||pressed(3); }
   set1('sprint',pressed(2));             // X = run
   if(_gameState==='partysetup'){
     const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
@@ -423,7 +430,11 @@ function _updateRunEntry(pl){
   const aimNone=!(typeof isUp==='function'&&isUp())&&!(typeof isDn==='function'&&isDn());
   const standing=!dir&&aimNone&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
   // any input except Punch resets the idle count (item button included now)
-  let _otherKey=false; try{ const pb=(OPT&&OPT.binds&&OPT.binds.punch)||[]; for(const k in K){ if(K[k]&&pb.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
+  // Treat BOTH the current punch bind and the legacy KeyF alias as "punch", never
+  // as another key — otherwise a pad press (which mirrors into KeyF) resets the
+  // idle counter every frame and turbo can never arm. Same for the pad-only codes.
+  const _punchCodes=((OPT&&OPT.binds&&OPT.binds.punch)||[]).concat(['KeyF','Sprint_gp','Sprint_gp2']);
+  let _otherKey=false; try{ for(const k in K){ if(K[k]&&_punchCodes.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
   // a follow-up double tap soon after the last one doesn't switch Turbo straight
   // back off: ignore it briefly (the 2 s idle counter does the rest).
