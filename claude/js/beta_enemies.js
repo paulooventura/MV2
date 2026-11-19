@@ -429,17 +429,41 @@
     if(e._ai==='square'||e.type==='square') return 4;
     return 0;
   }
-  function polyVerts(e){
-    const n=polyN(e); if(!n) return null;
-    const cx=e.x+e.w/2, cy=e.y+e.h/2, R=Math.min(e.w,e.h)*0.5;
-    const ang=(e._foe==='boss'?(e.rot||0):(e.ang||0));
-    const start=(n===4)?(ang+Math.PI/4):(ang-Math.PI/2);
+  // The DRAWN outline of a foe, in world coords. Every number here comes
+  // straight from the renderer that paints the body:
+  //   drawEye  (beta_foes.js)  → pentagon, R = w*0.55, angle = e.ang
+  //   drawCube (beta_foes.js)  → hexagon,  R = w*0.56, angle = e.spin+e.ang
+  //   drawBoss (beta_foes.js)  → heptagon, R = 56,     angle = e.rot
+  //   drawAi   (beta_enemies.js) → circle / rect / apex-up triangle, spun
+  //                                about the box centre (tri: its centroid)
+  // All of them are shifted up by the notch "lift", exactly as they are drawn.
+  // The old version used min(w,h)*0.5 for every body and ignored spin/lift, so
+  // the eye and cube hitboxes sat well inside their own artwork.
+  function regularPoly(cx,cy,R,n,rot){
     const v=[];
-    for(let i=0;i<n;i++){
-      const a=start+i*Math.PI*2/n;
-      v.push([cx+Math.cos(a)*R, cy+Math.sin(a)*R]);
-    }
+    for(let i=0;i<n;i++){ const a=rot-Math.PI/2+i*Math.PI*2/n; v.push([cx+Math.cos(a)*R, cy+Math.sin(a)*R]); }
     return v;
+  }
+  function polyVerts(e){
+    if(!e) return null;
+    const cx=e.x+e.w/2, cy=e.y+e.h/2, lift=e._lift||0;
+    const id=e._foe||e._ai;
+    if(id==='tri'&&!e._foe){
+      // apex (cx, cy-h/2), base corners (cx±w/2, cy+h/2); the spin pivot is the
+      // centroid h/6 below the box centre (see notchShape / drawAi).
+      const cOff=e.h/6, a=e.ang||0, co=Math.cos(a), si=Math.sin(a);
+      const rot=(lx,ly)=>[cx+lx*co-ly*si, cy+cOff-lift+lx*si+ly*co];
+      return [rot(0,-e.h*2/3), rot(-e.w/2,e.h/3), rot(e.w/2,e.h/3)];
+    }
+    if(id==='square'){
+      // drawAi paints rect(-s/2,-s/2,s,s) about the box centre: with R=w/√2
+      // and rot=ang+PI/4 the four corners land on (±w/2,±w/2) at ang=0.
+      return regularPoly(cx,cy-lift,e.w*Math.SQRT1_2,4,(e.ang||0)+Math.PI/4);
+    }
+    const n=polyN(e); if(!n) return null;
+    const R=e._foe==='boss'?56:e._foe==='cube'?e.w*0.56:e._foe==='eye'?e.w*0.55:Math.min(e.w,e.h)*0.5;
+    const rot=e._foe==='boss'?(e.rot||0):e._foe==='cube'?((e.spin||0)+(e.ang||0)):(e.ang||0);
+    return regularPoly(cx,cy-lift,R,n,rot);
   }
   function pointInPoly(x,y,v){
     let inn=false;
@@ -449,13 +473,14 @@
     }
     return inn;
   }
-  B.shapeBlocks=function(e,x,y,w,h){
-    const v=polyVerts(e); if(!v) return true;
-    const pts=[[x,y],[x+w,y],[x,y+h],[x+w,y+h],[x+w*0.5,y+h*0.5]];
-    for(const q of pts) if(pointInPoly(q[0],q[1],v)) return true;
-    for(const q of v) if(q[0]>=x&&q[0]<=x+w&&q[1]>=y&&q[1]<=y+h) return true;
-    return false;
-  };
+  // Segment intersection — used when a thin/rotated outline passes straight
+  // through a fist or shot without any corner landing inside it.
+  function segCross(ax,ay,bx,by,cx,cy,dx,dy){
+    const cross=(px,py,qx,qy,rx,ry)=>(qx-px)*(ry-py)-(qy-py)*(rx-px);
+    const a1=cross(ax,bx,cx,cy), a2=cross(ax,bx,dx,dy);
+    const b1=cross(cx,dx,ax,ay), b2=cross(cx,dx,bx,by);
+    return ((a1>0&&a2<0)||(a1<0&&a2>0))&&((b1>0&&b2<0)||(b1<0&&b2>0));
+  }
   // ── the notches (Paulo, Oct 31) ─────────────────────────────────
   // B, C, E, F and the heptagon are the most basic shapes (3, 4, 5, 6, 7 sides;
   // A is the circle and simply rolls), and they move like rigid ones. On the
@@ -1232,30 +1257,106 @@
     ctx.restore();
   }
   window.drawEnemy=function(e){ if(e&&e._foe&&B.foeDraw){ const r=B.foeDraw(e); drawMark(e); return r; } if(e&&e._ai){ const r=drawAi(e); drawMark(e); return r; } return _origDrawEnemy.apply(this, arguments); };
-  // ── T444 (Paulo, Nov 11): "the foe's hit box has to be the same as their shape." Shots and punches
-  //    were tested against the foe's bounding box (so the empty corners around a circle or a triangle
-  //    counted). Now: A a circle, B a triangle (point up), C its square, E / the water hexagon / the
-  //    boss a near-circle. A hit counts only if some of the shot / fist is inside the shape.
-  function shapeOf(e){ const id=e&&(e._ai||e._foe); return id==='circle'||id==='eye'||id==='cube'||id==='boss'?'round':id==='tri'?'tri':null; }
-  function inShape(e,x,y){
-    const kind=shapeOf(e); if(!kind) return true;
+  // ── Paulo's universal rule: every foe's combat hitbox IS its drawn outline.
+  //    T444 started this (circle / apex-up triangle / box); now it covers ALL
+  //    foes: pentagon eye, hexagon cube, heptagon boss, square and triangle
+  //    minions, the rolling ball, and the classic scaled-sprite minions. Punches,
+  //    shots, item force and body damage all read the same geometry. MIND rivals
+  //    (drawn as a full character) and SIGNOL already have exact HBs, so they
+  //    are deliberately left on their existing boxes/circle.
+  function foeGeom(e){
+    if(!e||e.mind||e.type==='signol') return null;
     const cx=e.x+e.w/2, cy=e.y+e.h/2;
-    if(kind==='round'){ const r=Math.min(e.w,e.h)*0.5; return (x-cx)*(x-cx)+(y-cy)*(y-cy)<=r*r; }
-    const ax=cx, ay=e.y, bx=e.x, by=e.y+e.h, qx=e.x+e.w, qy=e.y+e.h;                       // apex, bottom left, bottom right
-    const s=(x1,y1,x2,y2,x3,y3)=>(x1-x3)*(y2-y3)-(x2-x3)*(y1-y3);
-    const d1=s(x,y,ax,ay,bx,by), d2=s(x,y,bx,by,qx,qy), d3=s(x,y,qx,qy,ax,ay);
-    return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));
+    const id=e._foe||e._ai||'';
+    if(id==='eye'||id==='cube'||id==='boss'||id==='tri'||id==='square'){
+      const v=polyVerts(e); return v?{k:'p',v}:null;
+    }
+    if(id==='circle') return {k:'c',x:cx,y:cy,r:e.w*0.5};
+    // classic rank-and-file minions: render.js blits their sprites at 0.9 of
+    // the body box, centred; the flyer is a 10-point bat silhouette.
+    if(e.type==='circle') return {k:'c',x:cx,y:cy,r:e.w*0.45};
+    if(e.type==='square') return {k:'p',v:regularPoly(cx,cy,e.w*0.9*Math.SQRT1_2,4,0)};
+    if(e.type==='flyer'){
+      const hw=e.w*0.45, hh=e.h*0.45;
+      const pts=[[-1,-1],[-0.84,-0.5],[-0.5,0],[-0.34,-0.8],[-0.16,-0.8],[0,-0.2],
+                 [0.16,-0.8],[0.34,-0.8],[0.5,0],[0.84,-0.5],[1,-1],
+                 [0.5,0.5],[0.2,1],[-0.2,1],[-0.5,0.5]];
+      return {k:'p',v:pts.map(q=>[cx+q[0]*hw,cy+q[1]*hh])};
+    }
+    // shape-tagged foes from the editor / labs get their real outline too
+    if(e.shape==='ball'||e.shape==='circle') return {k:'c',x:cx,y:cy,r:Math.min(e.w,e.h)*0.45};
+    if(e.shape==='triangle') return {k:'p',v:[[cx,cy-e.h/2],[cx-e.w/2,cy+e.h/2],[cx+e.w/2,cy+e.h/2]]};
+    if(e.shape==='star'){
+      const v=[];
+      for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, r=(i%2?0.2:0.45)*e.w; v.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]); }
+      return {k:'p',v};
+    }
+    return null;
   }
-  function rectHitsShape(e,rx,ry,rw,rh){
-    if(!shapeOf(e)) return true;
-    const cx=e.x+e.w/2, cy=e.y+e.h/2;
-    if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh) return true;
-    for(const fx of [0,0.5,1]) for(const fy of [0,0.5,1]) if(inShape(e,rx+rw*fx,ry+rh*fy)) return true;
+  function inGeom(g,x,y){
+    if(!g) return true;
+    if(g.k==='c'){ const dx=x-g.x, dy=y-g.y; return dx*dx+dy*dy<=g.r*g.r; }
+    return pointInPoly(x,y,g.v);
+  }
+  // Rect vs outline: corners + centre + outline vertices + edge crossings.
+  // A 3x3 sample grid can miss a thin rotated shape slicing through the rect;
+  // the edge tests close that gap in a few ops, only once the boxes already overlap.
+  function rectHitsGeom(g,rx,ry,rw,rh){
+    if(!g) return true;
+    if(g.k==='c'){
+      const nx=Math.max(rx,Math.min(g.x,rx+rw)), ny=Math.max(ry,Math.min(g.y,ry+rh));
+      const dx=g.x-nx, dy=g.y-ny; return dx*dx+dy*dy<=g.r*g.r;
+    }
+    const v=g.v, n=v.length; if(!n) return true;
+    let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+    for(const q of v){
+      if(q[0]<minx)minx=q[0]; if(q[0]>maxx)maxx=q[0];
+      if(q[1]<miny)miny=q[1]; if(q[1]>maxy)maxy=q[1];
+    }
+    if(maxx<rx||minx>rx+rw||maxy<ry||miny>ry+rh) return false;
+    if(inGeom(g,rx+rw*0.5,ry+rh*0.5)) return true;
+    const rc=[[rx,ry],[rx+rw,ry],[rx+rw,ry+rh],[rx,ry+rh]];
+    for(const q of rc) if(inGeom(g,q[0],q[1])) return true;
+    for(const q of v) if(q[0]>=rx&&q[0]<=rx+rw&&q[1]>=ry&&q[1]<=ry+rh) return true;
+    for(let i=0,j=n-1;i<n;j=i++){
+      const a=v[i], b=v[j];
+      for(let k=0;k<4;k++) if(segCross(a[0],a[1],b[0],b[1],rc[k][0],rc[k][1],rc[(k+1)%4][0],rc[(k+1)%4][1])) return true;
+    }
     return false;
   }
+  B.foeGeom=foeGeom;
+  B.rectHitsFoe=(e,rx,ry,rw,rh)=>rectHitsGeom(foeGeom(e),rx,ry,rw,rh);
+  B.shapeBlocks=function(e,x,y,w,h){ return rectHitsGeom(foeGeom(e),x,y,w,h); };
+  function shapeOf(e){ return foeGeom(e)?'shape':null; }
+  function inShape(e,x,y){ return inGeom(foeGeom(e),x,y); }
+  function rectHitsShape(e,rx,ry,rw,rh){ return rectHitsGeom(foeGeom(e),rx,ry,rw,rh); }
   B.inFoeShape=inShape;
   { const _hb=window._enemyItemHB;
-    if(typeof _hb==='function') window._enemyItemHB=function(e){ const r=_hb.apply(this,arguments); if(r&&e&&B.on&&shapeOf(e)) r._e=e; return r; }; }
+    if(typeof _hb==='function') window._enemyItemHB=function(e){
+      const r=_hb.apply(this,arguments);
+      if(r&&e&&B.on){
+        const g=foeGeom(e);
+        if(g){
+          // Widen the broad-phase box to enclose the drawn outline; the shape
+          // tests trim it back to the pixels. The eye/cube art sticks several
+          // px outside e.x/e.y/e.w/e.h, so without this those hits were missed.
+          let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+          if(g.k==='c'){ minx=g.x-g.r; maxx=g.x+g.r; miny=g.y-g.r; maxy=g.y+g.r; }
+          else for(const q of g.v){
+            if(q[0]<minx)minx=q[0]; if(q[0]>maxx)maxx=q[0];
+            if(q[1]<miny)miny=q[1]; if(q[1]>maxy)maxy=q[1];
+          }
+          if(isFinite(minx)){
+            // half-pixel pad so art sitting exactly on the box edge is reachable
+            const right=Math.max(r.x+r.w,maxx)+0.5, bottom=Math.max(r.y+r.h,maxy)+0.5;
+            r.x=Math.min(r.x,minx)-0.5; r.y=Math.min(r.y,miny)-0.5;
+            r.w=Math.max(0,right-r.x); r.h=Math.max(0,bottom-r.y);
+          }
+          r._e=e;
+        }
+      }
+      return r;
+    }; }
   { const _f=window._fistHitsHB;
     if(typeof _f==='function') window._fistHitsHB=function(fx,fy,fw,fh,hb){ if(!_f.apply(this,arguments)) return false; return !(hb&&hb._e)||rectHitsShape(hb._e,fx,fy,fw,fh); }; }
   { const _s=window._shotHitsEnemy;
