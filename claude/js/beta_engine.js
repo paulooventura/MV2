@@ -239,15 +239,15 @@
   function switchTick(){
     if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return;
     const dir=typeof _moveInputX==='function'?_moveInputX():0;
-    const sport=typeof isSprintHeld==='function'&&isSprintHeld();
     // Paulo: a rev is the wheel driving against the FLOOR. In the air or on a rope the
     // engine never revs — it only idles. _playerOnGround() alone misses the rope, so
     // exclude that too (physics.js:2658 defines airborne as hook-on OR not grounded).
     const onFloor=(typeof _playerOnGround==='function'?!!_playerOnGround(p):!!p.og)&&!(p.hook&&p.hook.st==='on');
-    // Paulo, Nov 4 (build 359): the sports-mode switch (standing double-tap) starts the engine
-    // with its start-up sound and turns it off with the shut-down, even standing still; it no
-    // longer starts and stops every time he does. Shift-run keeps the old start/stop.
-    const modeOn=p._ignition?true:!!sport;
+    // Paulo: Sports Mode (Turbo) is PUNCH-ONLY. The Punch button flips p._ignition
+    // after ~2 s standing idle (player.js:_updateRunEntry); the item button and Shift
+    // only make him run. They must never fire the turbo start/stop or the mode-on rev.
+    // Engine revving while driving/sprinting is separate and stays in tick() below.
+    const modeOn=!!p._ignition;
     if(modeOn&&!S.sportOn) ignite();
     if(!modeOn&&S.sportOn) engineOff();
     S.sportOn=modeOn;
