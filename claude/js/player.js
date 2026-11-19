@@ -376,6 +376,10 @@ let _punchHoldF=0, _punchHoldFr=-1;
 // direction is the sprint. Shift still runs on its own. A plain hold is the item.
 const _SPRINT_TAP=12, _SPRINT_ARM=16;   // Paulo (Oct 22): sprint = a quick double-tap-and-hold while moving (16 f window, was 40)
 const _FWD_TAP=14, _FWD_GAP=16, _FWD_PAIR=6;   // forward tap length, gap before the second forward, button/forward pairing window
+// Paulo: the punch button is shared. A TAP after idle flips Sports/Turbo; a HOLD
+// charges the loaded punch. Keep the tap window below both heroes' load thresholds
+// (MIND loadF=24, Venture loadF=14) so a loaded punch is never read as a turbo tap.
+const _TURBO_TAP_F=12;
 function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
@@ -399,24 +403,39 @@ function _updateRunEntry(pl){
   }
   if(btn) pl._itemHold=(pl._itemHold||0)+1;
   pl._itemWas=btn;
-  // Paulo: Sports-Mode (Turbo) is now the PUNCH button, not the item button —
-  // after 2 s of complete idleness standing still, a deliberate double tap of
-  // Punch switches it on/off. Item-run/sprint stay on the item button.
+  // Paulo: Sports-Mode (Turbo) is the PUNCH button, not the item button —
+  // after 2 s of complete idleness standing still, a deliberate TAP of Punch
+  // switches it on/off. A HOLD is the loaded-punch charge and must not flip Turbo.
+  // So the decision is made on the punch RELEASE, gated on a short hold (a tap),
+  // instead of on the press edge where it collided with the charge.
+  // Item-run/sprint stay on the item button.
   pl._standTapT=0;
   const punch=(typeof isPunch==='function')&&isPunch();
   const punchWas=!!pl._punchWas; pl._punchWas=punch;
   const punchRise=punch&&!punchWas;
+  const punchFall=!punch&&punchWas;
   // standing idle, no aim direction (no down-shot / up-shot double-tap)
   const aimNone=!(typeof isUp==='function'&&isUp())&&!(typeof isDn==='function'&&isDn());
   const standing=!dir&&aimNone&&(typeof _playerOnGround!=='function'||_playerOnGround(pl));
   // any input except Punch resets the idle count (item button included now)
   let _otherKey=false; try{ const pb=(OPT&&OPT.binds&&OPT.binds.punch)||[]; for(const k in K){ if(K[k]&&pb.indexOf(k)<0){ _otherKey=true; break; } } }catch(e){}
   if(standing&&!_otherKey&&Math.abs(pl.vx||0)<0.4) pl._stillT=(pl._stillT||0)+1; else pl._stillT=0;
-  // a double tap after the idle gate engages Turbo, not on-then-off: ignore
-  // the second press of the pair briefly.
+  // another tap soon after the last one doesn't switch Turbo straight back off:
+  // ignore it briefly (the 2 s idle counter does the rest).
   if((pl._ignTapLock||0)>0) pl._ignTapLock--;
-  if(punchRise&&standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0)){
-    pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
+  // Arm only on the press edge, while the idle gate is open and no lock is pending.
+  // A held punch (loaded charge) is never armed — the flip happens at release below.
+  if(punchRise){
+    pl._punchHoldN=0;
+    pl._turboTapArmed=(standing&&(pl._stillT||0)>=120&&!(pl._ignTapLock>0))||false;
+  }else if(punch){
+    pl._punchHoldN=(pl._punchHoldN||0)+1;
+  }
+  if(punchFall){
+    if(pl._turboTapArmed&&(pl._punchHoldN||0)<=_TURBO_TAP_F&&!(pl._ignTapLock>0)){
+      pl._ignition=!pl._ignition; pl._ignTapLock=18; pl._stillT=0;   // one activation per 2 s idle stretch
+    }
+    pl._turboTapArmed=false; pl._punchHoldN=0;
   }
   // Paulo (#161): forward, let go, then the item button + forward together = run, with the
   // item quiet from the first frame (no shot, no power spent)
