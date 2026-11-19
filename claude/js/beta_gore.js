@@ -76,6 +76,195 @@
     if(side==='left')   return {x:hb.x, y:hb.y+t*hb.h};
     return {x:hb.x+hb.w, y:hb.y+t*hb.h};
   }
+  // ── Decal silhouette conformance ─────────────────────────────────────────
+  // Paulo: "that rule is not only for the triangle foe, that goes for all of the
+  // foes and characters. Every hit box should match the pixel art outline."
+  // So each decal is clipped to the shape the art ACTUALLY paints, not a generic
+  // circle / box. Vertex counts, radii, start angles and rotations below are
+  // taken straight from render.js drawAi/drawSignol and beta_foes drawEye /
+  // drawCube / drawBoss. Gameplay collision is untouched — visual decals only.
+  function silhouetteKind(a){
+    if(!a) return 'rect';
+    if(a.mind||a===p||a===p2||a.hero||a._aiCompanion||a._betaSib) return 'body';
+    if(a._boss||a._foe==='boss'||a._foe==='heptagon'||a.shape==='heptagon') return 'heptagon';
+    // F / the "cube" is painted as an ISOMETRIC HEXAGON (beta_foes drawCube's
+    // six -PI/2+i*PI/3 points) — the decal follows that six-sided outline.
+    if(a._foe==='cube'||a._ai==='cube'||a._foe==='hexagon'||a.shape==='hexagon') return 'hexagon';
+    if(a._foe==='eye'||a._ai==='eye') return 'pentagon';                  // drawEye: 5 sides
+    if(a._ai==='tri'&&!a._foe) return 'tri';                              // beta B, point up
+    if(a.type==='flyer') return 'triDown';                                // wedge minion, point down
+    if(a._ai==='square'||a.type==='square'||a.shape==='square') return 'square';
+    if(a._ai==='circle'||a.type==='circle'||a.type==='signol'||a.shape==='ball') return 'circle';
+    if(a.shape==='triangle'&&!a.mind) return 'tri';
+    return 'rect';
+  }
+  // Triangle corners in world coords, following the same (optionally tumbling)
+  // outline beta_enemies.drawAi() paints: A apex, B / C the two base corners.
+  function triVerts(hb,a,down){
+    let A={x:hb.x+hb.w*0.5, y:down?hb.y+hb.h:hb.y};
+    let B={x:hb.x,          y:down?hb.y:hb.y+hb.h};
+    let C={x:hb.x+hb.w,     y:down?hb.y:hb.y+hb.h};
+    const rot=down?0:(((a&&a.ang)||0)+((a&&a.og&&a.gAng)||0));
+    if(rot){
+      const px=A.x, py=hb.y+hb.h*2/3, cs=Math.cos(rot), sn=Math.sin(rot);
+      const rv=q=>({x:px+(q.x-px)*cs-(q.y-py)*sn, y:py+(q.x-px)*sn+(q.y-py)*cs});
+      A=rv(A); B=rv(B); C=rv(C);
+    }
+    return {A,B,C,down};
+  }
+  // Regular polygon matching the art: -PI/2 start, n sides, radius R, rotation rot.
+  function regPoly(cx,cy,R,n,rot){
+    const v=[];
+    for(let i=0;i<n;i++){ const ang=rot-Math.PI/2+i*Math.PI*2/n; v.push({x:cx+Math.cos(ang)*R, y:cy+Math.sin(ang)*R}); }
+    return v;
+  }
+  function rectVerts(cx,cy,w,h,rot){
+    const hw=w*0.5, hh=h*0.5, cs=Math.cos(rot), sn=Math.sin(rot);
+    return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(p=>({x:cx+p[0]*cs-p[1]*sn, y:cy+p[0]*sn+p[1]*cs}));
+  }
+  // Everything the decal needs for one actor, computed once per frame at draw time.
+  function shapeGeom(hb,a,kind){
+    const cx=hb.x+hb.w*0.5, cy=hb.y+hb.h*0.5, lift=(a&&a._lift)||0;
+    const gr=(a&&typeof foeGroove==='function')?foeGroove(a):null;
+    if(kind==='tri'||kind==='triDown') return {kind,hb,tri:triVerts(hb,a,kind==='triDown'),cx,cy};
+    if(kind==='square'){
+      const rot=((a&&a.ang)||0)+((a&&a.og&&a.gAng)||0)+(gr?gr.rot:0);
+      return {kind,hb,verts:rectVerts(cx,cy,hb.w,hb.h,rot),cx,cy};
+    }
+    if(kind==='pentagon'){                                  // E: R=w*0.55, bob, rotate by ang
+      const R=hb.w*0.55, rot=((a&&a.ang)||0)+(gr?gr.rot:0);
+      const bob=Math.sin((typeof fr==='number'?fr:0)*0.15+(a&&a.phase||0))*2;
+      const y=cy-lift+bob;
+      return {kind,hb,verts:regPoly(cx,y,R,5,rot),cx,cy:y};
+    }
+    if(kind==='hexagon'){                                   // F: R=w*0.56, spin+ang
+      const R=hb.w*0.56, rot=((a&&a.spin)||0)+((a&&a.ang)||0)+(gr?gr.rot:0), y=cy-lift;
+      return {kind,hb,verts:regPoly(cx,y,R,6,rot),cx,cy:y};
+    }
+    if(kind==='heptagon'){                                  // boss: R=w/2 (56), rot
+      const R=hb.w*0.5, rot=(a&&a.rot)||0, y=cy-lift;
+      return {kind,hb,verts:regPoly(cx,y,R,7,rot),cx,cy:y};
+    }
+    if(kind==='circle') return {kind,hb,cx,cy,r:Math.min(hb.w,hb.h)*0.5};
+    if(kind==='body')   return {kind,hb,cx,cy};
+    return null;
+  }
+  // Ray from the silhouette centre to its outline — used for every polygon so
+  // the blot sits ON an edge and the drip direction follows that edge downhill.
+  function rayPoly(cx,cy,ux,uy,verts){
+    let best=null;
+    for(let i=0;i<verts.length;i++){
+      const p=verts[i], q=verts[(i+1)%verts.length], ex=q.x-p.x, ey=q.y-p.y;
+      const den=ux*ey-uy*ex; if(Math.abs(den)<1e-6) continue;
+      const dx=p.x-cx, dy=p.y-cy;
+      const t=(dx*ey-dy*ex)/den, s=(dx*uy-dy*ux)/den;
+      if(t>0&&s>=0&&s<=1&&(!best||t<best.t)) best={t,p,q,i};
+    }
+    return best;
+  }
+  // Where a box-face anchor (side,t) lands on the drawn outline. Returns the
+  // world point, a drip direction, its bounded run, and the pool style + edge.
+  function shapeAnchor(sg,side,t){
+    if(!sg) return null;
+    const hb=sg.hb;
+    if(sg.tri){
+      const g=sg.tri, down=g.down;
+      if(side==='left'||side==='right'){
+        const base=side==='left'?g.B:g.C, f=down?(1-t):t;
+        const dx=base.x-g.A.x, dy=base.y-g.A.y;
+        return {x:g.A.x+dx*f, y:g.A.y+dy*f, dx, dy, run:Math.hypot(dx,dy)*(1-f), pool:'slope'};
+      }
+      if((side==='top'&&down)||(side==='bottom'&&!down))
+        return {x:g.B.x+(g.C.x-g.B.x)*t, y:g.B.y+(g.C.y-g.B.y)*t, dx:0, dy:0, run:0, pool:'base', p:g.B, q:g.C};
+      return {x:g.A.x, y:g.A.y, dx:0, dy:0, run:0, pool:'apex'};
+    }
+    if(sg.verts){
+      const bp=boxPoint(hb,side,t);
+      let ux=bp.x-sg.cx, uy=bp.y-sg.cy, L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+      const hit=rayPoly(sg.cx,sg.cy,ux,uy,sg.verts);
+      if(!hit) return null;
+      const ax=sg.cx+ux*hit.t, ay=sg.cy+uy*hit.t;
+      const p=hit.p, q=hit.q, lo=q.y>=p.y?q:p;
+      const dx=lo.x-ax, dy=lo.y-ay, run=Math.hypot(dx,dy);
+      // outward normal: a top-facing edge pools, the others run down the edge
+      const ex=q.x-p.x, ey=q.y-p.y, el=Math.hypot(ex,ey)||1;
+      let nx=ey/el, ny=-ex/el;
+      if(nx*(ax-sg.cx)+ny*(ay-sg.cy)<0){ nx=-nx; ny=-ny; }
+      return {x:ax, y:ay, dx, dy, run, pool:(ny<-0.35?'edge':null), p, q};
+    }
+    if(sg.kind==='circle'){
+      const bp=boxPoint(hb,side,t);
+      let ux=bp.x-sg.cx, uy=bp.y-sg.cy, L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+      return {x:sg.cx+ux*sg.r*0.92, y:sg.cy+uy*sg.r*0.92, dx:0, dy:1, run:sg.r*0.7, pool:'rim'};
+    }
+    if(sg.kind==='body'){
+      const bp=boxPoint(hb,side,t), shoulderY=hb.y+9;                  // the record slab is 12px tall
+      if(side==='top') return {x:hb.x+hb.w*t, y:shoulderY, dx:0, dy:0, run:0, pool:'shoulder'};
+      return {x:bp.x, y:Math.max(shoulderY,bp.y), dx:0, dy:1,
+              run:Math.max(0,hb.y+hb.h-bp.y-2), pool:null};
+    }
+    return null;
+  }
+  // Screen-space clip matching the drawn outline. Built only for on-screen
+  // stains in drawBlood — never for off-screen foes.
+  function clipSilhouette(sg){
+    if(!sg) return false;
+    ctx.beginPath();
+    if(sg.tri){
+      const g=sg.tri;
+      ctx.moveTo(sx(g.A.x),sy(g.A.y)); ctx.lineTo(sx(g.B.x),sy(g.B.y)); ctx.lineTo(sx(g.C.x),sy(g.C.y)); ctx.closePath();
+    }else if(sg.verts){
+      ctx.moveTo(sx(sg.verts[0].x),sy(sg.verts[0].y));
+      for(let i=1;i<sg.verts.length;i++) ctx.lineTo(sx(sg.verts[i].x),sy(sg.verts[i].y));
+      ctx.closePath();
+    }else if(sg.kind==='circle'){
+      ctx.arc(sx(sg.cx),sy(sg.cy),sw(sg.r),0,Math.PI*2);
+    }else if(sg.kind==='body'){
+      const h=sg.hb, x=sx(h.x), y=sy(h.y), w=sw(h.w), bh=sw(h.h);
+      const rx=x-sw(3), rw=w+sw(6), recH=sw(12), r=Math.max(1,sw(4));
+      ctx.moveTo(rx+r,y); ctx.lineTo(rx+rw-r,y); ctx.quadraticCurveTo(rx+rw,y,rx+rw,y+r);
+      ctx.lineTo(rx+rw,y+recH); ctx.lineTo(x+w,y+recH+sw(2));          // record -> cabinet step
+      ctx.lineTo(x+w,y+bh-r); ctx.quadraticCurveTo(x+w,y+bh,x+w-r,y+bh);
+      ctx.lineTo(x+r,y+bh); ctx.quadraticCurveTo(x,y+bh,x,y+bh-r);
+      ctx.lineTo(x,y+recH+sw(2)); ctx.lineTo(rx,y+recH); ctx.lineTo(rx,y+r);
+      ctx.quadraticCurveTo(rx,y,rx+r,y); ctx.closePath();
+    }else return false;
+    ctx.clip(); return true;
+  }
+  // The pooling highlight, shaped to the exact surface it sits on.
+  function drawShapePool(an,q,X0,Y0,al,sg){
+    if(an.pool==='apex'){                                  // triangle tip: ink spills down both slopes
+      const g=sg.tri, k=0.18;
+      const L={x:g.A.x+(g.B.x-g.A.x)*k,y:g.A.y+(g.B.y-g.A.y)*k};
+      const R={x:g.A.x+(g.C.x-g.A.x)*k,y:g.A.y+(g.C.y-g.A.y)*k};
+      ctx.strokeStyle=IC('rgba(110,0,14,'+(0.78*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(2.2));
+      ctx.beginPath(); ctx.moveTo(sx(L.x),sy(L.y)); ctx.lineTo(sx(g.A.x),sy(g.A.y)); ctx.lineTo(sx(R.x),sy(R.y)); ctx.stroke();
+    }else if(an.pool==='base'){                             // flat base edge of the wedge
+      const g=sg.tri;
+      const p0={x:g.B.x+(g.C.x-g.B.x)*0.32,y:g.B.y+(g.C.y-g.B.y)*0.32};
+      const p1={x:g.B.x+(g.C.x-g.B.x)*0.68,y:g.B.y+(g.C.y-g.B.y)*0.68};
+      ctx.strokeStyle=IC('rgba(110,0,14,'+(0.72*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(2));
+      ctx.beginPath(); ctx.moveTo(sx(p0.x),sy(p0.y)); ctx.lineTo(sx(p1.x),sy(p1.y)); ctx.stroke();
+    }else if(an.pool==='edge'){                             // a flat edge of a square / pentagon / hexagon / heptagon
+      const ex=an.q.x-an.p.x, ey=an.q.y-an.p.y, el=Math.hypot(ex,ey)||1, ux=ex/el, uy=ey/el;
+      const half=Math.max(2,sw(3+q.r*0.9));
+      ctx.strokeStyle=IC('rgba(110,0,14,'+(0.78*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(2.4));
+      ctx.beginPath(); ctx.moveTo(X0-ux*half,Y0-uy*half); ctx.lineTo(X0+ux*half,Y0+uy*half); ctx.stroke();
+      ctx.strokeStyle=IC('rgba(255,170,180,'+(0.32*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(0.8));
+      ctx.beginPath(); ctx.moveTo(X0-ux*half*0.6,Y0-uy*half*0.6); ctx.lineTo(X0+ux*half*0.6,Y0+uy*half*0.6); ctx.stroke();
+    }else if(an.pool==='rim'){                              // round foe: a highlight arc on the rim
+      const ang=Math.atan2(an.y-sg.cy,an.x-sg.cx);
+      ctx.strokeStyle=IC('rgba(110,0,14,'+(0.72*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(2));
+      ctx.beginPath(); ctx.arc(sx(sg.cx),sy(sg.cy),sw(sg.r*0.9),ang-0.34,ang+0.34); ctx.stroke();
+    }else if(an.pool==='shoulder'){                          // character: a pool across the record / shoulders
+      const half=Math.max(3,sw(5+q.r));
+      ctx.fillStyle=IC('rgba(110,0,14,'+(0.78*al).toFixed(3)+')');
+      ctx.fillRect(X0-half,Y0-Math.max(1,sw(1.6)),half*2,Math.max(2,sw(2.4)));
+      ctx.fillStyle=IC('rgba(255,170,180,'+(0.4*al).toFixed(3)+')');
+      ctx.fillRect(X0-half*0.5,Y0-Math.max(1,sw(2.2)),half,Math.max(1,sw(0.7)));
+    }
+    // 'slope' / null: the blot itself is the pool — no separate line.
+  }
   // A few chunky blots per splash, stuck to a perimeter point — not a dense wash.
   function bodyStain(a,hb,wx,wy,vx,vy,me){
     const s=surfaceOnBox(hb,wx,wy,vx,vy), chunk=Math.random()<0.24;
@@ -375,10 +564,13 @@
     const B0=window.MV_BETA||{};
     if(B0.waterStain>0) B0.waterStain=Math.max(0,B0.waterStain-0.00003);
     for(let i=clouds.length-1;i>=0;i--){ const c=clouds[i]; c.t++; c.r+=0.25; c.y-=0.05; if(c.t>90) clouds.splice(i,1); }
-    // stains on a body under water wash off (and colour the water)
+    // stains on a body under water wash off (and colour the water) — test the
+    // point on the DRAWN silhouette, not the empty corner of the combat box.
     for(const q of estains){ const e=q.e; if(!e||!B0.inWater) continue;
       const hb=actorHB(e); if(!hb||hb.w<=0) continue;
-      const pt=boxPoint(hb,q.side,q.t);
+      if(!nearView(hb.x+hb.w/2,hb.y+hb.h/2,90)) continue;
+      const sg=shapeGeom(hb,e,silhouetteKind(e));
+      const an=shapeAnchor(sg,q.side,q.t), pt=an||boxPoint(hb,q.side,q.t);
       if(B0.inWater(pt.x,pt.y)){ q.age+=25; B0.waterStain=Math.min(1,(B0.waterStain||0)+0.0015); if(Math.random()<0.2) clouds.push({x:pt.x,y:pt.y,r:3,t:0}); } }
     for(let i=drops.length-1;i>=0;i--){
       const d=drops[i];
@@ -463,19 +655,46 @@
       if(s.drip>0){ ctx.fillStyle=IC('rgba(120,0,12,'+s.a.toFixed(2)+')'); ctx.fillRect(-0.6,0,1.2,sw(3)); }
       ctx.restore();
     }
-    // Blood / ink clinging to a character's REAL collision box: blots on the perimeter,
-    // a pooling line along the top face, and drips running down the side faces.
-    // The world-space anchor is re-read from the live box each frame, so it rides the
-    // actor as he moves or crouches; IC() keeps I&V's version ink, never GORE red.
+    // Blood / ink clinging to the actor's DRAWN silhouette: blots on the outline,
+    // pooling where that shape can hold it, and drips running down the surface.
+    // The anchor is re-read from the LIVE box each frame so it rides the actor;
+    // IC() keeps I&V's version ink, never GORE red. Unshaped props keep the old
+    // rectangular treatment; foes / characters are clipped to their real outline.
     for(let i=estains.length-1;i>=0;i--){ const q=estains[i], e=q.e; q.age++;
       if(!e||!isFinite(e.x)||e._gone||e._hidden||q.age>1500||(!q.me&&ENEMS.indexOf(e)<0)){ estains.splice(i,1); continue; }
       const hb=actorHB(e); if(!hb||hb.w<=0||hb.h<=0){ estains.splice(i,1); continue; }
       if(q.me&&window.MV_LIFT&&MV_LIFT.inClosedCab&&MV_LIFT.inClosedCab(e)) continue;   // hidden with him in a closed car
-      const pt=boxPoint(hb,q.side,q.t);
-      if(!nearView(pt.x,pt.y,60)) continue;                              // draw-time camera cull
-      const X0=sx(pt.x), Y0=sy(pt.y), al=Math.min(1,(1500-q.age)/200);
-      const vert=(q.side==='left'||q.side==='right'), top=(q.side==='top');
       if(q.len<q.max) q.len+=0.22;
+      const kind=silhouetteKind(e), bp=boxPoint(hb,q.side,q.t);
+      if(!nearView(bp.x,bp.y,90)) continue;                              // cull BEFORE any path work
+      const sg=shapeGeom(hb,e,kind), an=shapeAnchor(sg,q.side,q.t);
+      const ax=an?an.x:bp.x, ay=an?an.y:bp.y;
+      if(!nearView(ax,ay,60)) continue;                                  // draw-time camera cull
+      const X0=sx(ax), Y0=sy(ay), al=Math.min(1,(1500-q.age)/200);
+      if(an&&sg){                                                        // shaped foe / character
+        ctx.save();
+        if(clipSilhouette(sg)){
+          drawShapePool(an,q,X0,Y0,al,sg);
+          ctx.fillStyle=IC('rgba(120,0,14,'+(0.85*al).toFixed(3)+')');
+          ctx.beginPath(); ctx.arc(X0,Y0,Math.max(1,sw(q.r)),0,Math.PI*2); ctx.fill();
+          if(an.dx||an.dy){
+            const run=Math.min(q.len,Math.max(0,an.run||hb.h*0.38));
+            if(run>0){
+              const vx=sw(an.dx), vy=sw(an.dy), L=Math.hypot(vx,vy)||1;
+              const ex=X0+vx/L*sw(run), ey=Y0+vy/L*sw(run);
+              ctx.strokeStyle=IC('rgba(120,0,14,'+(0.8*al).toFixed(3)+')'); ctx.lineWidth=Math.max(1,sw(1.4));
+              ctx.beginPath(); ctx.moveTo(X0,Y0); ctx.lineTo(ex,ey); ctx.stroke();
+              ctx.fillStyle=IC('rgba(120,0,14,'+(0.8*al).toFixed(3)+')');
+              ctx.beginPath(); ctx.arc(ex,ey,Math.max(1,sw(1.3+q.r*0.15)),0,Math.PI*2); ctx.fill();
+            }
+          }
+          if(q.chunk){ ctx.fillStyle=IC('rgba(255,170,180,'+(0.35*al).toFixed(3)+')'); ctx.fillRect(X0-sw(q.r*0.4),Y0-sw(q.r*0.4),Math.max(1,sw(1)),Math.max(1,sw(1))); }
+        }
+        ctx.restore();
+        continue;
+      }
+      // ── plain rectangular box (unshaped props): the original treatment ──
+      const pt=bp, vert=(q.side==='left'||q.side==='right'), top=(q.side==='top');
       const run=Math.min(q.len,Math.max(0,vert?(hb.y+hb.h-pt.y-2):hb.h*0.38));
       if(top){                                                           // puddle line on the top face
         const half=Math.max(3,sw(3+q.r*1.6));
