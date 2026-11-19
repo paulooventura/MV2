@@ -1361,6 +1361,12 @@ function drawSparks(){
 // co-op camera and for each half of a co-op split. BOTH brothers are drawn in
 // every pass — neither is ever hidden from the other.
 let _coopSplit=false;
+// Per-pass "active player" for split-screen AV. The world pass draws BOTH brothers
+// (render.js's drawCharacterFor already gives each his own character-state FX),
+// but the screen-space passes live in main.js and used to read global P1 `p` for
+// both halves. Each half now tags the player whose AV experience it represents;
+// player-driven overlays read this instead of `p`. Null outside a split pass.
+let _splitActor=null;
 // Paulo (Nov 18): couch co-op shares ONE full-screen camera while the brothers
 // stay close, and only splits into two half-height views when one of them gets
 // near the edge of that shared frame. Two thresholds (hysteresis) plus a short
@@ -1486,7 +1492,7 @@ function drawWorldPass(){
 function _drawCoopSplit(){
   _coopSplit=true;
   const cams=_coopCameraTargets(), half=cams.half;
-  const pass=(y0,h,cam,lower)=>{
+  const pass=(y0,h,cam,lower,actor)=>{
     ctx.save();
     ctx.beginPath(); ctx.rect(0,y0,W,h); ctx.clip();
     if(lower) ctx.translate(0,half);        // screen-space clip, then shift the lower world down
@@ -1496,14 +1502,15 @@ function _drawCoopSplit(){
     // was moved, so the half far from the shared logic camera drew an empty or
     // cut-off stage. Keep both cameras in step for the whole pass, then restore
     // camX/camY so the next physics tick still lerps from its own value.
-    const camXWas=camX, camYWas=camY;
+    const camXWas=camX, camYWas=camY, actorWas=_splitActor;
     _rcamX=cam.x; _rcamY=cam.y; camX=cam.x; camY=cam.y;
+    _splitActor=actor;                      // this half represents THIS player's AV
     _worldZoomBegin();                      // world layers zoom, just like the single view
-    try{ drawWorldPass(); } finally{ _worldZoomEnd(); camX=camXWas; camY=camYWas; }
+    try{ drawWorldPass(); } finally{ _worldZoomEnd(); camX=camXWas; camY=camYWas; _splitActor=actorWas; }
     ctx.restore();
   };
-  pass(0,half,cams.p1,false);                // upper window: P1's camera, both brothers drawn
-  pass(half,H-half,cams.p2,true);            // lower window: P2's camera, both brothers drawn
+  pass(0,half,cams.p1,false,p);              // upper window: P1's camera/AV, both brothers drawn
+  pass(half,H-half,cams.p2,true,p2||p);      // lower window: P2's camera/AV, both brothers drawn
   ctx.fillStyle=C.BLACK; ctx.fillRect(0,half-2,W,4);
   ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,half,W,1);
   // Small owner tags with HP, tucked above the seam / the bottom edge so the
@@ -1518,6 +1525,91 @@ function _drawCoopSplit(){
   };
   tag(half-34,'P1',p,C.PURPLE_L||'#a060ff');
   tag(H-34,'P2',p2,C.RED_L||'#ff6a5a');
+}
+// ── Per-player screen-space AV ──────────────────────────────────
+// The original _drawSportBlur() (physics.js) and drawDamageOverlay() (ui.js)
+// both read the global P1 `p`. In split mode that painted P1's turbo/damage
+// across BOTH halves. These helpers give each half its own player context.
+// physics.js / ui.js are left untouched; the single view still calls the
+// original effects unchanged.
+const _coopBlurAmt=new WeakMap();
+// Same visual recipe as physics.js:_drawSportBlur, but keyed on the actor that
+// owns this half instead of global `p`/keyboard. Turbo is the player's own
+// _ignition flag; speed scales it. Kept in main.js so no other lane is edited.
+function _drawSportBlurForActor(actor,vh){
+  actor=actor||_splitActor||p;            // fall back to this pass's active player
+  if(!actor||typeof ctx==='undefined') return;
+  const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+  const spd=Math.min(1,Math.abs(actor.vx||0)/top);
+  // A lit turbo always reads on its owner's screen (even at rest); speed adds
+  // the rush. Non-turbo brothers get 0 here, so no blur bleeds into their half.
+  const want=actor._ignition?(0.28+0.72*Math.pow(spd,1.35)):0;
+  let amt=_coopBlurAmt.get(actor)||0;
+  amt+=(want-amt)*0.08;
+  _coopBlurAmt.set(actor,amt);
+  if(amt<0.03) return;
+  const z=camZoom||1;
+  const cx=sx(actor.x+SW/2)*z, cy=sy(actor.y+FEET_OFF-30)*z;
+  const R=Math.hypot(W,vh)*0.62;
+  const inner=R*(0.34+0.16*(1-amt));
+  ctx.save();
+  const g=ctx.createRadialGradient(cx,cy,inner,cx,cy,R);
+  g.addColorStop(0,'rgba(0,0,0,0)');
+  g.addColorStop(0.62,'rgba(4,6,12,0)');
+  g.addColorStop(1,`rgba(4,6,14,${(0.55*amt).toFixed(3)})`);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,vh);
+  const dir=Math.sign(actor.vx||1);
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<10;i++){
+    const t=(i+0.5)/10, y=t*vh, edge=Math.min(1,Math.abs(y-cy)/(vh*0.5));
+    const a=amt*edge*0.22;
+    if(a<0.02) continue;
+    ctx.strokeStyle=`rgba(190,205,230,${a.toFixed(3)})`;
+    ctx.lineWidth=6+edge*10;
+    ctx.beginPath();
+    if(dir>=0){ ctx.moveTo(0,y); ctx.lineTo(W*(0.16+0.14*amt),y); }
+    else { ctx.moveTo(W,y); ctx.lineTo(W*(1-0.16-0.14*amt),y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function _drawMomentumBarForActor(actor,bottomY){
+  if(!actor||!(actor.momentum>0.05)||!isFinite(actor.momentum)) return;
+  ctx.fillStyle=C.ORANGE; const segs=Math.round(actor.momentum*16);
+  for(let i=0;i<segs;i++) ctx.fillRect(i*16,bottomY-2,12,2);
+}
+// Dispatches the player-driven screen FX. Split: one clipped pass per half with
+// that half's camera, active player and render context. Single: original path.
+function _drawCoopPlayerScreenFX(){
+  if(_coopSplitWanted()&&_coopPair()){
+    const cams=_coopCameraTargets(), half=cams.half;
+    const fxPass=(y0,h,cam,lower,actor)=>{
+      if(!actor) return;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0,y0,W,h); ctx.clip();
+      if(lower) ctx.translate(0,half);
+      const camXWas=camX, camYWas=camY, rcXWas=_rcamX, rcYWas=_rcamY;
+      const pWas=p, actorWas=_splitActor;
+      _rcamX=cam.x; _rcamY=cam.y; camX=cam.x; camY=cam.y;
+      p=actor; _splitActor=actor;
+      try{
+        _drawSportBlurForActor(actor,lower?H-half:half);
+        drawDamageOverlay();                 // reads swapped p (and its wrappers)
+      } finally {
+        p=pWas; _splitActor=actorWas;
+        camX=camXWas; camY=camYWas; _rcamX=rcXWas; _rcamY=rcYWas;
+        ctx.restore();
+      }
+    };
+    fxPass(0,half,cams.p1,false,p);
+    _drawMomentumBarForActor(p,half);
+    fxPass(half,H-half,cams.p2,true,p2);
+    _drawMomentumBarForActor(p2,H);
+  }else{
+    _splitActor=p;
+    if(typeof _drawSportBlur==='function') _drawSportBlur();
+    drawDamageOverlay();
+  }
 }
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);
@@ -1534,6 +1626,9 @@ function draw(){
   if(_gameState==='cutscene'){_cutsceneFr++;drawCutscene();return;}
   if(_gameState==='select'){drawSelect();return;}
   _updateCoopSplit();
+  // Per-frame baseline: split passes set their own actor and restore this value;
+  // the single view always represents P1. Never carry an actor across frames.
+  _splitActor=_coopSplitWanted()?null:p;
   if(_coopSplitWanted()){ _drawCoopSplit(); }
   else{
   _coopSplit=false;
@@ -1593,8 +1688,8 @@ function draw(){
     if(sharedCam){camZoom=zoomWas;camX=camXWas;camY=camYWas;}
   }
   }
-  if(typeof _drawSportBlur==='function') _drawSportBlur();
-  drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
+  _drawCoopPlayerScreenFX();
+  drawItemTutorial(); drawHUD(); drawAtmosphere();
   if(window.MV_BETA&&MV_BETA.loadFade>0){ ctx.save(); ctx.globalAlpha=Math.min(1,MV_BETA.loadFade/22); ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); ctx.restore(); MV_BETA.loadFade--; }
   // T545: no P2 HP bar / label in human co-op (split or not). The AI ally's
   // bar stays — it is the one readout that belongs to a non-human partner.
@@ -1603,7 +1698,9 @@ function draw(){
   if(_gameOver&&_shutdownTimer<=0){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('GAME OVER',W/2,H/2-28,C.RED_L,4);drawTextC('5 SHUTDOWNS',W/2,H/2+8,C.LILAC,3);drawTextC('TAB TO RETRY',W/2,H/2+40,C.GREY,2);}
   if(_zoneCardT>0){_zoneCardT--; drawZoneCard(); }
   if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-28,C.GREEN_L,4);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2+8,C.TEAL_L,2);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+36,C.GREEN,2);}
-  if(p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
+  // Single view keeps the original P1 bar; split draws one bar per half in
+  // _drawCoopPlayerScreenFX() so the bar belongs to the player on that screen.
+  if(!_coopSplitWanted()&&p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
   if(_paused){
     if(typeof drawPauseMenu==='function') drawPauseMenu();
   }
