@@ -440,6 +440,7 @@
 
     p=mkP(); p.x=_spawnX; p.y=_spawnY; p.vx=0; p.vy=0; p.og=true; p.hp=p.maxHp; p.fc=false;
     B.safe={x:p.x,y:p.y};
+    if(typeof _clearPitFall==='function') _clearPitFall();
     p2=null;
     if(_playerCount===2&&typeof mkP==='function'){
       p2=mkP(); p2.hero=(_playerCount===2&&_p2HeroChoice)?_p2HeroChoice:(p.hero==='venture'?'mind':'venture');
@@ -1888,6 +1889,7 @@
       const stable=(typeof _playerOnGround==='function'?_playerOnGround(p):p.og)||B.ridePlat||B.rideEnemy;
       if(stable&&!(B.inWater&&B.inWater(p.x+SW/2,p.y+FEET_OFF-8))) B.safe={x:p.x, y:p.y};
       if(p.y+FEET_OFF>=bottom-8&&_shutdownTimer<=0&&!B.contScreen&&!B.overT){   // reached the bottom of the map: down the hole
+        if(typeof _markPitFall==='function') _markPitFall();   // Paulo: pit fall reboots at the entrance gate
         B.shake=Math.max(B.shake||0,8); B.stats.hits++;
         p.hp=1; applyPlayerHit(0,0,9999);
         p.vy=0;

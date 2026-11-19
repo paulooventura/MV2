@@ -270,7 +270,17 @@ function _rebootAtSafeFooting(){
   }
   return false;
 }
-function _respawnPlayer(){ if(!_rebootAtSafeFooting()) _placePlayerAtSpawn(); }
+// Paulo: a pit fall re-spawns at the stage entrance (the authored MindSpawn
+// point), not the last stable footing (T530b's B.safe). The beta stage's pit
+// handler sets this flag; it is consumed on the next life/continue reboot so
+// ordinary enemy deaths keep the T530b safe-footing behaviour.
+let _pitFallReboot=false;
+function _markPitFall(){ _pitFallReboot=true; }
+function _clearPitFall(){ _pitFallReboot=false; }
+function _respawnPlayer(){
+  if(_pitFallReboot){ _pitFallReboot=false; _placePlayerAtSpawn(); return; }
+  if(!_rebootAtSafeFooting()) _placePlayerAtSpawn();
+}
 function _goalRect(){ const g=GOALPL; if(Array.isArray(g)) return{x:g[0],y:g[1],w:g[2],h:g[3]}; return{x:g.x,y:g.y,w:g.w,h:g.h}; }
 function _isBasementSpawnRow(row,gid){
   if(row==null||row<TMJ_BASEMENT_ROW) return false;
@@ -1287,9 +1297,12 @@ function update(){
   if(!isFinite(p.y)||(p.y+FEET_OFF>WH+64&&p.vy>0.25)){
     if(_mapApplied&&!_battleTestMode&&!_runTestMode&&_zoneIdx===0){
       if((p._fallRespawnCd||0)<=0){
-        // T530b: reboot on the last stable footing, not the stage top. Set the
-        // cooldown AFTER the reboot — _placePlayerAtSpawn / safe reboot clear it.
-        if(!_rebootAtSafeFooting()) _placePlayerAtSpawn();
+        // Paulo: a pit fall re-spawns at the stage entrance (the authored
+        // MindSpawn point), not the last stable footing. MindSpawn is a safe,
+        // in-world spot well below the top of the level, so this keeps the
+        // T530b "no top teleport" guarantee. Set the cooldown AFTER the reboot
+        // — _placePlayerAtSpawn clears it.
+        _placePlayerAtSpawn();
         p._fallRespawnCd=60;
       } else p._fallRespawnCd--;
     }
@@ -1297,7 +1310,7 @@ function update(){
       const recoverX=Math.max(0,Math.min(WW-SW,p.x));
       const feetY=_surfaceYAt(recoverX+SW/2,Math.min(WH,p.y+FEET_OFF),96);
       if(feetY<WH-30){p.x=recoverX;p.y=feetY-FEET_OFF;p.vy=0;p.vx*=0.5;p.og=true;}
-      else if(p.y>WH+240){ if(!_rebootAtSafeFooting()) _placePlayerAtSpawn(); }
+      else if(p.y>WH+240){ _placePlayerAtSpawn(); }
     }
   }
 
