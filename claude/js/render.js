@@ -838,7 +838,11 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
   if(!(cx|0)&&!(cy|0)){
     try{ const t=ctx.getTransform(); if(Math.abs(t.e)<24&&Math.abs(t.f)<24) return; }catch(e){}
   }
-  const itemIdx=itemOverride!=null?itemOverride:ITEM;
+  // drawCharacterFor(p2) swaps the global `p` but NOT the global `ITEM`, so a
+  // barrel tip must fall back to the *drawn player's* item (P2 owns p2.item).
+  // Single-player: _heldItemFor(p)===ITEM, so this is byte-for-byte identical.
+  const _selfItem=(typeof _heldItemFor==='function')?_heldItemFor(p):ITEM;
+  const itemIdx=itemOverride!=null?itemOverride:_selfItem;
   const enh=_itemTipEnhanced(itemIdx, enhancedOverride);
   const sc=typeof _itemArtScale==='function'?_itemArtScale(itemIdx):1;
   ctx.save();ctx.translate(cx,cy);
@@ -879,7 +883,7 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
       ]);
     }
     if(ff>0){ctx.globalAlpha=ff*0.85;ctx.fillStyle=enh?'#66ff99':'#ffe080';ctx.beginPath();ctx.arc(50,0,8+ff*7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
-    if(p&&p.laserCharging&&p.laserCharge>0&&(itemOverride==null||itemOverride===ITEM)){
+    if(p&&p.laserCharging&&p.laserCharge>0&&(itemOverride==null||itemOverride===_selfItem)){
       const cMax=(typeof _itemEnhanced!=='undefined'&&_itemEnhanced[0])?22:40;
       const cf=p.laserCharge/cMax;
       const pulse=0.7+0.3*Math.sin(fr*0.55+cf*8);
@@ -950,7 +954,7 @@ function drawConnectorTip(cx,cy,aimAngle,flash,itemOverride,enhancedOverride){
         [[-10,-3.2],[2,0.6],[12,-2.2],[22,1.4],[32,-1.0],[fx,3.2]],
       ]);
     }
-    if(p&&p.xlrOn&&(itemOverride==null||itemOverride===ITEM)){
+    if(p&&p.xlrOn&&(itemOverride==null||itemOverride===_selfItem)){
       const pulse=0.5+0.5*Math.sin(fr*0.32);
       ctx.globalAlpha=pulse*0.55;
       for(let i=0;i<3;i++){
@@ -1697,8 +1701,16 @@ function drawCharacter(){
 }
 function drawCharacterFor(pl){
   const oldP=p;
+  // Human co-op P2 owns its item in pl.item. Swap the canonical ITEM too so
+  // downstream reads that still use the global (connector arm down-aim pose,
+  // connectorTipWorld, drawConnectorTip's fallback) see P2's jack, not P1's.
+  // AI companions / beta siblings set ITEM themselves around their calls, so
+  // leave their global untouched.
+  const useP2Item=!!(pl&&typeof p2!=='undefined'&&pl===p2&&!pl._aiCompanion&&typeof pl.item==='number');
+  const oldItem=ITEM;
   p=pl;
-  try{drawCharacter();}finally{p=oldP;}
+  if(useP2Item) ITEM=pl.item;
+  try{drawCharacter();}finally{p=oldP;ITEM=oldItem;}
 }
 
 /* â”€â”€ Draw world â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -2900,50 +2912,10 @@ function pxDots(x0,y0,x1,y1,col,gap=3,phase=0){
   }
 }
 function drawFX(){
-  // â”€â”€ XLR push stream â€” energy shoulder â†’ jack tip â”€â”€
-  if(ITEM===2&&p.xlrOn){
-    const pose=p._armPose||computeConnectorArmPose(p);
-    const ax=sx(pose.connShX),ay=sy(pose.connShY);
-    const tipW=connectorTipWorld(2);
-    const tx=sx(tipW.x),ty=sy(tipW.y);
-    const aa=pose.aimAngle;
-    const pulse=0.4+0.6*Math.sin(fr*0.3);
-    for(let i=0;i<5;i++){
-      const t=((fr*0.1+i*0.18)%1);
-      const px=ax+(tx-ax)*t,py=ay+(ty-ay)*t;
-      ctx.globalAlpha=pulse*(0.4+0.35*Math.sin(fr*0.4+i));
-      ctx.fillStyle='#88ccff';ctx.beginPath();ctx.arc(px,py,2.2,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='#66bbff';ctx.lineWidth=1.6;
-      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(aa)*8,py+Math.sin(aa)*8);ctx.stroke();
-    }
-    for(let i=0;i<3;i++){
-      const wave=((fr*0.09+i*0.22)%1);
-      const r=6+wave*34;
-      ctx.globalAlpha=(1-wave)*pulse*0.55;
-      ctx.strokeStyle='#66bbff';ctx.lineWidth=2.2-wave;
-      ctx.beginPath();ctx.arc(tx,ty,r,aa-0.42,aa+0.42);ctx.stroke();
-    }
-    ctx.globalAlpha=pulse*0.35;ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
-    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(tx,ty);ctx.stroke();
-    ctx.globalAlpha=1;
-  }
-  // â”€â”€ MAG pull stream â€” energy tip â†’ shoulder â”€â”€
-  if(ITEM===3&&p.magOn){
-    const pose=p._armPose||computeConnectorArmPose(p);
-    const ax=sx(pose.connShX),ay=sy(pose.connShY),tx=sx(pose.tipX),ty=sy(pose.tipY);
-    const pulse=0.4+0.6*Math.sin(fr*0.25);
-    const magCol=p.hero==='venture'?'#ff6688':'#ee99ff';
-    const magStroke=p.hero==='venture'?'#ff3344':'#dd88ff';
-    for(let i=0;i<5;i++){
-      const t=((fr*0.11+i*0.17)%1);
-      const px=tx+(ax-tx)*t,py=ty+(ay-ty)*t;
-      ctx.globalAlpha=pulse*0.55;
-      ctx.fillStyle=magCol;ctx.beginPath();ctx.arc(px,py,2,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=magStroke;ctx.lineWidth=1.5;
-      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+(ax-px)*0.12,py+(ay-py)*0.12);ctx.stroke();
-    }
-    ctx.globalAlpha=1;
-  }
+  // Item streams + per-player particles are drawn for whoever the CURRENT player
+  // is. drawWorldPass() already computes p._armPose / p2._armPose, and the caller
+  // sets `p` (and `ITEM`) to the right player; the helpers read only that state.
+  _fxItemStreams();
   // â”€â”€ LASER SHOTS â€” fast plasma bolts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _allShots=(p2&&p2.shots)?p.shots.concat(p2.shots):p.shots;
   const _laserList=_allShots.concat((typeof ESHOTS!=='undefined'?ESHOTS:[]).filter(s=>s&&s.type==='laser'));
@@ -3121,6 +3093,86 @@ function drawFX(){
   }
   // â”€â”€ Hook cable â€” braided cord from RCA pin tip â”€â”€â”€â”€â”€â”€â”€â”€â”€
   drawHookCable();
+  // Co-op: the second human player owns his own item state. Draw his item FX
+  // with the SAME single-player code path by swapping the context to P2. The
+  // pass is called in both split viewports, exactly like drawCharacterFor(p2).
+  _coopDrawP2FX();
+}
+// Per-player item streams. Reads the *global* p/ITEM so the caller can swap the
+// context to P2; in single-player this is the untouched original code.
+function _fxItemStreams(){
+  // â”€â”€ XLR push stream â€” energy shoulder â†’ jack tip â”€â”€
+  if(ITEM===2&&p.xlrOn){
+    const pose=p._armPose||computeConnectorArmPose(p);
+    const ax=sx(pose.connShX),ay=sy(pose.connShY);
+    const tipW=connectorTipWorld(2);
+    const tx=sx(tipW.x),ty=sy(tipW.y);
+    const aa=pose.aimAngle;
+    const pulse=0.4+0.6*Math.sin(fr*0.3);
+    for(let i=0;i<5;i++){
+      const t=((fr*0.1+i*0.18)%1);
+      const px=ax+(tx-ax)*t,py=ay+(ty-ay)*t;
+      ctx.globalAlpha=pulse*(0.4+0.35*Math.sin(fr*0.4+i));
+      ctx.fillStyle='#88ccff';ctx.beginPath();ctx.arc(px,py,2.2,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#66bbff';ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(aa)*8,py+Math.sin(aa)*8);ctx.stroke();
+    }
+    for(let i=0;i<3;i++){
+      const wave=((fr*0.09+i*0.22)%1);
+      const r=6+wave*34;
+      ctx.globalAlpha=(1-wave)*pulse*0.55;
+      ctx.strokeStyle='#66bbff';ctx.lineWidth=2.2-wave;
+      ctx.beginPath();ctx.arc(tx,ty,r,aa-0.42,aa+0.42);ctx.stroke();
+    }
+    ctx.globalAlpha=pulse*0.35;ctx.strokeStyle='#aaddff';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(tx,ty);ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  // â”€â”€ MAG pull stream â€” energy tip â†’ shoulder â”€â”€
+  if(ITEM===3&&p.magOn){
+    const pose=p._armPose||computeConnectorArmPose(p);
+    const ax=sx(pose.connShX),ay=sy(pose.connShY),tx=sx(pose.tipX),ty=sy(pose.tipY);
+    const pulse=0.4+0.6*Math.sin(fr*0.25);
+    const magCol=p.hero==='venture'?'#ff6688':'#ee99ff';
+    const magStroke=p.hero==='venture'?'#ff3344':'#dd88ff';
+    for(let i=0;i<5;i++){
+      const t=((fr*0.11+i*0.17)%1);
+      const px=tx+(ax-tx)*t,py=ty+(ay-ty)*t;
+      ctx.globalAlpha=pulse*0.55;
+      ctx.fillStyle=magCol;ctx.beginPath();ctx.arc(px,py,2,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=magStroke;ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+(ax-px)*0.12,py+(ay-py)*0.12);ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+}
+// Co-op P2: run the very same drawFX() body with `p` + `ITEM` swapped to P2 so
+// his XLR stream, MAG stream, pulses, mag particles, smoke and RCA rope are all
+// drawn from HIS state. Shared layers (P1+P2 laser shots, enemy flames) are
+// silenced for the sub-pass because P1 already drew them in the outer call.
+// AI companions / beta siblings are excluded: their solo code owns their FX.
+let _coopFXGuard=false;
+function _coopDrawP2FX(){
+  if(_coopFXGuard) return;
+  if(typeof p2==='undefined'||!p2||p2===p||p2._aiCompanion) return;
+  if(typeof _playerCount!=='undefined'&&_playerCount!==2) return;
+  _coopFXGuard=true;
+  const oldP=p, oldItem=ITEM;
+  const oldShots=p2.shots, oldES=(typeof ESHOTS!=='undefined'?ESHOTS:null), oldTF=(typeof TRS_FLAMES!=='undefined'?TRS_FLAMES:null);
+  p2.shots=[];
+  if(typeof ESHOTS!=='undefined') ESHOTS=[];
+  if(typeof TRS_FLAMES!=='undefined') TRS_FLAMES=[];
+  p=p2;
+  ITEM=(typeof _heldItemFor==='function')?_heldItemFor(p2):(typeof p2.item==='number'?p2.item:ITEM);
+  if(!p2._armPose) p2._armPose=computeConnectorArmPose(p2);
+  try{ drawFX(); }
+  finally{
+    p=oldP; ITEM=oldItem;
+    p2.shots=oldShots;
+    if(oldES!==null) ESHOTS=oldES;
+    if(oldTF!==null) TRS_FLAMES=oldTF;
+    _coopFXGuard=false;
+  }
 }
 // the RCA cord of whoever `p` is (the companion draws its own through drawCharacterFor-style swaps)
 function drawHookCable(){
