@@ -398,6 +398,7 @@ const PROBES = {
       let worst = 0;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1], L = Math.hypot(b.x - a.x, b.y - a.y), n = Math.ceil(L / 2);
+        if (!(n > 0)) continue;                          // two path points on the same spot (0/0 = NaN)
         let run = 0;
         for (let j = 0; j <= n; j++) {
           const d = (j / n) * L; if (d < 6 || d > L - 6) { run = 0; continue; }

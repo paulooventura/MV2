@@ -41,15 +41,15 @@
   // T425 (Paulo, Nov 11): every boot starts the same way, and a filter picked in Options lasts for that
   // session only. He first asked for Ink & Vinyl on every boot (build 382), then the same day: no filter.
   // ?console= still wins (labs, QA). Selftest stays clean.
-  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||(plain(qs)&&qs!=='gore')||(qs==='gore'&&goreOn()))) return qs; return 'off'; })();   // Paulo, Nov 11 (later the same day): the game starts with no filter (was 'ink', T425)
+  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||plain(qs)||qs==='gore')) return qs; return 'off'; })();   // Paulo, Nov 11 (later the same day): the game starts with no filter (was 'ink', T425)
   const listeners=[];
   const api={
     get mode(){ return mode; },
     get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
-    set(m){ if(m==='gore'&&!goreOn()) return; if(!(MODES[m]||plain(m))||m===mode) return; mode=m;
+    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; mode=m;
       try{ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(m); }catch(e){}   // T547: GORE = -33, I&V = +33
       try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
-    cycle(dir){ const L=['off','snes','md','ink']; if(goreOn()) L.push('gore'); const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
+    cycle(dir){ const L=['off','snes','md','ink','gore']; /* (Nov 18) GORE is a normal filter now; the code unlocks the BLOOD/INK SPILL option */ const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES

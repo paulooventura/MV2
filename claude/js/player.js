@@ -1263,6 +1263,7 @@ function updateHook(){
     if(p.aimDX>0.05) p.fc=true; else if(p.aimDX<-0.05) p.fc=false;
   };
 
+  if(h.st!=='ext') h._chk=0;
   if(h.st==='ext'){
     _aimHook(h.ex,h.ey);
     const px=h.ex, py=h.ey;
@@ -1295,6 +1296,9 @@ function updateHook(){
     h.ex+=h.evx; h.ey+=h.evy;
     if(Math.hypot(h.ex-attach.x,h.ey-attach.y)>CMAX){ if(h.st==='on') _releaseHookAim(h.ax,h.ay); _hookOff(); return; }
     let best=typeof _hookRayHit==='function'?_hookRayHit(px,py,h.ex,h.ey):null;
+    // (Nov 18, QA) the jack is thrown with its tip already out in front of MIND: a wall right at his arm lay
+    // between MIND and that first tip, and the line from the tip never saw it (the rope latched on the far side)
+    if(!h._chk){ h._chk=1; if(!best&&typeof _hookRayHit==='function'&&typeof _hookCastOrigin==='function'){ const o0=_hookCastOrigin(); if(o0) best=_hookRayHit(o0.x,o0.y,px,py); } }
     for(const e of ENEMS){
       if(!_enemyCombatActive(e)) continue;
       const hb=_enemyHookHB(e);

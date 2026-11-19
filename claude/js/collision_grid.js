@@ -86,7 +86,7 @@ function _gridLayerName(layer){
 
 function gridCell(c,r){
   if(!_gridReady()) return MV_GRID_AIR;
-  if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return MV_GRID_SOLID;
+  if(!(c>=0&&r>=0&&c<MV_GRID.cols&&r<MV_GRID.rows)) return MV_GRID_SOLID;   // (a NaN reads as rock, never a crash)
   return MV_GRID.data[r][c];
 }
 
@@ -987,6 +987,9 @@ function gridFollowSlope(body, wasGrounded){
     if(!gridSlopeLive(c,r)) continue;
     const sy=gridSlopeY(c,r,wx);
     if(sy==null||sy<feet-8||sy>feet+maxDrop) continue;
+    // (Nov 19, QA) never ride down THROUGH a floor he is standing on: a landing on a one-way / block with a ramp
+    // a couple of tiles under it was being snapped down onto that ramp (and so out of the level)
+    if(sy>feet+2){ let floorBetween=false; for(let rr=Math.floor(feet/t);rr*t<sy-2;rr++){ const k=gridCell(c,rr); if((k===MV_GRID_SOLID||k===MV_GRID_DESTRUCT||k===MV_GRID_ONEWAY)&&rr*t>=feet-3){ floorBetween=true; break; } } if(floorBetween) continue; }
     const d=Math.abs(sy-feet);
     if(d<bestAbs){
       bestAbs=d;

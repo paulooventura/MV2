@@ -619,12 +619,24 @@
     if(sc>0.5&&!off){ const k=(fr*0.02)%1; ctx.fillStyle='rgba(150,210,255,'+(0.85*(1-k))+')'; ctx.beginPath(); ctx.ellipse(R*0.48,-R*0.2+k*R*0.4,sw(3),sw(4.5),0,0,Math.PI*2); ctx.fill(); }   // a sweat drop
     ctx.restore();
     if(mk>0&&e._mockLine&&typeof drawTextC==='function'){                                              // the taunt, over its head
-      const ty=cy-R*1.55; ctx.save(); ctx.globalAlpha=Math.min(1,mk*1.5);
-      const tw=(typeof textW==='function'?textW(e._mockLine,2):300)+24; ctx.fillStyle='rgba(20,6,12,0.85)'; ctx.fillRect(cx-tw/2,ty-6,tw,30);
-      ctx.strokeStyle='#ff4a5a'; ctx.lineWidth=2; ctx.strokeRect(cx-tw/2,ty-6,tw,30);
-      drawTextC(e._mockLine,cx,ty,'#ffd0d6',2); ctx.restore();
+      // (Nov 19, Paulo) the balloon is painted in the foreground pass, in front of every character (flushed below)
+      const q=(B._mockQ=B._mockQ||[]); if(q.length<24) q.push({cx,ty:cy-R*1.55,a:Math.min(1,mk*1.5),txt:e._mockLine});
     }
   }
+
+  function flushMockLines(){
+    const q=B._mockQ; if(!q||!q.length) return; B._mockQ=[];
+    for(const m of q){ ctx.save(); ctx.globalAlpha=m.a;
+      const tw=(typeof textW==='function'?textW(m.txt,2):300)+24; ctx.fillStyle='rgba(20,6,12,0.85)'; ctx.fillRect(m.cx-tw/2,m.ty-6,tw,30);
+      ctx.strokeStyle='#ff4a5a'; ctx.lineWidth=2; ctx.strokeRect(m.cx-tw/2,m.ty-6,tw,30);
+      if(typeof drawTextC==='function') drawTextC(m.txt,m.cx,m.ty,'#ffd0d6',2); ctx.restore(); }
+  }
+  (function hookMock(){
+    if(typeof window.drawFgLampGlow!=='function'){ setTimeout(hookMock,50); return; }
+    const prev=window.drawFgLampGlow; if(prev._mockQ) return;
+    const wrapped=function(){ const r=prev.apply(this,arguments); try{ flushMockLines(); }catch(e){} return r; };
+    wrapped._mockQ=true; window.drawFgLampGlow=wrapped;
+  })();
 
   // ── ticks / drawing hooked into beta_enemies ──────────────────
   B.foeTick=function(e){

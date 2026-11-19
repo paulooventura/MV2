@@ -25,7 +25,8 @@
   // Paulo, Nov 13: "the same blood effect we have for the gore filter, let's have for the ink & vinyl, but black
   // (ink), less viscous: dripping more from objects, a cool stain on enemies and surfaces". In Ink & Vinyl the
   // blood is on, every red is turned into ink (IC), it runs thinner, and splashes that land on a foe stick to it.
-  const INK=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
+  // (Nov 18) the colour follows the BLOOD/INK SPILL option, not the filter; the dreams below still follow I&V
+  const SPILL=()=>(window.MV_SPILL?MV_SPILL.mode:'off'), INK=()=>SPILL()==='ink', IVF=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='ink');
   function IC(c){
     if(typeof c!=='string'||!INK()) return c;
     let r,g,b,a=1; const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c), n=/rgba?\(([^)]+)\)/.exec(c);
@@ -288,9 +289,9 @@
   // it carries the LIQUID, never the GORE filter's look. A boolean left over from
   // GORE must never turn a second filter on — exactly one filter is active.
   function bloodAmt(){
-    if(INK()) return Math.min(1.6,0.85+overAmt()*0.6);
-    const carried=(window.MV_BETA&&MV_BETA.bloodOn)?0.55:0;
-    return Math.min(1.6,Math.max(goreAmt(),carried)+overAmt()*0.6);
+    const sp=SPILL(); if(sp==='off') return 0;      // no blood unless the spill option is on
+    if(sp==='ink') return Math.min(1.6,0.85+overAmt()*0.6);
+    return Math.min(1.6,Math.max(goreAmt(),0.7)+overAmt()*0.6);
   }
   function goreAmt(){
     const base=(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore')?1:0;   // only the chosen GORE filter (the deep-ride effect below is additive)
@@ -616,7 +617,7 @@
   const dreams=[], DREAM_OFF=['SWEET DREAMS','SLEEP TIGHT','REST NOW','NIGHT NIGHT','PEACE, LITTLE ONE'], DREAM_NOT=['NOT SLEEPY YET...','FIVE MORE MINUTES!','ALMOST DOZING...','ONE MORE SONG?'];
   window.addEventListener('load',()=>{ const _d=window._damageEnemy; if(typeof _d!=='function') return;
     window._damageEnemy=function(e){ const pre=e&&e.hp; const r=_d.apply(this,arguments);
-      try{ if(e&&INK()&&typeof _gameState!=='undefined'&&_gameState==='game'&&e.hp<=0&&(pre==null||pre>0)){
+      try{ if(e&&IVF()&&typeof _gameState!=='undefined'&&_gameState==='game'&&e.hp<=0&&(pre==null||pre>0)){
         const off=!!(e._lastShutPerm||e._permOff||e._stayDown), L=off?DREAM_OFF:DREAM_NOT;
         dreams.push({x:(e.x||0)+(e.w||32)/2, y:(e.y||0)-10, word:L[(Math.random()*L.length)|0], t:0, max:off?120:90, big:off}); if(dreams.length>5) dreams.shift(); } }catch(er){}
       return r; }; });
@@ -640,7 +641,7 @@
     if(zOwn&&typeof _worldZoomBegin==='function') _worldZoomBegin();
     try{ drawSeeps(); drawPuddles(); }catch(e){}
     for(const c of clouds){ const a=0.35*(1-c.t/90); ctx.fillStyle=IC('rgba(140,0,16,'+a.toFixed(3)+')'); ctx.beginPath(); ctx.arc(sx(c.x),sy(c.y),Math.max(1,sw(c.r)),0,Math.PI*2); ctx.fill(); }
-    try{ if(INK()) drawDreams(); }catch(e){}
+    try{ if(IVF()) drawDreams(); }catch(e){}
     for(const s of stains){
       if(s.drip>0){ if(s.side){ if(s.ly!=null) s.y=s.ly; } s.drip--; }   // (a wall stain's run is moved in tick(); floor stains don't run)
       if(!nearView(s.x,s.y,80)) continue;                               // draw-time camera cull

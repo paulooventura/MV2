@@ -114,20 +114,21 @@ let _zoneCardT=0;
 let _levelSelIdx=0, _pendingZone=0;
 let _optRow=0, _optRebinding=null, _optSwapHeld=false, _goreStep=0, _goreWasHeld=false;
 const GORE_SEQ=['down','left','down','right','down','up'];
+// Paulo, Nov 18: the code unlocks the BLOOD/INK SPILL option for good (OFF / BLOOD / INK, any filter)
+window.MV_SPILL={ get mode(){ try{ if(localStorage.getItem('mv2.gore')!=='1') return 'off'; return localStorage.getItem('mv2.spill')||'off'; }catch(e){ return 'off'; } },
+  set(m){ try{ localStorage.setItem('mv2.spill',m); }catch(e){} },
+  cycle(dir){ const L=['off','blood','ink'], i=Math.max(0,L.indexOf(this.mode)); this.set(L[(i+(dir<0?2:1))%3]); } };
 function _goreUnlocked(){ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } }
 function _goreUnlock(){
   try{ localStorage.setItem('mv2.gore','1'); }catch(e){}
   _goreStep=0;
   window._goreFlash=18;
-  uiShowToast('GORE FILTER UNLOCKED');
+  uiShowToast('BLOOD / INK SPILL UNLOCKED');
   try{ sfx('confirm'); }catch(e){}
-  try{ if(window.MV_CONSOLE&&MV_CONSOLE.set) MV_CONSOLE.set('gore'); }catch(e){}
-  // Paulo, Nov 4 (build 362): from now on in this journey the blood stays, in any filter,
-  // and it's saved with this timeline slot
-  try{ if(window.MV_BETA){ if(MV_BETA.storySlot==null||!MV_BETA.on) MV_BETA._bloodPending=true; MV_BETA.bloodOn=true; if(MV_BETA.saveSlotNow) MV_BETA.saveSlotNow(); } }catch(e){}   // entered on the title: it goes with the next journey picked
+  MV_SPILL.set('blood');
 }
 function _goreFeed(dir){
-  if(_goreUnlocked()&&(!window.MV_BETA||MV_BETA.bloodOn||MV_BETA._bloodPending)) return;   // (a journey without blood can enter it again)
+  if(_goreUnlocked()) return;
   if(dir===GORE_SEQ[_goreStep]){ _goreStep++; if(_goreStep>=GORE_SEQ.length) _goreUnlock(); }
   else _goreStep=dir===GORE_SEQ[0]?1:0;
 }
@@ -452,9 +453,12 @@ function drawPauseMenu(){
 // There is no music-style row: the scored music always plays. No difficulty row either —
 // the elevator's floor level sets it (Paulo, 2026-11-16).
 const OPT_FILTER_ROW=3;
-const OPT_BIND0=5;                                   // first P1 bind row
-const OPT_BIND1=OPT_BIND0+BIND_ORDER.length;          // first P2 bind row
-function _optManualRow(){ return OPT_BIND1+BIND_ORDER.length; }  // manual is last
+const OPT_SPILL_ROW=4;                               // only there once the code is in
+const _optHasSpill=()=>_goreUnlocked();
+const _optTvRow=()=>_optHasSpill()?5:4;
+const _optB0=()=>_optTvRow()+1;                      // first P1 bind row
+const _optB1=()=>_optB0()+BIND_ORDER.length;         // first P2 bind row
+function _optManualRow(){ return _optB1()+BIND_ORDER.length; }  // manual is last
 function _optRowCount(){ return _optManualRow()+1; }
 let _optHoldN=0;
 function _optNudgeBar(row,inc){
@@ -494,11 +498,12 @@ function _optionsInput(ev){
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
   if(_optRow<=2&&(dec||inc)){ _optNudgeBar(_optRow, inc); return true; }
   if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
-  if(_optRow===4&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optHasSpill()&&_optRow===OPT_SPILL_ROW&&(dec||inc||ev.confirm)){ MV_SPILL.cycle(dec?-1:1); return true; }
+  if(_optRow===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
   if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
-  if(_optRow>=OPT_BIND0&&_optRow<_optManualRow()&&ev.confirm){
+  if(_optRow>=_optB0()&&_optRow<_optManualRow()&&ev.confirm){
     // Which player's set, and which action — P2 gets its own rebindable set.
-    _optRebinding={p:_optRow<OPT_BIND1?1:2, a:BIND_ORDER[(_optRow-OPT_BIND0)%BIND_ORDER.length]};
+    _optRebinding={p:_optRow<_optB1()?1:2, a:BIND_ORDER[(_optRow-_optB0())%BIND_ORDER.length]};
     return true;
   }
   return true;
@@ -931,6 +936,7 @@ function drawOptions(){
   const rows=[{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
+    ...(_optHasSpill()?[{label:'BLOOD/INK SPILL',val:MV_SPILL.mode.toUpperCase()}]:[]),
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,2),rule:i===0?'PLAYER 2 — ARROWS / NUM PAD':null}));
