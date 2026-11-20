@@ -310,6 +310,48 @@
     try{ if(typeof sfxAt==='function'){ sfxAt(e,'enemy_boot',1.5); sfxAt(e,'zap',0.7); } else { S('enemy_boot',1.5); S('zap',0.7); } }catch(er){}
     if(typeof PFXS!=='undefined') for(let k=0;k<18;k++){ const a=Math.random()*Math.PI*2, v=2+Math.random()*3; PFXS.push({x:c.x+Math.cos(a)*e.w*0.4,y:c.y+Math.sin(a)*e.h*0.4,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*2,col:k%3?'#bfe6ff':'#fff2a0'}); }
   }
+  // ── 2026-11-19: F's underwater Electric Surge + Spark Pellets (Paulo, dump line 39) ──
+  // F stays dormant and semi transparent sitting at the bottom of a water container;
+  // when MIND gets close to its perimeter it wakes and electrifies the perimeter
+  // (damages MIND when the Isolator is off, boils some water). About 1 s in it
+  // shoots electro spark pellets from its angle notches. Underwater the pellets
+  // are spawned in an air bubble that rises to the surface (a 'zap' at the pop),
+  // then the pellet stays, floating electrocuting nearby, dies out after a few
+  // seconds, falls to the floor and disappears.
+  const F_PEL=[];
+  function spawnFPellets(e){
+    const c={x:e.x+e.w/2, y:e.y+e.h/2}, R=e.w*0.56;
+    for(let i=0;i<6;i++){
+      const an=-Math.PI/2+i*Math.PI/3+(e.spin||0)+(e.ang||0), x=c.x+Math.cos(an)*R, y=c.y+Math.sin(an)*R-4;
+      F_PEL.push({x,y,vy:-1.2,vx:(Math.random()-0.5)*0.5,t:0,life:140,stage:0});
+    }
+  }
+  function fPelTick(){
+    for(let i=F_PEL.length-1;i>=0;i--){
+      const b=F_PEL[i]; b.t++;
+      const wp=B.inWater&&B.inWater(b.x,b.y);
+      if(!wp&&b.stage===0){ b.stage=1; S('zap',1.8+Math.random()*0.2); }                       // the bubble reaches the surface: it pops
+      if(b.stage===1&&p&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
+      if(b.stage===0){ b.vy=Math.min(b.vy+0.05,1.2); b.y+=b.vy; b.x+=b.vx; }
+      else { b.vy=0.14; b.y+=b.vy; if(b.t>b.life){ F_PEL.splice(i,1); } }                     // floats, then dies and falls
+    }
+  }
+  function fPelDraw(){
+    if(!F_PEL.length) return;
+    ctx.save();
+    for(const b of F_PEL){
+      const x=sx(b.x), y=sy(b.y), r=sw(9);
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle='rgba(200,240,255,0.5)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let k=0;k<3;k++){ const a=b.t*0.45+k*2.3; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.55,y+Math.sin(a)*r*0.55); }
+      ctx.stroke();
+      ctx.strokeStyle='rgba(150,225,255,0.3)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,sw(6),0,Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function cubeTick(e){
     // the drawn hexagon's radius (0.56*w) is wider than its box — pad the test
     // so the PIXELS, not just the box, stay clear of rock (and it can't cling to a wall)
@@ -318,6 +360,9 @@
     if(B._fBubFr!==fr){ B._fBubFr=fr; try{ bubbleTick(); }catch(er){} }
     if(e.mhp>=9999){ e.hp=e.mhp=90; }                    // (build 368) beta_enemy_f's 9999 HP stuck after its notch rules were switched off
     const gore=GORE(), c={x:e.x+e.w/2, y:e.y+e.h/2}, P=centre(), dx=P.x-c.x, dy=P.y-c.y, d=Math.hypot(dx,dy)||1;
+    const wetF=B.inWater&&B.inWater(c.x,c.y);
+    if(!wetF&&e.st!=='sleep'){ e.st='sleep'; e.cd=0; e.beams=null; e.fVulnT=0; }   // (Paulo, 2026-11-19) no water around it: it shuts down
+    fPelTick();
     if(e.cd>0) e.cd--;
     e.spin+=e.st==='zap'?0.08:(e.og?0:0.008);
     e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
@@ -342,8 +387,20 @@
     if(close&&!e._wasClose){ cubeWake(e); }
     if(close&&e.alive) e.fVulnT=Math.max(e.fVulnT||0,2);           // T434: solid and open to damage while MIND is close
     e._wasClose=close;
+    // (Paulo, 2026-11-19): awake in water — it electrifies its perimeter (damages MIND
+    // when the Isolator is off, boils some water) and, ~1 s in, shoots electro spark
+    // pellets from its angle notches.
+    if(close&&wetF&&e.alive){
+      const d2=Math.hypot(P.x-c.x,P.y-c.y), R=e.w*0.56;
+      if(d2<R*2.4){
+        if(!B.hasIsolator&&typeof applyPlayerHit==='function'&&(fr&31)===0&&clearLine(c.x,c.y,P.x,P.y)) applyPlayerHit(P.x,P.y-8,6);
+        if((fr&63)===0&&B.boilAt) B.boilAt(c.x,c.y,0.2);
+      }
+      if(e._pelletT==null) e._pelletT=fr;
+      else if(fr-e._pelletT>=60){ spawnFPellets(e); e._pelletT=fr; }
+    }
     e.fSolidK=(e.fSolidK||0)+((close&&e.alive?1:0)-(e.fSolidK||0))*0.12;
-    if(!close){ e.st='sleep'; e.beams=null; return; }
+    if(!close){ e.st='sleep'; e.beams=null; e._pelletT=null; return; }
     if(e.cd>0){ if(e.st!=='zap') e.st='sleep'; }
     else {
       e.st='zap'; e.cd=gore?130:240; e.elecT=18;
@@ -367,6 +424,7 @@
   }
   function drawCube(e,over){
     if(!over) try{ drawBubbles(); }catch(er){}
+    try{ fPelDraw(); }catch(er){}
     if(!e.alive){ e.fVulnT=0; e._wakeT=0; e.fSolidK=0; }      // T487 (Paulo, Nov 11): shut down, it stops pulsing
     const awake=e.alive&&(e.st==='hunt'||e.st==='zap'||!!e._wasClose||(e.fVulnT||0)>0);
     if(e._wakeT>0&&!over) e._wakeT--;
