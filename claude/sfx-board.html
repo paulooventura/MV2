@@ -65,8 +65,17 @@ audio{height:34px;flex:1;min-width:200px}
   <section><h2>Real SFX files <span class="cnt" id="c-file"></span></h2><div class="grid" id="files"></div></section>
   <section><h2>Meme pack (drop-in wavs) <span class="cnt" id="c-meme"></span></h2><div class="grid" id="meme"></div></section>
   <section><h2>Synthesized voices — no file <span class="cnt" id="c-synth"></span></h2>
-    <p class="note">These are generated in <code>claude/js/sfx_posh.js</code> + <code>audio.js</code>. To replace one with a file, drop a wav at <code>claude/assets/SFX/&lt;name&gt;.wav</code> and the dispatcher prefers it.</p>
+    <p class="note">These are generated live in <code>js/sfx_posh.js</code> + <code>js/audio.js</code> — there is no file to stream, which is why they had no play button. The board now loads the real audio engine, so ▶ calls <code>sfx('name')</code> and you can hear them. <b>To replace one with a file:</b> add <code>name:'assets/SFX/name.wav'</code> to <code>SFX_SAMPLE_PATHS</code> in <code>js/audio.js</code> and bump <code>SFX_BUILD</code> — the engine then prefers the file. (There is no automatic file-drop override.) <span id="synthStat" style="color:var(--verm);font-weight:bold"></span></p>
     <div class="grid" id="synth"></div></section>
+  <section><h2>Replace a synth with a file — line generator</h2>
+    <p class="lead">Type the voice name and your wav path. Copy the line into <code>SFX_SAMPLE_PATHS</code> in <code>js/audio.js</code>, bump <code>SFX_BUILD</code>, hard-refresh. The engine will then play your file instead of the generated voice.</p>
+    <div style="border:1.4px solid var(--sumi);background:#fbf5e9;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:11px">voice <input id="ovName" value="punch" style="font-family:monospace;font-size:11px;border:1.4px solid var(--sumi);padding:5px;width:130px"></label>
+      <label style="font-size:11px">file <input id="ovPath" value="assets/SFX/punch.wav" style="font-family:monospace;font-size:11px;border:1.4px solid var(--sumi);padding:5px;width:240px"></label>
+      <button id="ovGen">Generate</button><button id="ovCopy">Copy</button>
+      <code id="ovOut" style="flex:1;min-width:260px;background:#2a2233;color:#d8c8f0;padding:6px 8px;border-radius:2px">  punch: 'assets/SFX/punch.wav',</code>
+    </div>
+  </section>
   <section><h2>Music / soundtrack <span class="cnt" id="c-music"></span></h2><div class="grid" id="music"></div></section>
 </main>
 <footer>
@@ -75,6 +84,10 @@ audio{height:34px;flex:1;min-width:200px}
   <span class="note">Files live in <code>claude/assets/SFX</code> and <code>claude/assets/bgm</code>. Replace a wav/mp3 in place to change the game sound.</span>
 </footer>
 
+<!-- Load the real game audio engine so synthesized voices can be auditioned via sfx('name'). -->
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sfx_posh.js"></script>
 <script>
 // Data embedded so the page works from file:// with no fetch/CORS.
 const FILES = [
@@ -90,19 +103,34 @@ const MUSIC = ["cache-fever-gold","canopy-quest-gold","cartridge-cannon-bronze",
 const player=document.getElementById('player');
 const $=id=>document.getElementById(id);
 function play(path,name){
+  if(!path){ playSynth(name); return; }
+  $('err').classList.add('hide');
   player.src=path; player.title=name; player.play().catch(()=>{
     $('err').textContent='Could not play '+path+' — if opened via file://, use the local-server launcher (open-mv2-sfx-board.ps1).';
     $('err').classList.remove('hide');
   });
 }
+function playSynth(name){
+  try{
+    if(typeof window._unlockAudio==='function') window._unlockAudio();
+    if(typeof window.sfx!=='function') throw new Error('audio engine not loaded');
+    window.sfx(name);
+    player.title=name+' (synth)';
+    $('synthStat').textContent="Just played: sfx('"+name+"')";
+  }catch(e){
+    $('err').textContent='Could not play synth "'+name+'": '+e.message;
+    $('err').classList.remove('hide');
+  }
+}
 $('stop').onclick=()=>{player.pause();player.currentTime=0;};
 function card(name,path,kind){
   const d=document.createElement('div'); d.className='card'; d.dataset.n=(name+' '+path).toLowerCase();
   const nm=document.createElement('div'); nm.className='nm';
-  nm.innerHTML='<b></b><small></small>'; nm.querySelector('b').textContent=name; nm.querySelector('small').textContent=path;
+  nm.innerHTML='<b></b><small></small>'; nm.querySelector('b').textContent=name;
+  nm.querySelector('small').textContent = path || ("sfx('"+name+"')");
   const tag=document.createElement('span'); tag.className='tag '+kind; tag.textContent=kind;
   const b=document.createElement('button'); b.className='play'; b.textContent='▶';
-  if(path){ b.onclick=()=>play(path,name); } else { b.disabled=true; b.title='Synthesized in code'; }
+  if(path){ b.onclick=()=>play(path,name); } else { b.onclick=()=>playSynth(name); b.title='Play synthesized voice via sfx()'; }
   d.append(nm,tag,b); return d;
 }
 function fill(id,list){
@@ -120,6 +148,22 @@ $('q').oninput=e=>{
   const q=e.target.value.toLowerCase();
   document.querySelectorAll('.card').forEach(c=>c.classList.toggle('hide', q && !c.dataset.n.includes(q)));
 };
+// SFX override line generator (paste into SFX_SAMPLE_PATHS in js/audio.js)
+$('ovGen').onclick=()=>{
+  const n=$('ovName').value.trim(), p=$('ovPath').value.trim();
+  $('ovOut').textContent="  "+(/^[A-Za-z_$][\w$]*$/.test(n)?n:JSON.stringify(n))+": "+JSON.stringify(p)+",";
+};
+$('ovName').oninput=$('ovPath').oninput=()=>$('ovGen').click();
+$('ovCopy').onclick=()=>{
+  const txt=$('ovOut').textContent;
+  const done=()=>{$('ovCopy').textContent='Copied ✓';setTimeout(()=>$('ovCopy').textContent='Copy',1200);};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,()=>fallbackCopy(txt,done));
+  else fallbackCopy(txt,done);
+};
+function fallbackCopy(txt,cb){
+  const ta=document.createElement('textarea');ta.value=txt;document.body.append(ta);ta.select();
+  try{document.execCommand('copy');cb();}catch(e){}ta.remove();
+}
 </script>
 </body>
 </html>
