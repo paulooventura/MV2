@@ -330,7 +330,7 @@
     for(let i=F_PEL.length-1;i>=0;i--){
       const b=F_PEL[i]; b.t++;
       const wp=B.inWater&&B.inWater(b.x,b.y);
-      if(!wp&&b.stage===0){ b.stage=1; S('zap',1.8+Math.random()*0.2); }                       // the bubble reaches the surface: it pops
+      if(!wp&&b.stage===0){ b.stage=1; try{ if(typeof sfxAt==='function') sfxAt({x:b.x,y:b.y,w:0,h:0},'bubble_pop',1); else S('bubble_pop',1); }catch(er){ S('zap',1.8); } }                       // the bubble reaches the surface: it pops
       if(b.stage===1&&p&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
       if(b.stage===0){ b.vy=Math.min(b.vy+0.05,1.2); b.y+=b.vy; b.x+=b.vx; }
       else { b.vy=0.14; b.y+=b.vy; if(b.t>b.life){ F_PEL.splice(i,1); } }                     // floats, then dies and falls

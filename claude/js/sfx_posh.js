@@ -269,6 +269,13 @@
       tone(a,{f:28,f1:120,glide:1.1,dt:0.05,d:1.1,at:1.02,v:0.16,type:'triangle'});
       tone(a,{f:26,f1:62,glide:1.15,dt:0,d:1.15,at:1.08,v:0.18});
     },
+    // T572 (Paulo 2026-11-19): F's pellet bubble reaches the surface: a wet "bloop" pop, then a short electric crackle
+    bubble_pop(a){
+      tone(a,{f:rnd(380,460),f1:rnd(900,1200),glide:0.05,d:0.07,v:0.12,type:'sine',rev:0.2});
+      hiss(a,{type:'highpass',f:2600,d:0.05,v:0.09,dt:0.02});
+      for(let k=0;k<5;k++) hiss(a,{f:rnd(2400,6000),q:8,dt:0.06+k*rnd(0.02,0.05),d:0.02,v:rnd(0.05,0.1)});
+      tone(a,{f:rnd(1800,2600),f1:300,dt:0.07,d:0.12,v:0.05,type:'square',lp:3200});
+    },
     ropeSnap(a){ tone(a,{f:640,f1:110,d:0.32,v:0.13,type:'triangle'}); hiss(a,{type:'highpass',f:2500,d:0.06,v:0.12}); },
     hook_off(a){ hiss(a,{type:'highpass',f:2400,d:0.04,v:0.22}); tone(a,{f:780,f1:120,d:0.06,v:0.16,type:'square'}); },
     ropeBreak(a){ R.ropeSnap(a); tone(a,{f:180,f1:70,d:0.2,v:0.1}); },
