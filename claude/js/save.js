@@ -16,6 +16,8 @@ const DEFAULT_OPTS={
   musicVol:0.75,
   sfxVol:1.0,
   engineVol:0.8,
+  headphones:false,   // music plays from the character; locked ON in co-op
+  mutePartner:false,  // co-op: mute the other player's music
   musicMode:'ost', // 'ost' (assets/new music wav) | 'psg' (chiptune fallback)
   // ── Player 1 — left side of the keyboard ──────────────────────
   binds:{

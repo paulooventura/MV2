@@ -254,7 +254,17 @@
       const home=roomsOf(B,'home')[0], cur=window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current();
       const onStage=B.stageId==='1.1'&&home&&(cur==='stage'||cur==='stage2')&&!B.popup&&!B.results;
       let lp=20000, g=1, pan=0;
-      if(onStage){
+      const coop=typeof _coopPair==='function'&&!!_coopPair(), hp=coop||!!(OPT&&OPT.headphones);
+      if(hp&&(cur==='stage'||cur==='stage2'||cur==='stage3')&&!B.popup&&!B.results){
+        // Headphones (locked on in co-op): the music comes from the character, not the gramophone.
+        // Co-op has one music bus: pan follows P1, or the midpoint of both players unless the other's music is muted.
+        let x=0.5;
+        try{ const cw=camViewW(), sxOf=q=>Math.max(0,Math.min(1,(q.x+SW/2-camX)/cw));
+          x=sxOf(p); if(coop&&!(OPT&&OPT.mutePartner)) x=(x+sxOf(p2))/2;
+          if(coop&&_coopSplitWanted()) x=OPT&&OPT.mutePartner?0.25:0.5; }catch(e){}
+        pan=Math.max(-0.94,Math.min(0.94,(x-0.5)*2)); g=1; lp=20000;
+        set(fx.lp.frequency,lp,0.35); set(fx.g.gain,g,0.35); set(fx.pan.pan,pan,0.12); musicSet=true;
+      } else if(onStage){
         const vx=24*32+30, vy=home.y+home.h-50, L=SP.listener();
         const face=(typeof p!=='undefined'&&p&&p.fc)?1:-1;
         const dx=(vx-L.x)/32, d=Math.hypot(vx-L.x,vy-L.y)/32, ot=SP.occlusion(L.x,L.y,vx,vy);
@@ -272,8 +282,9 @@
         g=Math.max(0.035,Math.min(1,g));
         pan=typeof SP.screenPan==='function'?SP.screenPan(vx):Math.max(-0.94,Math.min(0.94,Math.tanh(dx/8)));
       }
-      if(onStage||musicSet){ set(fx.lp.frequency,lp,0.35); set(fx.g.gain,g,0.35); set(fx.pan.pan,pan,0.12); }
-      musicSet=onStage;
+      if(hp&&(cur==='stage'||cur==='stage2'||cur==='stage3')&&!B.popup&&!B.results){ /* handled above */ }
+      else if(onStage||musicSet){ set(fx.lp.frequency,lp,0.35); set(fx.g.gain,g,0.35); set(fx.pan.pan,pan,0.12); }
+      musicSet=onStage||(hp&&musicSet);
     }
     // ── stoves ──
     stoveSpots(B).forEach((st,i)=>{

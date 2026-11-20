@@ -456,7 +456,10 @@ const OPT_FILTER_ROW=3;
 const OPT_SPILL_ROW=4;                               // only there once the code is in
 const _optHasSpill=()=>_goreUnlocked();
 const _optTvRow=()=>_optHasSpill()?5:4;
-const _optB0=()=>_optTvRow()+1;                      // first P1 bind row
+const _optHpRow=()=>_optTvRow()+1;
+const _optMuteRow=()=>_optTvRow()+2;
+const _optInCoop=()=>{ try{ return typeof _coopPair==='function'&&!!_coopPair(); }catch(e){ return false; } };
+const _optB0=()=>_optTvRow()+3;                     // first P1 bind row
 const _optB1=()=>_optB0()+BIND_ORDER.length;         // first P2 bind row
 function _optManualRow(){ return _optB1()+BIND_ORDER.length; }  // manual is last
 function _optRowCount(){ return _optManualRow()+1; }
@@ -500,6 +503,8 @@ function _optionsInput(ev){
   if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
   if(_optHasSpill()&&_optRow===OPT_SPILL_ROW&&(dec||inc||ev.confirm)){ MV_SPILL.cycle(dec?-1:1); return true; }
   if(_optRow===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(_optRow===_optHpRow()&&(dec||inc||ev.confirm)){ if(!_optInCoop()){ OPT.headphones=!OPT.headphones; _saveOpts(); } return true; }
+  if(_optRow===_optMuteRow()&&(dec||inc||ev.confirm)){ OPT.mutePartner=!OPT.mutePartner; _saveOpts(); return true; }
   if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
   if(_optRow>=_optB0()&&_optRow<_optManualRow()&&ev.confirm){
     // Which player's set, and which action — P2 gets its own rebindable set.
@@ -937,7 +942,9 @@ function drawOptions(){
     {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
     ...(_optHasSpill()?[{label:'BLOOD/INK SPILL',val:MV_SPILL.mode.toUpperCase()}]:[]),
-    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'}];
+    {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
+    {label:'HEADPHONES',val:_optInCoop()?'ON (CO-OP)':(OPT.headphones?'ON':'OFF')},
+    {label:"MUTE P2'S MUSIC",val:OPT.mutePartner?'ON':'OFF'}];
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,2),rule:i===0?'PLAYER 2 — ARROWS / NUM PAD':null}));
   rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
