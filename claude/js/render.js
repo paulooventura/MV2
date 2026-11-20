@@ -97,7 +97,10 @@ function drawEnemyBodyShape(bx,by,facing,shape){
   }
 }
 function drawMindGloveArm(e,sxp,syp,facing,hidden){
-  const armCol1=window._mirrorDraw?'#0e1014':C.MAROON, armCol2=window._mirrorDraw?'#5c626e':C.RED_D;   // (build 411) the mirror D's coil: black and chrome
+  // Paulo 2026-11-20: MIND's arm reads as a coiled aux cable (black rubber, dark
+  // chrome sheen) with a gold-plated jack at the socket — the reference hardware.
+  const mirror=!!window._mirrorDraw;
+  const armCol1=mirror?'#0e1014':'#090a0d', armCol2=mirror?'#5c626e':'#3a3f4a';
   const punching=e.pt>0;
   const snapFrac=punching?(1-e.pt/10):0;
   const fwdDir=facing?1:-1;
@@ -105,6 +108,7 @@ function drawMindGloveArm(e,sxp,syp,facing,hidden){
   if(!punching){
     const s1=Math.round(seg1Len/SMS_SCALE);
     if(!hidden) drawCoil(sxp,syp,Math.PI/2,s1,armCol1,armCol2);
+    if(!hidden&&!mirror){ ctx.fillStyle='#d9a441'; ctx.fillRect(sxp-1,syp-1,2,2); ctx.fillStyle='rgba(255,236,170,0.75)'; ctx.fillRect(sxp-1,syp-1,1,1); }
     const ex=sxp, ey=syp+s1;
     const s2=Math.max(1,Math.round(guardFwd/SMS_SCALE));
     if(!hidden) drawCoil(ex,ey,facing?0:Math.PI,s2,armCol1,armCol2);
@@ -113,6 +117,7 @@ function drawMindGloveArm(e,sxp,syp,facing,hidden){
     const armLen=guardFwd+snapFrac*(punchFwd-guardFwd);
     const punchAngle=Math.atan2(e.aimDY,e.aimDX);
     if(!hidden) drawCoil(sxp,syp,punchAngle,armLen/SMS_SCALE,armCol1,armCol2);
+    if(!hidden&&!mirror){ ctx.fillStyle='#d9a441'; ctx.fillRect(sxp-1,syp-1,2,2); }
     if(!hidden) drawFist(sxp+Math.cos(punchAngle)*armLen/SMS_SCALE,syp+Math.sin(punchAngle)*armLen/SMS_SCALE,facing,false,0,true,snapFrac);
   }
 }
@@ -445,38 +450,51 @@ function _drawHatBrim(brimL,brimR,hatBrimY,brimH){
 // are the logo's, as fractions of the brim width (origin: brim top, centre).
 // dir: 1 = as drawn (MIND facing right), -1 mirrored. opt.front=false leaves
 // the front brim off (Venture: a backwards cap).
+// Paulo 2026-11-20: MIND's hat is rebuilt from the reference — a structured black
+// wide-brim fedora (tapered crown with a pinched top, hatband, chin strap), not the
+// flat vinyl-disc logo. VENTURE keeps his separate backwards cap (_drawVentureCap).
 function drawLogoHat(cx,brimY,Wd,dir,opt){
   opt=opt||{}; dir=dir<0?-1:1;
   const front=opt.front!==false;
   const X=u=>cx+dir*u*Wd;
-  const brimT=opt.brimT||Math.max(3.5,0.0305*Wd), wall=opt.wall||Math.max(2.6,0.028*Wd), sl=Math.max(2,0.026*Wd);
-  const crownH=opt.crownH||0.205*Wd, cL=-0.2127, cR=0.2134, chf=Math.max(1,0.013*Wd);
-  const col=opt.col||'#050507', inner=opt.inner||'#1a1820', hi=opt.hi||'#4a4656';
-  ctx.save();
-  // shadow under the brim on the bulb
-  if(!opt.noShadow){ const e0=X(-0.42), e1=X(front?0.42:cR); ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(Math.min(e0,e1),brimY+brimT,Math.abs(e1-e0),2.5); }
-  // the brim: a parallelogram (top edge shifted toward the front)
-  const bL=-0.5, bR=front?0.5:cR;
-  ctx.fillStyle=col; ctx.beginPath();
-  ctx.moveTo(X(bL)+dir*sl,brimY); ctx.lineTo(X(bR),brimY); ctx.lineTo(front?X(bR)-dir*sl:X(bR),brimY+brimT); ctx.lineTo(X(bL),brimY+brimT); ctx.closePath(); ctx.fill();
-  // the spike under the brim, below the crown's back wall
-  const sT=brimY+brimT-0.5, sB=brimY+brimT+Math.max(3,0.07*Wd);
-  ctx.beginPath(); ctx.moveTo(X(-0.207),sT); ctx.lineTo(X(-0.148),sT); ctx.lineTo(X(-0.168),sB); ctx.lineTo(X(-0.181),sB); ctx.closePath(); ctx.fill();
-  // the crown
+  const brimT=opt.brimT||Math.max(3,0.028*Wd);
+  const crownH=opt.crownH||0.205*Wd;
+  const col=opt.col||'#070708', band=opt.band||'#151519', hi=opt.hi||'#5a5462';
+  const bL=-0.52, bR=front?0.52:0.30, baseL=-0.205, baseR=0.205, topL=-0.140, topR=0.140;
   const top=brimY-crownH;
-  ctx.beginPath(); ctx.moveTo(X(cL),brimY+0.5); ctx.lineTo(X(cL),top+chf); ctx.lineTo(X(cL)+dir*chf,top); ctx.lineTo(X(cR)-dir*chf,top); ctx.lineTo(X(cR),top+chf); ctx.lineTo(X(cR),brimY+0.5); ctx.closePath(); ctx.fill();
-  // its window (open at the bottom onto the brim), chamfered top-left and bottom-right
-  const iL=X(cL)+dir*wall, iR=X(cR)-dir*wall, iT=top+wall, k1=Math.max(2,0.06*Wd), k2=Math.max(2,0.05*Wd);
-  ctx.fillStyle=inner; ctx.beginPath();
-  ctx.moveTo(iL,brimY); ctx.lineTo(iL,iT+k1); ctx.lineTo(iL+dir*k1,iT); ctx.lineTo(iR,iT); ctx.lineTo(iR,brimY-k2); ctx.lineTo(iR-dir*k2,brimY); ctx.closePath(); ctx.fill();
-  // a thin edge light around the whole silhouette so the black reads on a dark world (and on the bulb)
-  ctx.strokeStyle=hi; ctx.lineWidth=1; ctx.lineJoin='miter';
-  ctx.beginPath(); ctx.moveTo(X(cL),brimY); ctx.lineTo(X(cL),top+chf); ctx.lineTo(X(cL)+dir*chf,top); ctx.lineTo(X(cR)-dir*chf,top); ctx.lineTo(X(cR),top+chf); ctx.lineTo(X(cR),brimY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(X(cL),brimY); ctx.lineTo(X(bL)+dir*sl,brimY); ctx.lineTo(X(bL),brimY+brimT); ctx.lineTo(X(-0.207),brimY+brimT);
-  ctx.lineTo(X(-0.181),sB); ctx.lineTo(X(-0.168),sB); ctx.lineTo(X(-0.148),brimY+brimT);
-  ctx.lineTo(front?X(bR)-dir*sl:X(bR),brimY+brimT); ctx.lineTo(X(bR),brimY); ctx.lineTo(X(cR),brimY); ctx.stroke();
-  ctx.strokeStyle=hi; ctx.globalAlpha=0.7; ctx.beginPath();
-  ctx.moveTo(iL,brimY); ctx.lineTo(iL,iT+k1); ctx.lineTo(iL+dir*k1,iT); ctx.lineTo(iR,iT); ctx.lineTo(iR,brimY-k2); ctx.lineTo(iR-dir*k2,brimY); ctx.stroke(); ctx.globalAlpha=1;
+  ctx.save();
+  if(!opt.noShadow){ const e0=X(bL), e1=X(bR); ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(Math.min(e0,e1),brimY+brimT,Math.abs(e1-e0),2.5); }
+  // wide brim with a slight upturn at both ends
+  ctx.fillStyle=col; ctx.beginPath();
+  ctx.moveTo(X(bL),brimY+brimT*0.4);
+  ctx.quadraticCurveTo(X(bL+0.05),brimY-1.5,X(-0.34),brimY);
+  ctx.lineTo(X(0.34),brimY);
+  ctx.quadraticCurveTo(X(bR-0.05),brimY-1.5,X(bR),brimY+brimT*0.4);
+  ctx.lineTo(X(bR-0.07),brimY+brimT); ctx.lineTo(X(bL+0.07),brimY+brimT); ctx.closePath(); ctx.fill();
+  // brim sheen
+  ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(X(-0.34)+ (dir<0?0:0),brimY, Wd*0.55,1);
+  // crown: tapered, pinched/dented top (fedora silhouette)
+  ctx.fillStyle=col; ctx.beginPath();
+  ctx.moveTo(X(baseL),brimY+1);
+  ctx.lineTo(X(topL),top+3); ctx.lineTo(X(topL)+dir*2,top+1);
+  ctx.quadraticCurveTo(X(0),top+3,X(topR)-dir*2,top+1);
+  ctx.lineTo(X(topR),top+3); ctx.lineTo(X(baseR),brimY+1); ctx.closePath(); ctx.fill();
+  // hatband
+  ctx.fillStyle=band; ctx.fillRect(Math.min(X(baseL),X(baseR))+dir*1,brimY-4,Math.abs(X(baseR)-X(baseL))-2,3);
+  ctx.fillStyle='rgba(255,255,255,0.10)'; ctx.fillRect(Math.min(X(baseL),X(baseR))+dir*1,brimY-4,Math.abs(X(baseR)-X(baseL))-2,1);
+  // chin strap: two short tapered cords down the sides of the bulb
+  ctx.strokeStyle='#0c0c0e'; ctx.lineWidth=1.3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(X(bL+0.08),brimY+brimT); ctx.lineTo(cx-9,brimY+11); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(bR-0.08),brimY+brimT); ctx.lineTo(cx+9,brimY+11); ctx.stroke();
+  // edge light so the black reads against a dark world
+  ctx.strokeStyle=hi; ctx.lineWidth=1; ctx.lineJoin='miter'; ctx.globalAlpha=0.8;
+  ctx.beginPath();
+  ctx.moveTo(X(baseL),brimY); ctx.lineTo(X(topL),top+3); ctx.lineTo(X(topL)+dir*2,top+1);
+  ctx.quadraticCurveTo(X(0),top+3,X(topR)-dir*2,top+1); ctx.lineTo(X(topR),top+3); ctx.lineTo(X(baseR),brimY);
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(bL),brimY+brimT*0.4); ctx.quadraticCurveTo(X(bL+0.05),brimY-1.5,X(-0.34),brimY);
+  ctx.moveTo(X(0.34),brimY); ctx.quadraticCurveTo(X(bR-0.05),brimY-1.5,X(bR),brimY+brimT*0.4); ctx.stroke();
+  ctx.globalAlpha=1;
   ctx.restore();
 }
 function _hatDir(){ return (typeof p!=='undefined'&&p&&p.fc===false)?-1:1; }
@@ -610,6 +628,16 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   const iRy=goreFace?3.2:6, iDy=goreFace?3.4:5;
   ctx.beginPath();ctx.ellipse(cx,drawY+3,6,iRy,0,0,Math.PI*2);ctx.fillStyle=irisCol;ctx.fill();
   ctx.beginPath();ctx.ellipse(cx,drawY+3,5,iDy,0,0,Math.PI*2);ctx.fillStyle=irisDark;ctx.fill();
+  // Paulo 2026-11-20: the reference eye is a clock-like lens — a white dish with
+  // a black gear at its centre. Ring the iris with slowly turning gear teeth.
+  if(!hostile&&!MIR&&!goreFace){
+    ctx.save(); ctx.fillStyle='#0b0b10';
+    for(let k=0;k<8;k++){
+      const a=k*Math.PI/4+fr*0.008, gx=cx+Math.cos(a)*7.7, gy=drawY+3+Math.sin(a)*7.7;
+      ctx.save(); ctx.translate(gx,gy); ctx.rotate(a); ctx.fillRect(-0.9,-1.6,1.8,3.2); ctx.restore();
+    }
+    ctx.restore();
+  }
   if(goreFace){
     ctx.strokeStyle='#1a0608'; ctx.lineWidth=1.6; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(cx-9,drawY-eyeRy-1); ctx.lineTo(cx-1,drawY-eyeRy+2); ctx.moveTo(cx+9,drawY-eyeRy-1); ctx.lineTo(cx+1,drawY-eyeRy+2); ctx.stroke();
@@ -1025,8 +1053,9 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     if(_armSolid(fx,fy)||_armSolid(fx+fd*8,fy)) facing=!facing;
   }
   const isVenture=p.hero==='venture';
-  const armCol1=window._mirrorDraw?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
-  const armCol2=window._mirrorDraw?'#5c626e':isVenture?C.RED_D:C.INDIGO;
+  // Paulo 2026-11-20: MIND's arm = coiled aux cable (black rubber + dark chrome).
+  const armCol1=window._mirrorDraw?'#0e1014':isVenture?C.MAROON:'#090a0d';
+  const armCol2=window._mirrorDraw?'#5c626e':isVenture?C.RED_D:'#3a3f4a';
   const punching   = p.pt > 0;
   const charging   = p.pCharging;
   const HP = typeof _heroPunch==='function' ? _heroPunch(p) : {dmg:15,reach:28,loadF:20,loadDmg:35,loadReach:58};
@@ -1286,8 +1315,9 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   ctx.translate(gx, gy);
   if(!facing) ctx.scale(-1,1);
   if(punching) ctx.scale(1+snapFrac*0.1,1+snapFrac*0.1);
-  // Paulo (Oct 22, the key art): a purple leather glove for MIND, a red one for VENTURE
-  const gL=window._mirrorDraw?['#e8eef8','#6a707c','#14161c']:isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];   // (build 411) the mirror D: a chrome glove
+  // Paulo 2026-11-20: MIND's glove is now a gold-plated jack housing (reference hardware);
+  // VENTURE keeps the red glove, the mirror D keeps its chrome one.
+  const gL=window._mirrorDraw?['#e8eef8','#6a707c','#14161c']:isVenture?['#ff6a72','#c81c2c','#5a0812']:['#ffe9a8','#d9a441','#6b4a12'];
   ctx.fillStyle='#050507';
   ctx.beginPath();ctx.roundRect(-1,-gh/2-1,gw+2,gh+2,7);ctx.fill();
   ctx.beginPath();ctx.arc(gw/2,0,gh/2+3,0,Math.PI*2);ctx.fill();
@@ -1304,7 +1334,7 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(-4,-3,4,1);
   if(charging&&chargeFrac>0.25){
     ctx.globalAlpha=chargeFrac*0.6;
-    ctx.fillStyle=chargeFrac>0.8?'#ffffff':(isVenture?'#ff8888':'#cc88ff');
+    ctx.fillStyle=chargeFrac>0.8?'#ffffff':(isVenture?'#ff8888':'#ffd980');
     ctx.beginPath();ctx.arc(gw/2,0,8+chargeFrac*10,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=1;
   }
@@ -1626,9 +1656,9 @@ function drawCharacter(){
   const drawConnArm=()=>{
   const isVenture=p.hero==='venture';
   const _md=!!window._mirrorDraw;                                  // T490: the mirror foe's arms are black and chrome
-  const _armDark=_md?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
-  const _armMain=_md?'#5c626e':isVenture?C.RED_D:C.INDIGO;
-  const _armGlow=_md?'rgba(220,228,240,0.16)':isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
+  const _armDark=_md?'#0e1014':isVenture?C.MAROON:'#090a0d';
+  const _armMain=_md?'#5c626e':isVenture?C.RED_D:'#3a3f4a';
+  const _armGlow=_md?'rgba(220,228,240,0.16)':isVenture?'rgba(210,90,110,0.18)':'rgba(224,190,110,0.13)';
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
