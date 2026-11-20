@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · Work Queue</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{background:var(--washi2);border-bottom:2px solid var(--sumi);padding:11px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0}.seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:25px;height:25px;font-size:13px;margin-right:8px;vertical-align:middle}
+a.back{font-size:11px;text-decoration:none;color:var(--indigo);border:1.4px solid var(--indigo);padding:5px 9px;background:#fbf5e9}
+main{padding:16px;max-width:1100px;margin:0 auto 60px}
+.lead{font-size:12px;color:var(--mica);line-height:1.6;margin:10px 0}
+.stats{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
+.box{border:1.4px solid var(--sumi);background:#fbf5e9;padding:13px;min-width:150px}
+.box .n{font-size:26px;color:var(--verm)}.box .l{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mica)}
+.item{border:1.4px solid var(--sumi);background:#fbf5e9;padding:12px;margin:9px 0}
+.item .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.item .k{font-family:monospace;font-size:11px;color:var(--indigo)}
+.badge{font-size:9px;letter-spacing:.08em;border:1px solid var(--mica);padding:2px 6px;text-transform:uppercase}
+.badge.pending{border-color:var(--verm);color:var(--verm)}.badge.wip{border-color:var(--gold);color:var(--gold)}.badge.done{border-color:var(--celadon);color:var(--celadon)}
+.item .txt{font-size:12px;margin:8px 0;white-space:pre-wrap;line-height:1.5}
+.files{display:flex;gap:5px;flex-wrap:wrap}
+.files a{font-size:10px;color:var(--indigo);text-decoration:none;border:1px solid var(--mica);padding:3px 6px;background:#fff}
+.acts{display:flex;gap:6px;margin-left:auto}
+button{font-family:inherit;cursor:pointer;border:1.4px solid var(--sumi);background:var(--washi2);padding:4px 9px;font-size:10px}
+button:hover{background:var(--gold);color:#fff}
+.empty{padding:40px;text-align:center;border:2px dashed var(--mica);color:var(--mica)}
+code{background:#e8dcc3;padding:1px 4px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="seal">⚑</span>MV2 · WORK QUEUE</h1>
+  <a class="back" href="mv2-hub.html">★ Hub</a>
+  <a class="back" href="mask-studio.html">◉ Mask Studio</a>
+</header>
+<main>
+  <p class="lead">Every note you leave on an element becomes a mission here, with any files you attached. Status: <b>pending</b> = needs work, <b>working</b> = being addressed, <b>done</b> = shipped. Ask the system to "work the queue" to process pending missions.</p>
+  <div class="stats"><div class="box"><div class="n" id="nPending">0</div><div class="l">Pending</div></div>
+    <div class="box"><div class="n" id="nWip">0</div><div class="l">Working</div></div>
+    <div class="box"><div class="n" id="nDone">0</div><div class="l">Done</div></div></div>
+  <div id="list"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function status(k,s){
+  const txt=(window.BoardNotes&&BoardNotes.get(k))||'';
+  return fetch('/api/comments',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key:k,text:txt,status:s})}).then(r=>r.json()).then(()=>load());
+}
+function card(m){
+  const d=document.createElement('div');d.className='item';
+  const type=m.key.split(':')[0];
+  const dest={char:'mask-studio.html?el=',foe:'mask-studio.html?el=',lvl:'mask-studio.html?el=',item:'mask-studio.html?el=',ui:'mask-studio.html?el=',sfx:'mask-studio.html?el='}[type]||'mask-studio.html?el=';
+  d.innerHTML='<div class="top"><span class="badge '+m.status+'">'+m.status+'</span>'+
+    '<span class="k"></span><span style="font-size:10px;color:var(--mica)"></span>'+
+    '<span class="acts"><button class="wip">Working</button><button class="done">Done</button>'+
+    '<a href="'+dest+encodeURIComponent(m.key)+'" style="font-size:10px">◉ Open element</a></span></div>'+
+    '<div class="txt"></div><div class="files"></div>';
+  d.querySelector('.k').textContent=m.key;
+  d.querySelectorAll('.txt')[0].textContent=m.text||'(no text — files only)';
+  d.children[0].children[2].textContent=m.updated||'';
+  const files=d.querySelector('.files');
+  (m.files||[]).forEach(f=>{const a=document.createElement('a');a.href=f.path;a.target='_blank';a.textContent='📎 '+f.name;files.append(a);});
+  d.querySelector('.wip').onclick=()=>status(m.key,'wip');
+  d.querySelector('.done').onclick=()=>status(m.key,'done');
+  return d;
+}
+function load(){
+  return fetch('/api/queue',{cache:'no-store'}).then(r=>r.json()).then(j=>{
+    const list=$('list');list.innerHTML='';
+    const all=(j&&j.pending)||[];
+    // also show wip/done by reading all comments
+    return fetch('/api/comments',{cache:'no-store'}).then(r=>r.json()).then(c=>{
+      const notes=c.comments||{};
+      const rows=Object.entries(notes).map(([k,v])=>({key:k,status:(v&&v.status)||'pending',text:(v&&v.text)||'',files:(v&&v.files)||[],updated:(v&&v.updated)||''}));
+      rows.sort((a,b)=>(b.updated||'').localeCompare(a.updated||''));
+      $('nPending').textContent=rows.filter(r=>r.status==='pending').length;
+      $('nWip').textContent=rows.filter(r=>r.status==='wip').length;
+      $('nDone').textContent=rows.filter(r=>r.status==='done').length;
+      if(!rows.length){const e=document.createElement('div');e.className='empty';e.textContent='No missions yet. Leave a note on any element in the Mask Studio.';list.append(e);return;}
+      rows.forEach(r=>list.append(card(r)));
+    });
+  });
+}
+load();
+</script>
+</body>
+</html>

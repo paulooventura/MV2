@@ -46,3 +46,8 @@ _sheet-*.png
 
 # MV2 SFX Studio: local user replacements (never ship these)
 claude/assets/SFX/replacements/
+
+# Mask Studio: local notes, attached references and uploaded mask art (local until approved to ship)
+claude/assets/note-files/
+claude/assets/masks/
+claude/board-notes.json

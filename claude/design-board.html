@@ -91,6 +91,7 @@ code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
   </section>
 </main>
 
+<script src="js/board-notes.js"></script>
 <script>
 const CHARS=[
  {n:'MIND',r:'THE BIG BROTHER',tag:'Steady hands · big ideas',chip:'#c48cff',
@@ -178,7 +179,9 @@ function card(o,kind){
     (o.sub&&kind==='lvl'?'<div class="tag">'+o.sub+'</div>':'')+
     meta+
     '<div class="row"><b>FILES</b><br>'+fileLinks(o.files)+'</div>'+
-    (o.note?'<div class="row note">'+o.note+'</div>':'');
+    (o.note?'<div class="row note">'+o.note+'</div>':'')+
+    '<div class="row"><a class="f" href="mask-studio.html?el='+kind+':'+encodeURIComponent(o.n)+'">◉ Open in Mask Studio</a></div>';
+  body.append(BoardNotes.box(kind+':'+o.n));
   d.append(img,body);return d;
 }
 function fill(gid,cid,arr,kind){const g=$(gid);arr.forEach(o=>g.append(card(o,kind)));$(cid).textContent='('+arr.length+')';}

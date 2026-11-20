@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · Mask Studio</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{background:var(--washi2);border-bottom:2px solid var(--sumi);padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0}.seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:25px;height:25px;font-size:13px;margin-right:8px;vertical-align:middle}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mica)}
+a.back{font-size:11px;text-decoration:none;color:var(--indigo);border:1.4px solid var(--indigo);padding:5px 9px;background:#fbf5e9}
+.wrap{display:grid;grid-template-columns:270px 1fr;gap:14px;padding:14px;max-width:1400px;margin:0 auto 60px}
+.side{border:1.4px solid var(--sumi);background:#fbf5e9;padding:10px;max-height:calc(100vh - 110px);overflow:auto;position:sticky;top:10px}
+.side h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 5px;color:var(--verm);border-bottom:1px solid var(--mica);padding-bottom:3px}
+.side a{display:block;font-size:11px;text-decoration:none;color:var(--sumi);padding:4px 6px;border:1px solid transparent}
+.side a:hover{background:var(--washi2)}
+.side a.on{background:var(--indigo);color:#fff}
+input[type=search]{width:100%;padding:6px 8px;border:1.4px solid var(--sumi);background:#fff;font-family:inherit;font-size:12px;margin-bottom:8px}
+.main{border:1.4px solid var(--sumi);background:#fbf5e9;padding:16px}
+.title{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;border-bottom:1px solid var(--mica);padding-bottom:8px}
+.title .nm{font-size:22px;font-weight:bold}.title .role{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--verm)}
+.nav{display:flex;gap:6px;margin-left:auto}.nav button{padding:3px 8px;font-size:11px}
+.parts{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.parts-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mica);margin-right:3px}
+.part-btn{padding:4px 9px;font-size:10px;border:1.4px solid var(--mica);background:#fff;cursor:pointer}
+.part-btn:hover{background:var(--gold);color:#fff}
+.part-btn.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+.partcols{display:grid;grid-template-columns:240px 1fr;gap:12px}
+.partcols .artbox{height:190px}
+@media(max-width:900px){.partcols{grid-template-columns:1fr}}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.panel{border:1.4px solid var(--mica);background:#fffdf6;padding:10px}
+.panel h4{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px;color:var(--mica)}
+.artbox{width:100%;height:250px;display:grid;place-items:center;background:#201a2b;overflow:hidden;border:1px solid var(--mica)}
+.artbox img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}
+.artbox.empty{color:#8a7fa0;font-size:12px;text-align:center;padding:10px}
+.drop{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filelabel{font-size:11px;color:var(--indigo);border:1px dashed var(--indigo);padding:6px 9px;cursor:pointer;background:#fff}
+input[type=file]{display:none}
+.status{font-size:10px;color:var(--celadon)}
+.meta{margin-top:12px;font-size:11.5px;line-height:1.6}
+.meta b{color:var(--indigo);font-weight:normal}
+a.f{color:var(--indigo);font-family:monospace;font-size:10px;text-decoration:none;border-bottom:1px dotted var(--indigo)}
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.prompt{margin-top:14px;border:1.4px solid var(--gold);background:#fff8e8;padding:10px}
+.prompt h4{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 6px;color:var(--gold)}
+.prompt textarea{width:100%;height:110px;font-family:monospace;font-size:10.5px;line-height:1.45;border:1px solid var(--mica);padding:8px;background:#fff}
+.prompt button{margin-top:6px}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}.side{position:static;max-height:none}.cols,.notes{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="seal">◉</span>MV2 · MASK STUDIO</h1><span class="sub">one element at a time · current vs new mask</span>
+  <a class="back" href="mv2-hub.html">★ Hub</a>
+  <a class="back" href="work-queue.html">⚑ Work Queue</a>
+</header>
+<div class="wrap">
+  <aside class="side"><input id="q" type="search" placeholder="Filter elements…"><div id="list"></div></aside>
+  <main class="main">
+    <div class="title"><span class="nm" id="eName"></span><span class="role" id="eRole"></span>
+      <span class="nav"><button id="hearBtn" style="display:none;background:var(--indigo);color:#fff">▶ Hear</button><button id="prev">← Prev</button><button id="next">Next →</button></span></div>
+    <div class="meta" id="eMeta"></div>
+    <div class="parts" id="partsBar"></div>
+    <div class="panel" id="partPanel" style="display:none;margin-top:10px"><h4 id="partTitle"></h4>
+      <div class="partcols"><div class="artbox" id="partArt"></div><div id="partNote"></div></div></div>
+    <div class="cols">
+      <div class="panel"><h4>Current mask (in game now)</h4><div class="artbox" id="curBox"></div></div>
+      <div class="panel"><h4>New mask (your Midjourney art)</h4><div class="artbox empty" id="newBox">No new mask yet</div>
+        <div class="drop"><label class="filelabel">Load image<input type="file" id="maskFile" accept="image/*"></label>
+          <span class="status" id="maskStat"></span></div></div>
+    </div>
+    <div class="panel" id="codePanel" style="margin-top:12px;display:none"><h4>Voice pattern — js/sfx_posh.js (edit here to change the synth)</h4>
+      <pre id="codeText" style="font-size:10px;line-height:1.45;max-height:190px;overflow:auto;background:#201a2b;color:#d8c8f0;padding:9px;margin:0"></pre></div>
+    <div class="notes">
+      <div id="noteSlot"></div>
+      <div id="maskSlot"></div>
+    </div>
+    <div class="prompt"><h4>Midjourney prompt — copy &amp; paste, then bring the image back here</h4>
+      <textarea id="mjText" readonly></textarea><button id="mjCopy">Copy prompt</button>
+      <span class="status" id="mjStat"></span></div>
+  </main>
+</div>
+
+<script src="js/save.js"></script>
+<script src="js/sfx-replacements.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sfx_posh.js"></script>
+<script src="js/board-notes.js"></script>
+<script src="js/mask-parts.js"></script>
+<script>
+const STYLE='ukiyo-e ink line meets chunky 16-bit pixel art, warm dusk palette (indigo #2c3e66, vermilion #b3372c, gold #c9962f, washi cream #efe3cd), soft paper grain, cinematic rim light, clean readable silhouette, hand-inked texture, game-ready asset, --no text, no watermark, no logo';
+const ELEMENTS=[
+ // characters
+ {k:'char:mind',t:'char',n:'MIND',r:'THE BIG BROTHER',art:'assets/ui/hero-mind.png',d:'Playable lead. Steady hands, big ideas. Purple speaker robot on one wheel.'},
+ {k:'char:venture',t:'char',n:'VENTURE',r:'THE LITTLE BROTHER',art:'assets/ui/hero-venture.png',d:'Playable lead / P2. No brakes, all nerve. Red speaker robot.'},
+ {k:'char:brother',t:'char',n:'THE BROTHER',r:'SIBLING COMPANION',art:'assets/previews/heroes-crop.png',d:'Shadows you, punches back. The other brother when solo.'},
+ {k:'char:tradzkul',t:'char',n:'TRADZKUL',r:'THE VILLAIN',art:'assets/story/story-3.png',d:'The antagonist; his lair is zone 5.'},
+ {k:'char:knowl',t:'char',n:'THE KNOWL',r:'THE TREE',art:'assets/story/story-1.png',d:'The ancient diamond-bright tree and its seeds.'},
+ // foes
+ {k:'foe:A circle',t:'foe',n:'A · CIRCLE',r:'ROLLS · SINKS',art:'assets/enemies/foe-sine-sheet.png',d:'Rolling circle with a sine wave on its face. HP 50.'},
+ {k:'foe:B triangle',t:'foe',n:'B · TRIANGLE',r:'TUMBLES · ROPE',art:'assets/enemies/foe-triangle-sheet.png',d:'Tumbles 120 degrees, swings on a rope. HP 50.'},
+ {k:'foe:C square',t:'foe',n:'C · SQUARE',r:'TUMBLES · ROPE',art:'assets/enemies/foe-square-sheet.png',d:'Tumbles 90 degrees, pushes like the XLR. HP 50.'},
+ {k:'foe:E the eye',t:'foe',n:'E · THE EYE',r:'FLOATS · LASER',art:'assets/enemies/foe-noise-sheet.png',d:'Red pentagon, one lens, laser through the eye. HP 30.'},
+ {k:'foe:F the cube',t:'foe',n:'F · THE CUBE',r:'DORMANT IN WATER',art:'assets/enemies/foe-jelly-sheet.png',d:'Transparent hexagon, rams. Six notch points. HP 90.'},
+ {k:'foe:HEPTAGON boss',t:'foe',n:'HEPTAGON · BOSS',r:'7-BEAM CORONA',art:'assets/enemies/foe-jelly-sheet.png',d:'Rests on its bowl, fires seven turning beams. HP 360.'},
+ {k:'foe:signol',t:'foe',n:'SIGNOL',r:'EARLY-GAME FOE',art:'assets/enemies/signol.png',d:'Original antagonist carried into the combined build.'},
+ // levels
+ {k:'lvl:1.1',t:'lvl',n:'1.1 · AWDJOO TOWN',r:'THE JOURNEY BEGINS',art:'assets/levels/awdjoo-beta-preview.png',d:'Suburban streets, houses, the Knowl tree chamber.'},
+ {k:'lvl:1.2',t:'lvl',n:'1.2 · DEEP WATERS',r:'AWDJOO TOWN',art:'assets/levels/awdjoo-1-2-preview.png',d:'Water stage, bridges, terrace traffic, foe E.'},
+ {k:'lvl:1.3',t:'lvl',n:'1.3 · THE HEPTAGON',r:'AWDJOO TOWN',art:'assets/levels/awdjoo-1-3-preview.png',d:'Skyscraper site, drones, lit towers. Boss guards the knife.'},
+ // items
+ {k:'item:TRS LASER CANNON',t:'item',n:'TRS LASER CANNON',r:'CHARGE & FIRE',d:'Breaks omni and gold-cage blocks.',crop:'0% 0%'},
+ {k:'item:RCA GRAPPLING HOOK',t:'item',n:'RCA GRAPPLING HOOK',r:'FIRE · SWING · REEL',d:'Fires a hook, swings, reels MIND in.',crop:'0% 33.33%'},
+ {k:'item:XLR PUSH JACK',t:'item',n:'XLR PUSH JACK',r:'CHARGE & PUSH',d:'Pushes a row of blue blocks; hover/launch.',crop:'0% 66.66%'},
+ {k:'item:MEG',t:'item',n:'MEG',r:'GRAB · CARRY · THROW',d:'Magnet arm. Carries blocks, foes, knowls.',crop:'0% 100%'},
+ {k:'item:GAUCHO KNIFE',t:'item',n:'GAUCHO KNIFE',r:'SLASH · PULL · CUT',art:'assets/story/story-3.png',d:'Copper-core damascus kiritsuke. Found in 1.3.'},
+ // ui
+ {k:'ui:title',t:'ui',n:'TITLE SCREEN',r:'MENU MASK',art:'assets/ui/title-home.jpg',d:'Hero art + title + menu rows.'},
+ {k:'ui:character select',t:'ui',n:'CHARACTER SELECT',r:'HERO PICK',art:'assets/ui/hero-mind.png',d:'Hero choice and play mode.'},
+ {k:'ui:options',t:'ui',n:'OPTIONS',r:'SETTINGS',d:'Volumes, binds, filters, OST link, manual.'},
+ {k:'ui:story cards',t:'ui',n:'STORY CARDS',r:'CHAPTER ART',art:'assets/story/story-5.png',d:'Five story prints + chapter titles.'},
+];
+
+// All 72 game sounds: real files, meme wavs, and every synthesized voice.
+const SFX_FILES=[['enemy shut','enemy_shut'],['grap attach','hook_latch'],['hit enemy','hit_enemy'],
+ ['hit','player_hit'],['jump good','jump_spring'],['jump reg','jump_reg'],['knowl','knowl_pickup'],['shutdown','shutdown']];
+const SFX_MEME=['blip','boing','click','ding','impact','laugh','ow','pipe','scratch','squeak','trombone','vineboom','wah','whoosh'];
+const SFX_SYNTH=['jump','jump_spring','land','double_jump','tire_squeal','engine_pop','punch','punch_heavy','punch_hit',
+ 'punch_hit_heavy','punch_wall','bed_boing','ouch','stomp','hook','hook_charged','zap','zap_big','wood_hit','wood_break',
+ 'wood_tap','item_clink','enemy_alert','enemy_huh','water_boil','water_gush','reel_in','reel_out','hook_latch_mag','hook_miss',
+ 'laser','laser_bounce','laser_charge','laser_charged_fire','xlr','xlr_push','glass_tap','knowl_glass','bubble_pop',
+ 'extra_life','confirm','swap','blowoff','splash','sport_ignition','sport_off','sfx_menu'];
+SFX_FILES.forEach(([n,id])=>ELEMENTS.push({k:'sfx:'+id,t:'sfx',n:n,r:'FILE SAMPLE',sfx:id,kind:'file',
+  d:'Real audio sample played from assets/SFX/. Replace the file to change the sound.'}));
+SFX_MEME.forEach(n=>ELEMENTS.push({k:'sfx:'+n,t:'sfx',n:n,r:'MEME WAV',sfx:n,kind:'meme',
+  d:'Meme pack wav at assets/SFX/meme/'+n+'.wav. Plays when the meme pack is active.'}));
+SFX_SYNTH.forEach(n=>ELEMENTS.push({k:'sfx:'+n,t:'sfx',n:n,r:'SYNTHESIZED VOICE',sfx:n,kind:'synth',
+  d:'Generated live in js/sfx_posh.js. No file — edit the voice code to change the pattern.'}));
+const TYPES={char:'CHARACTERS',foe:'FOES',lvl:'LEVELS',item:'ITEMS',ui:'UI',sfx:'SOUND'};
+const $=id=>document.getElementById(id);
+let cur=ELEMENTS[0];
+const param=new URLSearchParams(location.search).get('el');
+
+function buildList(){
+  const q=$('q').value.toLowerCase(); const box=$('list');box.innerHTML='';
+  Object.keys(TYPES).forEach(t=>{
+    const els=ELEMENTS.filter(e=>e.t===t&&(!q||(e.n+' '+e.r).toLowerCase().includes(q)));
+    if(!els.length)return;
+    const h=document.createElement('h3');h.textContent=TYPES[t];box.append(h);
+    els.forEach(e=>{const a=document.createElement('a');a.href='?el='+encodeURIComponent(e.k);
+      a.textContent=e.n;a.className=(e.k===cur.k?'on':'');box.append(a);});
+  });
+}
+function promptFor(e){
+  const extra={char:'full-body character sheet, 3 poses, transparent background, readable silhouette',
+    foe:'menacing creature design, 3 angles, glowing weak points,透明的 background',
+    lvl:'wide establishing shot, layered parallax depth, environmental storytelling, 2D game level',
+    item:'isolated object on neutral background, game icon sheet, 3 rotations',
+    ui:'clean game UI panel, strong hierarchy, in-world material texture, 16:9',
+    sfx:'visual mood board for the sound, abstract poster, no literal text'}[e.t];
+  return 'MV2 / '+e.r+' — '+e.n+'. '+e.d+'\nSTYLE: '+STYLE+'\nFORMAT: '+extra;
+}
+let poshSrc='';
+fetch('js/sfx_posh.js').then(r=>r.text()).then(t=>{poshSrc=t;if(cur&&cur.t==='sfx')showCode(cur);}).catch(()=>{});
+function voiceCode(name){
+  if(!poshSrc)return 'Loading js/sfx_posh.js…';
+  const i=poshSrc.indexOf('\n    '+name+'(a');
+  if(i<0)return 'No synth voice "'+name+'" in js/sfx_posh.js — it is a file sample or meme wav.';
+  const start=poshSrc.indexOf('{',i);let depth=0,end=start;
+  for(;end<poshSrc.length;end++){const c=poshSrc[end];if(c==='{')depth++;else if(c==='}'){depth--;if(!depth){end++;break;}}}
+  return poshSrc.slice(i,end).trim();
+}
+function mechanism(code){
+  const out=[];
+  [['tone','oscillator + envelope'],['bell','FM bell partial'],['hiss','filtered noise']].forEach(([h,d])=>{
+    const m=code.match(new RegExp(h+'\\s*\\(','g'));
+    if(m)out.push('  '+h+' x'+m.length+' — '+d);
+  });
+  const nums=code.match(/f:[0-9.]+|f1:[0-9.]+|d:[0-9.]+|v:[0-9.]+/g)||[];
+  if(nums.length)out.push('  params: '+[...new Set(nums)].slice(0,10).join(' '));
+  return out.join('\n')||'  (no standard helpers found — custom graph)';
+}
+function showCode(e){
+  const cp=$('codePanel');
+  if(e.t==='sfx'){
+    cp.style.display='block';
+    if(e.kind==='synth'){
+      const code=voiceCode(e.sfx);
+      $('codeText').textContent='MECHANISM — generated live, NO audio file\n'+mechanism(code)+
+        '\n\nSOURCE — js/sfx_posh.js (edit this to change the pattern)\n'+code;
+    }else if(e.kind==='meme'){
+      $('codeText').textContent='MECHANISM — real wav sample\n  file: assets/SFX/meme/'+e.sfx+'.wav'+
+        '\n  plays when OPT.sfxPack === "meme"\n  routed via MV_SFX.registerWav()\n\nChange it: replace the wav, or add the name to SFX_SAMPLE_PATHS in js/audio.js.';
+    }else{
+      $('codeText').textContent='MECHANISM — real wav/ogg sample\n  dispatcher: SFX_SAMPLE_PATHS in js/audio.js'+
+        '\n  played by _playSfxSample() with pitch + volume\n\nChange it: replace the file in assets/SFX/, or edit SFX_SAMPLE_PATHS.';
+    }
+  }else cp.style.display='none';
+}
+function buildParts(e){
+  const bar=$('partsBar');bar.innerHTML='';
+  const lab=document.createElement('span');lab.className='parts-label';lab.textContent='PARTS:';bar.append(lab);
+  MASK_PARTS.forElement(e).forEach(p=>{
+    const btn=document.createElement('button');btn.className='part-btn';btn.textContent=p[0];
+    btn.onclick=()=>selectPart(e,p,btn);bar.append(btn);
+  });
+  $('partPanel').style.display='none';
+}
+function selectPart(e,p,btn){
+  document.querySelectorAll('.part-btn').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  $('partPanel').style.display='block';
+  $('partTitle').textContent=p[0]+' — '+(p[1]||'')+'   (attach a reference image + describe shape / texture below)';
+  const art=$('partArt');art.className='artbox';art.innerHTML='';
+  if(p[3]){art.style.backgroundImage="url('"+p[2]+"')";art.style.backgroundSize='200% 400%';art.style.backgroundPosition=p[3];}
+  else if(p[2]){const im=document.createElement('img');im.src=p[2];im.alt=p[0];art.append(im);}
+  else{art.className='artbox empty';art.textContent='No isolated art yet — attach the reference you want.';}
+  const note=$('partNote');note.innerHTML='';note.append(BoardNotes.box(MASK_PARTS.key(e,p[0])));
+}
+function show(e){
+  cur=e;buildList();buildParts(e);
+  $('eName').textContent=e.n;$('eRole').textContent=e.r;
+  $('eMeta').innerHTML='<b>What it is:</b> '+e.d+'<br><b>Element key:</b> <code>'+e.k+'</code>';
+  const cb=$('curBox');cb.className='artbox';cb.innerHTML='';
+  if(e.crop){
+    cb.style.backgroundImage="url('assets/items/mv2-held-jacks-standard-enhanced.png')";
+    cb.style.backgroundSize='200% 400%';cb.style.backgroundPosition=e.crop;
+  }else if(e.art){const im=document.createElement('img');im.src=e.art;im.alt=e.n;cb.append(im);}
+  else{cb.className='artbox empty';cb.textContent='No art (sound / UI element)';}
+  $('noteSlot').innerHTML='';$('maskSlot').innerHTML='';
+  $('noteSlot').append(BoardNotes.box(e.k));
+  $('maskSlot').append(BoardNotes.box('mask:'+e.k));
+  $('maskSlot').querySelector('label').innerHTML='NEW MASK DIRECTION <span class="bn-state"></span>';
+  const mb=$('newBox');mb.className='artbox empty';mb.textContent='No new mask yet';
+  fetch('/api/masks').then(r=>r.json()).then(j=>{
+    const p=j&&j.masks?j.masks[e.k.replace(/:/,'_').replace(/ /g,'_').replace(/'/g,'')]:null;
+    if(p){mb.className='artbox';mb.innerHTML='';const im=document.createElement('img');im.src=p;im.alt='new mask';mb.append(im);}
+  }).catch(()=>{});
+  const hb=$('hearBtn');
+  if(e.sfx){hb.style.display='inline-block';hb.onclick=()=>{try{if(window._unlockAudio)window._unlockAudio();sfx(e.sfx);}catch(er){}};}
+  else hb.style.display='none';
+  showCode(e);
+  $('mjText').value=promptFor(e);$('mjStat').textContent='';
+  history.replaceState(null,'','?el='+encodeURIComponent(e.k));
+}
+function step(d){const i=ELEMENTS.indexOf(cur);show(ELEMENTS[(i+d+ELEMENTS.length)%ELEMENTS.length]);}
+$('q').oninput=buildList;
+$('prev').onclick=()=>step(-1);$('next').onclick=()=>step(1);
+$('maskFile').onchange=ev=>{
+  const f=ev.target.files&&ev.target.files[0];if(!f)return;
+  $('maskStat').textContent='uploading…';
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const data=String(rd.result).split(',')[1]||'';
+    fetch('/api/mask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({key:cur.k,type:f.type,data})}).then(r=>r.json()).then(j=>{
+        if(!j.ok)throw new Error(j.error||'upload failed');
+        const mb=$('newBox');mb.className='artbox';mb.innerHTML='';const im=document.createElement('img');im.src=j.path;mb.append(im);
+        $('maskStat').textContent='saved ✓';
+      }).catch(e=>{$('maskStat').textContent='ERROR: '+e.message;});
+  };rd.readAsDataURL(f);
+};
+$('mjCopy').onclick=()=>{
+  const t=$('mjText').value;const done=()=>{$('mjStat').textContent='copied ✓';};
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{$('mjText').select();document.execCommand('copy');done();});
+  else{$('mjText').select();document.execCommand('copy');done();}
+};
+const found=param?ELEMENTS.find(e=>e.k===param):null;
+show(found||ELEMENTS[0]);
+</script>
+</body>
+</html>
