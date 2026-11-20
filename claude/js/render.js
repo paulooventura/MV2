@@ -3121,10 +3121,35 @@ function drawFX(){
   }
   // â”€â”€ Hook cable â€” braided cord from RCA pin tip â”€â”€â”€â”€â”€â”€â”€â”€â”€
   drawHookCable();
+  _fxSpeedStreaks();
   // Co-op: the second human player owns his own item state. Draw his item FX
   // with the SAME single-player code path by swapping the context to P2. The
   // pass is called in both split viewports, exactly like drawCharacterFor(p2).
   _coopDrawP2FX();
+}
+// T573: owner-tagged speed streaks (sports/turbo "wooshing"). Reads the global
+// `p` (P1, or P2 during the swapped sub-pass), so the owner is always `p`. In the
+// split view a pass only draws streaks for ITS actor (_splitActor), so the other
+// player's half stays calm. World-space, no allocation: 6 short lines behind him.
+function _fxSpeedStreaks(){
+  if(!p||p._aiCompanion) return;
+  if(typeof _coopSplit!=='undefined'&&_coopSplit&&typeof _splitActor!=='undefined'&&_splitActor&&p!==_splitActor) return;
+  const top=typeof MOVE_RUN==='number'?MOVE_RUN:12.4;
+  const spd=Math.min(1,Math.abs(p.vx||0)/top);
+  const k=(p._ignition||(p._sportHeat||0)>0.15)?Math.max(0,(spd-0.45)/0.55):0;
+  if(k<0.05) return;
+  const dir=(p.vx||0)<0?1:-1;                          // streaks trail opposite the motion
+  const bx=p.x+SW/2, by=p.y+FEET_OFF-30;
+  const col=p.hero==='venture'?'255,120,140':'190,150,255';
+  ctx.save(); ctx.lineCap='round'; ctx.lineWidth=1.2;
+  for(let i=0;i<6;i++){
+    const ph=((fr*0.09*(1+i*0.13)+i*0.37)%1);
+    const oy=((i*53)%34)-17, len=10+k*26;
+    const x0=sx(bx+dir*(14+ph*46)), y0=sy(by+oy);
+    ctx.strokeStyle=`rgba(${col},${((1-ph)*0.5*k).toFixed(3)})`;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+dir*sw(len),y0); ctx.stroke();
+  }
+  ctx.restore();
 }
 // Per-player item streams. Reads the *global* p/ITEM so the caller can swap the
 // context to P2; in single-player this is the untouched original code.
