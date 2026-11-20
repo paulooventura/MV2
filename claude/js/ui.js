@@ -46,6 +46,24 @@ function _togglePause(){
     _playBGM('game',OPT.musicVol);
   }
 }
+// ── World map screen (beta_map.js) ──────────────────────────────
+// Read-only display. The map module reports itself on window.MV_MAP; when it
+// isn't loaded the key does nothing, so this is safe without the script tag.
+function _mapAvailable(){
+  return typeof window!=='undefined'&&!!window.MV_MAP&&
+         typeof window.MV_MAP.available==='function'&&window.MV_MAP.available();
+}
+function _openMap(){
+  if(_gameState!=='game'||_paused||!_mapAvailable()) return false;
+  try{ if(typeof MV_MAP.open==='function') MV_MAP.open(); }catch(e){}
+  _gameState='map';                       // module hook is idempotent with this
+  return true;
+}
+function _closeMap(){
+  if(_gameState!=='map') return;
+  try{ if(typeof MV_MAP.close==='function') MV_MAP.close(); }catch(e){}
+  _gameState='game';
+}
 function _driveMenusFromPads(){
   const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
   const ok=!!Kj['Space'], back=!!Kj['Escape'];
@@ -139,6 +157,10 @@ function _filterName(){
   if(m==='ink') return 'D  INK & VINYL';
   if(m==='gore') return 'GORE';
   return 'NONE';
+}
+function _sfxPackName(){
+  const n=window.MV_SFX?MV_SFX.current:null;
+  return n==='meme'?'MEME':'ORIGINAL';
 }
 let _playerCount=1;
 let _heroChoice='mind';                 // P1's brother — picked first on the select screen
@@ -453,9 +475,10 @@ function drawPauseMenu(){
 // There is no music-style row: the scored music always plays. No difficulty row either —
 // the elevator's floor level sets it (Paulo, 2026-11-16).
 const OPT_FILTER_ROW=3;
-const OPT_SPILL_ROW=4;                               // only there once the code is in
+const OPT_SFX_ROW=4;                                 // meme SFX pack filter (dump line 81)
+const OPT_SPILL_ROW=5;                               // only there once the code is in
 const _optHasSpill=()=>_goreUnlocked();
-const _optTvRow=()=>_optHasSpill()?5:4;
+const _optTvRow=()=>_optHasSpill()?6:5;
 const _optHpRow=()=>_optTvRow()+1;
 const _optMuteRow=()=>_optTvRow()+2;
 const _optInCoop=()=>{ try{ return typeof _coopPair==='function'&&!!_coopPair(); }catch(e){ return false; } };
@@ -505,6 +528,7 @@ function _optionsInput(ev){
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
   if(_optRow<=2&&(dec||inc)){ _optNudgeBar(_optRow, inc); return true; }
   if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
+  if(_optRow===OPT_SFX_ROW&&(dec||inc||ev.confirm)){ if(window.MV_SFX) MV_SFX.cyclePack(dec?-1:1); return true; }
   if(_optHasSpill()&&_optRow===OPT_SPILL_ROW&&(dec||inc||ev.confirm)){ MV_SPILL.cycle(dec?-1:1); return true; }
   if(_optRow===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
   if(_optRow===_optHpRow()&&(dec||inc||ev.confirm)){ if(!_optInCoop()){ OPT.headphones=!OPT.headphones; _saveOpts(); } return true; }
@@ -649,6 +673,16 @@ document.addEventListener('touchstart',e=>{ if(e.touches&&e.touches[0]) _onInter
 document.addEventListener('keyup',e=>{ if(e.code==='KeyE') _optSwapHeld=false; },true);
 document.addEventListener('keydown',e=>{
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()) return;
+  // World map: M opens it from play; B (KeyB / legacy KeyE), Escape or
+  // Backspace closes it. stopPropagation keeps these keys out of gameplay.
+  if(_gameState==='map'){
+    if(e.code==='Escape'||e.code==='Backspace'||e.code==='KeyB'||e.code==='KeyE'||
+       e.code==='KeyM'||e.code==='Enter'||e.code==='Space') _closeMap();
+    e.preventDefault(); e.stopPropagation(); return;
+  }
+  if(_gameState==='game'&&!_paused&&!e.repeat&&e.code==='KeyM'&&_mapAvailable()){
+    if(_openMap()){ e.preventDefault(); e.stopPropagation(); return; }
+  }
   if(_gameState==='manual'&&window.MV_MANUAL){
     if(e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF') MV_MANUAL.close();
     else if(e.code==='ArrowRight'||e.code==='KeyD'||e.code==='Enter'||e.code==='Space') MV_MANUAL.turn(1);
@@ -946,6 +980,7 @@ function drawOptions(){
   const rows=[{label:'MUSIC VOLUME',val:Math.round(OPT.musicVol*100)+'%',bar:OPT.musicVol},{label:'SFX VOLUME',val:Math.round(OPT.sfxVol*100)+'%',bar:OPT.sfxVol},
     {label:'SPORTS-MODE VOLUME',val:Math.round((OPT.engineVol==null?0.8:OPT.engineVol)*100)+'%',bar:OPT.engineVol==null?0.8:OPT.engineVol},
     {label:'FILTERS',val:window.MV_CONSOLE?_filterName():'-',rule:'LOOK'},
+    {label:'SFX PACK',val:_sfxPackName()},
     ...(_optHasSpill()?[{label:'BLOOD/INK SPILL',val:MV_SPILL.mode.toUpperCase()}]:[]),
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'HEADPHONES',val:_optInCoop()?'ON (CO-OP)':(OPT.headphones?'ON':'OFF')},

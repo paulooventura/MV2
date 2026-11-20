@@ -19,6 +19,7 @@ const DEFAULT_OPTS={
   headphones:false,   // music plays from the character; locked ON in co-op
   mutePartner:false,  // co-op: mute the other player's music
   musicMode:'ost', // 'ost' (assets/new music wav) | 'psg' (chiptune fallback)
+  sfxPack:'original', // dump line 81: 'original' (the SFX we made) | 'meme' (funny meme pack filter)
   // ── Player 1 — left side of the keyboard ──────────────────────
   binds:{
     up:    ['KeyW'],
@@ -106,6 +107,14 @@ try{
   if(!localStorage.getItem('mv_titleost2')){
     OPT.musicMode='ost';
     localStorage.setItem('mv_titleost2','1');
+    _saveOpts();
+  }
+  // Dump line 81 — meme SFX pack filter. Old saves have no sfxPack (the spread in
+  // _loadOpts already falls back to DEFAULT_OPTS 'original'); this one-time pass
+  // sanitises a missing or unknown value back to the exact-original default.
+  if(!localStorage.getItem('mv_sfxpack')){
+    if(OPT.sfxPack!=='original'&&OPT.sfxPack!=='meme') OPT.sfxPack='original';
+    localStorage.setItem('mv_sfxpack','1');
     _saveOpts();
   }
 }catch(e){}

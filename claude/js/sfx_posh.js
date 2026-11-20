@@ -289,19 +289,125 @@
     menu(a){ tone(a,{f:N(81),d:0.06,v:0.05,type:'triangle'}); },
     confirm(a){ bell(a,{f:N(88),ratio:2,index:1.2,d:0.35,v:0.07}); tone(a,{f:N(76),d:0.25,v:0.05,type:'triangle'}); },
     gate(a){ [N(60),N(67),N(72),N(76)].forEach((f,i)=>tone(a,{f,dt:i*0.08,d:1.6,v:0.06,type:'triangle',at:0.08,rev:0.7})); },
-    jump_reg(a,p){ R.jump(a,p); }, jump_good(a,p){ R.jump_spring(a,p); }, hurt(a,p){ R.player_hit(a,p); }
+    jump_reg(a,p){ R.jump(a,p); }, jump_good(a,p){ R.jump_spring(a,p); }, hurt(a,p){ R.player_hit(a,p); },
+    // Dump line 87 — knowl seeds falling on the floor get a glass-like tap.
+    // Bright, inharmonic FM partials with a very short, subtle decay; never a
+    // chime (that would steal the pickup's thunder). 'knowl_glass' is an alias.
+    glass_tap(a,p){
+      const k=(typeof p==='number'&&p>0&&isFinite(p))?p:1;
+      const r=()=>rnd(0.97,1.03);
+      bell(a,{f:2100*k*r(),ratio:2.7,index:1.1,d:0.16,v:0.055,rev:0.22});
+      bell(a,{f:3180*k*r(),ratio:3.9,index:0.7,d:0.11,v:0.032,rev:0.18});
+      bell(a,{f:4700*k*r(),ratio:2.0,index:0.5,d:0.07,v:0.018,rev:0.12});
+      hiss(a,{type:'highpass',f:5200,d:0.028,v:0.025,at:0.001});
+    },
+    knowl_glass(a,p){ R.glass_tap(a,p); }
   };
+  // ── SFX packs (dump line 81) ───────────────────────────────────
+  // A "pack" is a plain map of sfx name → voice(a,p) that OVERRIDES R[name].
+  // MV_SFX.pack is that registry; the selected pack comes from OPT.sfxPack
+  // (persisted in save.js, cycled from Options in ui.js).
+  //   original : {}  → the EXACT current behaviour; every name still uses R.
+  //   meme     : a few SYNTHESIZED placeholder meme-ish sounds so the filter is
+  //              audible with ZERO external files (no downloads, no credentials).
+  //
+  // ↓↓ HOW PAULO DROPS IN REAL MEME WAVs ↓↓
+  // Put a file at  claude/assets/SFX/meme/<name>.wav   (served at runtime as
+  // assets/SFX/meme/<name>.wav).  <name> is the key in MV_SFX.pack.meme below —
+  // e.g. "boing", "wah", "squeak" (the placeholder's own name). On the first play
+  // after adding a file the placeholder still fires while the <audio> buffers;
+  // every play after that uses the wav, scaled by OPT.sfxVol with arguments[1]
+  // (when a number) as playbackRate. A missing/broken file just keeps the
+  // synthesized placeholder — the game never reaches out to the network. To add
+  // a new overridable name, add a placeholder fn to pack.meme; registerWav(name,
+  // path) can point a name at a custom path if it can't follow <name>.wav.
+  // ───────────────────────────────────────────────────────────────
+  const _packOrder=['original','meme'];
+  const _wavBase='assets/SFX/meme/';
+  const _memeWavPath={};
+  const _memeWavPool={}, _memeWavFailed={};
+  function _packName(){
+    try{ const n=(typeof OPT!=='undefined'&&OPT)?OPT.sfxPack:null; return _packOrder.indexOf(n)>=0?n:'original'; }catch(e){ return 'original'; }
+  }
+  function _playPackWav(name,p){
+    if(_memeWavFailed[name]) return false;
+    const path=_memeWavPath[name]||(_wavBase+name+'.wav');
+    let el=_memeWavPool[name];
+    if(!el){
+      el=new Audio(); el.preload='auto'; el.src=path;
+      el.addEventListener('error',()=>{ _memeWavFailed[name]=true; },{once:true});
+      el.load(); _memeWavPool[name]=el;
+    }
+    if(el.readyState<2) return false;                 // not buffered yet → placeholder plays
+    try{
+      const inst=el.cloneNode();
+      inst.volume=vol();
+      inst.playbackRate=Math.max(0.45,Math.min(1.6,(typeof p==='number'&&p>0)?p:1));
+      const pr=inst.play(); if(pr) pr.catch(()=>{});
+      return true;
+    }catch(e){ _memeWavFailed[name]=true; return false; }
+  }
+  // Clearly-labelled SYNTHESIZED placeholder meme-ish sounds — no external assets.
+  function _memeBoing(a,p){ p=p||1;
+    tone(a,{f:120*p,f1:540*p,d:0.34,v:0.18,type:'triangle',vib:18,vibd:64,rev:0.2});
+    tone(a,{f:60*p,f1:270*p,d:0.3,v:0.11});
+    bell(a,{f:N(84)*p,ratio:2.4,index:1.4,d:0.24,v:0.05,rev:0.3});
+  }
+  function _memeWah(a,p){ p=p||1; const f=700*p;
+    tone(a,{f,f1:f*0.42,d:0.42,v:0.15,type:'sawtooth',lp:1900,sweep:620,rev:0.15});
+    tone(a,{f:f*0.5,f1:f*0.21,d:0.42,v:0.085,type:'triangle',lp:900});
+    hiss(a,{f:1000*p,f1:430*p,q:1.2,d:0.28,v:0.055});
+  }
+  function _memeSqueak(a,p){ p=p||1; const f=1850*p;
+    tone(a,{f,f1:f*1.7,d:0.16,v:0.1,type:'sawtooth',bp:f,q:5,vib:42,vibd:75,rev:0.15});
+    tone(a,{f:f*1.01,f1:f*1.72,d:0.14,v:0.05,type:'triangle',bp:f*1.05,q:6});
+    hiss(a,{f:4300,q:6,d:0.075,v:0.045});
+  }
+  const _withWav=(name,fn)=>function(a,p){
+    const d=window.MV_SFX.debug; d.voices[name]=(d.voices[name]||0)+1;   // render telemetry
+    if(_playPackWav(name,p)) return; fn(a,p);
+  };
+  const _boing=_withWav('boing',_memeBoing), _wah=_withWav('wah',_memeWah), _squeak=_withWav('squeak',_memeSqueak);
+
+  window.MV_SFX={
+    pack:{
+      original:{},                       // empty = the exact current SFX
+      meme:{                             // placeholder meme-ish overrides; real wavs replace them
+        jump:_boing, jump_reg:_boing, jump_spring:_boing, jump_good:_boing, land:_boing,
+        hurt:_wah, player_hit:_wah, ouch:_wah, punch:_wah, punch_heavy:_wah, hit:_wah, hit_enemy:_wah,
+        click:_squeak, menu:_squeak, confirm:_squeak, swap:_squeak, hook:_squeak, reel_in:_squeak
+      }
+    },
+    order:_packOrder.slice(),
+    get current(){ return _packName(); },
+    name(){ return _packName(); },
+    setPack(n){ if(_packOrder.indexOf(n)<0) return false; try{ if(typeof OPT!=='undefined'&&OPT) OPT.sfxPack=n; }catch(e){} try{ _saveOpts(); }catch(e){} return true; },
+    cyclePack(dir){ const L=_packOrder, i=Math.max(0,L.indexOf(_packName())); return this.setPack(L[(i+(dir<0?L.length-1:1))%L.length]); },
+    registerWav(name,path){ if(!name) return; if(path) _memeWavPath[name]=path; else delete _memeWavPath[name]; delete _memeWavPool[name]; delete _memeWavFailed[name]; },
+    debug:{last:null,source:null,pack:null,calls:0,rendered:0,voices:{}}
+  };
+
   let lastAt={};
   window.sfx=function(t){
     if(typeof _audioUnlocked!=='undefined'&&!_audioUnlocked) return;
-    const r=R[t]; if(!r) return orig.apply(this,arguments);
+    const pack=_packName(), po=window.MV_SFX.pack[pack]||{};
+    const ov=(typeof po[t]==='function')?po[t]:null;
+    const r=ov||R[t]; if(!r) return orig.apply(this,arguments);
+    // routing telemetry (used by the headless pack / glass probes)
+    try{ const d=window.MV_SFX.debug; d.last=t; d.source=ov?'pack':'original'; d.pack=pack; d.calls++; }catch(e){}
     const a=ctx(); if(!a) return;
     if(a.state!=='running') try{ a.resume(); }catch(e){}
     const now=a.currentTime; if(lastAt[t]&&now-lastAt[t]<0.025) return; lastAt[t]=now;   // no machine-gunning
     const p=typeof arguments[1]==='number'?arguments[1]:1;
     try{ r(a,p); }catch(e){ return orig.apply(this,arguments); }
+    try{ window.MV_SFX.debug.rendered++; }catch(e){}
   };
   window.MV_SFX_POSH={names:Object.keys(R), bus:realBus};
+
+  // Dump line 87 — global hook for the seed-landing glass tap. The lead calls
+  // MV_KNOWL_GLASS() when a knowl seed hits the floor (the report gives the exact
+  // line). It goes through the pack-aware sfx() so the meme filter can override it.
+  window.MV_KNOWL_GLASS=function(p){ try{ sfx('glass_tap',(typeof p==='number')?p:1); }catch(e){} };
 
   // ── Sustained machine voices (Paulo, Nov 18) ────────────────
   // "When it's screeching for longer it's like schreeeeench." A skid and an

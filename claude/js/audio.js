@@ -768,6 +768,17 @@ function sfx(t){
       tap(0,.12); tap(.2,.06); tap(.4,.03);
       break;
     }
+    // Dump line 87 — knowl seed landing on the floor: a short, subtle, bright
+    // glassy tap (inharmonic partials). Mirrors sfx_posh.js glass_tap so the cue
+    // carries in every sound mode, including the plain/chip builds.
+    case'glass_tap':
+    case'knowl_glass':{
+      o(1760,1760,.05,.07,0,'triangle');
+      o(2640,2640,.04,.045,.003,'sine');
+      o(3520,3520,.03,.03,.006,'sine');
+      nz(.02,.03,false,2.4);
+      break;
+    }
     case'frag_fire':nz(.28,.2,false,0.6); o(180,70,.32,.16,0,'sawtooth'); o(640,220,.12,.08,0.02,'triangle'); nz(.08,.12,false,1.8,.05); nz(.06,.1,false,2.2,.1); break;
     case'run_click':o(148,92,.04,.12,0,'square'); o(74,70,.05,.08,0,'triangle'); break;
     case'ping':o(1100,1100,.06,.09);break;
