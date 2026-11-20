@@ -122,9 +122,71 @@
     const src=tex.dirt[v]; c=document.createElement('canvas'); c.width=src.width; c.height=src.height;
     const g=c.getContext('2d'); g.drawImage(src,0,0);
     g.fillStyle='rgba(20,8,16,'+Math.min(0.45,d*0.035)+')'; g.fillRect(0,0,c.width,c.height);
-    return (_dirtDeep[k]=c);
-  }
-
+    return (_dirtDeep[k]=c);
+  }
+
+  // ── T571: the generated 1.1 suburban tileset ─────────────────────────
+  // assets/tiles/tiles-1-1.png is 16px art in a 16-column grid (grass, soil,
+  // slopes, pavement, roofs, walls, window, door, fence, palm, flowers...).
+  // Each cell is baked ONCE into a 32px world tile with nearest-neighbour, so
+  // it slots into the normal tile blit path. It loads lazily: the code-drawn
+  // tiles stay on screen until the image is in, and any load failure just
+  // leaves them in place. No index.html tag is needed — the page is claude/
+  // and the file resolves as assets/tiles/tiles-1-1.png.
+  const ART={ready:false,loading:false,tiles:null};
+  const TILE={grass:0,grassMid:1,slopeL:2,slopeR:3,soil:6,soilDark:7,curb:8,walk:9,
+    road:10,dash:11,fence:12,hedge:13,drive:14,roof:15,roofTeal:16,cream:17,coral:18,
+    wallSky:19,win:20,door:21,garage:22,porch:23,mail:24,planter:25,sea:26,trunk:27,
+    fronds:28,hibiscus:29};
+  function loadStageArt(){
+    if(ART.ready||ART.loading) return;
+    ART.loading=true;
+    const im=new Image();
+    im.onload=()=>{ try{
+      const CELL=16, COLS=Math.max(1,Math.floor(im.width/CELL));
+      const src=document.createElement('canvas'); src.width=im.width; src.height=im.height;
+      const sg=src.getContext('2d'); sg.imageSmoothingEnabled=false; sg.drawImage(im,0,0);
+      const arr=[];
+      for(let i=0,n=COLS*Math.floor(im.height/CELL); i<n; i++){
+        const cv=document.createElement('canvas'); cv.width=cv.height=T;
+        const g=cv.getContext('2d'); g.imageSmoothingEnabled=false;
+        g.drawImage(src,(i%COLS)*CELL,((i/COLS)|0)*CELL,CELL,CELL,0,0,T,T);
+        arr.push(cv);
+      }
+      if(arr.length>=30){ ART.tiles=arr; ART.ready=true; }
+    }catch(e){} ART.loading=false; };
+    im.onerror=()=>{ ART.loading=false; };
+    try{ im.src='assets/tiles/tiles-1-1.png'; }catch(e){ ART.loading=false; }
+  }
+  const artReady=()=>ART.ready&&!!ART.tiles;
+  const artTile=i=>ART.tiles?ART.tiles[i]:null;
+  // screen-space draw (parallax art) and world-cell draw (tiles)
+  function artDraw(i,px,py,w,h,a){
+    const im=artTile(i); if(!im) return;
+    const sm=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=false;
+    if(a!=null) ctx.globalAlpha=a;
+    ctx.drawImage(im,px,py,w,h);
+    if(a!=null) ctx.globalAlpha=1;
+    ctx.imageSmoothingEnabled=sm;
+  }
+  function artBlitImg(im,c,r){
+    if(!im) return false;
+    const sm=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(im,X(c*T),Y(r*T),S(T)+1,S(T)+1);
+    ctx.imageSmoothingEnabled=sm; return true;
+  }
+  const artBlit=(i,c,r)=>artBlitImg(artTile(i),c,r);
+  // cached depth-darkened soil so deep 1.1 ground keeps the new palette
+  const _artDeep={};
+  function artSoil(v,depth){
+    const d=Math.min(13,depth), k=v*16+d; let c=_artDeep[k]; if(c) return c;
+    const src=artTile(d>5?TILE.soilDark:TILE.soil)||tex.dirt[v];
+    c=document.createElement('canvas'); c.width=src.width; c.height=src.height;
+    const g=c.getContext('2d'); g.drawImage(src,0,0);
+    g.fillStyle='rgba(24,12,28,'+Math.min(0.48,d*0.035)+')'; g.fillRect(0,0,c.width,c.height);
+    return (_artDeep[k]=c);
+  }
+
   // ── Sky: dusk gradient, slow swirls, stars, drifting clouds, birds, far hills
   function sky(){
     const horizon=Y((MV_BETA.horizonRow!=null?MV_BETA.horizonRow:MV_BETA.sky+13)*T);
@@ -657,9 +719,22 @@
     if(prev._heartGlow){ _heartHooked=true; return; }
     const wrapped=function(){ const r=prev.apply(this,arguments); try{ treeHeartGlow(); }catch(e){} return r; };
     wrapped._heartGlow=true;
-    window.drawFgLampGlow=wrapped;
-    _heartHooked=true;
-  }
+    window.drawFgLampGlow=wrapped;
+    _heartHooked=true;
+  }
+  // T571 foreground hook: the generated hibiscus / palm tips sit in front of
+  // the cast. Independent of the heart-glow hook so neither can disable the other.
+  let _fgArtHooked=false;
+  function hookFgArt(){
+    if(_fgArtHooked) return;
+    if(typeof window.drawFgLampGlow!=='function'){ setTimeout(hookFgArt,50); return; }
+    const prev=window.drawFgLampGlow;
+    if(prev._stageFg){ _fgArtHooked=true; return; }
+    const wrapped=function(){ const r=prev.apply(this,arguments); try{ suburbFront(); }catch(e){} return r; };
+    wrapped._stageFg=true;
+    window.drawFgLampGlow=wrapped;
+    _fgArtHooked=true;
+  }
   function teardrop(x,y,r,fill,edge){
     ctx.fillStyle=fill; ctx.strokeStyle=edge; ctx.lineWidth=S(1.2);
     ctx.beginPath(); ctx.moveTo(X(x),Y(y-r*2.2));
@@ -1121,16 +1196,134 @@
     // the ground floor: a shopfront with an awning, the street door is the exit gate
     rect(x+20,F-110,w*0.42,90,'#1e1a24'); litWindow(x+30,F-100,w*0.42-20,60,0.5,true);
     for(let k=0;k<8;k++) rect(x+14+k*(w*0.44)/8,F-126,(w*0.44)/8,18,k%2?'#c84a3a':'#f0e0c8');
-    rect(x,F-20,w,20,'#3a2a26');
-  }
+    rect(x,F-20,w,20,'#3a2a26');
+  }
+
+  // ── T571: cheap, bounded population + motion for each stage's mood ──
+  // Every loop below is fixed-count and camera-culled; nothing allocates,
+  // grows, or survives a stage change. The tiles carry 1.1; 1.2's shops and
+  // 1.3's towers are the code-drawn art (no generated equivalents exist).
+  // 1.1: a quiet neighbour hood far behind the playfield — cream/coral houses,
+  // terracotta roofs, lit windows, a white fence line and a couple of palms.
+  function suburbBack(B){
+    if(B.stageId!=='1.1'||!artReady()) return;
+    const horizon=Y((B.horizonRow!=null?B.horizonRow:B.sky+13)*T);
+    const base=Math.min(H-S(30),horizon+S(70));
+    const step=S(240), off=((camX*0.22)%step+step)%step;
+    const first=Math.floor((camX*0.22)/step)-1;
+    for(let i=first;i<=first+Math.ceil(W/step)+2;i++){
+      const hx=i*step-off, hy=base+(hash(i,71)-0.5)*S(22);
+      if(hx<-S(220)||hx>W+S(40)) continue;
+      const w=S(150+hash(i,72)*80), hh=S(70+hash(i,73)*46);
+      // soft, sun-faded house, not a hard sprite
+      ctx.fillStyle=i%2?'rgba(244,232,200,0.50)':'rgba(240,138,107,0.44)';
+      ctx.fillRect(hx,hy,w,hh);
+      for(let x=hx;x<hx+w;x+=S(T)+1) artDraw(i%3?TILE.roof:TILE.roofTeal,x,hy-S(9),S(T)+1,S(12),0.5);
+      artDraw(TILE.win,hx+S(16),hy+S(14),S(T)+1,S(T)+1,0.5);
+      artDraw(TILE.win,hx+w-S(48),hy+S(14),S(T)+1,S(T)+1,0.42);
+      // a palm now and then, leaning with the breeze
+      if(i%3===0){
+        const sway=Math.sin(fr*0.02+i)*S(3);
+        artDraw(TILE.trunk,hx+w-S(30),hy-hh-S(46),S(12),S(50),0.42);
+        ctx.save(); ctx.translate(hx+w-S(24)+sway,hy-hh-S(46)); ctx.rotate(Math.sin(fr*0.025+i)*0.05);
+        artDraw(TILE.fronds,-S(22),-S(20),S(48),S(44),0.44); ctx.restore();
+      }
+    }
+    // the picket fence along the distant street, parallax and clipped
+    const fs=S(T)+1, shift=((camX*0.4)%fs+fs)%fs;
+    for(let x=-shift;x<W+fs;x+=fs) artDraw(TILE.fence,x,base+S(6),fs,fs,0.46);
+  }
+  // 1.1: a few neighbours strolling on the real ground (small, distant, capped)
+  function suburbStroll(B){
+    if(B.stageId!=='1.1'||!B.surfRow||!B.skin) return;
+    const hz=B.horizonRow!=null?B.horizonRow:(B.sky+13);
+    for(let i=0;i<6;i++){
+      const span=900, wx=camX+((hash(i,81)*span+fr*(0.16+hash(i,82)*0.12))%span)-100;
+      const c=Math.floor(wx/T); if(c<0||c>=B.level.cols) continue;
+      const s=B.surfRow[c]; if(s==null||s>hz+10||(B.skin[s]&&B.skin[s][c]!==0)) continue;
+      const x=X(wx), y=Y(s*T), ph=fr*0.12+i*1.9;
+      if(x<-20||x>W+20||y<-20||y>H) continue;
+      ctx.fillStyle='rgba(38,28,54,0.45)';
+      ctx.beginPath(); ctx.arc(x,y-S(18)+Math.abs(Math.sin(ph))*S(2),S(3),0,Math.PI*2); ctx.fill();
+      ctx.fillRect(x-S(2.5),y-S(16),S(5),S(12));
+      ctx.fillRect(x-S(3),y-S(4)+Math.sin(ph)*S(2),S(2.5),S(5));
+      ctx.fillRect(x+S(0.5),y-S(4)-Math.sin(ph)*S(2),S(2.5),S(5));
+    }
+  }
+  // 1.2: a little traffic on the main district's street, behind the houses
+  function townTraffic(d){
+    if(!inView(d.x-100,d.y-120,d.w+200,Math.max(d.h,townFloor(d)-d.y)+140)) return;
+    const G=d.y+d.h;
+    for(let i=0;i<4;i++){
+      const span=780, t=((fr*(0.32+i*0.11)+hash(i,83)*span)%span+span)%span;
+      const wx=d.x+40+t, wy=G-S(10), dir=i%2?1:-1;
+      if(!inView(wx-S(24),wy-S(18),S(48),S(26))) continue;
+      const x=X(wx), y=Y(wy);
+      ctx.fillStyle='rgba(20,12,20,0.35)'; ctx.fillRect(x-S(17),y+S(5),S(34),S(2));
+      ctx.fillStyle=i%2?'#b85048':'#46809c'; ctx.fillRect(x-S(16),y-S(8),S(32),S(11));
+      ctx.fillStyle='#38242e'; ctx.fillRect(x-S(9),y-S(12),S(18),S(5));
+      ctx.fillStyle='rgba(210,240,255,0.55)'; ctx.fillRect(x-S(7),y-S(11),S(14),S(3));
+      ctx.fillStyle='#ffe6a0'; ctx.fillRect(x+dir*S(12),y-S(3),S(3),S(3));
+      ctx.fillStyle='#161018'; ctx.fillRect(x-S(11),y+S(2),S(5),S(4)); ctx.fillRect(x+S(6),y+S(2),S(5),S(4));
+    }
+  }
+  // 1.3: high up in the busy sky, a few distant drones with blinking lamps
+  function techTraffic(B){
+    if(B.stageId!=='1.3') return;
+    const span=W+S(200);
+    for(let i=0;i<4;i++){
+      const t=((fr*(0.5+i*0.18)+hash(i,84)*span)%span+span)%span;
+      const x=(i%2?span-t:t)-S(100);
+      const y=S(70+i*46)+Math.sin(fr*0.03+i)*S(7);   // upper sky band, always on-screen
+      ctx.globalAlpha=0.7;
+      ctx.fillStyle='rgba(150,210,255,0.22)'; ctx.fillRect(x+(i%2?S(12):-S(40)),y+S(1),S(28),S(2));
+      ctx.fillStyle='#4a5a70'; ctx.fillRect(x-S(14),y,S(28),S(4));
+      ctx.fillStyle='#aeb8c8'; ctx.fillRect(x-S(6),y-S(3),S(12),S(3));
+      ctx.fillStyle=((fr>>4)+i)%2?'#ff5a7a':'#6ef4ff';
+      ctx.fillRect(x+(i%2?S(11):-S(14)),y+S(1),S(3),S(2));
+      ctx.globalAlpha=1;
+    }
+  }
+  // 1.3: windows winking on in the residential / commercial facades
+  function techWindows(B){
+    if(B.stageId!=='1.3'||!B.skin) return;
+    const c0=Math.floor(camX/T), r0=Math.floor(camY/T);
+    for(let i=0;i<12;i++){
+      const c=c0+2+((i*13)%20), r=r0+1+((i*7)%16);
+      if(!B.skin[r]||!B.skin[r][c]||!(B.skin[r][c]>=7)) continue;
+      if(((fr>>5)+i*3)%17>4) continue;
+      const x=X(c*T), y=Y(r*T);
+      if(x<-S(20)||x>W+S(20)||y<-S(20)||y>H) continue;
+      const a=0.12+0.2*Math.abs(Math.sin(fr*0.04+i));
+      ctx.fillStyle='rgba(160,235,255,'+a+')';
+      ctx.fillRect(x+S(8),y+S(6),S(10),S(6));
+    }
+  }
+  // foreground (called from drawFgLampGlow, after the character): a couple of
+  // out-of-focus hibiscus / palm fronds at the very bottom of a 1.1 screen.
+  function suburbFront(){
+    const B=window.MV_BETA; if(!B||!B.on||B.stageId!=='1.1'||!artReady()) return;
+    Z=sw(1000)/1000;
+    const step=W/3, shift=((camX*0.06)%step+step)%step;
+    for(let i=0;i<4;i++){
+      const px=i*step-shift+S(30);
+      if(px<-S(80)||px>W+S(80)) continue;
+      ctx.save(); ctx.translate(px,H+S(12)); ctx.rotate(Math.sin(fr*0.018+i*1.7)*0.05);
+      artDraw(i%2?TILE.hibiscus:TILE.fronds,-S(26),-S(64),S(52),S(60),0.42);
+      ctx.restore();
+    }
+  }
+
   // ── World ─────────────────────────────────────────────────────────
   function world(B){
-    Z=sw(1000)/1000; textures();
+    Z=sw(1000)/1000; textures(); loadStageArt();
+    const art1=artReady()&&B.stageId==='1.1';
     const lv=B.level, cells=lv.cells, skin=B.skin;
     if(!B.surfRow){                                    // first ground row per column (for fireflies)
       B.surfRow=[]; for(let c=0;c<lv.cols;c++){ let r=0; while(r<lv.rows&&!cells[r][c]) r++; B.surfRow.push(r<lv.rows?r:null); }
     }
-    sky();
+    sky();
+    suburbBack(B); techTraffic(B);                     // T571: distant neighbourhood / drones behind everything
     const c0=Math.max(0,Math.floor(camX/T)-1), c1=Math.min(lv.cols-1,Math.ceil((camX+W/Z)/T)+1);
     const r0=Math.max(0,Math.floor(camY/T)-1), r1=Math.min(lv.rows-1,Math.ceil((camY+H/Z)/T)+1);
     // T460 (Paulo, Nov 11): "There should be no dirt blocks on that building on the right in 1.3.
@@ -1184,7 +1377,7 @@
       else if(s>=10&&window.MV_CITY) MV_CITY.air(c,r,s);            // 1.3: inside the towers (beta_city.js)
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
-    for(const d of B.decor){ if(d.kind==='town') bgTown(d); else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
+    for(const d of B.decor){ if(d.kind==='town'){ bgTown(d); townTraffic(d); } else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
     for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
     // Paulo, Nov 13: "that chimney on top of our house looks like it's floating". It goes down to the roof under it now
     // (the deeper of its two edges, so the stepped roof never shows a gap under one side)
@@ -1195,32 +1388,39 @@
     for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
       const t=cells[r][c]; if(!t) continue;
       const s=sk(c,r), top=r>0&&!cells[r-1][c];
-      if(t===ONEWAY){ rect(c*T,r*T,T,10,'#6a3e1e'); rect(c*T,r*T,T,3,P.woodH); continue; }
+      if(t===ONEWAY){ if(!(art1&&artBlit(TILE.porch,c,r))){ rect(c*T,r*T,T,10,'#6a3e1e'); rect(c*T,r*T,T,3,P.woodH); } continue; }
       if(t===SL||t===SR){
         const x=X(c*T), y=Y(r*T), z=S(T)+1;
         ctx.save(); ctx.beginPath();
         if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); ctx.lineTo(x+z,y+z); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); ctx.lineTo(x,y+z); }
-        const sTex=(s>=7&&window.MV_CITY&&MV_CITY.img(c,r,s,false))||(s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7]);
-        ctx.closePath(); ctx.clip(); ctx.drawImage(sTex,x,y,z,z); ctx.restore();
-        const neon=s===7?'#ffc070':s===8?'#6ef4ff':s===9?'#40ffd0':null;           // 1.3: the towers' slopes get a neon edge, not grass
-        ctx.strokeStyle=neon||(s===6?'#6e2a1e':s===3?P.woodH:P.grass); ctx.lineWidth=neon?S(3):S(5); ctx.beginPath();
-        if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); } ctx.stroke();
+        const sTex=(art1&&(t===SL?artTile(TILE.slopeL):artTile(TILE.slopeR)))||(s>=7&&window.MV_CITY&&MV_CITY.img(c,r,s,false))||(s===6?tex.scales:s===3?tex.wood:s===2?tex.brick[r&1]:tex.dirt[(c*5+r)&7]);
+        ctx.closePath(); ctx.clip(); ctx.drawImage(sTex,x,y,z,z); ctx.restore();
+        if(!art1){                                      // the generated slope tile already carries its grass edge
+          const neon=s===7?'#ffc070':s===8?'#6ef4ff':s===9?'#40ffd0':null;           // 1.3: the towers' slopes get a neon edge, not grass
+          ctx.strokeStyle=neon||(s===6?'#6e2a1e':s===3?P.woodH:P.grass); ctx.lineWidth=neon?S(3):S(5); ctx.beginPath();
+          if(t===SR){ ctx.moveTo(x,y+z); ctx.lineTo(x+z,y); } else { ctx.moveTo(x,y); ctx.lineTo(x+z,y+z); } ctx.stroke();
+        }
         continue;
       }
-      if(s>=7&&window.MV_CITY&&MV_CITY.solid(c,r,s,top)) continue;   // 1.3: the towers' facades
-      if(s===1){ blit(top?tex.roofTop:tex.roof,c,r); continue; }
-      if(s===2){ blit(tex.brick[r&1],c,r); continue; }
-      if(s===3){ blit(tex.wood,c,r); continue; }
-      if(s===6){ blit(top?tex.scalesTop:tex.scales,c,r); continue; }
-      const depth=r-(B.surfRow[c]||r);
-      blit(depth>1?dirtDeep((c*5+r*3)&7,depth):tex.dirt[(c*5+r*3)&7],c,r);
-      if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){ rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
+      if(s>=7&&window.MV_CITY&&MV_CITY.solid(c,r,s,top)) continue;   // 1.3: the towers' facades
+      if(s===1){ if(art1&&artBlit((hash(c,r)<0.22?TILE.roofTeal:TILE.roof),c,r)) continue; blit(top?tex.roofTop:tex.roof,c,r); continue; }
+      if(s===2){ if(art1&&artBlit(TILE.coral,c,r)) continue; blit(tex.brick[r&1],c,r); continue; }
+      if(s===3){ blit(tex.wood,c,r); continue; }                      // house interiors: keep the warm planks
+      if(s===6){ blit(top?tex.scalesTop:tex.scales,c,r); continue; }   // 1.2's pink scales: no generated equivalent
+      const depth=r-(B.surfRow[c]||r);
+      if(art1){ artBlitImg(depth>1?artSoil((c*5+r*3)&7,depth):artTile(top?TILE.grass:TILE.soil),c,r); }
+      else blit(depth>1?dirtDeep((c*5+r*3)&7,depth):tex.dirt[(c*5+r*3)&7],c,r);
+      if(top&&sk(c,r-1)===0&&r<=(B.horizonRow+12)){
+        if(art1){ rect(c*T,r*T,T,2,'rgba(180,240,150,0.35)'); flowers(c,r); }
+        else { rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
+      }
     }
     // the tree's roots must cross the dirt, so draw them now — after the
     // ground tiles, before entities (the canopy/trunk were drawn earlier)
     for(const d of B.decor) if(d.kind==='tree') treeRoots(d);
-    edges(B,cells,r0,r1,c0,c1);
-    if(window.MV_CITY) MV_CITY.over(B);
+    edges(B,cells,r0,r1,c0,c1);
+    if(window.MV_CITY) MV_CITY.over(B);
+    techWindows(B); suburbStroll(B);                   // T571: facade lights / neighbours, over the tiles but behind the cast
     if(window.MV_DOORS&&MV_DOORS.over) try{ MV_DOORS.over(B); }catch(e){}   // 1.1: doors, trap doors, the attic, the tree's glow (beta_doors.js)
     for(const d of B.decor){
       if(d.kind==='attic') atticWindow(d.x, d.y+12);
@@ -1271,5 +1471,6 @@
   function solidTex(c,r,s){ if(s>=7&&window.MV_CITY){ const im=MV_CITY.img(c,r,s,false); if(im) return im; }
     return s===1?tex.roof:s===2?tex.brick[r&1]:s===3?tex.wood:s===6?tex.scales:tex.dirt[(c*5+r*3)&7]; }
   window.MV_BETA_DECOR={P, world, solidTex, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
-  hookHeartGlow();
+  hookHeartGlow();
+  hookFgArt();
 })();
