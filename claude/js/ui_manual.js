@@ -48,11 +48,14 @@
     label(t,x,y+Math.round((size-s)/2),s,col,align); return s;
   }
   function ribbon(text,x,y,w,col){
+    // T575: never wider than the page, and the title shrinks to fit its ribbon (narrow phones)
+    const maxW=(S.pw||520)-(x-(S.px||0))-34; w=Math.max(120,Math.min(w,maxW));
+    let fs=34; ctx.save(); ctx.font=fs+'px '+HEAD(); while(fs>16&&ctx.measureText(text).width>w-8){ fs--; ctx.font=fs+'px '+HEAD(); } ctx.restore();
     ctx.save(); ctx.translate(x,y); ctx.rotate(-0.035);
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.moveTo(6,6); ctx.lineTo(w+20,6); ctx.lineTo(w+6,52); ctx.lineTo(-8,52); ctx.closePath(); ctx.fill();
     ctx.fillStyle=col||RED; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(w+14,0); ctx.lineTo(w,46); ctx.lineTo(-14,46); ctx.closePath(); ctx.fill();
     ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(-10,4,w+20,4);
-    ctx.font='34px '+HEAD(); ctx.textBaseline='middle'; ctx.lineJoin='round';
+    ctx.font=fs+'px '+HEAD(); ctx.textBaseline='middle'; ctx.lineJoin='round';
     ctx.lineWidth=6; ctx.strokeStyle='#14070a'; ctx.strokeText(text,10,25); ctx.fillStyle='#fff8e6'; ctx.fillText(text,10,25);
     ctx.restore();
   }
@@ -195,7 +198,7 @@
       ctx.save(); ctx.fillStyle=RED; ctx.fillRect(x,y,w,96); ctx.fillStyle=GOLD; ctx.fillRect(x,y+96,w,6); ctx.restore();
       label('INSTRUCTION BOOKLET',x+w/2,y+18,22,'#fff8e6','center');
       if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#b8f5a0',sweep:9999});
-      label('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,16,'#9ef58a','center');
+      fitLabel('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,w-40,16,'#9ef58a','center');
       mmrSeal(x+w-64,y+h-64,72);   // clear of the build line above (92 px at -78 covered its last word)
       label('AN M.M.R. GAME',x+30,y+h-62,16,'#c8b8ff');
     },
@@ -203,7 +206,8 @@
     (x,y,w,h)=>{
       ribbon('THE JOURNEY BEGINS',x+30,y+30,420);
       framed(img('s1','assets/story/story-1.png'),x+30,y+100,w-60,180,{ay:0.4});
-      wrap('Their neighbor Laitu said: "They are long gone, and left a trail of Knowl seeds. Tradzkul probably took them to his lair. You should follow the trail and find them!"',x+30,y+310,w-60,20,26);
+      { const st='Their neighbor Laitu said: "They are long gone, and left a trail of Knowl seeds. Tradzkul probably took them to his lair. You should follow the trail and find them!"';
+        const sf=fitSize(s=>nLines(st,w-60,s)*LH(s),y+h-40-(y+310),22,15); wrap(st,x+30,y+310,w-60,sf,LH(sf)); }
     },
     // 3 · the heroes. One column, measured, so the bios never sit on the portraits.
     (x,y,w,h)=>{
@@ -282,7 +286,9 @@
       ribbon('TIPS & SECRETS',x+24,y+16,Math.min(320,w-110),RED);
       starburst(x+w-52,y+46,32,'!');
       const tips=['Boil enough water with the TRS and the clouds roll in. What goes up comes down as rain.','Drive into your own XLR blast: the tire fights it, heats up and smokes.','Hold the XLR under water to blow an air pocket. Let go and it bursts to the surface.','The rope plugs into your back once it bites. Your hand is free for another item.','A hard landing bounces off the rubber. Hold jump in the air and the wheel climbs.','Every slot remembers your hero, your jacks and every seed you found.','On filters, hold the item button, then down, left, down, right, down, up.'];
-      let yy=y+86; tips.forEach((t,i)=>{ ctx.save(); ctx.fillStyle=i%2?BLUE:RED; ctx.beginPath(); ctx.arc(x+40,yy+14,16,0,Math.PI*2); ctx.fill(); ctx.font='18px '+HEAD(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),x+40,yy+15); ctx.restore(); yy=wrap(t,x+66,yy,w-96,20,26)+12; });
+      // T575: type shrinks until all seven tips fit the page (was overflowing on phones)
+      const tfs=fitSize(s=>tips.reduce((n,t)=>n+Math.max(34,nLines(t,w-96,s)*LH(s))+12,0),y+h-40-(y+86),20,15);
+      let yy=y+86; tips.forEach((t,i)=>{ ctx.save(); ctx.fillStyle=i%2?BLUE:RED; ctx.beginPath(); ctx.arc(x+40,yy+14,16,0,Math.PI*2); ctx.fill(); ctx.font='18px '+HEAD(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(i+1),x+40,yy+15); ctx.restore(); yy=Math.max(wrap(t,x+66,yy,w-96,tfs,LH(tfs)),yy+34)+12; });
     },
     // 8 · credits
     (x,y,w,h)=>{
@@ -331,6 +337,94 @@
   ];
   { const facts=PAGES[9], credits=PAGES[7]; PAGES[7]=facts; PAGES[9]=credits; }
 
+  // ── T575 · cutaway plates. Optional art drops into assets/ui/booklet/ (768x1024 hero plates,
+  // 1024x640 reel); until it exists a vector blueprint placeholder is drawn with the same numbered callouts.
+  const BK='assets/ui/booklet/';
+  const BLUEPRINT='#2B5EA8', BRASS='#C8A23C', CHROME='#D5DCE8', JUICE='#F8E71C';
+  function bubble(n,cx,cy,r){ ctx.save(); ctx.fillStyle=RED; ctx.strokeStyle='#14070a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.font=Math.round(r*1.15)+'px '+HEAD(); ctx.fillStyle='#fff8e6'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(n),cx,cy+1); ctx.restore(); }
+  function lead(x1,y1,x2,y2){ ctx.save(); ctx.strokeStyle='#fff8e6'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.restore(); }
+  function coil(x1,y1,x2,y2,n,amp,col){ ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(x1,y1);
+    const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;
+    for(let i=1;i<=n*2;i++){ const t=i/(n*2), s=(i%2?1:-1)*amp; ctx.lineTo(x1+dx*t+nx*s,y1+dy*t+ny*s); } ctx.stroke(); ctx.restore(); }
+  function plateBase(bx,by,bw,bh){
+    ctx.fillStyle=BLUEPRINT; ctx.fillRect(bx,by,bw,bh); ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+    for(let gx=bx+16;gx<bx+bw;gx+=16){ ctx.beginPath(); ctx.moveTo(gx,by); ctx.lineTo(gx,by+bh); ctx.stroke(); }
+    for(let gy=by+16;gy<by+bh;gy+=16){ ctx.beginPath(); ctx.moveTo(bx,gy); ctx.lineTo(bx+bw,gy); ctx.stroke(); }
+  }
+  function heroVector(bx,by,bw,bh,accent){
+    plateBase(bx,by,bw,bh);
+    const u=Math.min(bw/100,bh/133), cx=bx+bw/2, oy=by+(bh-133*u)/2, P=(a,b)=>[cx+(a-50)*u,oy+b*u];
+    ctx.save(); ctx.lineJoin='round'; ctx.strokeStyle='#14070a'; ctx.lineWidth=2;
+    let [a,b]=P(50,112); ctx.fillStyle=CHROME; ctx.beginPath(); ctx.arc(a,b,16*u,0,Math.PI*2); ctx.fill(); ctx.stroke();     // 6 wheel
+    ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(a,b,8*u,0,Math.PI*2); ctx.fill();
+    let [x1,y1]=P(26,52); let [x2,y2]=P(74,52); ctx.fillStyle='#1b1740'; ctx.fillRect(x1,y1,x2-x1,34*u); ctx.strokeRect(x1,y1,x2-x1,34*u);          // body
+    [x1,y1]=P(76,54); ctx.fillStyle=JUICE; ctx.fillRect(x1,y1,10*u,26*u); ctx.strokeRect(x1,y1,10*u,26*u); ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.fillRect(x1+2*u,y1+3*u,2*u,20*u);  // 2 tank
+    [a,b]=P(50,70); ctx.fillStyle=JUICE; ctx.shadowColor=JUICE; ctx.shadowBlur=14; ctx.beginPath(); ctx.arc(a,b,7*u,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0; ctx.stroke();    // 1 core
+    [a,b]=P(50,46); ctx.fillStyle='#0b0b12'; ctx.beginPath(); ctx.ellipse(a,b,26*u,6*u,0,0,Math.PI*2); ctx.fill(); ctx.stroke();                  // 3 record
+    ctx.strokeStyle=CHROME; ctx.beginPath(); ctx.moveTo(a+14*u,b-2*u); ctx.lineTo(a+4*u,b+1*u); ctx.stroke(); ctx.strokeStyle='#14070a';
+    [a,b]=P(50,28); ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(a,b,13*u,0,Math.PI*2); ctx.fill(); ctx.stroke();                 // 4 bulb
+    ctx.strokeStyle=BRASS; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(a-5*u,b+8*u); ctx.lineTo(a-3*u,b-2*u); ctx.lineTo(a,b+3*u); ctx.lineTo(a+3*u,b-2*u); ctx.lineTo(a+5*u,b+8*u); ctx.stroke();
+    ctx.fillStyle=accent; ctx.beginPath(); ctx.arc(a,b-1*u,4*u,0,Math.PI*2); ctx.fill();
+    [x1,y1]=P(26,58); [x2,y2]=P(10,92); coil(x1,y1,x2,y2,6,4*u,'#d8d2c8'); ctx.fillStyle=accent; ctx.beginPath(); ctx.arc(x2,y2,5*u,0,Math.PI*2); ctx.fill();   // 5 arms
+    [x1,y1]=P(74,58); [x2,y2]=P(92,92); coil(x1,y1,x2,y2,6,4*u,'#d8d2c8'); ctx.fillStyle=accent; ctx.beginPath(); ctx.arc(x2,y2,5*u,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    const R=Math.max(9,Math.min(13,bw*0.05)), at=[[50,70,12,76],[86,54,90,40],[72,46,92,22],[50,28,10,12],[10,76,8,64],[50,118,86,120]];
+    at.forEach(([px,py,qx,qy],i)=>{ const [ax,ay]=P(px,py), [qx2,qy2]=P(qx,qy); lead(ax,ay,qx2,qy2); bubble(i+1,qx2,qy2,R); });
+  }
+  function reelVector(bx,by,bw,bh){
+    plateBase(bx,by,bw,bh);
+    const u=Math.min(bw/100,bh/62), cx=bx+bw/2, cy=by+bh/2, P=(a,b)=>[cx+(a-50)*u,cy+(b-31)*u];
+    ctx.save(); ctx.lineJoin='round'; ctx.strokeStyle='#14070a'; ctx.lineWidth=2;
+    [[26,22],[58,22]].forEach(([a,b])=>{ const [x,y]=P(a,b); ctx.fillStyle=CHROME; ctx.beginPath(); ctx.arc(x,y,13*u,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.fillStyle=BRASS; ctx.beginPath(); ctx.arc(x,y,4*u,0,Math.PI*2); ctx.fill(); ctx.stroke(); });  // 1 spools
+    ctx.strokeStyle='#fff8e6'; ctx.lineWidth=2; ctx.beginPath(); let p=P(26,35); ctx.moveTo(p[0],p[1]); p=P(34,46); ctx.lineTo(p[0],p[1]); p=P(50,46); ctx.lineTo(p[0],p[1]); p=P(58,35); ctx.lineTo(p[0],p[1]); ctx.stroke();  // 2 tape path
+    p=P(42,46); ctx.fillStyle='#fff8e6'; ctx.beginPath(); ctx.moveTo(p[0]+5,p[1]); ctx.lineTo(p[0]-3,p[1]-4); ctx.lineTo(p[0]-3,p[1]+4); ctx.fill();
+    ctx.strokeStyle='#14070a'; ctx.lineWidth=2;
+    p=P(70,42); ctx.fillStyle=BRASS; ctx.fillRect(p[0],p[1],26*u,12*u); ctx.strokeRect(p[0],p[1],26*u,12*u);                                           // 4 barrel
+    p=P(96,48); ctx.fillStyle=CHROME; ctx.beginPath(); ctx.moveTo(p[0],p[1]-6*u); ctx.lineTo(p[0]+0,p[1]+6*u); ctx.lineTo(p[0]-3*u,p[1]); ctx.fill();   // plug tip
+    p=P(10,48); ctx.fillStyle='#8a4dff'; ctx.beginPath(); ctx.arc(p[0],p[1],8*u,0,Math.PI*2); ctx.fill(); ctx.stroke(); coil(p[0]+8*u,p[1],P(70,48)[0],P(70,48)[1],8,3*u,'#d8d2c8');  // 5 drum + cable
+    ctx.restore();
+    const R=Math.max(9,Math.min(13,bw*0.035)), at=[[26,22,12,6],[42,46,40,58],[58,22,60,6],[82,48,86,58],[10,48,8,58],[70,52,70,60]];
+    at.forEach(([px,py,qx,qy],i)=>{ const [ax,ay]=P(px,py), [qx2,qy2]=P(qx,qy); lead(ax,ay,qx2,qy2); bubble(i+1,qx2,qy2,R); });
+  }
+  function plateText(caps,x,y,w,h){
+    const colW=w>=300?Math.floor((w-12)/2):w, cols=colW<w?2:1, per=Math.ceil(caps.length/cols);
+    const colH=s=>{ let mx=0; for(let c=0;c<cols;c++){ let m=0; for(let i=c*per;i<Math.min(caps.length,(c+1)*per);i++) m+=Math.max(30,nLines(caps[i],colW-34,s)*LH(s))+4; mx=Math.max(mx,m); } return mx; };
+    const fs=fitSize(colH,h,17,12);
+    for(let c=0;c<cols;c++){ let yy=y; for(let i=c*per;i<Math.min(caps.length,(c+1)*per);i++){ const xx=x+c*(colW+12); bubble(i+1,xx+12,yy+12,11); const e=wrap(caps[i],xx+30,yy+1,colW-34,fs,LH(fs)); yy=Math.max(e,yy+30)+4; } }
+  }
+  function cutawayPage(title,col,kind,file,caps,aspect,accent){
+    return (x,y,w,h)=>{
+      ribbon(title,x+24,y+16,w-60,col);
+      const wide=kind==='reel';
+      const by=y+78, avail=y+h-34-by;
+      const capsH=Math.max(110,Math.round(avail*(wide?0.46:0.4)));
+      let bh=avail-capsH-14, bw=Math.round(bh*aspect);
+      if(bw>w-60){ bw=w-60; bh=Math.round(bw/aspect); }
+      const bx=x+(w-bw)/2;
+      const im=img('ca'+file,BK+file);
+      if(ready(im)){ framed(im,bx,by,bw,bh,{}); }
+      else{ ctx.save(); ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(bx+6,by+6,bw,bh); ctx.fillStyle='#000'; ctx.fillRect(bx-3,by-3,bw+6,bh+6); ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.clip();
+        if(wide) reelVector(bx,by,bw,bh); else heroVector(bx,by,bw,bh,accent); ctx.restore(); }
+      plateText(caps,x+24,by+bh+18,w-48,y+h-34-(by+bh+18));
+    };
+  }
+  PAGES.splice(3,0,
+    cutawayPage('INSIDE MIND','#6a2cc8','hero','hero-mind-cutaway.png',['Core: Knowl-powered heart reactor.','Tank: Knowl juice, with level glass.','Record: the platter and its tonearm.','Needle & bulb: filament and eye lens.','Coiled-cable arms and gloves.','Wheel base with the motor.'],0.75,'#8A4DFF'),
+    cutawayPage('INSIDE VENTURE',RED,'hero','hero-venture-cutaway.png',['Core: Knowl-powered heart reactor.','Tank: Knowl juice, with level glass.','Record: the platter and its tonearm.','Needle & bulb: filament and eye lens.','Coiled-cable arms and gloves.','Wheel base with the motor.'],0.75,'#FF3B4A'),
+    cutawayPage('THE RCA REEL',BLUE,'reel','rca-reel-cutaway.png',['Reel spools feed the tape.','Tape path: capstan and heads.','Second spool takes it up.','Plug launcher barrel and hook line.','Cable winding drum.','Trigger spring.'],1.6,RED));
+  const DARK=i=>i===0||i>=PAGES.length-2;
+
+  // booklet furniture: double ink rule, corner wave cartouches (ukiyo-e nod) and a dashed inner line
+  function furniture(x,y,w,h,dark){
+    const c=dark?GOLD:INK;
+    ctx.save(); ctx.strokeStyle=c; ctx.globalAlpha=dark?0.8:0.9; ctx.lineWidth=2; ctx.strokeRect(x+6,y+6,w-12,h-12);
+    ctx.lineWidth=1; ctx.setLineDash([5,4]); ctx.strokeRect(x+11,y+11,w-22,h-22); ctx.setLineDash([]);
+    ctx.lineWidth=2;
+    [[x+6,y+6,0],[x+w-6,y+h-6,Math.PI]].forEach(([cx,cy,r])=>{ ctx.save(); ctx.translate(cx,cy); ctx.rotate(r); for(let k=1;k<=3;k++){ ctx.beginPath(); ctx.arc(0,0,k*7,0,Math.PI/2); ctx.stroke(); } ctx.restore(); });
+    ctx.restore();
+  }
+
   function paper(x,y,w,h){
     ctx.save();
     ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(x+12,y+14,w,h);
@@ -345,11 +439,12 @@
     const g=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,700); g.addColorStop(0,'rgba(80,60,40,0.35)'); g.addColorStop(1,'rgba(0,0,0,0.8)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
     const L=window.uiLayout?uiLayout():{panelW:520};
     const pw=Math.min(520,L.panelW), ph=Math.min(680,H-48), px=(W-pw)/2, py=Math.max(16,(H-ph)/2-6);
+    S.px=px; S.pw=pw;
     S.t=Math.min(1,S.t+0.09);
     const e=1-Math.pow(1-S.t,3), dir=S.page>=S.from?1:-1;
     const draw=(i,off,alpha)=>{ if(i<0||i>=PAGES.length) return; ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.translate(px+pw/2,py+ph/2); ctx.rotate(-0.006+off*0.00004); ctx.translate(-(px+pw/2),-(py+ph/2));
-      paper(px,py,pw,ph); ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip(); try{ PAGES[i](px,py,pw,ph); }catch(err){} ctx.restore();
-      ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.font='14px '+HEAD(); ctx.fillStyle=(i===0||i===9||i===10)?'#9c8cc8':'#5a4a3a'; ctx.textAlign='center'; ctx.fillText('— '+(i+1)+' —',px+pw/2,py+ph-16); ctx.restore(); };
+      paper(px,py,pw,ph); ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip(); try{ PAGES[i](px,py,pw,ph); }catch(err){} furniture(px,py,pw,ph,DARK(i)); ctx.restore();
+      ctx.save(); ctx.globalAlpha=alpha; ctx.translate(off,0); ctx.font='14px '+HEAD(); ctx.fillStyle=DARK(i)?'#9c8cc8':'#5a4a3a'; ctx.textAlign='center'; ctx.fillText('— '+(i+1)+' —',px+pw/2,py+ph-16); ctx.restore(); };
     if(S.t<1) draw(S.from,-dir*e*(W*0.8),1-e);
     draw(S.page,dir*(1-e)*(W*0.8),e);
     // controls hint
