@@ -517,6 +517,45 @@ function _hatMotion(dir){
   return {ang:pl._hatAng||0, lift:pl._hatLift||0};
 }
 function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.lift); ctx.rotate(m.ang); ctx.translate(-px,-py); }
+// Paulo 2026-11-20: the vinyl record is now a SEPARATE board hovering at MIND's
+// side. While he falls it detaches, spins and drifts away; landing snaps it back.
+function _vinylMotion(pl,dir){
+  if(!pl||pl.mirror) return {x:0,y:0,a:0,d:0};
+  const falling=!pl.og&&(pl.vy||0)>0.6&&!(pl.hook&&pl.hook.st==='on');
+  if(falling){
+    pl._vinylD=Math.min(1,(pl._vinylD||0)+0.06);
+    pl._vinylA=(pl._vinylA||0)+0.16+Math.min(0.22,(pl.vy||0)*0.012);
+    pl._vinylX=Math.max(-190,Math.min(190,(pl._vinylX||0)+dir*3.2));
+    pl._vinylY=Math.max(-12,Math.min(300,(pl._vinylY||0)+6.5));
+  }else{
+    pl._vinylD=Math.max(0,(pl._vinylD||0)-0.08);
+    pl._vinylA=(pl._vinylA||0)*0.92;
+    pl._vinylX=(pl._vinylX||0)*0.86; pl._vinylY=(pl._vinylY||0)*0.86;
+  }
+  return {x:pl._vinylX||0,y:pl._vinylY||0,a:pl._vinylA||0,d:pl._vinylD||0};
+}
+function _drawVinylBoard(cx,y,pl,dir){
+  const m=_vinylMotion(pl,dir), bob=Math.sin(fr*0.09)*1.2*(1-m.d);
+  ctx.save();
+  ctx.translate(Math.round(cx+dir*74+m.x),Math.round(y+4+m.y+bob));
+  ctx.rotate(m.a);
+  const R=13;
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(1,2,R+1,R*0.62+1,0,0,Math.PI*2); ctx.fill();
+  const vg=ctx.createRadialGradient(-3,-3,1,0,0,R);
+  vg.addColorStop(0,'#2c2c36'); vg.addColorStop(0.5,'#101015'); vg.addColorStop(1,'#040406');
+  ctx.fillStyle=vg; ctx.beginPath(); ctx.ellipse(0,0,R,R*0.62,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.5;
+  for(const rr of [R*0.86,R*0.68,R*0.5,R*0.34]){ ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.62,0,0,Math.PI*2); ctx.stroke(); }
+  ctx.fillStyle=dir>0?'#7a3cd0':'#c81c2c'; ctx.beginPath(); ctx.ellipse(0,0,R*0.30,R*0.19,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#050507'; ctx.beginPath(); ctx.arc(0,0,1.3,0,Math.PI*2); ctx.fill();
+  if(m.d>0.12){
+    ctx.strokeStyle='rgba(190,150,255,'+(0.7*m.d).toFixed(2)+')'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.ellipse(0,0,R,R*0.62,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,'+(0.2*m.d).toFixed(2)+')';
+    ctx.beginPath(); ctx.ellipse(0,0,R*0.7,R*0.44,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
 // GUARD (groove fix): hatTY is in hat units (×9 px). Clamp the brim so it always
 // sits on top of the bulb (never below its centre), whatever a groove/tilt value
 // tries to do. Normal head bob needs 0 here — the head already carries the hat.
@@ -1752,6 +1791,10 @@ function drawCharacter(){
 
   // 4. BODY BOX â€” in front of glove arm + head
   drawBody(wcx,bTopS,fc,0);
+
+  // Vinyl board: separate record disc at MIND's side; detaches + spins on a fall.
+  // Drawn after the body so it reads clearly as it flies off.
+  if(p.hero!=='venture') _drawVinylBoard(wcx,bTopS+8,p,fc);
 
   // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
   drawConnArm();
