@@ -24,7 +24,7 @@
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},
     {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
     {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
-    {id:3, name:'2P ONLINE', sub:'COMING SOON', icon:'lock', col:'#6a7a70', locked:true},
+    {id:3, name:'2P ONLINE', sub:'PLAY WITH A FRIEND', icon:'net', col:'#7ad8ff'},
   ];
   const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
   const EYE={mind:{u:0.50,v:0.31}, venture:{u:0.50,v:0.28}};
@@ -493,6 +493,7 @@
   }
   document.addEventListener('click',e=>{
     if(_gameState!=='select') return;
+    if(e.target&&e.target.closest&&e.target.closest('#mvNetPanel')) return;   // net panel owns its clicks
     e.stopImmediatePropagation();
     if(performance.now()-lastTouch<700) return;               // the click a tap makes after its touchstart
     if(typeof _unlockAudio==='function') _unlockAudio();
@@ -500,6 +501,7 @@
   },true);
   document.addEventListener('touchstart',e=>{
     if(_gameState!=='select'||!e.touches||!e.touches[0]) return;
+    if(e.target&&e.target.closest&&e.target.closest('#mvNetPanel')) return;   // net panel owns its touches
     if(e.target&&e.target.id!=='c') return;                   // on-screen pad buttons keep working
     e.stopImmediatePropagation(); lastTouch=performance.now();
     if(typeof _unlockAudio==='function') _unlockAudio();
@@ -558,6 +560,11 @@
     if(kind==='one') bulb(0);
     else if(kind==='two'){ bulb(-20); bulb(20); }
     else if(kind==='shadow'){ ctx.globalAlpha=0.45; bulb(-22); ctx.globalAlpha=1; ctx.fillStyle=col; bulb(14); }
+    else if(kind==='net'){ // two brothers linked by a signal — online co-op
+      bulb(-22); bulb(22);
+      ctx.beginPath(); ctx.arc(0,6,12,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,6,22,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+    }
     else { ctx.beginPath(); ctx.arc(0,-6,12,Math.PI,0); ctx.stroke(); ctx.fillRect(-16,-6,32,28); ctx.fillStyle='#04140e'; ctx.fillRect(-2,2,4,10); }
     ctx.restore();
   }
@@ -661,6 +668,11 @@
     if(_selectStep===0) drawModes(); else drawHeroes();
     rayPrev=rayNext; rayNext=[];
     drawAsk();
+    // Online link state (mv2_net.js) — visible on both select steps.
+    if(window.MV_NET&&MV_NET.isActive()){
+      const ns=MV_NET.status();
+      drawText('● ONLINE  '+String(MV_NET.role()||'peer').toUpperCase()+'  ·  '+String(ns.status||'').toUpperCase(),12,H-24,'#7ad8ff',2);
+    }
     if(typeof _drawUiToast==='function') _drawUiToast();
     ctx.restore(); ctx.imageSmoothingEnabled=true;
   };

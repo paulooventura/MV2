@@ -1315,6 +1315,7 @@ function update(){
   }
 
   if(p2){ if(p2._aiCompanion&&typeof _updateCompanionAI==='function') _updateCompanionAI(); else if(_playerCount===2) updateCoopPlayer2(); }
+  if(window.MV_NET&&MV_NET.isActive()) MV_NET.tick(p,p2);   // NET HOOK 1: online P2 (host) / P1 (joiner) from the wire
 
   updateBWalls();
   _stabilizePlayerCollision(p); if(p2)_stabilizePlayerCollision(p2);
@@ -1647,6 +1648,7 @@ function draw(){
     return;
   }
   _updateCoopSplit();
+  if(window.MV_NET&&MV_NET.isActive()) MV_NET.applyVisual(p,p2);   // NET HOOK 2: smooth remote pose at draw time
   // Per-frame baseline: split passes set their own actor and restore this value;
   // the single view always represents P1. Never carry an actor across frames.
   _splitActor=_coopSplitWanted()?null:p;
