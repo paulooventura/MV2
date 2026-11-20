@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · Mission Control Hub</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{background:var(--washi2);border-bottom:3px solid var(--sumi);padding:16px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:23px;margin:0;letter-spacing:.06em}
+.seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:28px;height:28px;font-size:14px;margin-right:10px;vertical-align:middle}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mica)}
+main{padding:20px;max-width:1100px;margin:0 auto 60px}
+.lead{font-size:12.5px;color:var(--mica);margin:14px 0 18px;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.card{display:block;text-decoration:none;color:inherit;border:1.6px solid var(--sumi);background:#fbf5e9;padding:14px;
+  border-radius:3px;transition:transform .12s,box-shadow .12s}
+.card:hover{transform:translateY(-3px);box-shadow:4px 5px 0 var(--sumi)}
+.card .top{display:flex;gap:10px;align-items:center}
+.card .mark{display:inline-grid;place-items:center;width:34px;height:34px;background:var(--indigo);color:#fff;font-size:17px;border:1.4px solid var(--sumi)}
+.card.game .mark{background:var(--verm)}
+.card.studio .mark{background:var(--celadon)}
+.card.lab .mark{background:var(--gold);color:#2a2010}
+.card .nm{font-size:15px;font-weight:bold;letter-spacing:.04em}
+.card .role{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mica);margin-top:2px}
+.card .desc{font-size:11.5px;line-height:1.5;margin-top:9px;color:#4a433c}
+.card .path{font-family:monospace;font-size:10px;color:var(--indigo);margin-top:9px;border-top:1px dotted var(--mica);padding-top:6px}
+footer{margin-top:24px;border-top:1px solid var(--mica);padding-top:12px;font-size:11px;color:var(--mica);line-height:1.6}
+code{background:#e8dcc3;padding:1px 4px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="seal">★</span>MV2 · MISSION CONTROL HUB</h1>
+  <span class="sub">one door to every tool</span>
+</header>
+<main>
+  <p class="lead">Everything for MV2 in one place. The game, the five control boards, the replacement studio and the player Sound Lab all run from this local server. Hard-refresh any page with <code>Ctrl+F5</code> after a code edit.</p>
+  <div class="grid">
+    <a class="card game" href="index.html"><div class="top"><span class="mark">▶</span><div><div class="nm">PLAY MV2</div><div class="role">the game itself</div></div></div>
+      <div class="desc">Awdjoo Town. Story mode, options, character select. Beat the story to unlock the Sound Lab.</div><div class="path">index.html</div></a>
+
+    <a class="card" href="sfx-board.html"><div class="top"><span class="mark">♪</span><div><div class="nm">SOUND BOARD</div><div class="role">audition every sound</div></div></div>
+      <div class="desc">91 entries — SFX files, meme wavs, synth voices and the full soundtrack. Hear each one and see its file.</div><div class="path">sfx-board.html</div></a>
+
+    <a class="card" href="design-board.html"><div class="top"><span class="mark">◆</span><div><div class="nm">DESIGN BOARD</div><div class="role">characters · foes · levels</div></div></div>
+      <div class="desc">The whole cast, enemy stats and the three stages with real art and clickable source files.</div><div class="path">design-board.html</div></a>
+
+    <a class="card" href="gear-board.html"><div class="top"><span class="mark">⚙</span><div><div class="nm">GEAR &amp; CONTROLS</div><div class="role">items · inputs · modes</div></div></div>
+      <div class="desc">The four jacks, the knife, exact P1/P2/gamepad binds, turbo rules and play modes.</div><div class="path">gear-board.html</div></a>
+
+    <a class="card" href="tools-board.html"><div class="top"><span class="mark">⚗</span><div><div class="nm">LABS &amp; TOOLS</div><div class="role">harnesses · probes</div></div></div>
+      <div class="desc">A/B lab pages, stage shortcuts, debug keys and all 31 headless test scripts.</div><div class="path">tools-board.html</div></a>
+
+    <a class="card studio" href="sfx-studio.html"><div class="top"><span class="mark">✎</span><div><div class="nm">SFX REPLACEMENT STUDIO</div><div class="role">captain's editing desk</div></div></div>
+      <div class="desc">Pick any of 72 sounds, drop a wav/mp3/ogg, hear it instantly. Reset puts the original back.</div><div class="path">sfx-studio.html</div></a>
+
+    <a class="card lab" href="sound-lab.html"><div class="top"><span class="mark">◉</span><div><div class="nm">SOUND LAB</div><div class="role">player feature · post-game</div></div></div>
+      <div class="desc">The players' reward: record your own SFX with the mic, store them in the browser, export a pack.</div><div class="path">sound-lab.html</div></a>
+  </div>
+  <footer>
+    <b>Local only.</b> Nothing here is deployed to the public web or itch yet — that stays on Paulo's call.<br>
+    Launcher: <code>powershell -NoProfile -ExecutionPolicy Bypass -File scripts\open-mv2-sfx-board.ps1</code> from HOMEBASE.
+  </footer>
+</main>
+</body>
+</html>

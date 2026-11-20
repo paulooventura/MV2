@@ -487,8 +487,8 @@ const _optMuteRow=()=>_optTvRow()+2;
 const _optInCoop=()=>{ try{ return typeof _coopPair==='function'&&!!_coopPair(); }catch(e){ return false; } };
 const _optB0=()=>_optTvRow()+3;                     // first P1 bind row
 const _optB1=()=>_optB0()+BIND_ORDER.length;         // first P2 bind row
-// T575: Spotify album link. TODO(Paulo): paste the real https://open.spotify.com/album/... URL here.
-const OST_URL='https://open.spotify.com/artist/1EAs9YhbJZTPQyqoYgF9rb';   // Paulo Ventura's artist page (HOMEBASE online-presence.md); swap for the album URL when it exists
+// T575: Spotify album link (Paulo 2026-11-20: the OST row opens the album, not the artist page).
+const OST_URL='https://open.spotify.com/album/0hJ0u7LB57kHrmOnU5CIG4?si=rV9GgmoLQ-yMihCiJ2l2Aw';
 const _optOstRow=()=>_optB1()+BIND_ORDER.length;   // OST link sits right above the manual
 function _optManualRow(){ return _optOstRow()+1; }  // manual is last
 function _openOst(){ if(!OST_URL){ try{ sfx('menu'); }catch(e){} return; } try{ window.open(OST_URL,'_blank','noopener'); }catch(e){} try{ sfx('confirm'); }catch(e){} }
