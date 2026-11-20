@@ -287,7 +287,16 @@
     tumble(a){ tone(a,{f:150,f1:70,d:0.16,v:0.14}); hiss(a,{type:'lowpass',f:700,d:0.1,v:0.08}); },
     rope_throw(a){ hiss(a,{f:700,f1:2600,q:1.6,d:0.2,v:0.08}); },
     menu(a){ tone(a,{f:N(81),d:0.06,v:0.05,type:'triangle'}); },
+    sfx_menu(a){ tone(a,{f:N(84),d:0.07,v:0.055,type:'triangle'}); bell(a,{f:N(91),ratio:2,index:1,d:0.16,v:0.035,rev:0.25}); },
     confirm(a){ bell(a,{f:N(88),ratio:2,index:1.2,d:0.35,v:0.07}); tone(a,{f:N(76),d:0.25,v:0.05,type:'triangle'}); },
+    // Synth layer (Paulo 2026-11-20): these game voices had no sound at all.
+    blowoff(a){ hiss(a,{type:'bandpass',f:1500,f1:420,q:1.2,d:0.24,v:0.13}); tone(a,{f:230,f1:90,d:0.16,v:0.06,type:'triangle'}); },
+    splash(a){ hiss(a,{type:'highpass',f:3400,f1:900,d:0.34,v:0.12,rev:0.2}); hiss(a,{type:'lowpass',f:1100,d:0.22,v:0.07,at:0.02});
+      [0.05,0.13,0.22].forEach((dt,i)=>tone(a,{f:340+i*130,f1:150+i*60,dt,d:0.13,v:0.045,type:'sine'})); },
+    sport_ignition(a){ tone(a,{f:170,f1:1500,d:0.5,v:0.12,type:'sawtooth',lp:3200,rev:0.3});
+      hiss(a,{f:700,f1:4200,d:0.42,v:0.07,at:0.05}); bell(a,{f:N(79),d:0.3,v:0.05,rev:0.4}); },
+    sport_off(a){ tone(a,{f:950,f1:120,d:0.46,v:0.1,type:'triangle',rev:0.25});
+      hiss(a,{type:'lowpass',f:2600,f1:500,d:0.38,v:0.05,at:0.01}); },
     gate(a){ [N(60),N(67),N(72),N(76)].forEach((f,i)=>tone(a,{f,dt:i*0.08,d:1.6,v:0.06,type:'triangle',at:0.08,rev:0.7})); },
     jump_reg(a,p){ R.jump(a,p); }, jump_good(a,p){ R.jump_spring(a,p); }, hurt(a,p){ R.player_hit(a,p); },
     // Dump line 87 — knowl seeds falling on the floor get a glass-like tap.

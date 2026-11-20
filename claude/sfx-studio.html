@@ -76,6 +76,7 @@ code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
     <tbody id="rows"></tbody></table>
   </section>
 </main>
+<audio id="filePreview" style="display:none"></audio>
 <div id="msg">Studio ready. Choose a file next to any sound to replace it.</div>
 
 <!-- Load the real engine + any current replacements so previews are exact. -->
@@ -96,8 +97,23 @@ const $=id=>document.getElementById(id);
 let replaced={};
 
 function toast(text,ok=true){const m=$('msg');m.textContent=text;m.className=ok?'ok':'err';}
-function preview(name){
+function preview(name,kind){
   try{
+    if(replaced[name]){
+      if(typeof window._unlockAudio==='function') window._unlockAudio();
+      window.sfx(name);
+      toast("Playing your replacement for: "+name);
+      return;
+    }
+    // Meme names are real wav files, but sfx() only uses them when the meme pack is
+    // active. Preview the wav directly so the Audition always makes a sound.
+    if(kind==='meme'){
+      const a=$('filePreview');
+      a.pause(); a.src='assets/SFX/meme/'+name+'.wav'; a.currentTime=0;
+      a.play().catch(()=>{});
+      toast("Playing meme wav: "+name);
+      return;
+    }
     if(typeof window._unlockAudio==='function') window._unlockAudio();
     if(typeof window.sfx!=='function') throw new Error('audio engine not loaded');
     window.sfx(name);
@@ -135,7 +151,7 @@ function render(){
       ? '<span class="badge on">REPLACED</span><br><span class="id" style="color:var(--indigo)"></span>'
       : '<span class="badge orig">ORIGINAL</span>';
     if(info) tr.children[2].querySelector('.id').textContent=info.filename;
-    tr.querySelector('.play').onclick=()=>preview(id);
+    tr.querySelector('.play').onclick=()=>preview(id,kind);
     const fileInput=tr.querySelector('input[type=file]');
     fileInput.onchange=()=>{
       const f=fileInput.files&&fileInput.files[0]; if(!f) return;
