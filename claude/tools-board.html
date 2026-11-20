@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · Labs &amp; Tools Board</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{position:sticky;top:0;z-index:20;background:var(--washi2);border-bottom:2px solid var(--sumi);padding:10px 16px}
+.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0;letter-spacing:.06em}
+h1 .seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:24px;height:24px;font-size:12px;margin-right:8px;vertical-align:middle}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mica)}
+nav{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+nav a{font-size:11px;text-decoration:none;color:var(--sumi);border:1.4px solid var(--sumi);padding:4px 9px;background:#fbf5e9;border-radius:2px}
+nav a.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+nav a:hover{background:var(--gold);color:#fff;border-color:var(--gold)}
+main{padding:14px 16px 60px}
+h2{font-size:14px;letter-spacing:.12em;text-transform:uppercase;margin:22px 0 4px;border-bottom:1px solid var(--mica);padding-bottom:4px}
+h2 .cnt{font-size:11px;color:var(--mica);font-weight:normal}
+.lead{font-size:11.5px;color:var(--mica);margin:6px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:9px}
+.card{border:1.4px solid var(--sumi);background:#fbf5e9;padding:9px 11px;border-radius:2px}
+.nm{font-size:14px;font-weight:bold;letter-spacing:.03em}
+.role{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--verm);margin:2px 0 5px}
+.row{font-size:10.5px;margin-top:5px;line-height:1.5}
+.row b{color:var(--indigo);font-weight:normal;letter-spacing:.05em}
+a.f{color:var(--indigo);text-decoration:none;border-bottom:1px dotted var(--indigo);font-family:monospace;font-size:10px}
+a.f:hover{background:var(--gold);color:#fff}
+a.go{display:inline-block;margin-top:6px;font-size:10px;text-decoration:none;color:#fff;background:var(--indigo);border:1.4px solid var(--sumi);padding:3px 8px;border-radius:2px}
+a.go:hover{background:var(--verm)}
+code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
+kbd{display:inline-block;background:#2c3e66;color:#fff;border:1px solid #1a2642;border-bottom-width:2px;padding:1px 5px;font-family:monospace;font-size:10px;margin:1px;border-radius:3px}
+.note{font-size:11px;color:var(--mica)}
+.callout{background:#f6ead0;border-left:4px solid var(--verm);padding:8px 12px;margin:8px 0;font-size:11.5px;line-height:1.5}
+pre{background:#201a2b;color:#d8c8f0;padding:8px 10px;font-size:10.5px;overflow-x:auto;border-radius:2px;margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1><span class="seal">⚗</span>MV2 · LABS &amp; TOOLS BOARD</h1>
+    <span class="sub">harnesses · debug keys · headless probes</span>
+  </div>
+  <nav>
+    <a href="sfx-board.html">♪ Sound</a>
+    <a href="design-board.html">◆ Design</a>
+    <a href="gear-board.html">⚙ Gear</a>
+    <a class="on" href="tools-board.html">⚗ Labs &amp; Tools</a>
+    <a href="#ab">A/B labs</a>
+    <a href="#debug">Debug</a>
+    <a href="#scripts">Scripts</a>
+  </nav>
+</header>
+<main>
+  <section id="ab">
+    <h2>A/B lab pages <span class="cnt" id="c-ab"></span></h2>
+    <p class="lead">From <a class="f" href="js/ab-switch.js">js/ab-switch.js</a>. Each lab is its own page — experiments never overwrite live Awdjoo (A). Click OPEN to launch it on this local server.</p>
+    <div class="grid" id="ab-g"></div>
+  </section>
+
+  <section id="shortcuts">
+    <h2>Play shortcuts <span class="cnt" id="c-play"></span></h2>
+    <p class="lead">Direct stage launchers, useful when you want to jump straight to a level without the menu.</p>
+    <div class="grid" id="play-g"></div>
+  </section>
+
+  <section id="debug">
+    <h2>Debug &amp; self-test</h2>
+    <div class="grid">
+      <div class="card"><div class="nm">DEBUG OVERLAY</div><div class="role">HITBOXES · STATE</div>
+        <div class="row">Toggle with <kbd>`</kbd> (backquote) in game, or append <code>?debug=1</code> to the URL. Draws body / hitbox / hurtbox rects and live state.</div>
+        <div class="row"><b>FILE</b> <a class="f" href="js/debug_overlay.js">js/debug_overlay.js</a></div>
+      </div>
+      <div class="card"><div class="nm">SELF-TEST BOT</div><div class="role">GLITCH CATCHER</div>
+        <div class="row">Enable with <code>?selftest=1</code> (also <code>MV_SELFTEST.start()</code> or sessionStorage <code>mv_selftest=1</code>). Automated bot + glitch detection.</div>
+        <div class="row"><b>FILE</b> <a class="f" href="js/selftest.js">js/selftest.js</a></div>
+      </div>
+      <div class="card"><div class="nm">NODE SELF-TEST</div><div class="role">HEADLESS · 30s</div>
+        <div class="row">Run from <code>MV2/claude</code>:</div>
+        <pre>node scripts/run-selftest.mjs</pre>
+        <div class="row"><b>FILE</b> <a class="f" href="scripts/run-selftest.mjs">scripts/run-selftest.mjs</a></div>
+      </div>
+      <div class="card"><div class="nm">SLOW FRAMES? USE THE PROBE</div><div class="role">PERF</div>
+        <div class="row"><code>node scripts/perf-probe.mjs</code> · <code>node scripts/watch-selftest.mjs</code> · <code>node scripts/print-report.mjs</code></div>
+        <div class="row"><b>FILES</b> <a class="f" href="scripts/perf-probe.mjs">perf-probe.mjs</a>, <a class="f" href="scripts/watch-selftest.mjs">watch-selftest.mjs</a></div>
+      </div>
+    </div>
+    <div class="callout"><b>SERVE RULE:</b> the game must be served over HTTP (the local board server does this on port 8931), not opened as <code>file://</code> — otherwise the map fails. Hard-refresh with <kbd>Ctrl</kbd>+<kbd>F5</kbd> after any code edit.</div>
+  </section>
+
+  <section id="scripts">
+    <h2>Headless probes <span class="cnt" id="c-scripts"></span></h2>
+    <p class="lead">Node harnesses in <code>MV2/claude/scripts/</code>. Run with <code>node scripts/&lt;name&gt;.mjs</code> from <code>MV2/claude</code>. Filenames describe what each checks; click a name to read the source.</p>
+    <div class="grid" id="scripts-g"></div>
+  </section>
+</main>
+
+<script>
+const AB=[
+ ['A','Awdjoo (live)','index.html','The real game. Baseline — never overwrite with an experiment.'],
+ ['B','Clean collision','clean-collision-core.html','Collision core in isolation.'],
+ ['C','Item lab','item-lab.html','Item behavior harness.'],
+ ['D','Physics lab','physics-lab.html','Physics harness.'],
+ ['E','Piskel cave','sketch-lab.html','Cave sketch art (Piskel).'],
+ ['F','LDtk loader','ldtk-lab.html','LDtk map loading harness.'],
+ ['G','L1 beta (pen sketch)','beta-lab.html','The beta stage from the pen sketch.'],
+];
+const PLAY=[
+ ['play-beta.html','L1 beta direct','Straight into the beta level.'],
+ ['play-1-2.html','Stage 1.2 direct','Straight into Deep Waters.'],
+ ['play-1-3.html','Stage 1.3 direct','Straight into The Heptagon.'],
+ ['test-run.html','Test run','Minimal test entry.'],
+];
+const SCRIPTS=[
+ ['run-selftest.mjs','core','Full automated self-test (30s).'],
+ ['main-flow.mjs','core','Main game-flow smoke.'],
+ ['play-local.mjs','core','Local play harness.'],
+ ['_claude-smoke.mjs','core','Claude-side smoke test.'],
+ ['behavior-probe.mjs','probes','General behavior probe.'],
+ ['probe-enemy-f.mjs','probes','Enemy F (cube) mechanics.'],
+ ['probe-items.mjs','probes','Item behavior.'],
+ ['probe-punch-turbo.mjs','probes','Turbo / loaded punch.'],
+ ['probe-rope-wrap.mjs','probes','Rope wrap behavior.'],
+ ['probe-lift.mjs','probes','Lift behavior.'],
+ ['probe-lift-steps.mjs','probes','Lift step detail.'],
+ ['probe-keepout.mjs','probes','Keep-out zone check.'],
+ ['probe-old-bugs.mjs','probes','Regression checks.'],
+ ['probe-one-track.mjs','probes','One-track audio rule.'],
+ ['probe-results-next.mjs','probes','Results → next stage.'],
+ ['probe-share.mjs','probes','Share / split behavior.'],
+ ['_coop-drop-probe.mjs','probes','Co-op drop check.'],
+ ['_punch-diag.mjs','probes','Punch diagnostics.'],
+ ['jump-apex-test.mjs','probes','Jump apex / gap match.'],
+ ['test-lab-jump.mjs','probes','Lab jump check.'],
+ ['gore-kill-shots.mjs','visual','Gore kill screenshots.'],
+ ['gore-look-check.mjs','visual','Gore look verification.'],
+ ['_claude-shots.mjs','visual','General screenshot capture.'],
+ ['_h11.mjs','visual','Historical visual check.'],
+ ['perf-probe.mjs','perf','Frame-time / performance probe.'],
+ ['watch-selftest.mjs','perf','Watch self-test run.'],
+ ['print-report.mjs','perf','Print the test report.'],
+ ['map-audit.mjs','data','Map integrity audit.'],
+ ['split-awdjoo-bg.py','data','Split Awdjoo background.'],
+ ['extract-piskel-cave.py','data','Extract Piskel cave art.'],
+ ['stamp-awdjoo-campaign.mjs','data','Stamp campaign data.'],
+];
+const $=id=>document.getElementById(id);
+function fill(gid,cid,arr,fn){const g=$(gid);arr.forEach(o=>g.append(fn(o)));if(cid)$(cid).textContent='('+arr.length+')';}
+fill('ab-g','c-ab',AB,o=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="nm" style="color:var(--indigo)">'+o[0]+' · '+o[1]+'</div><div class="row">'+o[3]+'</div>'+
+   '<div class="row"><b>FILE</b> <a class="f" href="'+o[2]+'">'+o[2]+'</a></div>'+
+   '<a class="go" href="'+o[2]+'">OPEN ↗</a>';return d;
+});
+fill('play-g','c-play',PLAY,o=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="nm">'+o[1]+'</div><div class="row">'+o[2]+'</div>'+
+   '<div class="row"><b>FILE</b> <a class="f" href="'+o[0]+'">'+o[0]+'</a></div>'+
+   '<a class="go" href="'+o[0]+'">OPEN ↗</a>';return d;
+});
+fill('scripts-g','c-scripts',SCRIPTS,o=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="nm"><a class="f" href="scripts/'+o[0]+'" target="_blank">'+o[0]+'</a></div>'+
+   '<div class="role">'+o[1]+'</div><div class="row">'+o[2]+'</div>'+
+   '<div class="row"><code>node scripts/'+o[0]+'</code></div>';return d;
+});
+</script>
+</body>
+</html>
