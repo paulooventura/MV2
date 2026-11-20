@@ -2609,6 +2609,8 @@
         travel(nx,'forward');                       // sets B.trans, starts the iris wipe
         if(B.trans&&B.trans!==wasTrans){ B.results=null; return; }
       }else if(window.MV_STORY_STAGES){
+        // Player Sound Lab unlocks when the story is finished (Paulo 2026-11-20).
+        try{ if(window.MV_SOUNDLAB_UNLOCK) window.MV_SOUNDLAB_UNLOCK(); }catch(e){}
         saveStage(); B.ending={t:0};
         if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.bed){ MV_BETA_AUDIO.bed('results',false); MV_BETA_AUDIO.bed('ending',true); }
         B.results=null; return;

@@ -80,9 +80,9 @@ code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
 
 <!-- Load the real engine + any current replacements so previews are exact. -->
 <script src="js/save.js"></script>
+<script src="js/sfx-replacements.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/sfx_posh.js"></script>
-<script src="js/sfx-replacements.js"></script>
 <script>
 // display label -> internal sfx() name
 const FILES=[
@@ -147,6 +147,7 @@ function render(){
           body:JSON.stringify({name:id,filename:f.name,data})})
           .then(r=>r.json()).then(j=>{
             if(!j.ok) throw new Error(j.error||'replace failed');
+            if(window.MV_SFX_SET_REPLACEMENT&&j.path) window.MV_SFX_SET_REPLACEMENT(id,j.path);
             toast('Replaced '+id+' with '+f.name+'. Reload the game (Ctrl+F5) to hear it everywhere.');
             return loadStatus();
           }).then(()=>preview(id))
@@ -160,6 +161,7 @@ function render(){
         body:JSON.stringify({name:id})})
         .then(r=>r.json()).then(j=>{
           if(!j.ok) throw new Error(j.error||'reset failed');
+          if(window.MV_SFX_CLEAR_REPLACEMENT) window.MV_SFX_CLEAR_REPLACEMENT(id);
           toast('Reset '+id+' back to original. Reload the game (Ctrl+F5).');
           return loadStatus();
         }).catch(e=>toast('ERROR: '+e.message,false));

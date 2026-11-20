@@ -605,7 +605,20 @@ const SFX_SAMPLE_PATHS={
 };
 // MV2 SFX Studio (Paulo): local replacements win over the built-in sample paths.
 if(window.MV_SFX_REPLACEMENTS) Object.assign(SFX_SAMPLE_PATHS, window.MV_SFX_REPLACEMENTS);
-const _sfxUrl=(p)=>_musicUrl(p)+'?b='+SFX_BUILD;
+// Player Sound Lab registers blob: object URLs at runtime; those cannot take ?b= cache-busting.
+const _sfxUrl=(p)=>String(p).indexOf('blob:')===0?p:(_musicUrl(p)+'?b='+SFX_BUILD);
+// Runtime hooks for the Sound Lab (player-recorded sounds stored in the browser).
+window.MV_SFX_SET_REPLACEMENT=function(name,path){
+  SFX_SAMPLE_PATHS[name]=path;
+  window.MV_SFX_REPLACEMENTS=window.MV_SFX_REPLACEMENTS||{};
+  window.MV_SFX_REPLACEMENTS[name]=path;
+  try{ if(_sfxPool[name]){ _sfxPool[name].src=''; delete _sfxPool[name]; } delete _sfxSampleFailed[name]; }catch(e){}
+};
+window.MV_SFX_CLEAR_REPLACEMENT=function(name){
+  delete SFX_SAMPLE_PATHS[name];
+  if(window.MV_SFX_REPLACEMENTS) delete window.MV_SFX_REPLACEMENTS[name];
+  try{ if(_sfxPool[name]){ _sfxPool[name].src=''; delete _sfxPool[name]; } delete _sfxSampleFailed[name]; }catch(e){}
+};
 const _sfxPool={};
 const _sfxSampleFailed={};
 function _preloadSfxSamples(){
