@@ -2384,6 +2384,8 @@ function _drawMinionOff(e){
     const ox=dx+((ew-dw)>>1), oy=dy+((eh-dh)>>1)+bob;
     ctx.save();
     ctx.globalAlpha=alpha;
+    // dump line 38: a shut-down foe is greyed out totally (one body, one face)
+    try{ ctx.filter='grayscale(1)'; }catch(e){}
     ctx.translate(ox+dw/2,oy+dh);
     ctx.rotate(lean*(settled?1:0.5+shutT*0.5));
     ctx.translate(-(ox+dw/2),-(oy+dh));
@@ -2482,6 +2484,27 @@ function drawSignol(e){
     ctx.beginPath();ctx.arc(cx,cy,r+4+Math.sin(fr*0.4)*2,0,Math.PI*2);ctx.stroke();
   }
 }
+// Paulo, work dump line 37/38: "the less energy they have the more glowing red they get".
+// A foe at full HP keeps its established red-matt / white-glossy sprite; a low one
+// gets an additive red halo. Held still under reduced motion, never repainted red
+// in Ink & Vinyl (the woodblock ink colouring stays intact), and camera-culled by
+// the caller. One gradient per foe — no pipelines, no allocations in the loop.
+function _foeGlowLevel(e){ return (!e||!e.mhp)?0:Math.max(0,Math.min(1,1-(e.hp||0)/e.mhp)); }
+function _foeGlowOverlay(e,cx,cy,w,h){
+  const low=_foeGlowLevel(e);
+  if(low<0.08) return;
+  const mode=window.MV_CONSOLE&&MV_CONSOLE.mode;
+  if(mode==='ink') return;
+  const rad=Math.max(w,h)*0.8;
+  const pulse=_cadReduce?1:0.85+0.15*Math.sin(fr*0.16+(e.x||0)*0.01);
+  const a=Math.min(0.42,low*0.34*pulse);
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const gr=ctx.createRadialGradient(cx,cy,rad*0.18,cx,cy,rad);
+  gr.addColorStop(0,'rgba(255,64,48,'+a.toFixed(3)+')');
+  gr.addColorStop(1,'rgba(255,24,24,0)');
+  ctx.fillStyle=gr; ctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);
+  ctx.restore();
+}
 function drawEnemy(e){
   if(e.mind) return;
   if(e.type==='signol'){ drawSignol(e); return; }
@@ -2552,6 +2575,7 @@ function drawEnemy(e){
     ctx.fillRect(bx+1+(ft?2:0),by+11+bob,2,2);
     ctx.fillRect(bx+ew-3-(ft?2:0),by+11+bob,2,2);
   }
+  _foeGlowOverlay(e,bx+ew/2,by+eh/2,ew,eh);      // one face still — this is only a body glow
 }
 
 function _scanCandleLights(tmjMap){

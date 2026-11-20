@@ -64,6 +64,49 @@
   function burst(x,y,n,cols,sp){ for(let k=0;k<n;k++){ const a=Math.random()*Math.PI*2, s=(sp||3)*(0.4+Math.random()); PFXS.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:12+Math.random()*14|0,maxLife:26,r:1.5+Math.random()*2,col:cols[k%cols.length]}); } }
   const S=(n,v)=>{ try{ sfx(n,v); }catch(e){} };
 
+  // ── Paulo's work dump: line 45 (boss), line 35 (foe E), line 37/38 (foe energy) ──
+  // "the same inferior mirage effect ... when it's floating around" / "the air around
+  // them have that inferior mirage effect when the air is hot". A cheap hot-road
+  // shimmer: a few translucent arcs whose centre/radius ride short sine waves.
+  // Canvas 2D only (no WebGL/pipelines/new libs), camera-culled, ring-capped,
+  // phase-wrapped so the float never grows, and still under the codebase's
+  // reduced-motion guard. The phase is modular, so it stays cheap at 1.3's rate.
+  let _mirageReduce=null;
+  function _mirageStill(){
+    if(_mirageReduce===null){
+      let rm=false;
+      try{ rm=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+      try{ if(typeof OPT!=='undefined'&&OPT&&(OPT.reduceMotion||OPT.shake===false||OPT.shake===0)) rm=true; }catch(e){}
+      _mirageReduce=rm;
+    }
+    return _mirageReduce;
+  }
+  const MIRAGE_RINGS=3;                                   // hard cap of arcs per entity
+  function drawMirage(x,y,R,strength,seed){
+    if(!(strength>0.02)||R<=0) return;
+    if(x<-R*2||x>W+R*2||y<-R*2||y>H+R*2) return;          // camera-culled
+    const still=_mirageStill();
+    const ph=still?0.3:((fr+(seed|0)*37)%240)/240*Math.PI*2;   // bounded phase, one loop / 240 frames
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    for(let i=0;i<MIRAGE_RINGS;i++){
+      const t=i/MIRAGE_RINGS, rr=R*(1.07+t*0.26);
+      const dx=still?0:Math.sin(ph*1.3+i*2.1)*R*0.05*strength;
+      const dy=still?0:Math.cos(ph+i*1.7)*R*0.035*strength;
+      const wob=still?0:Math.sin(ph*(1+i*0.5)+i*1.9)*R*0.05*(1-t);
+      const a=Math.max(0,Math.min(0.28,strength*(0.16+0.08*Math.sin(ph+i*2.3))*(1-t*0.45)));
+      ctx.globalAlpha=a;
+      ctx.strokeStyle=i===0?'rgba(255,240,210,1)':'rgba(255,150,130,1)';
+      ctx.lineWidth=Math.max(1,sw(2.4*(1-t)+0.8));
+      ctx.beginPath(); ctx.ellipse(x+dx,y+dy,rr+wob,rr*0.44,still?0:Math.sin(ph+i)*0.1,Math.PI*0.08,Math.PI*0.92); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x-dx,y-dy,rr-wob,rr*0.42,still?0:Math.sin(ph+i)*0.1,Math.PI*1.08,Math.PI*1.92); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // smooth 0..1 energy fraction (low HP -> 0, full -> 1), and a colour mixer
+  function foeEnergy(e){ const m=(e&&e.mhp)||1; return Math.max(0,Math.min(1,((e&&e.hp)||0)/m)); }
+  const mixRGB=(a,b,t)=>'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')+')';
+
   // ── makers (hooked into beta_enemies' B.mkAiEnemy) ─────────────
   const _mk=B.mkAiEnemy;
   function base(ai,cx,feet,opts,w,h,hp){
@@ -204,6 +247,7 @@
   }
   function drawEye(e){
     const cx=sx(e.x+e.w/2), cy=sy(e.y+e.h/2), R=sw(e.w*0.55), off=!e.alive;
+    const en=foeEnergy(e), hot=off?0:1-en;              // dump line 37/38: low energy -> hotter red
     ctx.save();
     if(e.beam&&e.alive){                                           // the beam, kinked where the XLR catches it
       const L=e.beam.len||600, kn=e.beam.kink, life=kn?(GORE()?34:48):(GORE()?12:16), k=Math.max(0.2,Math.min(1,(life-e.stT)/8));
@@ -223,21 +267,47 @@
     }
     const gr=typeof foeGroove==='function'?foeGroove(e):null;      // audio-locked idle dance (visual only)
     const wob=gr?gr.wave:0;                                        // second-harmonic eye bob
-    ctx.translate(cx+(gr?gr.dx:0),cy-sw(e._lift||0)+(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2))+(gr?gr.dy+wob:0));
+    const bob=(off||e.st==='down'?0:Math.sin(fr*0.15+e.phase)*sw(2))+(gr?gr.dy+wob:0);
+    const bodyY=cy-sw(e._lift||0)+bob;
+    ctx.translate(cx+(gr?gr.dx:0),bodyY);
     ctx.rotate((e.ang||0)+(gr?gr.rot:0));                          // down, it lies on a face (the notches, beta_enemies.js)
+    if(hot>0.06){                                                   // additive halo behind the body, hotter as energy runs out
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const halo=ctx.createRadialGradient(0,0,R*0.55,0,0,R*1.6);
+      const a=(0.10+0.16*hot)*(_mirageStill()?1:0.88+0.12*Math.sin(fr*0.16+(e.phase||0)));
+      halo.addColorStop(0,'rgba(255,64,48,0)');
+      halo.addColorStop(0.45,'rgba(255,64,48,'+a.toFixed(3)+')');
+      halo.addColorStop(0.78,'rgba(255,36,28,'+(a*0.45).toFixed(3)+')');
+      halo.addColorStop(1,'rgba(255,20,20,0)');
+      ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(0,0,R*1.6,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
     // the pentagon body (the sheet: a red box with a slanted face)
     ctx.beginPath(); for(let i=0;i<5;i++){ const a=-Math.PI/2+i*Math.PI*2/5; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
-    const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#5a3a3a':'#e04848'); g.addColorStop(1,off?'#2a1a1a':'#7a1018');
-    ctx.fillStyle=g; ctx.fill(); ctx.strokeStyle=e.hitF>0?'#fff':'#1a0408'; ctx.lineWidth=2.5; ctx.stroke();
-    ctx.strokeStyle='rgba(255,200,200,0.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-R*0.6,-R*0.2); ctx.lineTo(R*0.5,-R*0.7); ctx.stroke();   // the slanted facet
-    // the lens
+    const g=ctx.createLinearGradient(0,-R,0,R);
+    g.addColorStop(0,off?'#5a5a5a':mixRGB([224,72,72],[255,112,96],hot));
+    g.addColorStop(1,off?'#2c2c2c':mixRGB([122,16,24],[196,24,38],hot));
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle=e.hitF>0?'#fff':(off?'#4a4a4a':mixRGB([168,34,46],[255,84,58],hot)); // full = red outline, low = hot red
+    ctx.lineWidth=2.5+1.5*hot; ctx.stroke();
+    ctx.strokeStyle=off?'rgba(210,210,210,0.22)':'rgba(255,214,214,'+(0.35+0.25*hot).toFixed(3)+')';
+    ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-R*0.6,-R*0.2); ctx.lineTo(R*0.5,-R*0.7); ctx.stroke();   // glossy slanted facet
+    // the lens — one face only, expression shifts confident (full) -> concerned (low)
     const lx=e.look.x*R*0.25, ly=e.look.y*R*0.25, glow=e.st==='aim'?e.stT/32:0;
-    ctx.fillStyle='#16060a'; ctx.beginPath(); ctx.arc(lx*0.5,ly*0.5,R*0.38,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=off?'#383838':'#16060a'; ctx.beginPath(); ctx.arc(lx*0.5,ly*0.5,R*0.38,0,Math.PI*2); ctx.fill();
     const throb=(gr&&!off)?gr.pulse*0.05:0;                         // lens swells on the beat
-    ctx.fillStyle=off?'#402020':(glow>0?'rgb(255,'+(120+120*glow|0)+','+(120*glow|0)+')':'#ff3a3a');
-    ctx.beginPath(); ctx.arc(lx,ly,R*(0.16+0.06*glow+throb),0,Math.PI*2); ctx.fill();
-    if(glow>0){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,90,90,'+(0.4*glow)+')'; ctx.beginPath(); ctx.arc(lx,ly,R*(0.4+0.4*glow+(gr?gr.pulse*0.12:0)),0,Math.PI*2); ctx.fill(); }
+    const er=R*(0.16+0.06*glow+throb)*(off?1:(0.9+0.18*en));
+    ctx.fillStyle=off?'#404040':(glow>0?'rgb(255,'+(120+120*glow|0)+','+(120*glow|0)+')':mixRGB([255,58,58],[255,132,100],hot));
+    ctx.beginPath(); ctx.arc(lx,ly,er,0,Math.PI*2); ctx.fill();
+    if(!off){                                                       // a single brow: arched when confident, worried when low
+      const ey=-R*0.3, bw=R*0.26, worry=hot;
+      ctx.strokeStyle='rgba(40,8,12,'+(0.4+0.4*worry).toFixed(3)+')'; ctx.lineWidth=Math.max(1,sw(2));
+      ctx.beginPath(); ctx.moveTo(lx-bw,ey+R*0.06*worry); ctx.lineTo(lx+bw,ey-R*0.06*(1-worry)); ctx.stroke();
+    }
+    if(glow>0||hot>0.15){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,90,90,'+Math.max(0.4*glow,0.28*hot).toFixed(3)+')'; ctx.beginPath(); ctx.arc(lx,ly,R*(0.4+0.4*glow+(gr?gr.pulse*0.12:0)),0,Math.PI*2); ctx.fill(); }
     ctx.restore();
+    if(e.alive&&!off){                                              // inferior mirage: it is always floating
+      drawMirage(cx,bodyY,R*(0.95+0.25*hot),0.5+0.3*hot,(e.phase|0)+1);
+    }
   }
 
   // ── F: the transparent cube ───────────────────────────────────
@@ -439,17 +509,18 @@
     // a hexagon outline with the cube's inner edges (the sheet's drawing)
     const pts=[]; for(let i=0;i<6;i++){ const ang=-Math.PI/2+i*Math.PI/3; pts.push([Math.cos(ang)*R,Math.sin(ang)*R]); }
     ctx.beginPath(); pts.forEach((q,i)=>ctx[i?'lineTo':'moveTo'](q[0],q[1])); ctx.closePath();
-    ctx.fillStyle='rgba(190,230,255,'+(a*0.35)+')'; ctx.fill();
+    const dead=!e.alive;                                              // dump line 38: shut down -> totally grey
+    ctx.fillStyle=dead?'rgba(150,150,150,'+(a*0.35)+')':'rgba(190,230,255,'+(a*0.35)+')'; ctx.fill();
     const sk=e.alive?(e.fSolidK||0):0;                                // T434: solid white while it can be hurt, like A and B
     if(sk>0.02){ ctx.fillStyle='rgba(246,248,252,'+(0.94*sk).toFixed(3)+')'; ctx.fill(); ctx.strokeStyle='rgba(40,50,70,'+(0.85*sk).toFixed(3)+')'; ctx.lineWidth=3; ctx.stroke(); }
     const vul=(e.fVulnT||0)>0&&e.alive;
     if(vul){ ctx.save(); ctx.strokeStyle='rgba(255,226,120,'+(0.55+0.35*Math.sin(fr*0.5))+')'; ctx.lineWidth=5; ctx.stroke(); ctx.restore(); }   // the window: it can be hurt now
-    ctx.strokeStyle=e.hitF>0?'#ffffff':'rgba(230,245,255,'+(a+0.2)+')'; ctx.lineWidth=2; ctx.stroke();
-    ctx.strokeStyle='rgba(230,245,255,'+a+')'; ctx.lineWidth=1.2; ctx.beginPath();
+    ctx.strokeStyle=e.hitF>0?'#ffffff':(dead?'rgba(160,160,160,'+(a+0.2)+')':'rgba(230,245,255,'+(a+0.2)+')'); ctx.lineWidth=2; ctx.stroke();
+    ctx.strokeStyle=dead?'rgba(160,160,160,'+a+')':'rgba(230,245,255,'+a+')'; ctx.lineWidth=1.2; ctx.beginPath();
     ctx.moveTo(0,0); ctx.lineTo(pts[1][0],pts[1][1]); ctx.moveTo(0,0); ctx.lineTo(pts[3][0],pts[3][1]); ctx.moveTo(0,0); ctx.lineTo(pts[5][0],pts[5][1]); ctx.stroke();
     if(awake&&e.st!=='zap'){ const k=0.6+0.4*Math.sin(fr*0.12); ctx.fillStyle='rgba(150,230,255,'+(0.8*k)+')'; ctx.beginPath(); ctx.arc(-R*0.2,-R*0.08,R*0.07,0,Math.PI*2); ctx.arc(R*0.2,-R*0.08,R*0.07,0,Math.PI*2); ctx.fill(); }   // awake: its eyes are lit
     if(vul&&fr%3===0&&typeof PFXS!=='undefined'){ const i=(fr/3|0)%6, an=-Math.PI/2+i*Math.PI/3+(e.spin||0)+(e.ang||0), wx=e.x+e.w/2+Math.cos(an)*e.w*0.56, wy=e.y+e.h/2+Math.sin(an)*e.w*0.56; PFXS.push({x:wx,y:wy,vx:Math.cos(an)*1.2,vy:Math.sin(an)*1.2-0.4,life:10,maxLife:10,r:1.6,col:'#fff2a0'}); }   // corner sparks while it can be hurt
-    if(e.st==='zap'){ ctx.fillStyle='rgba(120,220,255,0.9)'; ctx.beginPath(); ctx.arc(R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(-R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(0,R*0.22,R*0.08,0,Math.PI*2); ctx.arc(0,-R*0.22,R*0.08,0,Math.PI*2); ctx.fill(); }
+    if(e.st==='zap'&&e.alive){ ctx.fillStyle='rgba(120,220,255,0.9)'; ctx.beginPath(); ctx.arc(R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(-R*0.22,0,R*0.08,0,Math.PI*2); ctx.arc(0,R*0.22,R*0.08,0,Math.PI*2); ctx.arc(0,-R*0.22,R*0.08,0,Math.PI*2); ctx.fill(); }
     ctx.restore();
     if(e.beams&&e.alive){
       ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
@@ -635,11 +706,11 @@
     ctx.beginPath(); for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2; ctx[i?'lineTo':'moveTo'](Math.cos(a)*R,Math.sin(a)*R); } ctx.closePath();
     const rg=off?0:bossRage(e), mixC=(a,b2,t)=>'rgb('+a.map((v,i)=>Math.round(v+(b2[i]-v)*t)).join(',')+')';
     const g=ctx.createLinearGradient(0,-R,0,R); g.addColorStop(0,off?'#3a3440':mixC([74,60,88],[178,34,48],rg)); g.addColorStop(1,off?'#1a161e':mixC([28,20,36],[86,10,18],rg));
-    ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=sw(4+2*rg); ctx.strokeStyle=e.hitF>0?'#ffffff':(off?'#4a2a2a':'#c02838'); ctx.stroke();
+    ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=sw(4+2*rg); ctx.strokeStyle=e.hitF>0?'#ffffff':(off?'#4a4a4a':'#c02838'); ctx.stroke();   // shut down: totally grey
     if(rg>0.05){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=rg*(0.35+0.25*Math.sin(fr*(0.12+0.2*rg))); ctx.fillStyle='#ff2030'; ctx.fill(); ctx.restore(); }   // a hot red pulse through the body
     for(let i=0;i<NODES;i++){ const a=i*Math.PI*2/NODES-Math.PI/2, x=Math.cos(a)*R, y=Math.sin(a)*R;   // the angle nodes
-      const hot=Math.min(1,(e.beams&&!off?(e.beams.tel?e.beams.k:1):(e.awake&&!off?0.3+0.2*Math.sin(fr*0.2+i):0.1))+(gr&&!off?0.25*gr.pulse:0));
-      ctx.fillStyle='rgba(255,'+(80+120*hot|0)+','+(80+60*hot|0)+','+(0.4+0.6*hot)+')'; ctx.beginPath(); ctx.arc(x,y,sw(6+3*hot),0,Math.PI*2); ctx.fill(); }
+      const hot=off?0:Math.min(1,(e.beams?(e.beams.tel?e.beams.k:1):(e.awake?0.3+0.2*Math.sin(fr*0.2+i):0.1))+(gr?0.25*gr.pulse:0));
+      ctx.fillStyle=off?'rgba(150,150,156,0.42)':'rgba(255,'+(80+120*hot|0)+','+(80+60*hot|0)+','+(0.4+0.6*hot)+')'; ctx.beginPath(); ctx.arc(x,y,sw(6+3*hot),0,Math.PI*2); ctx.fill(); }
     ctx.restore();
     // the face (it doesn't turn with the body)
     // T465 (Paulo, Nov 11): it turns gradually scared the longer the kiritsuke is loaded;
@@ -647,7 +718,9 @@
     const heat=!off&&typeof B.knifeHeat==='function'?B.knifeHeat():0;
     e._scare=(e._scare||0)+(heat-(e._scare||0))*0.05;
     if(e._mockT>0) e._mockT--;
-    const sc=off?0:Math.min(1,e._scare*1.15), mk=off?0:Math.min(1,(e._mockT||0)/20);
+    // dump line 41: one face only; expression tracks energy — concerned when low, confident when high
+    const en=foeEnergy(e);
+    const sc=off?0:Math.min(1,e._scare*1.15+(1-en)*0.35), mk=off?0:Math.min(1,(e._mockT||0)/20);
     if(sc>0.05){ ctx.translate((Math.random()-0.5)*sw(2.5)*sc,(Math.random()-0.5)*sw(1.5)*sc); }      // trembling
     if(mk>0) ctx.translate(0,Math.sin(fr*0.9)*sw(3)*mk);                                              // shaking with laughter
     if(e._recoilT>0) ctx.translate(Math.sin(fr*1.7)*sw(4)*(e._recoilT/24),0);                        // reeling from the blade
@@ -676,6 +749,9 @@
     }else{ ctx.moveTo(-R*0.18,R*0.42); ctx.lineTo(0,R*0.26); ctx.lineTo(R*0.18,R*0.42); ctx.stroke(); }   // the "Λ" mouth from the sheet
     if(sc>0.5&&!off){ const k=(fr*0.02)%1; ctx.fillStyle='rgba(150,210,255,'+(0.85*(1-k))+')'; ctx.beginPath(); ctx.ellipse(R*0.48,-R*0.2+k*R*0.4,sw(3),sw(4.5),0,0,Math.PI*2); ctx.fill(); }   // a sweat drop
     ctx.restore();
+    if(!off&&e.awake&&(e.homeY==null||e.y<e.homeY+120)){    // inferior mirage: only while it is airborne / floating
+      drawMirage(cx,cy,R,0.55+0.25*bossRage(e),7);
+    }
     if(mk>0&&e._mockLine&&typeof drawTextC==='function'){                                              // the taunt, over its head
       // (Nov 19, Paulo) the balloon is painted in the foreground pass, in front of every character (flushed below)
       const q=(B._mockQ=B._mockQ||[]); if(q.length<24) q.push({cx,ty:cy-R*1.55,a:Math.min(1,mk*1.5),txt:e._mockLine});
