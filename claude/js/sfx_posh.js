@@ -308,19 +308,21 @@
   // MV_SFX.pack is that registry; the selected pack comes from OPT.sfxPack
   // (persisted in save.js, cycled from Options in ui.js).
   //   original : {}  → the EXACT current behaviour; every name still uses R.
-  //   meme     : a few SYNTHESIZED placeholder meme-ish sounds so the filter is
-  //              audible with ZERO external files (no downloads, no credentials).
+  //   meme     : real meme WAVs (jump→boing, hit→metal pipe/impact, hurt→"ow",
+  //              pickup→ding, item attach→click, menu→blip, enemy→mocking laugh,
+  //              death→sad trombone, boss→vine boom, turbo→whoosh, miss→scratch).
+  //              Sources + licences are in assets/SFX/meme/CREDITS.md.
   //
-  // ↓↓ HOW PAULO DROPS IN REAL MEME WAVs ↓↓
-  // Put a file at  claude/assets/SFX/meme/<name>.wav   (served at runtime as
-  // assets/SFX/meme/<name>.wav).  <name> is the key in MV_SFX.pack.meme below —
-  // e.g. "boing", "wah", "squeak" (the placeholder's own name). On the first play
-  // after adding a file the placeholder still fires while the <audio> buffers;
-  // every play after that uses the wav, scaled by OPT.sfxVol with arguments[1]
-  // (when a number) as playbackRate. A missing/broken file just keeps the
-  // synthesized placeholder — the game never reaches out to the network. To add
-  // a new overridable name, add a placeholder fn to pack.meme; registerWav(name,
-  // path) can point a name at a custom path if it can't follow <name>.wav.
+  // HOW THE REAL MEME WAVs WORK
+  // Files live at  claude/assets/SFX/meme/<name>.wav   (served at runtime as
+  // assets/SFX/meme/<name>.wav).  <name> is the voice's own name below, e.g.
+  // "boing", "wah", "squeak", "trombone", "vineboom". On the first play after
+  // adding a file the placeholder still fires while the <audio> buffers; every
+  // play after that uses the wav, scaled by OPT.sfxVol with arguments[1] (when a
+  // number) as playbackRate. A missing/broken file just keeps the synthesized
+  // placeholder — the game never reaches out to the network. To add a new
+  // overridable name, add a placeholder fn to pack.meme; registerWav(name, path)
+  // can point a name at a custom path if it can't follow <name>.wav.
   // ───────────────────────────────────────────────────────────────
   const _packOrder=['original','meme'];
   const _wavBase='assets/SFX/meme/';
@@ -363,19 +365,54 @@
     tone(a,{f:f*1.01,f1:f*1.72,d:0.14,v:0.05,type:'triangle',bp:f*1.05,q:6});
     hiss(a,{f:4300,q:6,d:0.075,v:0.045});
   }
+  // context placeholders for the real WAVs below — never heard unless a file is missing
+  function _memePipe(a,p){ p=p||1; tone(a,{f:150*p,f1:45,d:0.3,v:0.24}); hiss(a,{f:1900,f1:320,q:1,d:0.22,v:0.18}); }
+  function _memeOw(a,p){ p=p||1; tone(a,{f:640*p,f1:330*p,d:0.2,v:0.16,type:'triangle',lp:2600,vib:26,vibd:44}); }
+  function _memeDing(a,p){ p=p||1; bell(a,{f:N(93)*p,d:0.7,v:0.1}); bell(a,{f:N(100)*p,dt:0.06,d:0.6,v:0.05,rev:0.6}); }
+  function _memeClick(a,p){ p=p||1; tone(a,{f:1300*p,d:0.03,v:0.08,type:'triangle'}); hiss(a,{f:2800,q:4,d:0.02,v:0.05}); }
+  function _memeBlip(a,p){ p=p||1; tone(a,{f:N(85)*p,d:0.06,v:0.05,type:'square',lp:3000}); }
+  function _memeLaugh(a,p){ p=p||1; for(let k=0;k<3;k++) tone(a,{f:(300-k*30)*p,f1:(240-k*26)*p,dt:k*0.17,d:0.14,v:0.09,type:'triangle',lp:1700,vib:28,vibd:44,rev:0.12}); }
+  function _memeTrombone(a,p){ p=p||1; [233,196,165,147].forEach((f,k)=>tone(a,{f:f*p,f1:f*0.9*p,dt:k*0.18,d:0.22,v:0.11,type:'sawtooth',lp:900,rev:0.25})); }
+  function _memeImpact(a,p){ p=p||1; tone(a,{f:90*p,f1:28,d:0.3,v:0.3}); hiss(a,{type:'lowpass',f:1400,f1:160,d:0.24,v:0.2,rev:0.2}); }
+  function _memeVineboom(a,p){ p=p||1; tone(a,{f:60*p,f1:26,d:0.6,v:0.34}); hiss(a,{type:'lowpass',f:700,f1:90,d:0.45,v:0.2,rev:0.3}); tone(a,{f:120*p,f1:40,d:0.4,v:0.12,type:'sawtooth',lp:500}); }
+  function _memeWhoosh(a,p){ p=p||1; hiss(a,{f:500*p,f1:2400*p,q:1.2,d:0.26,v:0.16,at:0.02,rev:0.15}); }
+  function _memeScratch(a,p){ p=p||1; hiss(a,{f:2600,f1:900,q:3,d:0.22,v:0.13,rate:0.6}); tone(a,{f:800*p,f1:300*p,d:0.18,v:0.05,type:'square',lp:2200}); }
   const _withWav=(name,fn)=>function(a,p){
     const d=window.MV_SFX.debug; d.voices[name]=(d.voices[name]||0)+1;   // render telemetry
     if(_playPackWav(name,p)) return; fn(a,p);
   };
   const _boing=_withWav('boing',_memeBoing), _wah=_withWav('wah',_memeWah), _squeak=_withWav('squeak',_memeSqueak);
+  const _pipe=_withWav('pipe',_memePipe), _ow=_withWav('ow',_memeOw), _ding=_withWav('ding',_memeDing),
+        _click=_withWav('click',_memeClick), _blip=_withWav('blip',_memeBlip), _laugh=_withWav('laugh',_memeLaugh),
+        _trombone=_withWav('trombone',_memeTrombone), _impact=_withWav('impact',_memeImpact),
+        _vineboom=_withWav('vineboom',_memeVineboom), _whoosh=_withWav('whoosh',_memeWhoosh),
+        _scratch=_withWav('scratch',_memeScratch);
 
   window.MV_SFX={
     pack:{
       original:{},                       // empty = the exact current SFX
-      meme:{                             // placeholder meme-ish overrides; real wavs replace them
-        jump:_boing, jump_reg:_boing, jump_spring:_boing, jump_good:_boing, land:_boing,
-        hurt:_wah, player_hit:_wah, ouch:_wah, punch:_wah, punch_heavy:_wah, hit:_wah, hit_enemy:_wah,
-        click:_squeak, menu:_squeak, confirm:_squeak, swap:_squeak, hook:_squeak, reel_in:_squeak
+      meme:{                             // real WAVs; context-matched to what happens in the game
+        // jump / land → boing
+        jump:_boing, jump_reg:_boing, jump_spring:_boing, jump_good:_boing, double_jump:_boing, land:_boing, bed_boing:_boing,
+        // hit / hurt / punch → rubber squeak, metal-pipe hit, "ow!" or a heavy impact
+        punch:_squeak, punch_heavy:_squeak, ouch:_squeak,
+        hit:_pipe, punch_hit:_pipe,
+        hit_enemy:_impact, punch_hit_heavy:_impact,
+        hurt:_ow, player_hit:_ow,
+        // pickup → ding
+        knowl_pickup:_ding, crystal_pickup:_ding, knowl:_ding, item_clink:_ding, ping:_ding, extra_life:_ding, unlock:_ding,
+        // item attach / latch → click
+        grap_attach:_click, hook_latch:_click, click:_click, swap:_click, reel_in:_click, reel_out:_click, confirm:_click,
+        // menu → blip
+        menu:_blip,
+        // enemy mock → mocking laugh
+        enemy_alert:_laugh, enemy_huh:_laugh,
+        // death / shutdown → sad trombone (permanent) / wah (temporary)
+        shutdown:_trombone, enemy_dead:_trombone, enemy_shut:_wah,
+        // boss hit → impact / vine boom
+        laser_charged_fire:_vineboom, frag_fire:_vineboom, omniblock_shatter:_vineboom,
+        // rev / turbo → whoosh ; a miss scratches the record
+        whoosh:_whoosh, rope_throw:_whoosh, punch_whiff:_whoosh, hook_miss:_scratch
       }
     },
     order:_packOrder.slice(),
