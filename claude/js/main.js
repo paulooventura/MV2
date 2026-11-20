@@ -1638,6 +1638,14 @@ function draw(){
   if(_gameState==='game'&&window.MV_BETA&&MV_BETA.loading){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); return; }
   if(_gameState==='cutscene'){_cutsceneFr++;drawCutscene();return;}
   if(_gameState==='select'){drawSelect();return;}
+  // Read-only world map (beta_map.js). Defensive: the module is registered
+  // separately, so a missing script must never blank the screen.
+  if(_gameState==='map'){
+    if(typeof window!=='undefined'&&window.MV_MAP&&window.MV_MAP.available()){
+      try{ window.MV_MAP.draw(); }catch(e){ ctx.fillStyle='#0a0814'; ctx.fillRect(0,0,W,H); }
+    }else{ ctx.fillStyle='#0a0814'; ctx.fillRect(0,0,W,H); }
+    return;
+  }
   _updateCoopSplit();
   // Per-frame baseline: split passes set their own actor and restore this value;
   // the single view always represents P1. Never carry an actor across frames.
