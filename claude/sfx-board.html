@@ -54,6 +54,7 @@ audio{height:34px;flex:1;min-width:200px}
 <header>
   <h1><span class="seal">♪</span>MV2 · SFX &amp; MUSIC AUDITION</h1>
   <span class="sub">hear it · see the file · replace it</span>
+  <a href="design-board.html" style="font-size:11px;text-decoration:none;color:var(--indigo);border:1.4px solid var(--indigo);padding:4px 9px;background:#fbf5e9">◆ Design Board</a>
   <input id="q" type="search" placeholder="Filter sounds (punch, jump, boss, gore…)">
   <span class="note" id="stats"></span>
 </header>
@@ -75,10 +76,10 @@ audio{height:34px;flex:1;min-width:200px}
 <script>
 // Data embedded so the page works from file:// with no fetch/CORS.
 const FILES = [
- ["enemy shut","SFX/enemy shut.wav"],["grap attach","SFX/grap attach.wav"],
- ["hit enemy","SFX/hit enemy.ogg"],["hit","SFX/hit.wav"],
- ["jump good","SFX/jump good.wav"],["jump reg","SFX/jump reg.wav"],
- ["knowl","SFX/Knowl.wav"],["shutdown","SFX/shutdown.wav"]
+ ["enemy shut","assets/SFX/enemy shut.wav"],["grap attach","assets/SFX/grap attach.wav"],
+ ["hit enemy","assets/SFX/hit enemy.ogg"],["hit","assets/SFX/hit.wav"],
+ ["jump good","assets/SFX/jump good.wav"],["jump reg","assets/SFX/jump reg.wav"],
+ ["knowl","assets/SFX/Knowl.wav"],["shutdown","assets/SFX/shutdown.wav"]
 ];
 const MEME = ["blip","boing","click","ding","impact","laugh","ow","pipe","scratch","squeak","trombone","vineboom","wah","whoosh"];
 const SYNTH = ["jump","jump_spring","land","double_jump","tire_squeal","engine_pop","punch","punch_heavy","punch_hit","punch_hit_heavy","punch_wall","bed_boing","ouch","hit_enemy","player_hit","stomp","hook","hook_charged","zap","zap_big","wood_hit","wood_break","wood_tap","item_clink","enemy_alert","enemy_huh","water_boil","water_gush","reel_in","reel_out","hook_latch_mag","hook_latch","hook_miss","laser","laser_bounce","laser_charge","laser_charged_fire","xlr","xlr_push","glass_tap","knowl_glass","bubble_pop","extra_life","sfx menu","confirm","swap","blowoff","splash","sport ignition","sport off"];
@@ -106,9 +107,9 @@ function fill(id,list){
   const box=$(id); list.forEach(x=>box.append(x));
 }
 fill('files', FILES.map(([n,p])=>card(n,p,'file')));
-fill('meme', MEME.map(n=>card(n,'SFX/meme/'+n+'.wav','meme')));
+fill('meme', MEME.map(n=>card(n,'assets/SFX/meme/'+n+'.wav','meme')));
 fill('synth', SYNTH.map(n=>card(n,'','synth')));
-fill('music', MUSIC.map(n=>card(n,'bgm/'+n+'.mp3','file')));
+fill('music', MUSIC.map(n=>card(n,'assets/bgm/'+n+'.mp3','file')));
 $('stats').textContent=(FILES.length+MEME.length+SYNTH.length+MUSIC.length)+' entries';
 ['c-file','c-meme','c-synth','c-music'].forEach((id,i)=>{
   $(id).textContent='('+[FILES,MEME,SYNTH,MUSIC][i].length+')';

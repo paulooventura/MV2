@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · Design Control Board</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{position:sticky;top:0;z-index:20;background:var(--washi2);border-bottom:2px solid var(--sumi);padding:10px 16px}
+.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0;letter-spacing:.06em}
+h1 .seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:24px;height:24px;font-size:12px;margin-right:8px;vertical-align:middle}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mica)}
+nav{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+nav a{font-size:11px;text-decoration:none;color:var(--sumi);border:1.4px solid var(--sumi);padding:4px 9px;background:#fbf5e9;border-radius:2px}
+nav a.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+nav a:hover{background:var(--gold);color:#fff;border-color:var(--gold)}
+main{padding:14px 16px 60px}
+h2{font-size:14px;letter-spacing:.12em;text-transform:uppercase;margin:22px 0 4px;border-bottom:1px solid var(--mica);padding-bottom:4px}
+h2 .cnt{font-size:11px;color:var(--mica);font-weight:normal}
+.lead{font-size:11.5px;color:var(--mica);margin:6px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.card{display:grid;grid-template-columns:84px 1fr;gap:10px;border:1.4px solid var(--sumi);background:#fbf5e9;padding:9px;border-radius:2px}
+.thumb{width:84px;height:84px;object-fit:contain;image-rendering:pixelated;background:#2a2233;border:1px solid var(--mica)}
+.body{min-width:0}
+.nm{font-size:14px;font-weight:bold;letter-spacing:.04em}
+.role{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--verm);margin:2px 0 5px}
+.tag{font-size:11px;color:var(--mica);font-style:italic}
+.row{font-size:10.5px;margin-top:5px;line-height:1.45}
+.row b{color:var(--indigo);font-weight:normal;letter-spacing:.05em}
+.files{a color:var(--celadon)}
+a.f{color:var(--indigo);text-decoration:none;border-bottom:1px dotted var(--indigo);font-family:monospace;font-size:10px}
+a.f:hover{background:var(--gold);color:#fff}
+.badge{display:inline-block;font-size:9px;letter-spacing:.06em;border:1px solid var(--mica);color:var(--mica);padding:1px 5px;margin-right:4px}
+.badge.hp{border-color:var(--verm);color:var(--verm)}
+.badge.ai{border-color:var(--indigo);color:var(--indigo)}
+table{border-collapse:collapse;font-size:11px;margin-top:8px}
+td,th{border:1px solid var(--mica);padding:4px 8px;text-align:left}
+th{background:var(--washi2)}
+.note{font-size:11px;color:var(--mica);margin-top:6px}
+code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1><span class="seal">◆</span>MV2 · DESIGN CONTROL BOARD</h1>
+    <span class="sub">characters · foes · levels — see the art, find the file</span>
+  </div>
+  <nav>
+    <a href="sfx-board.html">♪ Sound Board</a>
+    <a class="on" href="design-board.html">◆ Design Board</a>
+    <a href="#chars">Characters</a>
+    <a href="#foes">Foes</a>
+    <a href="#levels">Levels</a>
+    <a href="#zones">Zone music</a>
+  </nav>
+</header>
+<main>
+  <section id="chars">
+    <h2>Characters <span class="cnt" id="c-char"></span></h2>
+    <p class="lead">Playable heroes and the key cast. Click a file to open its source via the local server. Art shown is the real in-game sprite/preview.</p>
+    <div class="grid" id="chars-g"></div>
+  </section>
+
+  <section id="foes">
+    <h2>Foes <span class="cnt" id="c-foe"></span></h2>
+    <p class="lead">Antagonists, from Paulo's sketch (A/B/C) and the Oct 22 sheet (E/F/Heptagon). HP is the code value; shapes are drawn in code from the listed file. Art sheets are the real concept art.</p>
+    <div class="grid" id="foes-g"></div>
+  </section>
+
+  <section id="levels">
+    <h2>Levels <span class="cnt" id="c-lvl"></span></h2>
+    <p class="lead">The three playable Awdjoo stages. <code>.ldtk</code> = the level map; <code>beta_level.js</code> holds the LEVELS registry (path / next / prev). Click any file to inspect it.</p>
+    <div class="grid" id="levels-g"></div>
+  </section>
+
+  <section id="zones">
+    <h2>Zone music map</h2>
+    <p class="lead">One dynamic stage theme per zone (from <a class="f" href="js/audio.js">js/audio.js</a> ZONES / ZONE_MUSIC_TRACKS). The soundtrack files are on the Sound Board.</p>
+    <table id="zones-t"><tr><th>Zone</th><th>Subtitle</th><th>Theme</th></tr></table>
+    <div class="note">To change a game design element: edit the listed source file, hard-refresh the web build, and (if it's sound) re-check the Sound Board. No file here is changed by this page — it's a map, not an editor.</div>
+  </section>
+</main>
+
+<script>
+const CHARS=[
+ {n:'MIND',r:'THE BIG BROTHER',tag:'Steady hands · big ideas',chip:'#c48cff',
+  img:'assets/ui/hero-mind.png',
+  files:[['js/ui_select.js','HERO'],['js/player.js','controls'],['js/beta_story.js','story']],
+  note:'Playable lead. Punch / items / brother-companion. Hero sheet: assets/heroes/hero-mind-sheet.png'},
+ {n:'VENTURE',r:'THE LITTLE BROTHER',tag:'No brakes · all nerve',chip:'#ff6a5a',
+  img:'assets/ui/hero-venture.png',
+  files:[['js/ui_select.js','HERO'],['js/player.js','controls'],['js/beta_sibling.js','swap']],
+  note:'Playable lead / P2 in co-op. Hero sheet: assets/heroes/hero-venture-sheet.png'},
+ {n:'THE BROTHER',r:'SIBLING COMPANION',tag:'Shadows you · has your back',chip:'#ffb86a',
+  img:'assets/previews/heroes-crop.png',
+  files:[['js/beta_sibling.js','AI + dialogue'],['js/ui_select.js','mode']],
+  note:'SOLO = house NPC "other brother"; WITH BROTHER = AI shadows you; 2P = player two. Punch-back enabled.'},
+ {n:'TRADZKUL',r:'THE VILLAIN',tag:'He hid the Knowl away',chip:'#ff4a5a',
+  img:'assets/story/story-3.png',
+  files:[['js/audio.js','ZONES lair'],['js/beta_sibling.js','lore']],
+  note:'Named antagonist; his lair is zone 5 (pixel-quasar-gold-boss.mp3).'},
+ {n:'THE KNOWL',r:'THE TREE / COLLECTIBLE',tag:'The light they are getting back',chip:'#7c9b82',
+  img:'assets/story/story-1.png',
+  files:[['js/beta_decor.js','tree art'],['js/beta_doors.js','chamber'],['js/beta_enemies.js','wake']],
+  note:'Ancient diamond-bright tree + seed pickups. Wakes shut-down foes.'},
+];
+const FOES=[
+ {n:'A · CIRCLE',r:'ROLLS · SINKS IN WATER',tag:'Sine wave on its face; 8-way fragments',hp:50,ai:'circle',
+  img:'assets/enemies/foe-sine-sheet.png',files:[['js/beta_enemies.js','AI + art']],
+  note:'Rolls along the floor, turns at ledges; rolls on the river bottom. Heats up red near MIND, explodes into frags, cools grey and continues.'},
+ {n:'B · TRIANGLE',r:'TUMBLES 120° · ROPE',tag:'Rope swings; 3-corner fragments',hp:50,ai:'tri',
+  img:'assets/enemies/foe-triangle-sheet.png',files:[['js/beta_enemies.js','AI + art']],
+  note:'Moves by falling onto its next side. Shoots a rope that grabs MIND; reels him in (harder = into its own blast).'},
+ {n:'C · SQUARE',r:'TUMBLES 90° · ROPE',tag:'Rope hauls; 4-corner fragments',hp:50,ai:'square',
+  img:'assets/enemies/foe-square-sheet.png',files:[['js/beta_enemies.js','AI + art']],
+  note:'Like B but 90° steps. Can push like the XLR. Falls hurt whatever it lands on.'},
+ {n:'E · THE EYE',r:'FLOATS · FAST · LASER',tag:'Red pentagon, one lens',hp:30,ai:'eye',
+  img:'assets/enemies/foe-noise-sheet.png',files:[['js/beta_foes.js','AI + art']],
+  note:'Keeps its distance, lens glows + sight line, then fires a beam until it hits rock. Punch it while it turns to shut it down.'},
+ {n:'F · THE CUBE',r:'FLOATS UNDERWATER · DORMANT',tag:'Nearly invisible; rams — 6 notch points',hp:90,ai:'cube',
+  img:'assets/enemies/foe-jelly-sheet.png',files:[['js/beta_foes.js','base'],['js/beta_enemy_f.js','F behavior']],
+  note:'Hangs still in water until MIND swims close, then darts and rams. Out of water it cannot chase. Punch all 6 notch points, then it collapses.'},
+ {n:'HEPTAGON · BOSS',r:'FLOATS · 7-BEAM CORONA',tag:'Rests on its stone bowl',hp:360,ai:'boss',
+  img:'assets/enemies/foe-jelly-sheet.png',files:[['js/beta_foes.js','phases + art']],
+  note:'Floats when hero is near. Corona of 7 turning beams, bolt volleys from nodes; under half energy adds a sweeping beam. Defeat opens the knife chamber.'},
+ {n:'SIGNOL',r:'EARLY-GAME FOE',tag:'From the original engine',hp:'',ai:'signol',
+  img:'assets/enemies/signol.png',files:[['js/enemies.js','AI + art']],
+  note:'Original antagonist carried into the combined build; behaves differently from the beta foes.'},
+];
+const LEVELS_=[
+ {n:'1.1',sub:'AWDJOO TOWN 1.1 · The Journey Begins',img:'assets/levels/awdjoo-beta-preview.png',
+  files:[['assets/levels/awdjoo-beta.ldtk','map'],['js/beta_level.js','LEVELS'],['js/beta_decor.js','art'],['js/beta_doors.js','doors']],
+  meta:[['next','1.2'],['music','stage default'],['boss','—']],
+  note:'Suburban streets, houses, the Knowl tree chamber. 4 jacks to find. Stage art wired: suburb tiles + parallax houses + fence + palms.'},
+ {n:'1.2',sub:'AWDJOO TOWN 1.2 · Deep Waters',img:'assets/levels/awdjoo-1-2-preview.png',
+  files:[['assets/levels/awdjoo-1-2.ldtk','map'],['js/beta_level.js','LEVELS'],['js/beta_water.js','water'],['js/beta_foes.js','foes']],
+  meta:[['next','1.3'],['prev','1.1'],['music','stage2'],['foe','E · eye']],
+  note:'Water-focused stage: terrace traffic, bridges, foes. Foe E patrols here.'},
+ {n:'1.3',sub:'AWDJOO TOWN 1.3 · The Heptagon',img:'assets/levels/awdjoo-1-3-preview.png',
+  files:[['assets/levels/awdjoo-1-3.ldtk','map'],['js/beta_level.js','LEVELS'],['js/beta_city.js','skyscrapers'],['js/beta_foes.js','boss']],
+  meta:[['next','— (end)'],['prev','1.2'],['music','stage2'],['boss','HEPTAGON']],
+  note:'Skyscraper site: 3 towers to the sky, drones + lit windows. The Heptagon boss guards the Gaucho Knife chamber.'},
+];
+const ZONES=[
+ ['Awdjoo Town','a bucolic village','canopy-quest-gold.mp3'],
+ ['Gauder Hills','pampas slopes & peaks','cartridge-cannon-bronze.mp3'],
+ ["Knowl's Secret Garden",'deep forest jungle','underground-crown-gold.mp3'],
+ ['Corali Cavern','crystals & water','crystal-cavern-drift-gold.mp3'],
+ ['Alitek Factory','machines & circuits','cache-fever-gold.mp3'],
+ ["Tradzkul's Lair",'a sinister castle','pixel-quasar-gold-boss.mp3'],
+];
+const $=id=>document.getElementById(id);
+const fileLinks=fs=>fs.map(([p,l])=>'<a class="f" href="'+p+'" target="_blank">'+p+'</a> <span style="color:var(--mica)">('+l+')</span>').join('<br>');
+function card(o,kind){
+  const d=document.createElement('div');d.className='card';
+  const img=document.createElement('img');img.className='thumb';img.src=o.img;img.alt=o.n;
+  img.onerror=()=>{img.style.opacity=.25;};
+  const body=document.createElement('div');body.className='body';
+  let badges='';
+  if(o.hp!==undefined&&o.hp!=='')badges+='<span class="badge hp">HP '+o.hp+'</span>';
+  if(o.ai)badges+='<span class="badge ai">'+o.ai+'</span>';
+  let meta='';
+  if(o.meta)meta='<div class="row">'+o.meta.map(([k,v])=>'<b>'+k+':</b> '+v).join(' · ')+'</div>';
+  body.innerHTML='<div class="nm" style="'+(o.chip?'color:'+o.chip:'')+'">'+o.n+'</div>'+
+    '<div class="role">'+(o.r||'')+'</div>'+
+    (o.tag?'<div class="tag">'+o.tag+'</div>':'')+
+    (badges?'<div class="row">'+badges+'</div>':'')+
+    (o.sub&&kind==='lvl'?'<div class="tag">'+o.sub+'</div>':'')+
+    meta+
+    '<div class="row"><b>FILES</b><br>'+fileLinks(o.files)+'</div>'+
+    (o.note?'<div class="row note">'+o.note+'</div>':'');
+  d.append(img,body);return d;
+}
+function fill(gid,cid,arr,kind){const g=$(gid);arr.forEach(o=>g.append(card(o,kind)));$(cid).textContent='('+arr.length+')';}
+fill('chars-g','c-char',CHARS,'char');
+fill('foes-g','c-foe',FOES,'foe');
+fill('levels-g','c-lvl',LEVELS_,'lvl');
+const t=$('zones-t');ZONES.forEach(z=>{const r=t.insertRow();z.forEach(v=>{const c=r.insertCell();c.textContent=v;});});
+</script>
+</body>
+</html>
