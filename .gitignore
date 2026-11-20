@@ -43,3 +43,6 @@ test-results/
 Mind-and-Venture-itch.zip
 Mind-and-Venture-itch-cover.png
 _sheet-*.png
+
+# MV2 SFX Studio: local user replacements (never ship these)
+claude/assets/SFX/replacements/

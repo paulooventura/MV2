@@ -603,6 +603,8 @@ const SFX_SAMPLE_PATHS={
   knowl_pickup:  'assets/SFX/Knowl.wav',
   shutdown:      'assets/SFX/shutdown.wav',
 };
+// MV2 SFX Studio (Paulo): local replacements win over the built-in sample paths.
+if(window.MV_SFX_REPLACEMENTS) Object.assign(SFX_SAMPLE_PATHS, window.MV_SFX_REPLACEMENTS);
 const _sfxUrl=(p)=>_musicUrl(p)+'?b='+SFX_BUILD;
 const _sfxPool={};
 const _sfxSampleFailed={};
@@ -682,7 +684,8 @@ function sfx(t){
     hurt:'player_hit',
     knowl:'knowl_pickup',
   };
-  const sampleKey=sampleAlias[t]||t;
+  // A direct replacement (e.g. 'jump') wins over the built-in alias (jump -> jump_reg).
+  const sampleKey=SFX_SAMPLE_PATHS[t]?t:(sampleAlias[t]||t);
   // Paulo: the knowl pickup sample one octave lower (half playback rate).
   const samplePitch=(sampleKey==='knowl_pickup')?pitch*0.5:pitch;
   if(SFX_SAMPLE_PATHS[sampleKey]&&_playSfxSample(sampleKey,samplePitch)) return;

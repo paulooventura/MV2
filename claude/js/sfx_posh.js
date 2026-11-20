@@ -427,6 +427,9 @@
   let lastAt={};
   window.sfx=function(t){
     if(typeof _audioUnlocked!=='undefined'&&!_audioUnlocked) return;
+    // MV2 SFX Studio (Paulo): a local replacement bypasses the generated voice
+    // and goes to the original dispatcher, which plays the uploaded file.
+    if(typeof window.MV_SFX_REPLACEMENTS!=='undefined'&&window.MV_SFX_REPLACEMENTS[t]) return orig.apply(this,arguments);
     const pack=_packName(), po=window.MV_SFX.pack[pack]||{};
     const ov=(typeof po[t]==='function')?po[t]:null;
     const r=ov||R[t]; if(!r) return orig.apply(this,arguments);

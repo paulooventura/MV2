@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV2 · SFX Replacement Studio</title>
+<style>
+:root{--washi:#efe3cd;--washi2:#e6d6ba;--sumi:#1c1917;--verm:#b3372c;--gold:#c9962f;
+  --indigo:#2c3e66;--celadon:#7c9b82;--mica:#8c8477;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--washi);color:var(--sumi);font-family:"Palatino Linotype",Georgia,"Times New Roman",serif;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.018) 0 1px,transparent 1px 3px)}
+header{position:sticky;top:0;z-index:20;background:var(--washi2);border-bottom:2px solid var(--sumi);padding:10px 16px}
+.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0;letter-spacing:.06em}
+h1 .seal{display:inline-grid;place-items:center;background:var(--verm);color:#fff;width:24px;height:24px;font-size:12px;margin-right:8px;vertical-align:middle}
+.sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mica)}
+nav{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+nav a{font-size:11px;text-decoration:none;color:var(--sumi);border:1.4px solid var(--sumi);padding:4px 9px;background:#fbf5e9;border-radius:2px}
+nav a:hover{background:var(--gold);color:#fff}
+nav a.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 6px}
+input[type=search]{flex:1;min-width:220px;padding:7px 10px;border:1.5px solid var(--sumi);background:#fff;font-family:inherit;font-size:13px}
+button{font-family:inherit;cursor:pointer;border:1.4px solid var(--sumi);background:var(--washi2);color:var(--sumi);padding:5px 9px;font-size:11px;border-radius:2px}
+button:hover{background:var(--gold);color:#fff}
+button.play{background:var(--indigo);color:#fff}
+button.play:hover{background:var(--verm)}
+button.reset{background:#f6d9d5;color:var(--verm);border-color:var(--verm)}
+button.reset:hover{background:var(--verm);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+main{padding:6px 16px 70px}
+h2{font-size:14px;letter-spacing:.12em;text-transform:uppercase;margin:18px 0 4px;border-bottom:1px solid var(--mica);padding-bottom:4px}
+h2 .cnt{font-size:11px;color:var(--mica);font-weight:normal}
+.lead{font-size:11.5px;color:var(--mica);margin:6px 0 10px}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th,td{border:1px solid var(--mica);padding:5px 7px;text-align:left;vertical-align:middle}
+th{background:var(--washi2);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+tr.replaced{background:#eef4e9}
+.nm{font-weight:bold}
+.id{font-family:monospace;font-size:10px;color:var(--mica)}
+.badge{display:inline-block;font-size:9px;letter-spacing:.06em;border:1px solid var(--mica);color:var(--mica);padding:1px 5px}
+.badge.on{border-color:var(--celadon);color:var(--celadon);font-weight:bold}
+.badge.orig{border-color:var(--mica);color:var(--mica)}
+.filelabel{font-size:10px;color:var(--indigo);border:1px dashed var(--indigo);padding:4px 8px;cursor:pointer;background:#fbf5e9;display:inline-block}
+.filelabel:hover{background:var(--gold);color:#fff}
+input[type=file]{display:none}
+#msg{position:fixed;bottom:0;left:0;right:0;background:var(--washi2);border-top:2px solid var(--sumi);padding:8px 16px;font-size:11.5px;z-index:30}
+#msg.ok{color:#1f5a2a}
+#msg.err{color:var(--verm)}
+code{background:#e8dcc3;padding:1px 4px;font-size:10.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1><span class="seal">✎</span>MV2 · SFX REPLACEMENT STUDIO</h1>
+    <span class="sub">pick a sound · drop a file · done</span>
+  </div>
+  <nav>
+    <a href="sfx-board.html">♪ Sound</a>
+    <a href="design-board.html">◆ Design</a>
+    <a href="gear-board.html">⚙ Gear</a>
+    <a href="tools-board.html">⚗ Tools</a>
+    <a class="on" href="sfx-studio.html">✎ Studio</a>
+  </nav>
+</header>
+<main>
+  <div class="bar">
+    <input id="q" type="search" placeholder="Filter sounds (punch, jump, boss, hit…)">
+    <span id="stats" style="font-size:11px;color:var(--mica)"></span>
+    <button id="reload">↻ Refresh status</button>
+  </div>
+  <p class="lead">Preview uses the real game engine, so what you hear here is exactly what the game plays. Replaced sounds are marked <span class="badge on">REPLACED</span>. Nothing in the original assets is deleted — Reset drops the mapping instantly. Music is separate (Sound Board).</p>
+  <section><h2>Sound library <span class="cnt" id="cnt"></span></h2>
+    <table><thead><tr><th>Sound</th><th>Source</th><th>Status</th><th>Preview</th><th>Replace</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table>
+  </section>
+</main>
+<div id="msg">Studio ready. Choose a file next to any sound to replace it.</div>
+
+<!-- Load the real engine + any current replacements so previews are exact. -->
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sfx_posh.js"></script>
+<script src="js/sfx-replacements.js"></script>
+<script>
+// display label -> internal sfx() name
+const FILES=[
+ ['enemy shut','enemy_shut'],['grap attach','hook_latch'],['hit enemy','hit_enemy'],
+ ['hit','player_hit'],['jump good','jump_spring'],['jump reg','jump_reg'],
+ ['knowl','knowl_pickup'],['shutdown','shutdown']];
+const MEME=['blip','boing','click','ding','impact','laugh','ow','pipe','scratch','squeak','trombone','vineboom','wah','whoosh'].map(n=>[n,n]);
+const SYNTH=['jump','jump_spring','land','double_jump','tire_squeal','engine_pop','punch','punch_heavy','punch_hit','punch_hit_heavy','punch_wall','bed_boing','ouch','hit_enemy','player_hit','stomp','hook','hook_charged','zap','zap_big','wood_hit','wood_break','wood_tap','item_clink','enemy_alert','enemy_huh','water_boil','water_gush','reel_in','reel_out','hook_latch_mag','hook_latch','hook_miss','laser','laser_bounce','laser_charge','laser_charged_fire','xlr','xlr_push','glass_tap','knowl_glass','bubble_pop','extra_life','sfx menu','confirm','swap','blowoff','splash','sport ignition','sport off'].map(n=>[n,n.replace(/ /g,'_')]);
+const ALL=[...FILES.map(x=>[...x,'file']),...MEME.map(x=>[...x,'meme']),...SYNTH.map(x=>[...x,'synth'])];
+const $=id=>document.getElementById(id);
+let replaced={};
+
+function toast(text,ok=true){const m=$('msg');m.textContent=text;m.className=ok?'ok':'err';}
+function preview(name){
+  try{
+    if(typeof window._unlockAudio==='function') window._unlockAudio();
+    if(typeof window.sfx!=='function') throw new Error('audio engine not loaded');
+    window.sfx(name);
+    toast("Playing: "+name);
+  }catch(e){toast("Preview failed: "+e.message,false);}
+}
+function loadStatus(){
+  return fetch('/api/replacements').then(r=>r.json()).then(j=>{
+    if(!j.ok) throw new Error(j.error||'status failed');
+    replaced=j.replacements||{};
+    render();
+    return replaced;
+  });
+}
+function render(){
+  const q=$('q').value.toLowerCase();
+  const tb=$('rows'); tb.innerHTML='';
+  let shown=0;
+  ALL.forEach(([label,id,kind])=>{
+    if(q && !(label+' '+id).toLowerCase().includes(q)) return;
+    shown++;
+    const info=replaced[id];
+    const tr=document.createElement('tr'); if(info) tr.className='replaced';
+    tr.dataset.n=(label+' '+id).toLowerCase();
+    tr.innerHTML=
+      '<td><span class="nm"></span><br><span class="id"></span></td>'+
+      '<td><span class="badge '+kind+'">'+kind+'</span></td>'+
+      '<td></td>'+
+      '<td><button class="play">▶ Hear</button></td>'+
+      '<td><label class="filelabel">Choose wav/mp3<input type="file" accept=".wav,.mp3,.ogg,audio/*"></label></td>'+
+      '<td><button class="reset" '+(!info?'disabled':'')+'>Reset</button></td>';
+    tr.querySelector('.nm').textContent=label;
+    tr.querySelector('.id').textContent='sfx("'+id+'")';
+    tr.children[2].innerHTML=info
+      ? '<span class="badge on">REPLACED</span><br><span class="id" style="color:var(--indigo)"></span>'
+      : '<span class="badge orig">ORIGINAL</span>';
+    if(info) tr.children[2].querySelector('.id').textContent=info.filename;
+    tr.querySelector('.play').onclick=()=>preview(id);
+    const fileInput=tr.querySelector('input[type=file]');
+    fileInput.onchange=()=>{
+      const f=fileInput.files&&fileInput.files[0]; if(!f) return;
+      const rd=new FileReader();
+      rd.onload=()=>{
+        const data=String(rd.result).split(',')[1]||'';
+        toast('Uploading '+f.name+' -> '+id+' …');
+        fetch('/api/replace',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:id,filename:f.name,data})})
+          .then(r=>r.json()).then(j=>{
+            if(!j.ok) throw new Error(j.error||'replace failed');
+            toast('Replaced '+id+' with '+f.name+'. Reload the game (Ctrl+F5) to hear it everywhere.');
+            return loadStatus();
+          }).then(()=>preview(id))
+          .catch(e=>toast('ERROR: '+e.message,false));
+      };
+      rd.readAsDataURL(f);
+    };
+    tr.querySelector('.reset').onclick=()=>{
+      toast('Resetting '+id+' …');
+      fetch('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:id})})
+        .then(r=>r.json()).then(j=>{
+          if(!j.ok) throw new Error(j.error||'reset failed');
+          toast('Reset '+id+' back to original. Reload the game (Ctrl+F5).');
+          return loadStatus();
+        }).catch(e=>toast('ERROR: '+e.message,false));
+    };
+    tb.append(tr);
+  });
+  $('cnt').textContent='('+shown+')';
+  const n=Object.keys(replaced).length;
+  $('stats').textContent=ALL.length+' sounds · '+n+' replaced';
+}
+$('q').oninput=render;
+$('reload').onclick=()=>loadStatus().then(()=>toast('Status refreshed.')).catch(e=>toast('ERROR: '+e.message,false));
+loadStatus().then(()=>toast('Studio ready. Choose a file next to any sound to replace it.')).catch(e=>toast('ERROR: '+e.message,false));
+</script>
+</body>
+</html>
