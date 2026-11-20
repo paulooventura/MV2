@@ -462,7 +462,7 @@ const _optInCoop=()=>{ try{ return typeof _coopPair==='function'&&!!_coopPair();
 const _optB0=()=>_optTvRow()+3;                     // first P1 bind row
 const _optB1=()=>_optB0()+BIND_ORDER.length;         // first P2 bind row
 // T575: Spotify album link. TODO(Paulo): paste the real https://open.spotify.com/album/... URL here.
-const OST_URL='';
+const OST_URL='https://open.spotify.com/artist/1EAs9YhbJZTPQyqoYgF9rb';   // Paulo Ventura's artist page (HOMEBASE online-presence.md); swap for the album URL when it exists
 const _optOstRow=()=>_optB1()+BIND_ORDER.length;   // OST link sits right above the manual
 function _optManualRow(){ return _optOstRow()+1; }  // manual is last
 function _openOst(){ if(!OST_URL){ try{ sfx('menu'); }catch(e){} return; } try{ window.open(OST_URL,'_blank','noopener'); }catch(e){} try{ sfx('confirm'); }catch(e){} }
@@ -952,7 +952,7 @@ function drawOptions(){
     {label:"MUTE P2'S MUSIC",val:OPT.mutePartner?'ON':'OFF'}];
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,2),rule:i===0?'PLAYER 2 — ARROWS / NUM PAD':null}));
-  rows.push({label:'MIND & VENTURE OST',val:OST_URL?'SPOTIFY':'SOON',rule:'MUSIC'});
+  rows.push({label:'THE MUSIC ON SPOTIFY',val:OST_URL?'OPEN':'SOON',rule:'MUSIC'});
   rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
   const rowH=stacked?78:52, VIS=6;
