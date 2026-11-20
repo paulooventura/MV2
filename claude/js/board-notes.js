@@ -68,10 +68,15 @@
       'border:1px solid var(--mica);background:#fffdf6;padding:5px 6px;color:var(--sumi);border-radius:2px}'+
     '.bn-box:focus{outline:none;border-color:var(--indigo);background:#fff}'+
     '.bn-box:not(:placeholder-shown){background:#fff8e8}'+
-    '.bn-files{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}'+
-    '.bn-files a{font-size:10px;color:var(--indigo);text-decoration:none;border:1px solid var(--mica);padding:2px 5px;background:#fff}'+
+    '.bn-files{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start}'+
+    '.bn-files a{font-size:10px;color:var(--indigo);text-decoration:none;border:1px solid var(--mica);padding:3px 5px;background:#fff}'+
+    '.bn-thumb{width:64px;height:64px;object-fit:cover;border:1px solid var(--mica);background:#201a2b;cursor:zoom-in}'+
+    '.bn-thumb.big{width:100%;height:auto;max-height:340px;object-fit:contain;cursor:zoom-out}'+
     '.bn-filelabel{display:inline-block;font-size:9px;color:var(--indigo);border:1px dashed var(--indigo);padding:2px 6px;cursor:pointer}'+
-    '.bn-foot{display:flex;gap:6px;align-items:center;margin-top:4px}';
+    '.bn-foot{display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap}'+
+    '.bn-drop-hint{font-size:9px;color:var(--mica);font-style:italic}'+
+    '.bn-wrap.drag{background:#fff3d0;border-color:var(--gold);border-style:dashed}'+
+    '.bn-wrap.drag .bn-drop-hint{color:var(--gold);font-weight:bold}';
   document.head.appendChild(css);
 
   function box(key){
@@ -79,25 +84,34 @@
     const lab=document.createElement('label');lab.className='bn-lab';
     const ta=document.createElement('textarea');
     ta.className='bn-box';ta.placeholder='Note the change you want…';ta.rows=2;ta.value=get(key);
-    const state=document.createElement('span');state.className='bn-state';lab.append(document.createTextNode('NOTE '),state);
+    const state=document.createElement('span');state.className='bn-state';lab.append(document.createTextNode('NOTE + REFERENCE FILES '),state);
     ta.addEventListener('input',()=>{
       set(key,ta.value);
       state.className='bn-state pending';state.textContent='mission queued';
       clearTimeout(ta._t);ta._t=setTimeout(()=>{const e=entry(key);state.textContent=e.status==='done'?'done ✓':e.status==='wip'?'working…':'mission queued';},500);
     });
     const foot=document.createElement('div');foot.className='bn-foot';
-    const fl=document.createElement('label');fl.className='bn-filelabel';fl.textContent='+ attach file';
+    const fl=document.createElement('label');fl.className='bn-filelabel';fl.textContent='+ attach reference';
     const fi=document.createElement('input');fi.type='file';fi.multiple=true;fi.style.display='none';fl.append(fi);
     const hint=document.createElement('span');hint.style.cssText='font-size:9px;color:var(--mica)';
-    fi.onchange=()=>{
-      const files=[...(fi.files||[])];if(!files.length)return;
-      hint.textContent='uploading…';let left=files.length;
-      files.forEach(f=>attach(key,f,(err)=>{
+    const dropHint=document.createElement('span');dropHint.className='bn-drop-hint';dropHint.textContent='or drop reference files here';
+    function ingest(files){
+      const list=[...(files||[])];if(!list.length)return;
+      hint.textContent='digesting…';let left=list.length;
+      list.forEach(f=>attach(key,f,(err)=>{
         if(err)hint.textContent='ERROR: '+err.message;
-        else if(!--left){hint.textContent='attached ✓';renderFiles(key,filesWrap);post(key);}
+        else if(!--left){hint.textContent='digested ✓';renderFiles(key,filesWrap);post(key);}
       }));
-    };
-    foot.append(fl,hint);
+    }
+    fi.onchange=()=>{ingest(fi.files);fi.value='';};
+    wrap.addEventListener('dragover',e=>{e.preventDefault();e.stopPropagation();wrap.classList.add('drag');dropHint.textContent='drop to attach as reference';});
+    wrap.addEventListener('dragleave',e=>{e.preventDefault();wrap.classList.remove('drag');dropHint.textContent='or drop reference files here';});
+    wrap.addEventListener('drop',e=>{
+      e.preventDefault();e.stopPropagation();wrap.classList.remove('drag');
+      dropHint.textContent='or drop reference files here';
+      ingest(e.dataTransfer&&e.dataTransfer.files);
+    });
+    foot.append(fl,hint,dropHint);
     const filesWrap=document.createElement('div');filesWrap.className='bn-files';
     wrap.append(lab,ta,foot,filesWrap);
     function refreshState(){const s=entry(key).status;state.className='bn-state '+(s||'');
@@ -110,9 +124,21 @@
   function renderFiles(key,wrap){
     wrap.innerHTML='';
     (entry(key).files||[]).forEach(f=>{
-      const a=document.createElement('a');a.href=f.path;a.target='_blank';a.textContent='📎 '+f.name;wrap.append(a);
+      if(/\.(png|jpe?g|gif|webp|bmp)$/i.test(f.name||'')){
+        const im=document.createElement('img');im.className='bn-thumb';im.src=f.path;im.alt=f.name;
+        im.title=f.name+' — reference only, not applied to the game';
+        im.onclick=()=>im.classList.toggle('big');
+        im.onerror=()=>{const a=document.createElement('a');a.href=f.path;a.download=f.name;a.textContent='📎 '+f.name;wrap.append(a);};
+        wrap.append(im);
+      }else{
+        const a=document.createElement('a');a.href=f.path;a.download=f.name;a.title='Reference only — not applied to the game';
+        a.textContent='📎 '+f.name;wrap.append(a);
+      }
     });
   }
+  // Never let the browser navigate to / open a file dropped anywhere on these pages.
+  document.addEventListener('dragover',e=>{ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)e.preventDefault(); });
+  document.addEventListener('drop',e=>{ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)e.preventDefault(); });
 
   window.BoardNotes={data,init,get,entry,set,attach,box,refresh:renderFiles};
   init();
