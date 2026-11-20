@@ -1071,7 +1071,12 @@
       if(B.inWater&&B.inWater(k.x,k.y)){ k.vx*=0.92; if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*1.6,-2.4); k._rest=0; } else k.vy=Math.min(k.vy-GRAV*0.6,1.6); }
       const nx=k.x+k.vx; if(solidPx(nx+Math.sign(k.vx)*KR,k.y)){ k.vx*=-0.4; } else k.x=nx;
       const ny=k.y+k.vy;
-      if(solidPx(k.x,ny+KR)){ k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1; }
+      if(solidPx(k.x,ny+KR)){
+        const _hitV=k.vy;   // capture before it is reversed (dump line 87: glass sound when seeds hit the floor)
+        if(k.kind==='seed'&&_hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
+        if(k._glassF>0) k._glassF--;
+        k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
+      }
       else if(solidPx(k.x,ny-KR)){ k.vy=Math.abs(k.vy)*0.3; }
       else { k.y=ny; k._rest=0; }
       knowlTouchesEnemy(k);
