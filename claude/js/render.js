@@ -536,7 +536,10 @@ function _vinylMotion(pl,dir){
 }
 function _drawVinylBoard(cx,y,pl,dir){
   const m=_vinylMotion(pl,dir), bob=Math.sin(fr*0.09)*1.2*(1-m.d);
+  // Only show it while it's detaching — no floating disc during normal play.
+  if(m.d<0.05) return;
   ctx.save();
+  ctx.globalAlpha=Math.min(1,(m.d-0.04)*5);
   ctx.translate(Math.round(cx+dir*74+m.x),Math.round(y+4+m.y+bob));
   ctx.rotate(m.a);
   const R=13;

@@ -1465,7 +1465,12 @@ function updateCoopPlayer2(){
   _coopRollX0=p2.x; _coopRollY0=p2.y;
   // P2 reads its own rebindable set (OPT.binds2) via _bindDown2 / _bindJ2.
   const lf=_bindDown2('left'), rt=_bindDown2('right');
-  p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0;
+  // P2 aims all 8 ways from its own binds (mirrors P1's isUp/isDn/isLf/isRt in main.js:956).
+  // Previously P2's aim was forced horizontal, so punches could never go up or down.
+  const _upAim2=!!_bindDown2('up'), _dnAim2=!!_bindDown2('down');
+  const _adx2=(rt?1:0)-(lf?1:0), _ady2=(_dnAim2?1:0)-(_upAim2?1:0);
+  if(_adx2||_ady2){ const _l2=Math.hypot(_adx2,_ady2); p2.aimDX=p2.tAimDX=_adx2/_l2; p2.aimDY=p2.tAimDY=_ady2/_l2; }
+  else { p2.aimDX=p2.fc?1:-1; p2.aimDY=0; p2.tAimDX=p2.aimDX; p2.tAimDY=0; }
   const run=!!K2['Sprint_gp2']||_bindDown2('sprint');  // LB on P2's pad (or a bound run key)
   const ms=run?MOVE_RUN:MOVE_WALK*MOVE_PEAK, ac=run?MOVE_RUN_ACCEL:MOVE_ACCEL;
   if(lf) p2.vx=Math.max(p2.vx-ac,-ms);
@@ -1545,8 +1550,16 @@ function updateCoopPlayer2(){
     // done so the later render pass doesn't apply this same punch a second time.
     p2.pt=5; p2._hitDone=true;
     try{ sfx('punch'); }catch(e){}
-    const fistCX=p2.fc?p2.x+SW/2+AIM_LEN:p2.x+SW/2-AIM_LEN, fistCY=p2.y+20, fistR=12;
+    // Fist follows P2's real aim (all 8 directions), not a fixed horizontal chest jab.
+    const _ax2=p2.aimDX||(p2.fc?1:-1), _ay2=p2.aimDY||0, _al2=Math.hypot(_ax2,_ay2)||1;
+    const fistCX=p2.x+SW/2+(_ax2/_al2)*AIM_LEN, fistCY=p2.y+20+(_ay2/_al2)*AIM_LEN, fistR=12;
     let hitAny=false;
+    // P2's render pass is marked hit-done, so doors / trapdoors / crates / lifts must
+    // be checked here (the same hooks render.js calls for P1 at line ~1173).
+    try{
+      if(window.MV_LIFT&&typeof MV_LIFT.fist==='function'&&MV_LIFT.fist(fistCX,fistCY,fistR)) hitAny=true;
+      if(!hitAny&&window.MV_DOORS&&typeof MV_DOORS.fist==='function'&&MV_DOORS.fist(fistCX,fistCY,fistR,false)) hitAny=true;
+    }catch(e){}
     for(const e of ENEMS){
       if(!_enemyPunchable(e)) continue;
       if(ov(fistCX-fistR,fistCY-fistR,fistR*2,fistR*2,e.x,e.y,e.w,e.h)){
