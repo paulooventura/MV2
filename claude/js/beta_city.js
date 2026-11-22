@@ -308,6 +308,9 @@
   const _hud=window.drawLdtkLabHud;
   window.drawLdtkLabHud=function(){
     const r=_hud?_hud.apply(this,arguments):undefined;
+    // T459 grid fix: the lone chamfer at (35,21) on the lip of the glass-building shaft snapped MIND 18 px
+    // when he rolled off it (probe slopeRoll). It is a plain square corner now; the other ramps are untouched.
+    try{ const B=window.MV_BETA; if(B&&B.on&&B.stageId==='1.3'&&typeof gridCell==='function'&&MV_GRID&&MV_GRID.ready&&(gridCell(35,21)===MV_GRID_SLOPE_L||gridCell(35,21)===MV_GRID_SLOPE_R)) { gridSet(35,21,MV_GRID_SOLID); const L=B.level, sk=B.skin; if(L&&L.cells&&L.cells[21]) L.cells[21][35]=1; if(sk&&sk[21]&&sk[21][34]!=null) sk[21][35]=sk[21][34]; } }catch(e){}
     try{ const B=window.MV_BETA; if(B&&B.on&&B.stageId==='1.3') for(const d of B.decor) if(d.kind==='vault'||d.kind==='secret') cover(B,d); }catch(e){}
     return r;
   };
