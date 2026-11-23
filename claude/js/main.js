@@ -1469,6 +1469,7 @@ function drawWorldPass(){
       drawLdtkLabWorld();
     }else{
       drawParallax();
+      if(window.MV_ENVDEPTH&&MV_ENVDEPTH.soil) MV_ENVDEPTH.soil();   // atmospheric soil depth under the cast
       const apl=allP();
       for(const pl of apl){if(pl.mp)drawMovPlat(pl.mp);else if(!pl.mv)drawPlat(pl);}
       for(const a of APLAT){const bx=sx(a.x),by=sy(a.y);ctx.fillStyle=C.BROWN;ctx.fillRect(bx,by,sw(a.w),sw(a.h));ctx.fillStyle=C.ORANGE;ctx.fillRect(bx,by,sw(a.w),1);}
@@ -1676,6 +1677,7 @@ function draw(){
       drawLdtkLabWorld();
     }else{
       drawParallax();
+      if(window.MV_ENVDEPTH&&MV_ENVDEPTH.soil) MV_ENVDEPTH.soil();   // atmospheric soil depth under the cast
       const apl=allP();
       for(const pl of apl){if(pl.mp)drawMovPlat(pl.mp);else if(!pl.mv)drawPlat(pl);}
       for(const a of APLAT){const bx=sx(a.x),by=sy(a.y);ctx.fillStyle=C.BROWN;ctx.fillRect(bx,by,sw(a.w),sw(a.h));ctx.fillStyle=C.ORANGE;ctx.fillRect(bx,by,sw(a.w),1);}

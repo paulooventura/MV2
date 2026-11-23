@@ -2017,6 +2017,7 @@ function drawParallax(){
     if(i===2) drawBgTownLights(x,y);
     if(L.haze) _awdjooHaze(L.haze);
   }
+  if(window.MV_ENVDEPTH&&MV_ENVDEPTH.haze) MV_ENVDEPTH.haze();
 }
 
 function drawPlat(pl){
@@ -2682,6 +2683,7 @@ function drawCandleLights(){
 }
 function drawFgLampGlow(){
   drawWorldCadence();                       // global beat-breathing vignette + washi tint (all stages)
+  if(window.MV_ENVDEPTH&&MV_ENVDEPTH.foreground) MV_ENVDEPTH.foreground();   // parallax foreground framing
   if(!_candleLights.length) return;
   for(const c of _candleLights){
     if(!c.fg) continue;
