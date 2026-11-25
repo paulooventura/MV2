@@ -246,7 +246,7 @@
   window.draw=function(){
     if(_gameState!=='timeline') return _drwT.apply(this,arguments);
     ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
-    ctx.fillStyle='#04020a'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#1E1B27'; ctx.fillRect(0,0,W,H);
     try{ if(typeof MAP_ART!=='undefined'&&MAP_ART.complete&&MAP_ART.naturalWidth){ const k=Math.max(W/MAP_ART.naturalWidth,H/MAP_ART.naturalHeight); const iw=MAP_ART.naturalWidth*k, ih=MAP_ART.naturalHeight*k; ctx.globalAlpha=0.5; ctx.drawImage(MAP_ART,(W-iw)/2,(H-ih)/2,iw,ih); ctx.globalAlpha=1; } }catch(e){}
     ctx.restore();
     if(pick) drawPick();

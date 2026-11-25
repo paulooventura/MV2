@@ -74,12 +74,12 @@
   uniform sampler2D t; uniform sampler2D wt; uniform float wok; uniform float menu;
   uniform vec2 res; uniform float lo, hi, age, time;
   varying vec2 uv;
-  const vec3 PAPER=vec3(.914,.847,.765);   // washi  #E9D8C3
-  const vec3 SHADE=vec3(.863,.776,.675);   // shade  #DCC6AC
-  const vec3 AGED =vec3(.922,.816,.690);   // aged   #EBD0B0
-  const vec3 W40  =vec3(.486,.443,.400);   // wash 40
-  const vec3 W70  =vec3(.227,.208,.188);   // wash 70
-  const vec3 SUMI =vec3(.043,.051,.059);   // sumi
+  const vec3 PAPER=vec3(.937,.902,.824);   // washi       #EFE6D2
+  const vec3 SHADE=vec3(.902,.812,.671);   // washi_aged  #E6CFAB
+  const vec3 AGED =vec3(.902,.812,.671);   // aged ground #E6CFAB
+  const vec3 W40  =vec3(.725,.702,.659);   // mica        #B9B3A8
+  const vec3 W70  =vec3(.549,.522,.502);   // usuzumi     #8C8580
+  const vec3 SUMI =vec3(.110,.102,.098);   // sumi        #1C1A19
   float lum(vec3 c){ return dot(c,vec3(.299,.587,.114)); }
   float L(vec2 o){ return lum(texture2D(wt,uv+o/res).rgb); }
   vec3 hsv(vec3 c){ vec4 K=vec4(0.,-1./3.,2./3.,-1.); vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));

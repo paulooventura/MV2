@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mind & Venture">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#04020a">
+<meta name="theme-color" content="#1E1B27">
 <meta name="description" content="Mind & Venture — a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
 <link rel="canonical" href="https://paulooventura.github.io/MV2/">
 <meta property="og:title" content="Mind & Venture">
@@ -23,7 +23,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script>window.MV_BUILD='412';
+<script src="js/mv_palette.js?v=413"></script>
+<script>window.MV_BUILD='413';
 /* T425 (Paulo, Nov 11): every boot starts on Ink & Vinyl; a filter picked in Options lasts for that session */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','ink'); }catch(e){}</script>
 <script>
@@ -54,17 +55,17 @@ if(location.protocol==='file:'){
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{min-height:100%;overscroll-behavior:none;}
-body{background:#04020a;display:flex;flex-direction:column;align-items:center;
+body{background:#1E1B27;color:#B9B3A8;display:flex;flex-direction:column;align-items:center;
   padding:8px;font-family:ui-monospace,Consolas,monospace;gap:6px;}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;
   -ms-interpolation-mode:nearest-neighbor;max-width:100%;width:100%;height:auto;
-  border:1px solid #1a1a30;cursor:crosshair;touch-action:none;}
+  border:1px solid #23466B;cursor:crosshair;touch-action:none;}
 .row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
 .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .acts-row{display:flex;gap:6px;align-items:center;}
 .devrow{display:flex;gap:6px;align-items:center;}
 .ph{display:none;}
-button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
+button{background:#1C1A19;color:#EFE6D2;border:1px solid #8C8580;padding:8px 14px;
   border-radius:2px;font:13px/1.2 ui-monospace,Consolas,monospace;cursor:pointer;touch-action:none;user-select:none;}
 .dpad{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(3,28px);gap:2px;}
 .d-plus,.d-dish,.d-diags{display:none;}
@@ -91,8 +92,8 @@ button{background:#111122;color:#c8c0d8;border:1px solid #334;padding:8px 14px;
    on-screen pad only on touch screens. */
 #mvVer,#inf{display:none!important;}
 .mv-controls{display:none!important;flex-wrap:wrap;gap:6px 16px;justify-content:center;max-width:1100px;margin:8px auto 0;
-  font:600 12px/1.6 system-ui,sans-serif;color:#9c8cc8;}
-.mv-controls kbd{font:700 11px/1 ui-monospace,Menlo,monospace;color:#e8e0ff;background:#1a1030;border:1px solid #3a2878;border-bottom-width:2px;border-radius:4px;padding:2px 5px;margin:0 3px}
+  font:600 12px/1.6 system-ui,sans-serif;color:#B9B3A8;}
+.mv-controls kbd{font:700 11px/1 ui-monospace,Menlo,monospace;color:#EFE6D2;background:#1C1A19;border:1px solid #8C8580;border-bottom-width:2px;border-radius:4px;padding:2px 5px;margin:0 3px}
 .mv-controls i{font:800 11px/18px system-ui,sans-serif;font-style:normal;display:inline-block;width:18px;height:18px;border-radius:50%;text-align:center;color:#fff;margin-right:2px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.3)}
 .mv-controls .pa{background:#2a9a48}.mv-controls .pb{background:#d8302c}.mv-controls .px{background:#3a5ad8}.mv-controls .py{background:#e8b818;color:#3a2a00}
 @media (hover:hover) and (pointer:fine){ html:not(.phone-play) #touchHud{display:none!important;} }
@@ -109,7 +110,7 @@ html.phone-play .desk{display:none;}
 html.phone-play .ph{display:inline;}
 html.phone-play.land #gameWrap{
   position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
-  display:block;background:#04020a;
+  display:block;background:#1E1B27;
 }
 html.phone-play.land canvas{
   position:absolute;inset:0;width:100%;height:100%;
@@ -186,30 +187,30 @@ html.phone-play.land #bPause{
   position:absolute;top:max(8px,env(safe-area-inset-top,0px));left:50%;
   transform:translateX(-50%);pointer-events:auto;min-width:52px;min-height:40px;
   font-size:20px;font-weight:900;padding:0 12px;border-radius:10px;
-  background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);color:#eee;
+  background:rgba(28,26,25,.88);border:2px solid rgba(201,162,74,.65);color:#EFE6D2;
 }
 html.phone-play.land #bRst{
   min-width:44px;min-height:36px;font-size:11px;opacity:.8;padding:0 10px;
   background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
-  color:#ff0;border-radius:10px;
+  color:#C9A24A;border-radius:10px;
 }
 html.phone-play.port #rotateHint{
-  display:flex;position:fixed;inset:0;z-index:100000;background:#04020a;
-  color:#e8d0ff;flex-direction:column;align-items:center;justify-content:center;
+  display:flex;position:fixed;inset:0;z-index:100000;background:#1E1B27;
+  color:#EFE6D2;flex-direction:column;align-items:center;justify-content:center;
   gap:18px;text-align:center;padding:max(24px,env(safe-area-inset-top)) 28px;
 }
 html.phone-play.port #rotateHint .rh-glyph{
-  width:64px;height:108px;border:3px solid #c8a0e8;border-radius:14px;
+  width:64px;height:108px;border:3px solid #C9A24A;border-radius:14px;
   position:relative;animation:rh-spin 1.8s ease-in-out infinite;
 }
 html.phone-play.port #rotateHint .rh-glyph:after{
   content:"";position:absolute;left:50%;bottom:10px;width:16px;height:4px;
-  margin-left:-8px;border-radius:2px;background:#c8a0e8;
+  margin-left:-8px;border-radius:2px;background:#C9A24A;
 }
 html.phone-play.port #rotateHint .rh-msg{
   font:800 22px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.04em;
 }
-html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,monospace;color:#9a88b8;}
+html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,monospace;color:#B9B3A8;}
 @keyframes rh-spin{
   0%,18%{transform:rotate(0deg);}
   45%,70%{transform:rotate(90deg);}

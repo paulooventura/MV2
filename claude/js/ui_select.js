@@ -17,11 +17,11 @@
   const IMG={}, FEATHER={};
   for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
   const HERO={
-    mind:{name:'MIND', col:'#c48cff', deep:'#3a1466', glow:'170,110,255', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
-    venture:{name:'VENTURE', col:'#ff6a5a', deep:'#5a1010', glow:'255,90,80', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
+    mind:{name:'MIND', col:'#8B5FCF', deep:'#3a1466', glow:'91,42,140', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#D9472B', deep:'#5a1010', glow:'217,71,43', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
   };
   const MODES=[
-    {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#9ef58a'},
+    {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#C9A24A'},
     {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
     {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
     {id:3, name:'2P ONLINE', sub:'PLAY WITH A FRIEND', icon:'net', col:'#7ad8ff'},
@@ -50,7 +50,7 @@
     // the stage sky (swirls, stars, ridge, town) â€” or a dark fallback
     let ok=false;
     try{ if(window.MV_SKY){ ctx.save(); MV_SKY.draw({stageId:'1.1'}, H*0.9); ctx.restore(); ok=true; } }catch(e){}
-    if(!ok){ ctx.fillStyle='#04140e'; ctx.fillRect(0,0,W,H); }
+    if(!ok){ ctx.fillStyle='#1E1B27'; ctx.fillRect(0,0,W,H); }
     const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(2,10,6,0.35)'); g.addColorStop(0.55,'rgba(2,10,6,0.55)'); g.addColorStop(1,'rgba(2,8,4,0.92)');
     ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   }
@@ -389,7 +389,7 @@
   // third CO-OP segment beside it. CO-OP means 2 HUMAN players and stays right
   // here on the hero cards (no party screen): P1 picks a brother, P2 gets the other.
   const BROTHER_OPTS=[
-    {k:0,label:'SOLO',col:'#9ef58a'},
+    {k:0,label:'SOLO',col:'#C9A24A'},
     {k:1,label:'WITH',col:'#ffb86a'},
     {k:2,label:'CO-OP',col:'#7ad8ff'},
   ];

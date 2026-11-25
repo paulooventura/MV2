@@ -28,7 +28,7 @@
   const isPhone=()=>document.documentElement.classList.contains('phone-play');
 
   const CSS=`
-  html.mv-tv-on body{background:radial-gradient(ellipse 60% 50% at 50% 45%, rgb(var(--tvglow,90 70 160) / .14), transparent 72%), #04020a;}
+  html.mv-tv-on body{background:radial-gradient(ellipse 60% 50% at 50% 45%, rgb(var(--tvglow,201 162 74) / .12), transparent 72%), #1E1B27;}
   .mv-room{position:relative;width:min(100%,1100px,calc((100vh - 24px) * 1.3));margin:4px auto 0;display:flex;flex-direction:column;align-items:center;}
   .mv-screen{position:relative;width:100%;overflow:hidden;background:#000;line-height:0;}
   html.mv-tv-on .mv-screen{border-radius:4%/5.3%;box-shadow:0 0 0 2px #000, 0 0 70px 4px rgb(var(--tvglow,90 70 160) / .22);}

@@ -41,7 +41,15 @@
   // T425 (Paulo, Nov 11): every boot starts the same way, and a filter picked in Options lasts for that
   // session only. He first asked for Ink & Vinyl on every boot (build 382), then the same day: no filter.
   // ?console= still wins (labs, QA). Selftest stays clean.
-  let mode=(()=>{ if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off'; if(qs&&(MODES[qs]||plain(qs)||qs==='gore')) return qs; return 'off'; })();   // Paulo, Nov 11 (later the same day): the game starts with no filter (was 'ink', T425)
+  let mode=(()=>{
+    if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off';
+    if(qs&&(MODES[qs]||plain(qs)||qs==='gore')) return qs;
+    try{
+      const v=localStorage.getItem('mv2.console');
+      if(v&&(MODES[v]||plain(v)||v==='gore')) return v;
+    }catch(e){}
+    return 'ink';   // T580 sell path: Ink & Vinyl dialect on by default
+  })();
   const listeners=[];
   const api={
     get mode(){ return mode; },

@@ -458,7 +458,7 @@ function _pauseInput(){
   }
 }
 function drawPauseMenu(){
-  ctx.fillStyle='rgba(4,2,10,0.6)'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(30,27,39,0.68)'; ctx.fillRect(0,0,W,H);
   const items=_pauseItems();
   const pw=Math.min(460, uiLayout().panelW), rowH=52, ph=136+items.length*rowH, px=W/2-pw/2, py=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph/2));
   uiPanel(px,py,pw,ph,{r:20});
@@ -1457,7 +1457,7 @@ function drawLaitu(){
 
 function _drawZoneCutArt(pageIdx){ const page=ZONE_CUT_ART[pageIdx],art=_zoneCutImgs[pageIdx]; ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H); _drawCoverArt(art,_zoneCutQ,pageIdx); _drawLorePanel({title:page.title,col:'#8ee6ff',lines:page.lines},_cutsceneFr,{showPrompt:false}); }
 function drawSonataMap(){
-  ctx.fillStyle='#04020a';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#1E1B27';ctx.fillRect(0,0,W,H);
   _drawFullCoverArt(MAP_ART)||_mapCoverRect();
   uiPanel(uiLayout().panelX,10,uiLayout().panelW,70,{r:16,alpha:0.85});uiLogo('SONNATA',W/2,12,30,{sweep:360});drawTextC('GLOWING SEEDS',W/2,52,'#d8ffc8',2);
   uiPanel(W/2-260,H-44,520,36,{r:18,alpha:0.85});

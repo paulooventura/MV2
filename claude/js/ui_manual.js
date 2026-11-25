@@ -20,7 +20,7 @@
   const ready=im=>im&&im.complete&&im.naturalWidth>0;
   const HEAD=()=>fontsOk?'"MV Booklet Head", "Arial Black", sans-serif':'"Arial Black", Impact, sans-serif';
   const BODY=()=>fontsOk?'"MV Booklet Body", "Trebuchet MS", sans-serif':'"Trebuchet MS", Arial, sans-serif';
-  const WASHI='#e9d8c3', SUMI='#14110e', SEAL='#b4332c', INDIGO='#243e66', MOSS='#2a4636', GOLD='#8d6a32';
+  const WASHI='#EFE6D2', SUMI='#1C1A19', SEAL='#D9472B', INDIGO='#23466B', MOSS='#2a4636', GOLD='#C9A24A';
   const PAPER=WASHI, INK=SUMI, RED=SEAL, BLUE=INDIGO;
 
   const S={page:0, from:0, t:1, back:'options'};
@@ -197,8 +197,8 @@
       framed(img('title','assets/story/title-frame-00.png?v=215'),x+28,y+120,w-56,h-260,{sy:0,sh:700,sx:150,sw:1236});
       ctx.save(); ctx.fillStyle=RED; ctx.fillRect(x,y,w,96); ctx.fillStyle=GOLD; ctx.fillRect(x,y+96,w,6); ctx.restore();
       label('INSTRUCTION BOOKLET',x+w/2,y+18,22,'#fff8e6','center');
-      if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#b8f5a0',sweep:9999});
-      fitLabel('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,w-40,16,'#9ef58a','center');
+      if(typeof uiLogo==='function') uiLogo('MIND & VENTURE',x+w/2,y+44,40,{col:'#C9A24A',sweep:9999});
+      fitLabel('BETA VERSION - BUILD '+(window.MV_BUILD||'?')+' - AWDJOO TOWN DEMO',x+w/2,y+h-128,w-40,16,'#C9A24A','center');
       mmrSeal(x+w-64,y+h-64,72);   // clear of the build line above (92 px at -78 covered its last word)
       label('AN M.M.R. GAME',x+30,y+h-62,16,'#c8b8ff');
     },

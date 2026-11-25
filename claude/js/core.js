@@ -156,9 +156,10 @@ let _uiFontReady=false;
 const _uiTwCache=new Map();
 function _uiPx(scl){ return scl>=2?Math.round(11.5*scl):15; }
 function _uiFontSpec(scl){ return _uiPx(scl)+'px "MV Pixel", monospace'; }
-// the menu palette → the title's phosphor greens (HUD colours like HP red stay)
-const UI_RECOLOR={'#ffe39a':'#e6ffb8','#c8b8ff':'#8fd78a','#8a7ab8':'#4f8a56','#e8dcff':'#c8f0b8','#9c8cc8':'#6fa874',
-  '#ece4ff':'#d8f8c8','#ffffff':'#f2ffe8','#fff':'#f2ffe8','#5a4a88':'#35603c','#c8a8ff':'#a8e8a0','#b8a8e8':'#90d090'};
+// menu text → washi / gold (T580 mv2); HUD gameplay colours stay
+const UI_RECOLOR={'#ffe39a':'#C9A24A','#c8b8ff':'#B9B3A8','#8a7ab8':'#8C8580','#e8dcff':'#EFE6D2','#9c8cc8':'#B9B3A8',
+  '#ece4ff':'#EFE6D2','#ffffff':'#EFE6D2','#fff':'#EFE6D2','#5a4a88':'#23466B','#c8a8ff':'#E6CFAB','#b8a8e8':'#C9A24A',
+  '#d8ffc8':'#E6CFAB','#f2ffe8':'#EFE6D2','#b8f5a0':'#C9A24A','#9ef58a':'#C9A24A'};
 function _uiCol(col){ return (typeof col==='string'&&UI_RECOLOR[col.toLowerCase()])||col; }
 function _uiRGB(col){
   if(typeof col!=='string') return null;
@@ -212,7 +213,7 @@ function _drawText16On(ctx,s,x,y,col,scl){
   ctx.save();
   ctx.font=_uiFontSpec(scl); ctx.textBaseline='alphabetic'; ctx.textAlign='left'; ctx.lineJoin='miter';
   const a=ctx.globalAlpha;
-  const dark=rgb?_uiMix(rgb,[2,8,4],0.9):'#020804';
+  const dark=rgb?_uiMix(rgb,[28,26,25],0.92):'#1C1A19';
   // a hard dark outline (pixel art outline), then the phosphor glow, then the letters thickened
   ctx.globalAlpha=a*0.9; ctx.lineWidth=bold*2+(scl>=2?Math.max(2,scl*0.75):2); ctx.strokeStyle=dark; ctx.strokeText(s,x,base);
   ctx.fillStyle=dark; ctx.fillText(s,x+Math.max(1,scl*0.6),base+Math.max(1,scl*0.6));
@@ -236,26 +237,26 @@ function uiRound(x,y,w,h,r){                      // a chamfered (pixel) box; r 
 }
 function uiPanel(x,y,w,h,opts={}){
   const r=Math.min(opts.r!=null?opts.r:8,8)*0.75, sel=!!opts.sel, dim=!!opts.locked;
-  const edge=dim?'#2f4a34':sel?'#c8f59a':(opts.accent?_uiCol(opts.accent):'#4f9a5a');
+  const edge=dim?'#5c554d':sel?'#C9A24A':(opts.accent?_uiCol(opts.accent):'#8C8580');
   ctx.save();
   if(!opts.flat){ ctx.fillStyle='rgba(0,0,0,0.5)'; uiRound(x+4,y+5,w,h,r); ctx.fill(); }
   const al=opts.alpha||0.92;
   const g=ctx.createLinearGradient(0,y,0,y+h);
-  if(sel){ g.addColorStop(0,'rgba(36,70,40,0.96)'); g.addColorStop(1,'rgba(10,26,14,0.96)'); }
-  else{ g.addColorStop(0,'rgba(14,30,20,'+al+')'); g.addColorStop(1,'rgba(4,12,8,'+al+')'); }
+  if(sel){ g.addColorStop(0,'rgba(56,42,24,0.96)'); g.addColorStop(1,'rgba(28,26,25,0.96)'); }
+  else{ g.addColorStop(0,'rgba(30,27,39,'+al+')'); g.addColorStop(1,'rgba(28,26,25,'+al+')'); }
   uiRound(x,y,w,h,r); ctx.fillStyle=g; ctx.fill();
   // faint CRT scanlines inside
   ctx.save(); uiRound(x,y,w,h,r); ctx.clip(); ctx.fillStyle='rgba(0,0,0,0.18)'; for(let yy=y+1;yy<y+h;yy+=3) ctx.fillRect(x,yy,w,1); ctx.restore();
   // the frame: a bright pixel line, a dark line inside it, a soft glow when selected
-  if(sel&&!dim){ ctx.shadowColor='rgba(170,240,120,0.7)'; ctx.shadowBlur=10; }
+  if(sel&&!dim){ ctx.shadowColor='rgba(201,162,74,0.55)'; ctx.shadowBlur=10; }
   ctx.lineWidth=2; ctx.strokeStyle=edge; uiRound(x+1,y+1,w-2,h-2,r); ctx.stroke();
   ctx.shadowBlur=0;
   ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.65)'; uiRound(x+3.5,y+3.5,w-7,h-7,Math.max(0,r-2)); ctx.stroke();
   // corner studs, like the art's sign frames
-  ctx.fillStyle=sel?'#e6ffb8':'#7fbf7a';
+  ctx.fillStyle=sel?'#C9A24A':'#B9B3A8';
   for(const [cx,cy] of [[x+4,y+4],[x+w-6,y+4],[x+4,y+h-6],[x+w-6,y+h-6]]) if(w>40&&h>30) ctx.fillRect(cx,cy,2,2);
   if(sel&&!dim){ const t=(fr%140)/140; const gx=x+t*(w+80)-40; const gl=ctx.createLinearGradient(gx-30,0,gx+30,0);
-    gl.addColorStop(0,'rgba(200,255,170,0)'); gl.addColorStop(0.5,'rgba(200,255,170,0.12)'); gl.addColorStop(1,'rgba(200,255,170,0)');
+    gl.addColorStop(0,'rgba(230,207,171,0)'); gl.addColorStop(0.5,'rgba(201,162,74,0.14)'); gl.addColorStop(1,'rgba(230,207,171,0)');
     ctx.save(); uiRound(x+2,y+2,w-4,h-4,r); ctx.clip(); ctx.fillStyle=gl; ctx.fillRect(x,y,w,h); ctx.restore(); }
   ctx.restore();
 }
@@ -277,16 +278,16 @@ function uiBar(x,y,w,h,frac,colA,colB,segs=0,opts={}){
   // pixel cells: thin dark dividers every few px (and the bigger segments on top)
   ctx.fillStyle='rgba(0,0,0,0.22)'; const cell=Math.max(4,Math.round(h*0.9)); for(let xx=x+cell;xx<x+w;xx+=cell) ctx.fillRect(xx,y,1,h);
   if(segs>1){ ctx.fillStyle='rgba(2,6,4,0.75)'; for(let i=1;i<segs;i++) ctx.fillRect(Math.round(x+w*i/segs),y,2,h); }
-  ctx.lineWidth=1; ctx.strokeStyle='rgba(143,215,138,0.35)'; ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);
+  ctx.lineWidth=1; ctx.strokeStyle='rgba(201,162,74,0.35)'; ctx.strokeRect(x-1.5,y-1.5,w+3,h+3);
   ctx.restore();
 }
 function uiPill(x,y,w,h,opts={}){
   ctx.save();
-  const on=!!opts.on, col=opts.col||'#8fd78a';
+  const on=!!opts.on, col=opts.col||'#C9A24A';
   const g=ctx.createLinearGradient(0,y,0,y+h);
-  g.addColorStop(0,on?'rgba(34,64,40,0.95)':'rgba(12,24,16,0.85)'); g.addColorStop(1,on?'rgba(10,26,14,0.95)':'rgba(4,10,6,0.85)');
+  g.addColorStop(0,on?'rgba(56,42,24,0.95)':'rgba(30,27,39,0.85)'); g.addColorStop(1,on?'rgba(28,26,25,0.95)':'rgba(28,26,25,0.85)');
   uiRound(x,y,w,h,6); ctx.fillStyle=g; ctx.fill();
-  ctx.lineWidth=on?2:1; ctx.strokeStyle=on?col:'rgba(110,170,110,0.45)'; uiRound(x+0.5,y+0.5,w-1,h-1,6); ctx.stroke();
+  ctx.lineWidth=on?2:1; ctx.strokeStyle=on?col:'rgba(185,179,168,0.45)'; uiRound(x+0.5,y+0.5,w-1,h-1,6); ctx.stroke();
   if(on){ ctx.shadowColor=col; ctx.shadowBlur=10; ctx.strokeStyle=col; ctx.globalAlpha=0.5; uiRound(x+0.5,y+0.5,w-1,h-1,6); ctx.stroke(); }
   ctx.restore();
 }
@@ -295,7 +296,7 @@ function uiPill(x,y,w,h,opts={}){
 // letters in phosphor green (or opts.col), a dark pixel extrusion, a hard
 // outline, a wide glow and a slow scan of light across them.
 function uiLogo(text,cx,y,px,opts={}){
-  const col=opts.col||'#b8f5a0', track=opts.track!=null?opts.track:px*0.04;
+  const col=opts.col||'#C9A24A', track=opts.track!=null?opts.track:px*0.04;
   if(_uiFontReady&&_uiPlainXf()){
     const e=_uiSprGet('l|'+px+'|'+col+'|'+track+'|'+text,()=>{
       const P=Math.ceil(px*1.2)+8;
@@ -336,20 +337,20 @@ function _uiLogoOn(ctx,text,cx,y,px,opts,sweep){
   _uiLogoFont(ctx,px,opts);
   const base=y+px*0.8, top=base-px*0.72, bold=sz*0.012;
   const w=ctx.measureText(text).width;
-  const col=opts.col||'#b8f5a0', rgb=_uiRGB(col)||[184,245,160];
+  const col=opts.col||'#C9A24A', rgb=_uiRGB(col)||[201,162,74];
   const deep=_uiMix(rgb,[0,0,0],0.82), mid=_uiMix(rgb,[0,0,0],0.55);
   // depth: a stepped pixel extrusion down-right
   const dep=Math.max(2,Math.round(px*0.07));
   ctx.lineJoin='miter'; ctx.lineWidth=bold*2;
   for(let i=dep;i>0;i--){ ctx.fillStyle=i===1?mid:deep; ctx.strokeStyle=ctx.fillStyle; ctx.strokeText(text,cx+i,base+i); ctx.fillText(text,cx+i,base+i); }
-  ctx.lineWidth=bold*2+Math.max(3,px*0.07); ctx.strokeStyle='#020a04'; ctx.strokeText(text,cx,base);
+  ctx.lineWidth=bold*2+Math.max(3,px*0.07); ctx.strokeStyle='#1C1A19'; ctx.strokeText(text,cx,base);
   const g=ctx.createLinearGradient(0,top,0,base);
-  g.addColorStop(0,_uiMix(rgb,[255,255,255],0.55)); g.addColorStop(0.5,col); g.addColorStop(1,_uiMix(rgb,[0,40,0],0.25));
+  g.addColorStop(0,_uiMix(rgb,[255,255,255],0.55)); g.addColorStop(0.5,col); g.addColorStop(1,_uiMix(rgb,[40,30,10],0.25));
   ctx.shadowColor='rgba('+rgb.join(',')+',0.85)'; ctx.shadowBlur=px*0.45;
   ctx.fillStyle=g; ctx.strokeStyle=g; ctx.lineWidth=bold*2; ctx.strokeText(text,cx,base); ctx.fillText(text,cx,base);
   ctx.shadowBlur=0;
   // CRT scanlines across the letters
-  ctx.save(); ctx.globalCompositeOperation='source-atop'; ctx.fillStyle='rgba(0,30,0,0.22)';
+  ctx.save(); ctx.globalCompositeOperation='source-atop'; ctx.fillStyle='rgba(28,26,25,0.18)';
   for(let yy=Math.floor(top-px*0.1);yy<base+px*0.1;yy+=3) ctx.fillRect(cx-w/2-px,yy,w+px*2,1);
   ctx.restore();
   ctx.restore();

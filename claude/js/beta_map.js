@@ -16,14 +16,13 @@
   'use strict';
   var VW = 1024, VH = 768;
 
-  // Washi paper, sumi ink and coloured-pencil hues, matched to the live
-  // print palette in claude/js/ink_vinyl.js (PAPER #E9D8C3 / SUMI #0B0D0F).
+  // Washi / sumi — Monika palette.json mv2 alias (T580, ink_vinyl.js).
   var P = {
-    paper: '#E9D8C3', paperLite: '#F4E9D8', paperDark: '#DCC6A9',
-    sumi: '#0B0D0F', sumiSoft: '#3A3732', subInk: 'rgba(11,13,15,0.45)',
+    paper: '#EFE6D2', paperLite: '#F5F0E4', paperDark: '#E6CFAB',
+    sumi: '#1C1A19', sumiSoft: '#8C8580', subInk: 'rgba(28,26,25,0.45)',
     green: '#7C9B6B', greenD: '#55734F',
-    indigo: '#6C638C', rose: '#B97C6A',
-    cyan: '#4FB8C8', gold: '#D8A828', red: '#B2403A'
+    indigo: '#23466B', rose: '#B97C6A',
+    cyan: '#4FB8C8', gold: '#C9A24A', red: '#D9472B'
   };
 
   var STAGES = [
