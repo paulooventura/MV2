@@ -723,7 +723,7 @@ const STORY_ART_Q=[];
 const TITLE_FRAME_N=12;
 let TITLE_FRAMES=null;
 let _titleAnimReady=false, _titleStaticReady=false;
-const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/ui/title-home.jpg?v=297'; return im; })();   // home screen: the speaker on a wheel, one print of every sheet
+const TITLE_STATIC=(()=>{ const im=new Image(); im.onload=()=>{_titleStaticReady=true;}; im.onerror=()=>{console.warn('title art failed');}; im.src='assets/ui/title-capsule.jpg?v=445'; return im; })();   // home screen (Paulo, Nov 27 2026): the store key art, both robots, gold MIND & VENTURE 2 (scripts/make_title_capsule.py). title-home.jpg (the speaker on a wheel) stays in assets/ui/
 if(TITLE_STATIC.complete&&TITLE_STATIC.naturalWidth) _titleStaticReady=true;
 function _titleArtMap(){
   const im=TITLE_STATIC;
@@ -1466,7 +1466,8 @@ function _titleArtCursor(map,sx,sy){
 // painted into the art. LOCAL PLAY / CREATIVE MODE were removed from the title.
 function _drawTitleMenuOverArt(map){
   const rows=_titleMenuGeom(); if(!rows.length) return;
-  const k=Math.min(1,Math.max(0,(_titleT-20)/30)), s=map.s;
+  // menu scale follows the screen, not the art's pixel size (the 2048 key art would shrink it)
+  const k=Math.min(1,Math.max(0,(_titleT-20)/30)), s=map.im.naturalWidth===1536?map.s:Math.max(W/1152,H/864);
   const px=rows[0].x, py=rows[0].y-8*s, pw=rows[0].w, ph=rows[rows.length-1].y+rows[rows.length-1].h-rows[0].y+44*s;
   ctx.save(); ctx.globalAlpha=k;
   const g=ctx.createLinearGradient(0,py,0,py+ph); g.addColorStop(0,'rgba(4,16,8,0.0)'); g.addColorStop(0.12,'rgba(4,16,8,0.9)'); g.addColorStop(0.88,'rgba(4,16,8,0.9)'); g.addColorStop(1,'rgba(4,16,8,0.0)');

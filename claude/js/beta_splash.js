@@ -10,10 +10,14 @@
   // T576: story slideshow between the logos and the title. Off for tests (webdriver / ci), ?story=0,
   // and on repeat boots once seen (localStorage). ?story=1 forces it.
   const SEEN_KEY='mv_story_intro_seen';
+  // Paulo (Nov 27 2026): skipped until the 9 slides' art exists. The code stays; flip STORY_ON
+  // (or add the art and set it true) to bring it back. ?story=1 still shows it for a check.
+  const STORY_ON=false;
   function storyWanted(){
     const q=location.search||'';
     if(/[?&]story=0/.test(q)) return false;
     if(/[?&]story=1/.test(q)) return true;
+    if(!STORY_ON) return false;
     if(navigator.webdriver) return false;
     try{ if(localStorage.getItem(SEEN_KEY)==='1') return false; }catch(e){}
     return true;
