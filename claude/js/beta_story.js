@@ -154,6 +154,14 @@
     if(pick.erase===pick.idx){ s[pick.idx]=null; writeSlots(s); if(B.storySlot===pick.idx) B.storySlot=null; pick.erase=-1; try{ sfx('omniblock_chip'); }catch(e){} }
     else { pick.erase=pick.idx; try{ sfx('menu'); }catch(e){} }
   }
+  // Paulo 2026-11-27: Back on a filled file asks to erase (same as Y); empty / BACK row still leaves
+  function backKey(){
+    if(!pick) return;
+    if(pick.idx>=N){ close(); MV_TIMELINE_BACK_TO_STORY(); return; }
+    const s=slots()[pick.idx];
+    if(s){ eraseKey(); return; }
+    close(); MV_TIMELINE_BACK_TO_STORY();
+  }
   const move=d=>{ pick.idx=(pick.idx+d+ROWS)%ROWS; pick.erase=-1; pick.ti=-1; pick.over=-1; try{ sfx('menu'); }catch(e){} };
   // Left / Right walk through a file's timeline states (newest at -1 = the latest save, then Savrah's saves back in time)
   function stepState(d){
@@ -202,7 +210,7 @@
     else if(c==='ArrowRight'||c==='KeyD') stepState(-1);
     else if(c==='KeyC') copyKey();
     else if(c==='KeyV') pasteKey();
-    else if(c==='Escape'||c==='Backspace'||c==='KeyE'){ close(); MV_TIMELINE_BACK_TO_STORY(); }
+    else if(c==='Escape'||c==='Backspace'||c==='KeyE') backKey();
     else used=false;
     if(used){ e.preventDefault(); e.stopImmediatePropagation(); }
   },true);
@@ -227,7 +235,7 @@
     pick.ka=a; pick.kd=d;
     if(pick.msgT>0) pick.msgT--;
     pick.kw=w; pick.ks=s; pick.kf=f;
-    if(Kj['Escape']){ delete Kj['Escape']; close(); MV_TIMELINE_BACK_TO_STORY(); return; }
+    if(Kj['Escape']){ delete Kj['Escape']; backKey(); return; }
     if(Kj['Space']||Kj['Enter']){ delete Kj['Space']; delete Kj['Enter']; if(pick.t>8) choose(); }   // pad A
   }
   function ago(t){ const m=Math.round((Date.now()-t)/60000); if(m<1) return 'JUST NOW'; if(m<60) return m+' MIN AGO'; const h=Math.round(m/60); if(h<48) return h+' H AGO'; return Math.round(h/24)+' DAYS AGO'; }
@@ -265,7 +273,7 @@
       drawText('FILE '+(i+1),X,y-8,sel?'#ffe39a':'#d8ffc8',3);
       if(s){
         drawText((NAMES[s.stageId]||('STAGE '+s.stageId))+'  '+ago(s.t||Date.now()),X+150,y-8,sel?'#ffffff':'#d8ffc8',2);
-        drawText(pick.erase===i?'PRESS Y AGAIN TO ERASE':summary(s),X,y+20,pick.erase===i?'#ff6a7a':'#7dffcf',2);
+        drawText(pick.erase===i?'PRESS Y OR B AGAIN TO ERASE':summary(s),X,y+20,pick.erase===i?'#ff6a7a':'#7dffcf',2);
         const tl=Array.isArray(s.timeline)?s.timeline:[], n=tl.length;
         if(sel||n){
           let line=n+(n===1?' TIMELINE STATE':' TIMELINE STATES');
