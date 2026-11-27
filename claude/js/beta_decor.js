@@ -1114,23 +1114,40 @@
     for(let i=0;i<9;i++){ const vx=x0+30+i*82+((i*37)%23), len=40+((i*53)%70), sway=Math.sin(fr*0.03+i)*S(2);              // ivy down the wall
       for(let k=0;k<len;k+=8){ ctx.fillStyle=k%16?'#2a5a34':'#3a7a44'; ctx.fillRect(X(vx)+sway*(k/len),Y(top+12+k),S(4),S(6)); } }
   }
+  // Paulo (2026-11-27): 1.2 town = one far plate (houses + road + cars). Shared
+  // parallax so traffic never floats in empty air. 0.72 = readable depth vs playfield.
+  const TOWN_PX=0.72;
+  function townParallaxX(d){
+    const mid=d.x+Math.min(d.w||700,700)*0.5;
+    return (camX+W/2-mid)*(1-TOWN_PX);
+  }
+  // asphalt + curb on the terrace coping — the only surface cars may drive on
+  function townStreet(d){
+    const G=d.y+d.h, x0=d.x-20, w=740, roadH=28;
+    rect(x0,G-2,w,roadH,'#1a141c');
+    rect(x0,G-2,w,4,'#2e2832');
+    rect(x0,G+roadH-5,w,5,'#121018');
+    for(let xx=x0+30; xx<x0+w-20; xx+=54) rect(xx,G+10,28,3,'rgba(220,190,120,0.35)');
+    rect(x0,G-6,w,5,'#4a3a52');
+  }
   function bgTown(d){
     if(!inView(d.x-100,d.y-120,d.w+200,Math.max(d.h,townFloor(d)-d.y)+140)) return;
     terrace(d);
     const x=d.x, y=d.y, G=d.y+d.h;                      // G: the terrace's top (terrace() fills down to the ground)
     const far='#4a2c48', farD='#382038', mid='#5e3a52', midD='#46293e', near='#6e4658', nearD='#523244';
     const roofC='#7a3a3a', roofHi='#b86a5a', roofD='#3a1a22';
+    const foot=G-2;                                     // stop above the street so the road plate reads
     // house 1: tall, gabled (left)
-    rect(x+0,y+70,190,G-(y+70),far);
+    rect(x+0,y+70,190,foot-(y+70),far);
     poly([[x-12,y+74],[x+95,y-10],[x+202,y+74]],roofD); scaleRoof(x-6,y+70,x+95,y-4,5,roofC,roofHi,roofD); scaleRoof(x+95,y-4,x+196,y+70,0,roofC,roofHi,roofD);
     chimney(x+140,y+0,y+60);
     litWindow(x+30,y+110,30,40,0.7,false); litWindow(x+120,y+110,30,40,2.4,true); litWindow(x+30,y+190,30,40,1.1,false); litWindow(x+120,y+190,30,40,3.0,false);
     // house 2: gabled, in front, lower
-    rect(x+130,y+230,180,G-(y+230),mid); rect(x+130,y+230,4,G-(y+230),midD);
+    rect(x+130,y+230,180,foot-(y+230),mid); rect(x+130,y+230,4,foot-(y+230),midD);
     poly([[x+118,y+236],[x+220,y+156],[x+322,y+236]],roofD); scaleRoof(x+124,y+232,x+220,y+160,4,roofC,roofHi,roofD); scaleRoof(x+220,y+160,x+316,y+232,0,roofC,roofHi,roofD);
     litWindow(x+160,y+262,34,44,1.7,true); litWindow(x+250,y+262,34,44,0.2,false);
     // house 3: wide, with a door and someone waving in it
-    rect(x+290,y+170,210,G-(y+170),near); rect(x+290,y+170,4,G-(y+170),nearD);
+    rect(x+290,y+170,210,foot-(y+170),near); rect(x+290,y+170,4,foot-(y+170),nearD);
     scaleRoof(x+278,y+150,x+512,y+150,2,roofC,roofHi,roofD); rect(x+276,y+172,238,5,roofD);
     litWindow(x+310,y+200,40,48,2.9,false); litWindow(x+440,y+200,40,48,0.9,false);
     const dx=x+372, dy=y+272;                            // the door, open, warm light
@@ -1140,14 +1157,16 @@
     ctx.fillRect(X(dx+15),Y(dy+33),S(18),S(40));
     ctx.strokeStyle='#3a2030'; ctx.lineWidth=S(4); ctx.beginPath(); ctx.moveTo(X(dx+30),Y(dy+38)); ctx.lineTo(X(dx+30+Math.cos(-1.1+wave)*16),Y(dy+38+Math.sin(-1.1+wave)*16)); ctx.stroke();
     glow(dx+24,dy+40,90,0.18);
-    // kids playing in front of house 2 (little bouncing figures)
-    for(const [kx,ph] of [[x+200,0],[x+240,1.6]]){ const hop=Math.abs(Math.sin(fr*0.09+ph))*10;
-      ctx.fillStyle='#3a2030'; ctx.beginPath(); ctx.arc(X(kx),Y(y+330-hop),S(6),0,Math.PI*2); ctx.fill(); ctx.fillRect(X(kx-5),Y(y+336-hop),S(10),S(18)); }
+    // kids on the sidewalk (above the curb), not mid-air
+    for(const [kx,ph] of [[x+200,0],[x+240,1.6]]){ const hop=Math.abs(Math.sin(fr*0.09+ph))*8;
+      const ky=G-14-hop;
+      ctx.fillStyle='#3a2030'; ctx.beginPath(); ctx.arc(X(kx),Y(ky-12),S(6),0,Math.PI*2); ctx.fill(); ctx.fillRect(X(kx-5),Y(ky-6),S(10),S(14)); }
     // a pole by the slope, the bunting strung from the roofs to it
-    rect(x+690,y+240,6,G-(y+240),'#3a2418'); rect(x+684,y+236,18,6,'#5a3424');
+    rect(x+690,y+240,6,foot-(y+240),'#3a2418'); rect(x+684,y+236,18,6,'#5a3424');
     bunting(x+500,y+160,x+693,y+246,40,10,0.3);
     bunting(x+316,y+236,x+693,y+290,60,14,1.1);
     bunting(x+190,y+80,x+500,y+160,30,10,2.2);
+    townStreet(d);
   }
 
   // ── 1.2 (Oct 21 sheet): inside the roof-tile house, its porch, and the city building ──
@@ -1259,22 +1278,28 @@
       ctx.fillRect(x+S(0.5),y-S(4)-Math.sin(ph)*S(2),S(2.5),S(5));
     }
   }
-  // 1.2: a little traffic on the main district's street, behind the houses
+  // 1.2: traffic on the painted street only (wheels on asphalt). Same parallax plate as houses.
   function townTraffic(d){
     if(!inView(d.x-100,d.y-120,d.w+200,Math.max(d.h,townFloor(d)-d.y)+140)) return;
-    const G=d.y+d.h;
-    for(let i=0;i<4;i++){
-      const span=780, t=((fr*(0.32+i*0.11)+hash(i,83)*span)%span+span)%span;
-      const wx=d.x+40+t, wy=G-S(10), dir=i%2?1:-1;
-      if(!inView(wx-S(24),wy-S(18),S(48),S(26))) continue;
+    const G=d.y+d.h, roadY=G+12;
+    for(let i=0;i<3;i++){
+      const span=720, t=((fr*(0.28+i*0.1)+hash(i,83)*span)%span+span)%span;
+      const wx=d.x+50+t, dir=i%2?1:-1, wy=roadY;
+      if(!inView(wx-24,wy-18,48,26)) continue;
       const x=X(wx), y=Y(wy);
-      ctx.fillStyle='rgba(20,12,20,0.35)'; ctx.fillRect(x-S(17),y+S(5),S(34),S(2));
-      ctx.fillStyle=i%2?'#b85048':'#46809c'; ctx.fillRect(x-S(16),y-S(8),S(32),S(11));
-      ctx.fillStyle='#38242e'; ctx.fillRect(x-S(9),y-S(12),S(18),S(5));
-      ctx.fillStyle='rgba(210,240,255,0.55)'; ctx.fillRect(x-S(7),y-S(11),S(14),S(3));
-      ctx.fillStyle='#ffe6a0'; ctx.fillRect(x+dir*S(12),y-S(3),S(3),S(3));
-      ctx.fillStyle='#161018'; ctx.fillRect(x-S(11),y+S(2),S(5),S(4)); ctx.fillRect(x+S(6),y+S(2),S(5),S(4));
+      ctx.fillStyle='rgba(10,6,12,0.45)'; ctx.fillRect(x-S(15),y+S(6),S(30),S(3));
+      ctx.fillStyle=i%2?'#b85048':'#46809c'; ctx.fillRect(x-S(14),y-S(6),S(28),S(10));
+      ctx.fillStyle='#38242e'; ctx.fillRect(x-S(8),y-S(10),S(16),S(4));
+      ctx.fillStyle='rgba(210,240,255,0.55)'; ctx.fillRect(x-S(6),y-S(9),S(12),S(2.5));
+      ctx.fillStyle='#ffe6a0'; ctx.fillRect(x+dir*S(11),y-S(2),S(3),S(2.5));
+      ctx.fillStyle='#161018'; ctx.fillRect(x-S(10),y+S(3),S(5),S(3.5)); ctx.fillRect(x+S(5),y+S(3),S(5),S(3.5));
     }
+  }
+  function drawTownPlate(d){
+    const ox=townParallaxX(d);
+    ctx.save(); ctx.translate(ox,0);
+    bgTown(d); townTraffic(d);
+    ctx.restore();
   }
   // 1.3: high up in the busy sky, a few distant drones with blinking lamps
   function techTraffic(B){
@@ -1386,7 +1411,7 @@
       else if(s>=10&&window.MV_CITY) MV_CITY.air(c,r,s);            // 1.3: inside the towers (beta_city.js)
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
-    for(const d of B.decor){ if(d.kind==='town'){ bgTown(d); townTraffic(d); } else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
+    for(const d of B.decor){ if(d.kind==='town'){ drawTownPlate(d); } else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
     // Paulo, Nov 13: "that chimney on top of our house looks like it's floating". It goes down to the roof under it now
     // (the deeper of its two edges, so the stepped roof never shows a gap under one side)
     for(const d of B.decor) if(d.kind==='chimney'){
