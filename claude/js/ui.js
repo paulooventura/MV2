@@ -152,11 +152,11 @@ function _goreFeed(dir){
 }
 function _filterName(){
   const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
-  if(m==='md') return 'B';
-  if(m==='snes') return 'A';
+  if(m==='snes') return 'A  SNES';
+  if(m==='md') return 'B  MEGA DRIVE';
   if(m==='ink') return 'D  INK & VINYL';
   if(m==='gore') return 'GORE';
-  return 'NONE';
+  return 'C  POSH';
 }
 function _sfxPackName(){
   const n=window.MV_SFX?MV_SFX.current:null;
@@ -170,7 +170,7 @@ let _playModeIdx=0;
 // T137 (store gate A): the Steam build (served from app://) does not show the 2P ONLINE "coming soon"
 // card: it has 3 modes, the web build keeps all 4. ?store=1 shows the store menu in a browser.
 const MV_STORE_BUILD=(()=>{ try{ return location.protocol==='app:'||/[?&]store=1\b/.test(location.search); }catch(e){ return false; } })();
-const MV_MODE_N=MV_STORE_BUILD?3:4;
+const MV_MODE_N=4;   // Nov 26 2026: online co-op is real (mv2_net.js room codes) and works on app:// too, so the store build shows 2P ONLINE again
 
 const GAME_BEATEN_KEY='mv_game_beaten';
 const CUSTOM_STAGES_KEY='mv_custom_stages';
@@ -439,8 +439,8 @@ function _titleMenuClick(e){
   if(!c) return;
   const rect=c.getBoundingClientRect();
   if(!rect.width||!rect.height) return;
-  const mx=(e.clientX-rect.left)*(1024/rect.width);
-  const my=(e.clientY-rect.top)*(768/rect.height);
+  const mx=(e.clientX-rect.left)*(W/rect.width);
+  const my=(e.clientY-rect.top)*(H/rect.height);
   const rows=_titleMenuGeom();
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
@@ -507,8 +507,12 @@ const _optHasSpill=()=>_goreUnlocked();
 const _optTvRow=()=>_optHasSpill()?6:5;
 const _optHpRow=()=>_optTvRow()+1;
 const _optMuteRow=()=>_optTvRow()+2;
+// 2P local only: CONTROLS opens the setup picker (controls_setup.js) to swap keyboards / pads (Paulo, Nov 26)
+const _optHasCtrl=()=>typeof _playerCount!=='undefined'&&_playerCount===2&&!!window.MV_CONTROLS;
+const _optCtrlRow=()=>_optHasCtrl()?_optTvRow()+3:-1;
+function _optCtrlVal(){ const c=window.MV_CTRL||{p1:'L',p2:'R'}, s=x=>x==='L'?'LEFT KB':x==='R'?'RIGHT KB':'PAD '+(+String(x).slice(3)+1); return 'P1 '+s(c.p1)+'  P2 '+s(c.p2); }
 const _optInCoop=()=>{ try{ return typeof _coopPair==='function'&&!!_coopPair(); }catch(e){ return false; } };
-const _optB0=()=>_optTvRow()+3;                     // first P1 bind row
+const _optB0=()=>_optTvRow()+3+(_optHasCtrl()?1:0);                     // first P1 bind row
 const _optB1=()=>_optB0()+BIND_ORDER.length;         // first P2 bind row
 // T575: Spotify album link (Paulo 2026-11-20: the OST row opens the album, not the artist page).
 const OST_URL='https://open.spotify.com/album/0hJ0u7LB57kHrmOnU5CIG4?si=rV9GgmoLQ-yMihCiJ2l2Aw';
@@ -559,6 +563,7 @@ function _optionsInput(ev){
   if(_optRow===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
   if(_optRow===_optHpRow()&&(dec||inc||ev.confirm)){ if(!_optInCoop()){ OPT.headphones=!OPT.headphones; _saveOpts(); } return true; }
   if(_optRow===_optMuteRow()&&(dec||inc||ev.confirm)){ OPT.mutePartner=!OPT.mutePartner; _saveOpts(); return true; }
+  if(_optRow===_optCtrlRow()&&(dec||inc||ev.confirm)){ MV_CONTROLS.open(); return true; }
   if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
   if(_optRow===_optOstRow()&&ev.confirm){ _openOst(); return true; }
   if(_optRow>=_optB0()&&_optRow<_optOstRow()&&ev.confirm){
@@ -654,7 +659,7 @@ function startGame(){
   }else if(_gameState==='select'){
     if(_selectStep===0){
       // modes (Paulo, Oct 22): 0 SOLO · 1 WITH YOUR SIBLING (it shadows you) · 2 2P LOCAL · 3 2P ONLINE
-      if(_playModeIdx===3){uiShowToast('ONLINE CO-OP — COMING SOON');return;}
+      if(_playModeIdx===3){ if(window.MV_NET_UI) MV_NET_UI.open(); else uiShowToast('ONLINE PLAY DID NOT LOAD'); return; }   // mv2_net_ui.js: host / join a room
       _playerCount=_playModeIdx===2?2:1; if(_playModeIdx<2&&window.MV_SIBLING) MV_SIBLING.on=_playModeIdx===1;
       _selectStep=1; return;
     }
@@ -1011,6 +1016,7 @@ function drawOptions(){
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
     {label:'HEADPHONES',val:_optInCoop()?'ON (CO-OP)':(OPT.headphones?'ON':'OFF')},
     {label:"MUTE P2'S MUSIC",val:OPT.mutePartner?'ON':'OFF'}];
+  if(_optHasCtrl()) rows.push({label:'CONTROLS',val:_optCtrlVal(),rule:'PLAYERS'});
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,2),rule:i===0?'PLAYER 2 — ARROWS / NUM PAD':null}));
   rows.push({label:'THE MUSIC ON SPOTIFY',val:OST_URL?'OPEN':'SOON',rule:'MUSIC'});
@@ -1527,7 +1533,7 @@ function drawSelect(){
     const cx0=rowX+cardW/2,cx1=rowX+cardW+gap+cardW/2,cx2=rowX+(cardW+gap)*2+cardW/2;
     _drawCard(cx0,cardsY,cardW,cardH,m0,C.SKY_L,false,'1 PLAYER',['ALLY JOINS YOU','FULL STORY']);
     _drawCard(cx1,cardsY,cardW,cardH,m1,C.MINT,false,'2P LOCAL',['SPLIT KEYBOARD','P1 + P2']);
-    _drawCard(cx2,cardsY,cardW,cardH,m2,C.GREY_D,true,'2P ONLINE',['COMING SOON']);
+    _drawCard(cx2,cardsY,cardW,cardH,m2,C.GREY_D,true,'2P ONLINE',['ROOM CODE']);
   }else{
     const mSel=_heroChoice==='mind',vSel=_heroChoice==='venture';
     const cxM=rowX+cardW/2,cxV=rowX+cardW+gap+cardW/2;

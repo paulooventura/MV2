@@ -3555,7 +3555,9 @@ function _damageEnemy(e,dmg,fromX,fromY,kbScale){
     }
     if(e.mind&&!e._battleAi){
       e._shutCount=(e._shutCount||0)+1;
-      if(typeof _dropEnemyItems==='function') _dropEnemyItems(e);
+      // The mirror's crates stay on it through a reboot. They spawn only once
+      // the shutdown is permanent (third strike, or a short in the water).
+      if((!e.mirror||perm)&&typeof _dropEnemyItems==='function') _dropEnemyItems(e);
       if(e._shutCount>=SHUT_LIMIT) e._stayDown=true;
     }
     if(_battleTestMode&&e._battleAi) _onBattleRivalDefeated();

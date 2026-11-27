@@ -31,16 +31,67 @@ function _isP2Code(code){
   for(const a of BIND_ORDER) if((OPT.binds2[a]||[]).indexOf(code)>=0) return true;
   return false;
 }
+function _isP1Code(code){
+  if(typeof OPT==='undefined'||!OPT.binds) return false;
+  for(const a of BIND_ORDER) if((OPT.binds[a]||[]).indexOf(code)>=0) return true;
+  return false;
+}
 function _preventP2Scroll(code){
   if(code.indexOf('Arrow')===0||code.indexOf('Numpad')===0||code==='Space') return true;
   return false;
 }
+
+// ── Control setups (Paulo, Nov 26 2026, build 416) ─────────────
+// SOLO: every input drives the one hero: the left-keyboard set, the right-keyboard set (arrows +
+// numpad), any pad, touch, or a mix (a key from each side). 2P LOCAL: each player has one setup,
+// 'L' (left keyboard), 'R' (right keyboard) or 'pad<index>'; two players never share one. The
+// default P1 'L' / P2 'R' with no pad setup keeps the original routing exactly.
+// Saved in localStorage 'mv2.ctrl' ({p1,p2}); picked in controls_setup.js (MV_CONTROLS).
+const MV_CTRL=(()=>{ try{ const o=JSON.parse(localStorage.getItem('mv2.ctrl')||'null'); if(o&&o.p1&&o.p2&&o.p1!==o.p2) return o; }catch(e){} return {p1:'L',p2:'R'}; })();
+window.MV_CTRL=MV_CTRL;
+function _ctrlSave(){ try{ localStorage.setItem('mv2.ctrl',JSON.stringify({p1:MV_CTRL.p1,p2:MV_CTRL.p2})); }catch(e){} }
+window._ctrlSave=_ctrlSave;
+function _ctrlDefault(){ return MV_CTRL.p1==='L'&&MV_CTRL.p2==='R'; }
+/** Which player a keyboard side drives right now: 1, 2, or 0 (nobody). */
+function _sideOwner(side){
+  if(_playerCount!==2) return 1;                      // solo: both sides drive the hero
+  return MV_CTRL.p1===side?1:MV_CTRL.p2===side?2:0;
+}
+const KPHYS={};                                       // every bound key physically down
+function _actionOf(code,binds){ for(const a of BIND_ORDER) if((binds[a]||[]).indexOf(code)>=0) return a; return null; }
+/** Re-derive which bound codes each player is holding from the physical keys. */
+function _routeKeys(){
+  if(typeof OPT==='undefined'||!OPT.binds||!OPT.binds2) return;
+  const oL=_sideOwner('L'), oR=_sideOwner('R');
+  for(const a of BIND_ORDER){
+    const bl=OPT.binds[a]||[], br=OPT.binds2[a]||[];
+    const l=bl.some(c=>KPHYS[c]), r=br.some(c=>KPHYS[c]);
+    // P1 = K via OPT.binds codes, P2 = K2 via OPT.binds2 codes
+    bl.forEach((c,i)=>{ const want=(oL===1&&!!KPHYS[c])||(oR===1&&r&&i===0); if(want&&!KB1[c]) Kj[c]=true; if(want!==!!KB1[c]){ KB1[c]=want; K[c]=want; } });
+    br.forEach((c,i)=>{ const want=(oR===2&&!!KPHYS[c])||(oL===2&&l&&i===0); if(want&&!KB2[c]) Kj2[c]=true; if(want!==!!KB2[c]){ KB2[c]=want; K2[c]=want; } });
+  }
+  K['Space_kb']=!!KB1['Space'];
+}
+window._routeKeys=_routeKeys;
+function _isBoundCode(code){ return typeof OPT!=='undefined'&&!!(OPT.binds&&_actionOf(code,OPT.binds)||OPT.binds2&&_actionOf(code,OPT.binds2)); }
 
 window.addEventListener('keydown',e=>{
   if(_gameState==='game'&&!_audioUnlocked) _unlockAudio();
   if(_gameState==='title'||_gameState==='story'||_gameState==='select'||_gameState==='partysetup'||
      _gameState==='options'||_gameState==='levels'||_gameState==='stagedesign'||
      _gameState==='cutscene'||_gameState==='tutorial') return;
+  if(window.MV_CONTROLS&&MV_CONTROLS.isOpen&&MV_CONTROLS.isOpen()) return;
+  // Routed path: solo, or 2P with swapped / pad setups. Bound keys go through _routeKeys;
+  // in solo a right-side key also keeps its own K code (menus read Kj['ArrowUp'] etc.).
+  if(_isBoundCode(e.code)&&(_playerCount!==2||!_ctrlDefault())){
+    if(!e.repeat){ KPHYS[e.code]=true; _routeKeys(); }
+    if(_playerCount!==2&&!_isP1Code(e.code)){ if(!K[e.code]) Kj[e.code]=true; K[e.code]=true; }
+    if(e.code==='KeyE') K['KeyE_kb']=true;
+    if(e.code==='KeyQ') K['KeyQ_kb']=true;
+    if(e.code==='KeyF') K['KeyF_kb']=true;
+    if(_preventP2Scroll(e.code)) e.preventDefault();
+    return;
+  }
   if(_playerCount===2&&_isP2Code(e.code)){
     if(!KB2[e.code]) Kj2[e.code]=true;
     KB2[e.code]=true; K2[e.code]=true;
@@ -57,6 +108,14 @@ window.addEventListener('keydown',e=>{
   ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&e.preventDefault();
 });
 window.addEventListener('keyup',e=>{
+  if(KPHYS[e.code]){
+    KPHYS[e.code]=false; _routeKeys();
+    if(!_isP1Code(e.code)) K[e.code]=false;
+    if(e.code==='KeyE') K['KeyE_kb']=false;
+    if(e.code==='KeyQ') K['KeyQ_kb']=false;
+    if(e.code==='KeyF') K['KeyF_kb']=false;
+    return;
+  }
   if(_playerCount===2&&_isP2Code(e.code)){
     KB2[e.code]=false; K2[e.code]=false;
     if(_preventP2Scroll(e.code)) e.preventDefault();
@@ -329,6 +388,17 @@ function _padMeaningful(g){
   for(const i of GP_BTN){ const b=g.buttons&&g.buttons[i]; if(b&&(b.pressed===true||b.value>0.1)) return true; }
   return Math.abs((g.axes&&g.axes[0])||0)>0.5||Math.abs((g.axes&&g.axes[1])||0)>0.5;
 }
+/** Solo: several pads read as one: a button is down if it is down on any pad, each stick
+ *  axis takes the pad pushing it furthest. Its own slot ('solo') keeps the press edges. */
+const _MERGED={index:'solo',id:'merged',connected:true,buttons:[],axes:[]};
+function _mergePads(list){
+  let nb=0, na=0; for(const g of list){ nb=Math.max(nb,(g.buttons||[]).length); na=Math.max(na,(g.axes||[]).length); }
+  const B=_MERGED.buttons, A=_MERGED.axes; B.length=nb; A.length=na;
+  for(let i=0;i<nb;i++){ let p=false,v=0; for(const g of list){ const b=g.buttons&&g.buttons[i]; if(b){ if(b.pressed) p=true; if(b.value>v) v=b.value; } } B[i]={pressed:p,value:v}; }
+  for(let i=0;i<na;i++){ let best=0; for(const g of list){ const v=(g.axes&&g.axes[i])||0; if(Math.abs(v)>Math.abs(best)) best=v; } A[i]=best; }
+  _MERGED.id=list[0].id||'merged';
+  return _MERGED;
+}
 function _findPad(pads,idx){
   for(let i=0;i<pads.length;i++) if(pads[i]&&pads[i].index===idx) return pads[i];
   return null;
@@ -337,6 +407,25 @@ function readGamepad(){
   let pads;
   try{ pads=navigator.getGamepads?navigator.getGamepads():[]; }catch(e){ return; }
   if(!pads||!pads.length) return;
+  if(window.MV_CONTROLS&&MV_CONTROLS.isOpen&&MV_CONTROLS.isOpen()) return;   // the setup screen reads pads itself
+  // SOLO (build 416): every connected pad drives the hero at once, merged into one virtual pad.
+  if(_playerCount!==2&&_gameState!=='partysetup'){
+    const live=[]; for(let i=0;i<pads.length;i++){ const g=pads[i]; if(g&&g.connected) live.push(g); }
+    if(!live.length) return;
+    if(!GP.pad) GP.pad=live[0];
+    try{ _readPad1(live.length===1?live[0]:_mergePads(live)); }catch(err){ console.error('MV pad',err); }
+    return;
+  }
+  // 2P with a pad setup picked: each player reads exactly the pad they chose.
+  if(_playerCount===2&&(/^pad/.test(MV_CTRL.p1)||/^pad/.test(MV_CTRL.p2))){
+    for(const [pl,su] of [[1,MV_CTRL.p1],[2,MV_CTRL.p2]]){
+      if(!/^pad/.test(su)) continue;
+      const g=_findPad(pads,+su.slice(3)); if(!g||!g.connected) continue;
+      if(!GP.pad) GP.pad=g;
+      try{ if(pl===1) _readPad1(g); else _readPad2(g); }catch(err){ console.error('MV pad',err); }
+    }
+    return;
+  }
   // Claim once, on the very first pad with real input. Solo -> P1 regardless
   // of index; co-op -> the pad's slot (index 0 is P1's, anything else P2's).
   if(GP.owner==null){

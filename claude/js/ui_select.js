@@ -92,7 +92,12 @@
   }
   function hints(){
     const L=window.uiLayout?uiLayout():{oneCol:false};
-    const line=window.uiMenuHint?uiMenuHint('select'):'TAP TO PICK';
+    let line=window.uiMenuHint?uiMenuHint('select'):'TAP TO PICK';
+    if(_selectStep===1&&typeof _playModeIdx!=='undefined'&&_playModeIdx===3&&!onlineLinked()){
+      const pad=typeof _uiDev!=='undefined'&&(_uiDev==='pad'||_uiDev==='touch');
+      const ok=pad&&typeof uiActLabel==='function'?uiActLabel('jump'):'ENTER';
+      line=(typeof _uiDev!=='undefined'&&_uiDev==='touch')?'TAP ONLINE TO HOST OR JOIN':ok+'  HOST OR JOIN A ROOM';
+    }
     drawTextC(line,W/2,hintY(),'#d8ffc8',L.oneCol?2:3);
   }
   function title(main,sub){
@@ -358,7 +363,7 @@
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     const coopSub='P1 — '+HERO[_heroChoice].name+'   ·   P2 — '+HERO[_heroChoice==='mind'?'venture':'mind'].name;
-    title('CHOOSE YOUR LEAD', _playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    title('CHOOSE YOUR LEAD', (window.MV_NET&&MV_NET.isActive())?'YOUR FRIEND PLAYS THE OTHER BROTHER':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
     // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
     // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
     // qualities panel fills the middle between them.
@@ -392,8 +397,12 @@
     {k:0,label:'SOLO',col:'#C9A24A'},
     {k:1,label:'WITH',col:'#ffb86a'},
     {k:2,label:'CO-OP',col:'#7ad8ff'},
+    {k:3,label:'ONLINE',col:'#9ad4ff'},   // Paulo, Nov 26: online lives on this row too (mv2_net_ui.js host / join)
   ];
+  const onlineLinked=()=>!!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked());
+  function openOnline(){ if(window.MV_NET_UI) MV_NET_UI.open(); else if(typeof uiShowToast==='function') uiShowToast('ONLINE PLAY DID NOT LOAD'); }
   function brotherChoice(){
+    if(onlineLinked()||(typeof _playModeIdx!=='undefined'&&_playModeIdx===3)) return 3;
     if(typeof _playerCount!=='undefined'&&_playerCount===2) return 2;
     return (window.MV_SIBLING&&MV_SIBLING.on)?1:0;
   }
@@ -408,7 +417,16 @@
     MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
   }
   function setBrotherChoice(v){
-    v=((v|0)+3)%3;
+    v=((v|0)+4)%4;
+    if(v!==3&&onlineLinked()&&window.MV_NET) MV_NET.disconnect();   // leaving ONLINE closes the room
+    if(v===3){
+      // ONLINE: one human here, the friend plays the other brother on their device.
+      if(typeof _playerCount!=='undefined') _playerCount=1;
+      if(typeof _playModeIdx!=='undefined') _playModeIdx=3;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+      try{ sfx('menu'); }catch(e2){}
+      return;
+    }
     if(v===2){
       // Straight to the SAME select screen — never _gameState='partysetup'.
       if(typeof _playerCount!=='undefined') _playerCount=2;
@@ -421,6 +439,7 @@
     }
     // Back to one human: clear co-op, then apply SOLO / WITH as before.
     if(typeof _playerCount!=='undefined') _playerCount=1;
+    if(typeof _playModeIdx!=='undefined'&&_playModeIdx===3) _playModeIdx=v;
     if(window.MV_SIBLING) setCompanion(v===1);
     else if(typeof _playModeIdx!=='undefined') _playModeIdx=v;
     syncCoopHero();
@@ -487,6 +506,7 @@
     if(window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
       selRow=b.row;
       if(b.row===1&&brotherChoice()!==b.k){ setBrotherChoice(b.k); beep(); }
+      if(b.row===1&&b.k===3&&!onlineLinked()) openOnline();
       return;
     }
     for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
@@ -646,17 +666,20 @@
     });
     ctx.restore();
   }
+  // Paulo (Nov 26): the BROTHER row is the choice — no "DOES YOUR BROTHER COME?" box after it.
+  // SOLO = he stays home, WITH = AI brother, CO-OP = player 2 (picks controls first when that
+  // screen exists), ONLINE = host / join a room first, then pick the hero.
+  let controlsPicked=false;
   window.MV_SELECT_GATE=function(){
     if(window.MV_SIBLING) MV_SIBLING.ff=true;
-    if(ask){
-      if(_playerCount===2&&ask.sel===1){ ask=null; _selectStep=0; return true; }
-      if(_playerCount!==2) setCompanion(ask.sel===0);
-      else if(window.MV_SIBLING) MV_SIBLING.on=false;
-      ask=null;
-      return false;
+    ask=null;
+    if(brotherChoice()===3&&!onlineLinked()){ openOnline(); return true; }
+    if(_playerCount===2&&window.MV_CONTROLS&&typeof MV_CONTROLS.open==='function'&&!controlsPicked){
+      controlsPicked=true;
+      try{ MV_CONTROLS.open({then:function(){ try{ startGame(); }catch(e){} }}); return true; }catch(e){}
     }
-    ask={sel:_playerCount===2?0:(window.MV_SIBLING&&MV_SIBLING.on?0:1)};
-    return true;
+    controlsPicked=false;
+    return false;
   };
   let lastDraw=0, lastStep=-1;
   window.drawSelect=function(){
@@ -671,7 +694,7 @@
     // Online link state (mv2_net.js) — visible on both select steps.
     if(window.MV_NET&&MV_NET.isActive()){
       const ns=MV_NET.status();
-      drawText('● ONLINE  '+String(MV_NET.role()||'peer').toUpperCase()+'  ·  '+String(ns.status||'').toUpperCase(),12,H-24,'#7ad8ff',2);
+      drawText('● ONLINE  ROOM '+String(ns.code||'')+'  ·  '+(MV_NET.role()==='host'?'YOU HOST':'JOINED')+(ns.ping?'  ·  '+ns.ping+' MS':''),12,H-24,'#7ad8ff',2);
     }
     if(typeof _drawUiToast==='function') _drawUiToast();
     ctx.restore(); ctx.imageSmoothingEnabled=true;

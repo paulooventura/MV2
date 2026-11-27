@@ -1391,7 +1391,7 @@
       iso.got=true; iso.re=ISO_RESPAWN; B.hasIsolator=true; B.isoT=0;
       if(!B.isoEver){ B.isoEver=true; B.stats.items++; }
       for(let k=0;k<16;k++){ const a=Math.random()*Math.PI*2, s=1.6+Math.random()*3; PFXS.push({x:iso.x,y:iso.y-20,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,life:16+Math.random()*12|0,maxLife:28,r:2+Math.random()*2,col:'#ffa040'}); }
-      if(B.openPopup) B.openPopup(4);
+      if(B.openPopup){ B._itemWho=p; B.openPopup(4); }
     }
   }
   // a lightning bolt into the water: the whole body goes live (beta_weather.js)

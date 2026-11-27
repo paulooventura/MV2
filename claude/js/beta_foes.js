@@ -820,7 +820,7 @@
     const P=centre();
     const k=B.knifePickup;
     if(k&&!k.got&&Math.abs(P.x-k.x)<40&&Math.abs(P.y-(k.y-20))<70){
-      k.got=true; _unlockedMask|=16; ITEM=4; B.stats&&B.stats.items++;
+      k.got=true; _unlockedMask|=16; ITEM=4; B._itemWho=p; B.stats&&B.stats.items++;
       burst(k.x,k.y-20,24,['#e8a060','#ffe0b0','#a0a8b8'],4); S('item_get');
       if(B.openPopup) B.openPopup(5); else if(typeof uiShowToast==='function') uiShowToast('THE GAUCHO KNIFE!');
     }

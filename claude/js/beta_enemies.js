@@ -1127,7 +1127,6 @@
     ctx.save();
     if(heat>0.15&&!off){ const g=ctx.createRadialGradient(cx,cy,0,cx,cy,s*1.1); g.addColorStop(0,'rgba(255,80,40,'+(0.35*heat)+')'); g.addColorStop(1,'rgba(255,80,40,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,s*1.1,0,Math.PI*2); ctx.fill(); }
     if(e.hitF>0&&!off&&(e.hitF&2)) ctx.globalAlpha=0.6;
-    const lw=Math.max(3,s*0.08);
     // rotation for tipping / tumbling: round the bottom corner it goes over
     const piv=null, nsh=notchShape(e);
     if(e.og&&(Math.abs(e.gAng||0)>0.02||(e.gDy||0)>0.5)){       // resting on a slope: tilted onto it
@@ -1147,13 +1146,19 @@
     if(e._ai==='circle') ctx.rotate(e.roll||0);               // Enemy A rolls
     else if(nsh){ ctx.translate(0,sw(nsh.cOff-(e._lift||0))); ctx.rotate(e.ang||0); ctx.translate(0,-sw(nsh.cOff)); }   // on a notch, swinging, tumbling
     else if(e.ang) ctx.rotate(e.ang);
-    ctx.fillStyle=fill; ctx.strokeStyle=off?'#2a2830':INK_D; ctx.lineWidth=lw+2; ctx.lineJoin='round';
+    ctx.fillStyle=fill; ctx.lineJoin='miter'; ctx.miterLimit=2.4;
     const shape=()=>{ ctx.beginPath();
       if(e._ai==='circle') ctx.arc(0,0,s/2,0,Math.PI*2);
       else if(e._ai==='square') ctx.rect(-s/2,-s/2,s,s);
       else { const h=sw(e.h); ctx.moveTo(0,-h/2); ctx.lineTo(s/2,h/2); ctx.lineTo(-s/2,h/2); ctx.closePath(); } };
-    shape(); ctx.fill(); ctx.stroke();                        // dark edge for the 16-bit read
-    ctx.strokeStyle=off?'#4a4450':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=lw*0.6; shape(); ctx.stroke();   // the red ink line
+    shape(); ctx.fill();
+    // The ink used to be stroked on the path, so half of it hung outside the
+    // fill and read as a second triangle shifted off the foe. Clip to the
+    // silhouette and stroke at double width: the ink's outer edge IS the art.
+    ctx.save(); shape(); ctx.clip();
+    ctx.strokeStyle=off?'#2a2830':heat>0.55?'#ffd0c0':INK; ctx.lineWidth=Math.max(3.2,s*0.09);
+    shape(); ctx.stroke();
+    ctx.restore();
     ctx.save(); shape(); ctx.clip(); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-s/2,-s/2,s,s*0.2); ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(-s/2,s*0.28,s,s*0.3); ctx.restore();
     { const rot=(e._ai==='circle'?(e.roll||0):0)+(piv?e.ang:(!piv&&e.ang&&e._ai!=='circle'?e.ang:0))+(!piv&&e.og&&e._ai!=='circle'?(e.gAng||0):0);
       const lk=e.look||{x:0,y:0}, cr=Math.cos(-rot), sr=Math.sin(-rot);

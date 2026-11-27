@@ -11,19 +11,26 @@ if (!cv || typeof cv.getContext !== 'function') {
 }
 const ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');
-// Phone landscape is wider than 4:3. Height stays 768; width follows the
-// screen so the picture fills it and the side bars go away. Desktop stays 1024.
+// The picture matches the monitor. Height starts at the 768 design; width
+// follows the window, and a short window grows the height instead, so the
+// whole frame is on screen and nothing is cropped off the edges.
 let W = 1024, H = 768;
 function _fitPhoneFrame(){
-  let phone=false;
-  try{ phone=document.documentElement.classList.contains('phone-play')||!!window._phonePlay; }catch(e){}
-  const iw=window.innerWidth||1024;
-  const ih=window.innerHeight||768;
+  try{ document.documentElement.classList.add('mv-fit'); }catch(e){}
+  let locked=false;
+  try{ locked=/[?&](selftest|ci)=/.test(location.search||''); }catch(e){}
+  const vv=window.visualViewport;
+  const iw=Math.max(1,(vv&&vv.width)||window.innerWidth||1024);
+  const ih=Math.max(1,(vv&&vv.height)||window.innerHeight||768);
   let nw=1024, nh=768;
-  if(phone&&iw>ih+24){
+  if(!locked){
+    const aspect=iw/ih;
     nh=768;
-    nw=Math.round(nh*(iw/Math.max(1,ih)));
-    nw=Math.max(1024, Math.min(1792, nw));
+    nw=Math.round(nh*aspect);
+    if(nw<1024){ nw=1024; nh=Math.round(nw/Math.max(0.35,aspect)); }
+    if(nw>2048){ nh=Math.round(nh*2048/nw); nw=2048; }
+    if(nh>1536){ nw=Math.round(nw*1536/nh); nh=1536; }
+    nw=Math.max(640,nw); nh=Math.max(480,nh);
   }
   if(cv.width===nw&&cv.height===nh&&W===nw&&H===nh) return;
   W=nw; H=nh;

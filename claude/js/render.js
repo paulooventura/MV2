@@ -395,6 +395,15 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   ctx.beginPath();ctx.arc(dotX,dotY,2.2,0,Math.PI*2);ctx.fillStyle=dotOff?'#880000':'#00cc44';ctx.fill();
   ctx.beginPath();ctx.arc(dotX,dotY,1.3,0,Math.PI*2);ctx.fillStyle=dotOff?'#ff3333':'#7dff9a';ctx.fill();
   // the thick record on top: a black slab with grooves, wider than the box, a sheen on its face
+  // (the turntable deck: lifts off the cabinet a few px while falling, still held on two posts)
+  const dl=status?0:_deckMotion(p), dset=status?0:(p._deckSettle||0)*1.6, dk=Math.max(0,dl-dset);
+  ctx.save();
+  if(dk>0.05){
+    ctx.fillStyle='#000'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0-0.5,y+10-dk,6,dk+3);
+    ctx.fillStyle='#4a4e58'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0+0.5,y+10-dk,4,dk+3);
+    ctx.fillStyle='rgba(255,255,255,0.28)'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0+0.5,y+10-dk,1,dk+3);
+    ctx.translate(0,-dk);
+  }
   const rx0=x-3, rw=bw+6, ry0=y, rh=12;
   ctx.fillStyle='#000'; ctx.fillRect(rx0-1,ry0-1,rw+2,rh+2);
   const rg=ctx.createLinearGradient(0,ry0,0,ry0+rh); rg.addColorStop(0,'#2a2a32'); rg.addColorStop(0.25,'#111116'); rg.addColorStop(1,'#060608');
@@ -408,6 +417,7 @@ function drawBody(bx,by,facing,ca2=0,status=null){
     ctx.beginPath(); ctx.arc(ox,ry0+6,4.6,0,Math.PI*2); ctx.fillStyle='#000'; ctx.fill();
     ctx.beginPath(); ctx.arc(ox,ry0+6,3.8,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
   }
+  ctx.restore();
   // the Isolator (Paulo, Oct 22): a glossy orange rubber skin over the speaker box only —
   // the arms, the wheel and the head stay outside it
   // (build 409) the companion wears its OWN Isolator the same way once it has one (it used to look bare in the water)
@@ -502,47 +512,21 @@ function _hatMotion(dir){
   return {ang:pl._hatAng||0, lift:pl._hatLift||0};
 }
 function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.lift); ctx.rotate(m.ang); ctx.translate(-px,-py); }
-// Paulo 2026-11-20: the vinyl record is now a SEPARATE board hovering at MIND's
-// side. While he falls it detaches, spins and drifts away; landing snaps it back.
-function _vinylMotion(pl,dir){
-  if(!pl||pl.mirror) return {x:0,y:0,a:0,d:0};
+// Paulo 2026-11-26: while he falls, the turntable deck (the thick record, its chrome orbs and the bulb on
+// top) lifts a few pixels off the speaker cabinet, like the hat lifts off the head, and settles back on
+// landing. Nothing flies, spins or drifts: it stays mounted. Same falling test as the hat. Screen px.
+function _deckMotion(pl){
+  if(!pl||pl.mirror||window._hatStill) return 0;
+  if(pl._deckFr===fr) return pl._deckLift||0;
+  pl._deckFr=fr;
   const falling=!pl.og&&(pl.vy||0)>0.6&&!(pl.hook&&pl.hook.st==='on');
-  if(falling){
-    pl._vinylD=Math.min(1,(pl._vinylD||0)+0.06);
-    pl._vinylA=(pl._vinylA||0)+0.16+Math.min(0.22,(pl.vy||0)*0.012);
-    pl._vinylX=Math.max(-190,Math.min(190,(pl._vinylX||0)+dir*3.2));
-    pl._vinylY=Math.max(-12,Math.min(300,(pl._vinylY||0)+6.5));
-  }else{
-    pl._vinylD=Math.max(0,(pl._vinylD||0)-0.08);
-    pl._vinylA=(pl._vinylA||0)*0.92;
-    pl._vinylX=(pl._vinylX||0)*0.86; pl._vinylY=(pl._vinylY||0)*0.86;
-  }
-  return {x:pl._vinylX||0,y:pl._vinylY||0,a:pl._vinylA||0,d:pl._vinylD||0};
-}
-function _drawVinylBoard(cx,y,pl,dir){
-  const m=_vinylMotion(pl,dir), bob=Math.sin(fr*0.09)*1.2*(1-m.d);
-  // Only show it while it's detaching — no floating disc during normal play.
-  if(m.d<0.05) return;
-  ctx.save();
-  ctx.globalAlpha=Math.min(1,(m.d-0.04)*5);
-  ctx.translate(Math.round(cx+dir*74+m.x),Math.round(y+4+m.y+bob));
-  ctx.rotate(m.a);
-  const R=13;
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(1,2,R+1,R*0.62+1,0,0,Math.PI*2); ctx.fill();
-  const vg=ctx.createRadialGradient(-3,-3,1,0,0,R);
-  vg.addColorStop(0,'#2c2c36'); vg.addColorStop(0.5,'#101015'); vg.addColorStop(1,'#040406');
-  ctx.fillStyle=vg; ctx.beginPath(); ctx.ellipse(0,0,R,R*0.62,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=0.5;
-  for(const rr of [R*0.86,R*0.68,R*0.5,R*0.34]){ ctx.beginPath(); ctx.ellipse(0,0,rr,rr*0.62,0,0,Math.PI*2); ctx.stroke(); }
-  ctx.fillStyle=dir>0?'#7a3cd0':'#c81c2c'; ctx.beginPath(); ctx.ellipse(0,0,R*0.30,R*0.19,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#050507'; ctx.beginPath(); ctx.arc(0,0,1.3,0,Math.PI*2); ctx.fill();
-  if(m.d>0.12){
-    ctx.strokeStyle='rgba(190,150,255,'+(0.7*m.d).toFixed(2)+')'; ctx.lineWidth=1.6;
-    ctx.beginPath(); ctx.ellipse(0,0,R,R*0.62,0,0,Math.PI*2); ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,'+(0.2*m.d).toFixed(2)+')';
-    ctx.beginPath(); ctx.ellipse(0,0,R*0.7,R*0.44,0,0,Math.PI*2); ctx.fill();
-  }
-  ctx.restore();
+  const liftT=falling?Math.min(5,1.6+(pl._fallD||0)*0.012):0;
+  const cur=pl._deckLift||0;
+  if(!falling&&cur>1.5&&pl.og) pl._deckSettle=1;                    // just landed: the deck clunks back down
+  const next=cur+(liftT-cur)*(liftT>cur?0.3:0.5);
+  pl._deckSettle=(pl._deckSettle||0)*0.72;
+  pl._deckLift=next;
+  return next;
 }
 // GUARD (groove fix): hatTY is in hat units (×9 px). Clamp the brim so it always
 // sits on top of the bulb (never below its centre), whatever a groove/tilt value
@@ -1666,8 +1650,9 @@ function drawCharacter(){
   const _leftJab=p._punchHand==='L'&&p.pt>0;
   // Offbeat shoulder/arm sway: nudge only the SCREEN shoulder; world coords
   // (wall check + punch angle) stay untouched, and the rope arm's tip is not moved.
-  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX+gArmX,shY+gArmY,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
-  else drawGloveArm(glovShX+gArmX,shY+gArmY,fc,glovShoulderWX,shoulderY,flicker);
+  const _dkA=Math.max(0,_deckMotion(p)-(p._deckSettle||0)*1.6);
+  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
+  else drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
 
   const drawConnArm=()=>{
@@ -1764,15 +1749,12 @@ function drawCharacter(){
   // hatTY is in hat units (×9 px), so even gHead*0.5 would shove the brim through
   // the bulb. These are pixel-space offsets, kept in the drawHead args only.
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
-  drawHead(wcx+gHeadX,sy(headCY+gHead),p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  const _dk=Math.max(0,_deckMotion(p)-(p._deckSettle||0)*1.6);
+  drawHead(wcx+gHeadX,sy(headCY+gHead)-_dk,p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
   window._mindHeadDmg=0;
 
   // 4. BODY BOX â€” in front of glove arm + head
   drawBody(wcx,bTopS,fc,0);
-
-  // Vinyl board: separate record disc at MIND's side; detaches + spins on a fall.
-  // Drawn after the body so it reads clearly as it flies off.
-  if(p.hero!=='venture') _drawVinylBoard(wcx,bTopS+8,p,fc);
 
   // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
   drawConnArm();
@@ -2945,6 +2927,7 @@ function drawRopePickupAnim(){
 
 function drawItemTutorial(){
   if(!_itemTutorial) return;
+  if(typeof _playerCount!=='undefined'&&_playerCount===2) return;
   const t=_itemTutorial;
   // Flicker in/out instead of alpha fades
   if(t.t<24&&(fr&1)) return;

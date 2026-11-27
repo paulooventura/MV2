@@ -1770,6 +1770,7 @@
       const R=B.crateRect?B.crateRect(d):d; if(!R||!ov(bx,by,bw,bh,R.x,R.y,R.w,R.h)) continue;   // boxed: break it open first
       if(_itemUnlocked(d.item)&&!d.enhanced) continue;
       if(_collectItemDrop(d)){
+        B._itemWho=p;
         d.got=true;
         if(d._knocked){ if(typeof _itemTutorial!=='undefined') _itemTutorial=null; try{ sfx('knowl_pickup'); }catch(e){} }   // got his own jack back (no tutorial again)
         for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
@@ -1779,6 +1780,7 @@
     const r=_mapRopePickup;
     const rR=r&&B.crateRect?B.crateRect(r):r;
     if(r&&rR&&!r.got&&!_ropePickupAnim&&!_itemUnlocked(1)&&ov(bx,by,bw,bh,rR.x,rR.y,rR.w,rR.h)){
+      B._itemWho=p;
       r.got=true; _grantPlayerItem(1);                    // (no cable drawn back to where it lay — Paulo, Oct 21)
       for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=2+Math.random()*4;
         PFXS.push({x:r.x+r.w*0.5,y:r.y+r.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-2,life:20+Math.random()*12|0,maxLife:32,r:2.5+Math.random()*3,col:'#ff8866'}); }
@@ -2429,16 +2431,22 @@
   // Paulo: the item card only comes up the first time you get that item
   // (kept for the play session; a new game from the title starts fresh)
   B.popupSeen=B.popupSeen||{};
-  function openPopup(i){
+  function openPopup(i, who){
     if(B.popupSeen[i]) return;
     B.popupSeen[i]=true;
-    B.popup={item:i, t:0};
+    const coop=typeof _playerCount!=='undefined'&&_playerCount===2&&p2&&!p2._aiCompanion;
+    // Co-op: a small card beside the brother who picked it up. The big window
+    // would cover the other player's half and freeze both of them.
+    B.popup={item:i, t:0, mini:!!coop, who:who||B._itemWho||p};
+    if(coop) return;
     // T426 (Paulo, Nov 11): the item window plays the slower song of the current theme; closing it
     // picks the stage song up where it left off
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play){ B._popupMusic=B.music||'stage'; MV_BETA_AUDIO.play('item'); }
   }
   function closePopup(){
+    const mini=B.popup&&B.popup.mini;
     B.popup=null;
+    if(mini) return;
     for(const k in K) delete K[k];
     if(typeof Kj!=='undefined') for(const k in Kj) delete Kj[k];
     if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.play&&B._popupMusic){ MV_BETA_AUDIO.play(B._popupMusic); B._popupMusic=null; }
@@ -2467,8 +2475,47 @@
     uiGlyph('swap', x, y-3, 2); x+=gw+gap;
     if(rw) drawText(R.trim(), x, y, '#f4ecff', 2);
   }
+  const CHIP_NAME=['TRS','RCA','XLR','MEG','ISOLATOR','KIRITSUKE'];
+  const CHIP_HINT=['HOLD {X}, LET GO','{X} THROWS THE HOOK','HOLD {X} TO SHOVE','HOLD {X} TO GRAB','STAYS DRY IN WATER','TAP {X}, HOLD TO HEAT'];
+  // Beside the brother who found it. Drawn in the world pass so a split view
+  // keeps it in that player's half.
+  B.drawItemChip=function(){
+    const P=B.popup;
+    if(!P||!P.mini||!P.who) return;
+    const pl=P.who;
+    const life=280;
+    if(P.t>life) return;
+    const a=P.t<8?P.t/8:(P.t>life-36?Math.max(0,(life-P.t)/36):1);
+    const name=CHIP_NAME[P.item]||'ITEM';
+    const hint=String(CHIP_HINT[P.item]||'').replace('{X}', popKey());
+    const face=pl.fc?1:-1;
+    let side=-face;
+    const ax=sx(pl.x+SW/2), ay=sy(pl.y+FEET_OFF-STAND_H*0.62);
+    const cw=Math.max(textW(name,2), textW(hint,1))+18, ch=38;
+    if(side>0&&ax+22+cw>W-8) side=-1;
+    if(side<0&&ax-22-cw<8) side=1;
+    const left=Math.round(side>0?ax+22:ax-22-cw);
+    const top=Math.round(ay-ch/2);
+    const col=(POP[P.item]&&POP[P.item].col)||[201,162,74];
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.fillStyle='#1E1B27';
+    ctx.fillRect(left,top,cw,ch);
+    ctx.strokeStyle='#C9A24A';
+    ctx.lineWidth=2;
+    ctx.strokeRect(left+1,top+1,cw-2,ch-2);
+    const ny=top+ch/2, nx=side>0?left-1:left+cw+1;
+    ctx.fillStyle='#C9A24A';
+    ctx.beginPath();
+    ctx.moveTo(nx,ny-5); ctx.lineTo(nx-side*7,ny); ctx.lineTo(nx,ny+5); ctx.closePath(); ctx.fill();
+    drawText(name, left+8, top+4, 'rgb('+col[0]+','+col[1]+','+col[2]+')', 2);
+    drawText(hint, left+8, top+22, '#EFE6D2', 1);
+    ctx.restore();
+  };
   function drawPopup(){
-    const P=B.popup, a=Math.min(1,P.t/14), e=1-Math.pow(1-a,3), info=ITEM_INFO[P.item]||{name:'?',lines:['']}, pp=POP[P.item]||{col:[255,230,160],line:info.lines[0]||''};
+    const P=B.popup;
+    if(P.mini) return;
+    const a=Math.min(1,P.t/14), e=1-Math.pow(1-a,3), info=ITEM_INFO[P.item]||{name:'?',lines:['']}, pp=POP[P.item]||{col:[255,230,160],line:info.lines[0]||''};
     const c=pp.col, rgb=(al)=>'rgba('+c[0]+','+c[1]+','+c[2]+','+al+')';
     ctx.save();
     ctx.globalAlpha=a*0.86; ctx.fillStyle='#05030c'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
@@ -2596,7 +2643,7 @@
     if(!B.on) return;
     const go=['Enter','Space','KeyQ','KeyE','Escape','NumpadEnter'].includes(ev.code);
     if(B.ending&&go&&B.ending.t>90){ ev.preventDefault(); B._endReq=true; return; }
-    if(B.popup&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
+    if(B.popup&&!B.popup.mini&&go&&B.popup.t>40){ ev.preventDefault(); B._closeReq=true; }
     else if(B.results&&ev.code==='Enter'&&B.results.t>B.results.sc.rows.length*14+60){
       ev.preventDefault();
       resultsNext();
@@ -2702,7 +2749,8 @@
     if(B.on&&B.contScreen){ contInput(); return; }
     if(B.on&&B.overT>0){ B.overT++; if(B.overT>200||(B.overT>60&&padOk())){ B.overT=0; if(!(B.storyGameOver&&B.storyGameOver())){ B.newRun(); quitToTitle(); } } return; }   // story: back to the slot's last save
     if(B.ending){ B.ending.t++; if((padOk()&&B.ending.t>90)||B._endReq){ B._endReq=false; quitToTitle(); } return; }
-    if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
+    if(B.on&&B.popup&&B.popup.mini){ B.popup.t++; B._closeReq=false; if(B.popup.t>280) B.popup=null; }
+    else if(B.on&&B.popup){ B.popup.t++; if((padOk()&&B.popup.t>40)||B._closeReq){ B._closeReq=false; closePopup(); } return; }
     if(B.on&&B.results){
       B.results.t++;
       if(padOk()&&B.results.t>B.results.sc.rows.length*14+60) resultsNext();

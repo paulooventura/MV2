@@ -1385,8 +1385,11 @@ let _splitActor=null;
 // stay close, and only splits into two half-height views when one of them gets
 // near the edge of that shared frame. Two thresholds (hysteresis) plus a short
 // hold keep the screen from popping back and forth at the boundary.
-const COOP_SPLIT_AT=0.72, COOP_JOIN_AT=0.55, COOP_HOLD_MS=120;
+const COOP_SPLIT_AT=0.72, COOP_JOIN_AT=0.55, COOP_HOLD_MS=120, COOP_BLEND_MS=560;
 let _coopSplitState=false, _coopSplitSince=0, _coopSplitPrevKey='';
+// 0 = two half-screens, 1 = one shared picture. It eases between them so the
+// map under each player slides into place instead of jumping.
+let _coopBlend=1, _coopBlendAt=0;
 function _coopPair(){
   return (typeof _playerCount!=='undefined'&&_playerCount===2&&!!p&&!!p2&&!p2._aiCompanion)?{a:p,b:p2}:null;
 }
@@ -1414,13 +1417,30 @@ function _coopWouldSplit(){
 function _updateCoopSplit(){
   const key=(typeof _playerCount!=='undefined'?_playerCount:0)+':'+(p?1:0)+':'+(p2?1:0)+':'+(p2&&p2._aiCompanion?1:0);
   const now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
-  if(key!==_coopSplitPrevKey){_coopSplitPrevKey=key;_coopSplitState=false;_coopSplitSince=0;}
-  if(!_coopPair()){_coopSplitState=false;_coopSplitSince=0;return;}
+  if(key!==_coopSplitPrevKey){_coopSplitPrevKey=key;_coopSplitState=false;_coopSplitSince=0;_coopBlend=1;_coopBlendAt=now;}
+  if(!_coopPair()){_coopSplitState=false;_coopSplitSince=0;_coopBlend=1;_coopBlendAt=now;return;}
   const want=_coopSeparation()>(_coopSplitState?COOP_JOIN_AT:COOP_SPLIT_AT);
   if(want!==_coopSplitState){
     if(!_coopSplitSince) _coopSplitSince=now;
     if(now-_coopSplitSince>=COOP_HOLD_MS){_coopSplitState=want;_coopSplitSince=0;}
   } else _coopSplitSince=0;
+  const tgt=_coopSplitState?0:1;
+  const dt=Math.max(0,Math.min(50,now-(_coopBlendAt||now)));
+  _coopBlendAt=now;
+  const step=dt/COOP_BLEND_MS;
+  if(_coopBlend<tgt) _coopBlend=Math.min(tgt,_coopBlend+step);
+  else if(_coopBlend>tgt) _coopBlend=Math.max(tgt,_coopBlend-step);
+}
+function _coopEase(u){ return u*u*(3-2*u); }
+// Where the picture is right now, between the two halves and the one shared frame.
+function _coopFrame(){
+  const cams=_coopCameraTargets();
+  const e=_coopEase(Math.max(0,Math.min(1,_coopBlend)));
+  const shared=cams.shared||cams.p1;
+  const mix=(a,b)=>({x:a.x+(b.x-a.x)*e,y:a.y+(b.y-a.y)*e});
+  return {e,half:cams.half,seam:cams.half+(H-cams.half)*e,
+    cam1:mix(cams.p1,shared),cam2:mix(cams.p2,shared),
+    zoom:1+((shared.zoom||1)-1)*e,shared};
 }
 function _coopSplitWanted(){ return _coopSplitState; }
 // The single shared camera: centred on the midpoint of the two brothers and
@@ -1497,6 +1517,7 @@ function drawWorldPass(){
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  if(window.MV_BETA&&MV_BETA.drawItemChip) try{ MV_BETA.drawItemChip(); }catch(e){}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
@@ -1540,6 +1561,52 @@ function _drawCoopSplit(){
   };
   tag(half-34,'P1',p,C.PURPLE_L||'#a060ff');
   tag(H-34,'P2',p2,C.RED_L||'#ff6a5a');
+}
+// The join and the split both ride this. The seam slides, and each camera
+// eases from its own half toward the shared frame, so nobody's spot on the
+// map jumps when the two pictures become one.
+function _drawCoopBlend(){
+  const F=_coopFrame(), e=F.e, seam=F.seam, zoomWas=camZoom;
+  const pass=(y0,h,cam,shift,actor,localFx)=>{
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0,y0,W,Math.max(1,h)); ctx.clip();
+    if(shift) ctx.translate(0,shift);
+    const camXWas=camX, camYWas=camY, actorWas=_splitActor;
+    _rcamX=cam.x; _rcamY=cam.y; camX=cam.x; camY=cam.y; camZoom=F.zoom;
+    _coopSplit=!!localFx; _splitActor=localFx?actor:null;
+    _worldZoomBegin();
+    try{ drawWorldPass(); } finally{ _worldZoomEnd(); camX=camXWas; camY=camYWas; camZoom=zoomWas; _splitActor=actorWas; }
+    ctx.restore();
+  };
+  const early=e<0.35;
+  pass(0,seam,F.cam1,0,p,early);
+  if(seam<H-2){
+    pass(seam,H-seam,F.cam2,seam,p2||p,early);
+    ctx.save();
+    ctx.globalAlpha=Math.min(0.7,e*1.05);
+    ctx.fillStyle='#1E1B27';
+    ctx.fillRect(0,seam,W,H-seam);
+    ctx.restore();
+    if(e<0.92){
+      ctx.save(); ctx.globalAlpha=1-e;
+      ctx.fillStyle=C.BLACK; ctx.fillRect(0,seam-2,W,4);
+      ctx.fillStyle=(C.PURPLE_L||'#a060ff'); ctx.fillRect(0,seam,W,1);
+      ctx.restore();
+    }
+  }
+  if(e<0.4){
+    const tag=(y,label,pl,col)=>{
+      ctx.save(); ctx.globalAlpha=1-e/0.4;
+      ctx.fillStyle='rgba(4,2,10,0.75)'; ctx.fillRect(10,y,158,26);
+      ctx.strokeStyle=col; ctx.lineWidth=2; ctx.strokeRect(11,y+1,156,24);
+      drawText(label,20,y+7,col,2);
+      if(pl) drawText(Math.max(0,Math.round(pl.hp||0))+'/'+Math.round(pl.maxHp||PLAYER_MAX_HP),80,y+7,'#ffb0b8',2);
+      ctx.restore();
+    };
+    tag(seam-34,'P1',p,C.PURPLE_L||'#a060ff');
+    tag(H-34,'P2',p2,C.RED_L||'#ff6a5a');
+  }
+  _coopSplit=false; camZoom=zoomWas;
 }
 // ── Per-player screen-space AV ──────────────────────────────────
 // The original _drawSportBlur() (physics.js) and drawDamageOverlay() (ui.js)
@@ -1596,30 +1663,32 @@ function _drawMomentumBarForActor(actor,bottomY){
 // Dispatches the player-driven screen FX. Split: one clipped pass per half with
 // that half's camera, active player and render context. Single: original path.
 function _drawCoopPlayerScreenFX(){
-  if(_coopSplitWanted()&&_coopPair()){
-    const cams=_coopCameraTargets(), half=cams.half;
-    const fxPass=(y0,h,cam,lower,actor)=>{
+  if(_coopPair()&&_coopBlend<0.998){
+    const F=_coopFrame(), seam=F.seam;
+    const fxPass=(y0,h,cam,shift,actor)=>{
       if(!actor) return;
       ctx.save();
-      ctx.beginPath(); ctx.rect(0,y0,W,h); ctx.clip();
-      if(lower) ctx.translate(0,half);
+      ctx.beginPath(); ctx.rect(0,y0,W,Math.max(1,h)); ctx.clip();
+      if(shift) ctx.translate(0,shift);
       const camXWas=camX, camYWas=camY, rcXWas=_rcamX, rcYWas=_rcamY;
       const pWas=p, actorWas=_splitActor;
       _rcamX=cam.x; _rcamY=cam.y; camX=cam.x; camY=cam.y;
       p=actor; _splitActor=actor;
       try{
-        _drawSportBlurForActor(actor,lower?H-half:half);
-        drawDamageOverlay();                 // reads swapped p (and its wrappers)
+        _drawSportBlurForActor(actor,h);
+        drawDamageOverlay();
       } finally {
         p=pWas; _splitActor=actorWas;
         camX=camXWas; camY=camYWas; _rcamX=rcXWas; _rcamY=rcYWas;
         ctx.restore();
       }
     };
-    fxPass(0,half,cams.p1,false,p);
-    _drawMomentumBarForActor(p,half);
-    fxPass(half,H-half,cams.p2,true,p2);
-    _drawMomentumBarForActor(p2,H);
+    fxPass(0,seam,F.cam1,0,p);
+    _drawMomentumBarForActor(p,seam);
+    if(seam<H-2){
+      fxPass(seam,H-seam,F.cam2,seam,p2);
+      _drawMomentumBarForActor(p2,H);
+    }
   }else{
     _splitActor=p;
     if(typeof _drawSportBlur==='function') _drawSportBlur();
@@ -1653,7 +1722,7 @@ function draw(){
   // Per-frame baseline: split passes set their own actor and restore this value;
   // the single view always represents P1. Never carry an actor across frames.
   _splitActor=_coopSplitWanted()?null:p;
-  if(_coopSplitWanted()){ _drawCoopSplit(); }
+  if(_coopPair()&&_coopBlend<0.998){ _drawCoopBlend(); }
   else{
   _coopSplit=false;
   _snapRenderCam();
@@ -1705,6 +1774,7 @@ function draw(){
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  if(window.MV_BETA&&MV_BETA.drawItemChip) try{ MV_BETA.drawItemChip(); }catch(e){}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
@@ -1725,7 +1795,7 @@ function draw(){
   if(win){ctx.fillStyle=C.BLACK;ctx.fillRect(0,0,W,H);drawTextC('SUMMIT!',W/2,H/2-28,C.GREEN_L,4);if(_gameBeaten)drawTextC('CREATIVE MODE UNLOCKED',W/2,H/2+8,C.TEAL_L,2);drawTextC('TAB TO PLAY AGAIN',W/2,H/2+36,C.GREEN,2);}
   // Single view keeps the original P1 bar; split draws one bar per half in
   // _drawCoopPlayerScreenFX() so the bar belongs to the player on that screen.
-  if(!_coopSplitWanted()&&p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
+  if(!(_coopPair()&&_coopBlend<0.998)&&p.momentum>0.05&&isFinite(p.momentum)){ctx.fillStyle=C.ORANGE;const segs=Math.round(p.momentum*16);for(let i=0;i<segs;i++)ctx.fillRect(i*16,H-2,12,2);}
   if(_paused){
     if(typeof drawPauseMenu==='function') drawPauseMenu();
   }

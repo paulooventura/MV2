@@ -1,34 +1,59 @@
 /* ============================================================
-   mv2_net_ui.js — copy/paste signalling panel for MV2 online co-op.
+   mv2_net_ui.js — 2P ONLINE screens (Jackbox-style room codes).
 
-   Loaded after ui.js / ui_select.js / mv2_net.js. All markup and styles are
-   created here so claude/index.html only needs two script tags.
+   2P ONLINE card -> this panel:
+     HOST A ROOM -> big 4-letter code + join link + QR -> friend joins ->
+                    pick your hero -> play (friend drops in as the other brother)
+     JOIN A ROOM -> type the 4 letters (or open ?join=CODE / scan the QR) ->
+                    "waiting for the host" -> you land in the host's stage
+   Proximity voice row (OFF / OPEN MIC / PUSH-TO-TALK), off by default.
+   In a stage: a small ONLINE chip (top-right) shows room, ping and voice;
+   click / tap it to switch voice mode.
 
-   Flow: 2P ONLINE card -> this panel -> pick HOST (copy OFFER) or JOIN
-   (paste OFFER, copy ANSWER) or LOCAL two-tab test -> connected -> the normal
-   hero select -> gameplay with P2 coming from the network.
+   Pad: D-pad / stick moves between buttons, A presses, B closes. On the join
+   code: up / down changes the letter, left / right moves along the code.
    ============================================================ */
 (function(){
   'use strict';
   if(!window.MV_NET) return;
-  var NET=window.MV_NET;
-  var panel=null, mode='host', onDone=null;
-  var el={};
+  var NET=window.MV_NET, VOICE=function(){ return window.MV_VOICE||null; };
+  var panel=null, el={}, view='menu', onDone=null, chip=null;
 
   function css(){
     if(document.getElementById('mvNetCss')) return;
     var s=document.createElement('style');
     s.id='mvNetCss';
     s.textContent=
-      '.mvnet-box{display:none;margin-top:12px;padding:12px;border:1px solid #2a3a55;border-radius:6px;background:#080614;}'+
-      '.mvnet-box.on{display:block;}'+
-      '.mvnet-label{display:block;color:#9ad4ff;font-size:12px;margin:8px 0 4px;}'+
-      '.mvnet-ta{width:100%;box-sizing:border-box;min-height:74px;resize:vertical;background:#04030a;color:#cfe8ff;'+
-        'border:1px solid #334;border-radius:3px;padding:8px;font:11px/1.35 ui-monospace,Consolas,monospace;}'+
-      '.mvnet-btn{min-height:36px;}'+
-      '#mvNetTabs button.on{background:#163852;border-color:#7ad8ff;color:#fff;}'+
-      '#mvNetStatus{margin-top:12px;padding:8px 10px;border-left:3px solid #7ad8ff;background:#0a1420;color:#c8b8e8;font-size:12px;}'+
-      '#mvNetPanel button:disabled{opacity:.4;cursor:default;}';
+      '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:#EFE6D2;'+
+        'background:#1E1B27;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);'+
+        'font:18px/1.35 "MV Pixel",ui-monospace,Consolas,monospace;align-items:center;justify-content:center;padding:16px;}'+
+      '#mvNetPanel .box{width:min(640px,94vw);max-height:92vh;overflow:auto;text-align:center;'+
+        'background:linear-gradient(#1E1B27,#1C1A19);border:2px solid #C9A24A;border-radius:0;'+
+        'box-shadow:5px 6px 0 rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.7);padding:22px 18px 16px;}'+
+      '#mvNetPanel h2{margin:0 0 6px;font-size:28px;font-weight:400;color:#C9A24A;letter-spacing:.16em;}'+
+      '#mvNetPanel .sub{color:#B9B3A8;font-size:16px;margin:0 0 14px;}'+
+      '#mvNetPanel .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0;}'+
+      '#mvNetPanel button{font:inherit;letter-spacing:.08em;min-height:44px;padding:8px 16px;border-radius:0;'+
+        'background:#1C1A19;color:#EFE6D2;border:2px solid #8C8580;cursor:pointer;}'+
+      '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;}'+
+      '#mvNetPanel button.on{background:#38281a;border-color:#C9A24A;color:#E6CFAB;}'+
+      '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:#C9A24A;box-shadow:inset 0 0 0 1px #C9A24A;}'+
+      '#mvNetPanel button:disabled{opacity:.4;cursor:default;}'+
+      '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:#C9A24A;margin:6px 0 2px;padding-left:.28em;}'+
+      '#mvNetPanel .link{color:#E6CFAB;font-size:14px;word-break:break-all;user-select:all;}'+
+      '#mvNetPanel canvas#mvNetQr{position:static!important;display:inline-block;width:148px!important;height:148px!important;max-width:40vw;max-height:40vw;'+
+        'background:#EFE6D2;border:2px solid #8C8580;border-radius:0;padding:6px;margin-top:8px;image-rendering:pixelated;transform:none!important;}'+
+      '#mvNetCode{font:clamp(36px,9vw,64px) "MV Pixel",ui-monospace,Consolas,monospace;width:5.4em;text-align:center;letter-spacing:.28em;'+
+        'padding:4px 0 4px .28em;text-transform:uppercase;background:#1C1A19;color:#C9A24A;border:2px solid #C9A24A;border-radius:0;}'+
+      '#mvNetStatus{margin:14px auto 0;max-width:540px;padding:8px 10px;border-left:3px solid #C9A24A;background:#14121c;color:#EFE6D2;font-size:16px;text-align:left;}'+
+      '#mvNetPanel .voice{margin-top:16px;padding-top:12px;border-top:1px solid #8C8580;}'+
+      '#mvNetPanel .tiny{color:#8C8580;font-size:14px;margin-top:8px;}'+
+      '#mvNetChip{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:10px;z-index:9000;display:none;'+
+        'font:16px "MV Pixel",ui-monospace,Consolas,monospace;color:#EFE6D2;background:#1C1A19;border:2px solid #C9A24A;'+
+        'border-radius:0;padding:4px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;}'+
+      '#mvNetChip .mic{display:inline-block;width:8px;height:8px;border-radius:0;background:#8C8580;margin-left:6px;vertical-align:middle;}'+
+      '#mvNetChip .mic.live{background:#C9A24A;}'+
+      '#mvNetChip .mic.hear{background:#E6CFAB;}';
     document.head.appendChild(s);
   }
 
@@ -36,168 +61,192 @@
     css();
     panel=document.createElement('div');
     panel.id='mvNetPanel';
-    panel.style.cssText='display:none;position:fixed;inset:0;z-index:100000;background:rgba(3,2,9,.94);'+
-      'color:#e8e0ff;font:13px/1.55 ui-monospace,Consolas,monospace;align-items:center;justify-content:center;padding:12px;';
     panel.innerHTML=
-      '<div style="width:min(760px,96vw);max-height:94vh;overflow:auto;background:#0c0a18;'+
-      'border:2px solid #7ad8ff;border-radius:10px;padding:18px;box-shadow:0 8px 44px #000;">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'+
-          '<b style="font-size:20px;color:#7ad8ff;letter-spacing:.06em;">ONLINE CO-OP</b>'+
-          '<button type="button" id="mvNetClose" class="mvnet-btn">CLOSE</button>'+
-        '</div>'+
-        '<p style="color:#a99cc6;font-size:12px;margin:8px 0 4px;">'+
-          'Direct player-to-player (WebRTC). The host makes an OFFER code, the friend pastes it and sends back an ANSWER. '+
-          'No account, no server of ours. NAT / strict firewalls can still block the direct link. '+
-          'Use LOCAL 2-TAB only to test on one computer.'+
-        '</p>'+
-        '<div id="mvNetTabs" class="row" style="margin-top:10px;">'+
-          '<button type="button" data-m="host" class="mvnet-btn">HOST ONLINE</button>'+
-          '<button type="button" data-m="join" class="mvnet-btn">JOIN ONLINE</button>'+
-          '<button type="button" data-m="local" class="mvnet-btn">LOCAL 2-TAB TEST</button>'+
-        '</div>'+
+      '<div class="box">'+
+        '<h2>2P ONLINE</h2>'+
+        '<p class="sub">Play with a friend on another PC, Steam or phone. No account, no names.</p>'+
 
-        '<div id="mvNetHostBox" class="mvnet-box on">'+
-          '<span class="mvnet-label">1 · Your OFFER code — copy it and send it to your friend</span>'+
-          '<textarea id="mvNetOffer" class="mvnet-ta" readonly placeholder="press HOST ONLINE to create an offer"></textarea>'+
-          '<div class="row" style="margin-top:6px;"><button type="button" id="mvNetCopyOffer" class="mvnet-btn">COPY OFFER</button></div>'+
-          '<span class="mvnet-label">2 · Paste your friend\'s ANSWER, then CONNECT</span>'+
-          '<textarea id="mvNetAnswerIn" class="mvnet-ta" placeholder="paste answer code here"></textarea>'+
-          '<div class="row" style="margin-top:6px;"><button type="button" id="mvNetConnect" class="mvnet-btn">CONNECT</button></div>'+
-        '</div>'+
-
-        '<div id="mvNetJoinBox" class="mvnet-box">'+
-          '<span class="mvnet-label">1 · Paste the host\'s OFFER code</span>'+
-          '<textarea id="mvNetJoinOffer" class="mvnet-ta" placeholder="paste offer code here"></textarea>'+
-          '<div class="row" style="margin-top:6px;"><button type="button" id="mvNetCreateAnswer" class="mvnet-btn">CREATE ANSWER</button></div>'+
-          '<span class="mvnet-label">2 · Your ANSWER code — copy it and send it back to the host</span>'+
-          '<textarea id="mvNetAnswerOut" class="mvnet-ta" readonly placeholder="answer code appears here"></textarea>'+
-          '<div class="row" style="margin-top:6px;"><button type="button" id="mvNetCopyAnswer" class="mvnet-btn">COPY ANSWER</button></div>'+
-        '</div>'+
-
-        '<div id="mvNetLocalBox" class="mvnet-box">'+
-          '<span class="mvnet-label">Room name (same name in both tabs)</span>'+
-          '<input id="mvNetRoom" type="text" value="mv2" style="width:220px;padding:7px;background:#04030a;color:#cfe8ff;border:1px solid #334;">'+
-          '<div class="row" style="margin-top:8px;">'+
-            '<button type="button" id="mvNetLocalHost" class="mvnet-btn">HOST ROOM</button>'+
-            '<button type="button" id="mvNetLocalJoin" class="mvnet-btn">JOIN ROOM</button>'+
+        '<div id="mvNetMenu">'+
+          '<div class="row">'+
+            '<button type="button" class="big" id="mvNetHostBtn">HOST A ROOM</button>'+
+            '<button type="button" class="big" id="mvNetJoinBtn">JOIN A ROOM</button>'+
           '</div>'+
         '</div>'+
 
-        '<div id="mvNetStatus" style="margin-top:12px;">OFFLINE</div>'+
-        '<div class="row" style="margin-top:14px;">'+
-          '<button type="button" id="mvNetDone" class="mvnet-btn" disabled>CONTINUE TO HERO SELECT</button>'+
-          '<button type="button" id="mvNetCancel" class="mvnet-btn">CANCEL</button>'+
+        '<div id="mvNetHostV" style="display:none">'+
+          '<div class="sub" style="margin:0">ROOM CODE — tell your friend</div>'+
+          '<div class="code" id="mvNetHostCode">····</div>'+
+          '<div class="link" id="mvNetLink"></div>'+
+          '<canvas id="mvNetQr" width="148" height="148"></canvas>'+
         '</div>'+
+
+        '<div id="mvNetJoinV" style="display:none">'+
+          '<div class="sub" style="margin:0">Type the 4-letter ROOM CODE</div>'+
+          '<div class="row"><input id="mvNetCode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text"></div>'+
+          '<div class="row"><button type="button" id="mvNetGo" class="big">JOIN</button></div>'+
+        '</div>'+
+
+        '<div id="mvNetStatus">Pick HOST or JOIN.</div>'+
+
+        '<div class="voice">'+
+          '<div>PROXIMITY VOICE <span class="tiny">— louder when your heroes are close</span></div>'+
+          '<div class="row" id="mvNetVoice">'+
+            '<button type="button" data-v="off">OFF</button>'+
+            '<button type="button" data-v="open">OPEN MIC</button>'+
+            '<button type="button" data-v="ptt">PUSH-TO-TALK</button>'+
+          '</div>'+
+          '<div class="tiny" id="mvNetVoiceHint">Off until you turn it on. Push-to-talk: hold T (pad: R-stick click). Open mic: T mutes.</div>'+
+        '</div>'+
+
+        '<div class="row" style="margin-top:16px">'+
+          '<button type="button" id="mvNetDone" disabled>PICK YOUR HERO</button>'+
+          '<button type="button" id="mvNetBack">BACK</button>'+
+        '</div>'+
+        '<div class="tiny">Online uses a direct player-to-player link; your friend\'s game can see your internet address, like any P2P game.</div>'+
       '</div>';
     document.body.appendChild(panel);
-
-    ['Offer','AnswerIn','AnswerOut','JoinOffer','Room','Status','Done'].forEach(function(k){
+    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn'].forEach(function(k){
       el[k]=document.getElementById('mvNet'+k);
     });
-    el.HostBox=document.getElementById('mvNetHostBox');
-    el.JoinBox=document.getElementById('mvNetJoinBox');
-    el.LocalBox=document.getElementById('mvNetLocalBox');
-
-    document.getElementById('mvNetTabs').addEventListener('click',function(e){
-      var b=e.target&&e.target.getAttribute&&e.target.getAttribute('data-m');
-      if(b) setMode(b);
+    el.HostBtn.onclick=startHost;
+    el.JoinBtn.onclick=function(){ setView('join'); setTimeout(function(){ try{ el.Code.focus(); }catch(e){} },30); };
+    el.Go.onclick=function(){ startJoin(el.Code.value); };
+    el.Code.addEventListener('input',function(){
+      var v=NET.normCode(el.Code.value); if(v!==el.Code.value) el.Code.value=v;
+      if(v.length===NET.CODE_LEN) startJoin(v);
     });
-    document.getElementById('mvNetClose').onclick=cancel;
-    document.getElementById('mvNetCancel').onclick=cancel;
-    el.Done.onclick=function(){ if(NET.isActive()) connected(); };
-    document.getElementById('mvNetCopyOffer').onclick=function(){ copy(el.Offer); };
-    document.getElementById('mvNetCopyAnswer').onclick=function(){ copy(el.AnswerOut); };
-    document.getElementById('mvNetConnect').onclick=function(){
-      try{ NET.acceptAnswer(el.AnswerIn.value); }catch(e){ err(e); }
-    };
-    document.getElementById('mvNetCreateAnswer').onclick=function(){
-      try{
-        NET.join(el.JoinOffer.value).then(function(r){ el.AnswerOut.value=r.code||''; }).catch(err);
-      }catch(e){ err(e); }
-    };
-    document.getElementById('mvNetLocalHost').onclick=function(){
-      try{ NET.host({local:true,room:(el.Room.value||'mv2').trim()}).catch(err); }catch(e){ err(e); }
-    };
-    document.getElementById('mvNetLocalJoin').onclick=function(){
-      try{ NET.join('MV2ROOM1:'+(el.Room.value||'mv2').trim()).catch(err); }catch(e){ err(e); }
-    };
+    el.Code.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); startJoin(el.Code.value); } });
+    el.Back.onclick=back;
+    el.Done.onclick=function(){ if(NET.isLinked()&&NET.role()==='host') finishHost(); };
     NET.onStatus(render);
-    render(NET.status());
+    if(VOICE()) VOICE().onChange(renderVoice);
+    render(NET.status()); renderVoice();
   }
 
-  function doHost(){
-    try{ NET.host().then(function(r){ el.Offer.value=r.code||''; }).catch(err); }
-    catch(e){ err(e); }
-  }
-  function copy(ta){
-    if(!ta) return;
-    try{ ta.focus(); ta.select(); if(!document.execCommand||!document.execCommand('copy')) throw 0; }
-    catch(e){ try{ if(navigator.clipboard) navigator.clipboard.writeText(ta.value); }catch(e2){} }
-  }
-  function err(e){
-    if(el.Status) el.Status.textContent='ERROR — '+((e&&e.message)||e||'unknown');
-  }
-  function setMode(m){
-    mode=m;
+  function setView(v){
+    view=v;
     if(!panel) return;
-    el.HostBox.className='mvnet-box'+(m==='host'?' on':'');
-    el.JoinBox.className='mvnet-box'+(m==='join'?' on':'');
-    el.LocalBox.className='mvnet-box'+(m==='local'?' on':'');
-    var bs=document.getElementById('mvNetTabs').getElementsByTagName('button');
-    for(var i=0;i<bs.length;i++) bs[i].className='mvnet-btn'+(bs[i].getAttribute('data-m')===m?' on':'');
-    if(m==='host'&&!el.Offer.value) doHost();
+    el.Menu.style.display=v==='menu'?'':'none';
+    el.HostV.style.display=v==='host'?'':'none';
+    el.JoinV.style.display=v==='join'?'':'none';
+    el.Done.style.display=v==='host'?'':'none';
+    el.Back.textContent=v==='menu'?'CLOSE':'BACK';
+    if(v==='menu') el.Status.textContent='Pick HOST or JOIN.';
+    padFocus(0);
+  }
+  function startHost(){
+    setView('host');
+    el.HostCode.textContent='····'; el.Link.textContent=''; qr('');
+    NET.host().then(function(r){
+      el.HostCode.textContent=r.code;
+      var link=NET.joinLink(r.code);
+      el.Link.textContent=link; qr(link);
+    }).catch(function(){});
+  }
+  function startJoin(code){
+    var c=NET.normCode(code);
+    if(c.length!==NET.CODE_LEN){ el.Status.textContent='Room codes have '+NET.CODE_LEN+' letters.'; return; }
+    if(NET.role()==='joiner'&&NET.code()===c&&/joining|connected/.test(NET.status().status)) return;
+    try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
+    NET.join(c).catch(function(){});
+  }
+  function qr(text){
+    var cv=el.Qr; if(!cv) return;
+    var g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+    cv.style.display=text?'':'none';
+    if(!text||typeof window.qrcode!=='function') return;
+    try{
+      var q=window.qrcode(0,'M'); q.addData(text); q.make();
+      var n=q.getModuleCount(), sz=Math.floor(cv.width/(n+2)), off=Math.floor((cv.width-sz*n)/2);
+      g.fillStyle='#000';
+      for(var r=0;r<n;r++) for(var c=0;c<n;c++) if(q.isDark(r,c)) g.fillRect(off+c*sz,off+r*sz,sz,sz);
+    }catch(e){ cv.style.display='none'; }
   }
   function render(s){
-    if(!el.Status) return;
-    var txt=String(s.status||'offline').toUpperCase();
-    if(s.detail) txt+=' — '+s.detail;
-    el.Status.textContent=txt;
-    el.Status.style.color=s.active?'#8ff5a0':(/error|closed/.test(s.status)?'#ff9a8a':'#c8b8e8');
-    if(s.offer) el.Offer.value=s.offer;
-    if(s.answer) el.AnswerOut.value=s.answer;
-    el.Done.disabled=!s.active;
+    if(panel){
+      var txt=s.detail||String(s.status||'').toUpperCase();
+      if(s.linked&&s.ping) txt+='  ·  ping '+s.ping+' ms';
+      if(s.linked&&s.role==='joiner') txt+=(s.remoteStage?'  ·  jumping into the stage…':'  ·  waiting for the host to pick a hero and start…');
+      if(view!=='menu'||s.status!=='offline') el.Status.textContent=txt;
+      el.Status.style.color=s.linked?'#C9A24A':(/error|closed/.test(s.status)?'#d85868':'#EFE6D2');
+      el.Done.disabled=!(s.linked&&s.role==='host');
+    }
+    renderChip();
   }
+  function renderVoice(){
+    var v=VOICE(); if(!panel||!v) { renderChip(); return; }
+    var m=v.mode(), bs=el.Voice.getElementsByTagName('button');
+    for(var i=0;i<bs.length;i++) bs[i].className=bs[i].getAttribute('data-v')===m?'on':'';
+    var st=v.state();
+    el.VoiceHint.textContent=st.err?st.err:
+      (m==='off'?'Off until you turn it on. Push-to-talk: hold T (pad: R-stick click). Open mic: T mutes.':
+       m==='open'?(st.muted?'Mic MUTED — press T (pad: R-stick click) to talk again.':'Mic is ON. T (pad: R-stick click) mutes.'):
+       'Hold T (pad: R-stick click) to talk.');
+    renderChip();
+  }
+
+  // ---- in-stage chip --------------------------------------------------------
+  function buildChip(){
+    css();
+    chip=document.createElement('div'); chip.id='mvNetChip';
+    chip.title='Online co-op. Click: voice OFF / OPEN MIC / PUSH-TO-TALK';
+    document.body.appendChild(chip);
+  }
+  function renderChip(){
+    if(!chip) buildChip();
+    var s=NET.status(), live=false;
+    try{ live=s.linked&&_gameState==='game'; }catch(e){}
+    chip.style.display=live?'block':'none';
+    if(!live) return;
+    var v=VOICE(), m=v?v.mode():'off', vs=v?v.state():{};
+    var vt=m==='off'?'VOICE OFF':(m==='open'?(vs.muted?'MIC MUTED':'OPEN MIC'):(vs.ptt?'TALKING':'HOLD T'));
+    chip.innerHTML='ONLINE '+(s.code||'')+(s.ping?' · '+s.ping+'ms':'')+' · '+vt+'<span class="mic" id="mvNetMicDot"></span>';
+  }
+  setInterval(function(){
+    renderChip();
+    var dot=document.getElementById('mvNetMicDot'), v=VOICE();
+    if(dot&&v){
+      var me=v.talking()&&v.level()>0.02, them=v.mode()!=='off'&&v.remoteLevel()*v.gain()>0.01;
+      dot.className='mic'+(me?' live':(them?' hear':''));
+    }
+  },200);
+
+  // ---- open / close -----------------------------------------------------------
   function show(cb){
     onDone=typeof cb==='function'?cb:null;
     if(!panel) build();
     panel.style.display='flex';
-    setMode('host');
-    render(NET.status());
+    if(NET.isLinked()) setView(NET.role()==='host'?'host':'join'); else setView('menu');
+    render(NET.status()); renderVoice();
   }
-  function connected(){
-    var cb=onDone; onDone=null;
-    if(panel) panel.style.display='none';
-    if(typeof cb==='function'){ try{ cb(); }catch(e){ console.error('MV net connect hook',e); } }
+  function hide(){ if(panel) panel.style.display='none'; }
+  function isOpen(){ return !!(panel&&panel.style.display!=='none'); }
+  function finishHost(){
+    var cb=onDone; onDone=null; hide();
+    try{
+      _playerCount=1; _playModeIdx=3; _selectStep=1;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+    }catch(e){}
+    if(typeof cb==='function'){ try{ cb(); }catch(e){} }
   }
-  function cancel(){
-    NET.disconnect();
-    onDone=null;
-    if(panel) panel.style.display='none';
-    try{ if(typeof _playModeIdx!=='undefined') _playModeIdx=0; }catch(e){}
-    try{ if(typeof _selectStep!=='undefined') _selectStep=0; }catch(e){}
-    try{ if(typeof _gameState!=='undefined') _gameState='select'; }catch(e){}
+  function back(){
+    if(view!=='menu'){ NET.disconnect(); setView('menu'); return; }
+    hide(); onDone=null;
+    try{ if(!NET.isLinked()&&typeof _playModeIdx!=='undefined'&&_playModeIdx===3) _playModeIdx=0; }catch(e){}
   }
-  // The peer linked up: leave the panel and fall through to the hero cards.
-  NET.onStatus(function(s){ if(s.status==='connected') connected(); });
+  NET.onStatus(function(s){
+    if(s.status==='connected'&&s.role==='host'&&isOpen()) setTimeout(function(){ if(isOpen()&&NET.isLinked()) finishHost(); },1400);
+  });
 
-  // ---- menu integration (tiny wrappers, no edits to ui.js) --------------
+  // ---- menu integration (wrappers; ui.js keeps its own flow) -----------------
   var realStart=window.startGame;
   if(typeof realStart==='function'){
     window.startGame=function(){
       try{
-        if(typeof _gameState!=='undefined'&&_gameState==='select'&&
-           typeof _selectStep!=='undefined'&&_selectStep===0&&
-           typeof _playModeIdx!=='undefined'&&_playModeIdx===3){
-          if(NET.isActive()){ _selectStep=1; return; }   // already linked: skip ui.js's old "coming soon" toast
-          if(panel&&panel.style.display!=='none') return;
-          show(function(){
-            try{
-              if(typeof _playerCount!=='undefined') _playerCount=2;
-              if(typeof _playModeIdx!=='undefined') _playModeIdx=3;
-              if(typeof _selectStep!=='undefined') _selectStep=1;
-              if(window.MV_SIBLING) MV_SIBLING.on=false;
-            }catch(e){}
-          });
+        if(isOpen()) return;
+        if(_gameState==='select'&&_selectStep===0&&_playModeIdx===3){
+          if(NET.isLinked()&&NET.role()==='host'){ finishHost(); return; }
+          show(null);
           return;
         }
       }catch(e){}
@@ -206,20 +255,97 @@
   }
   var realGate=window.MV_SELECT_GATE;
   window.MV_SELECT_GATE=function(){
-    try{ if(NET.isActive()) return false; }catch(e){}
+    try{ if(NET.isLinked()) return false; }catch(e){}
     return typeof realGate==='function'?realGate.apply(this,arguments):false;
   };
   var realNav=window.MV_SELECT_NAV;
   window.MV_SELECT_NAV=function(){
-    try{ if(panel&&panel.style.display!=='none') return true; }catch(e){}
+    if(isOpen()) return true;
     return typeof realNav==='function'?realNav.apply(this,arguments):false;
   };
-  // ui.js turns Escape into "back to story" on step 0; while the net panel is
-  // open, undo that and close the panel instead.
-  document.addEventListener('keydown',function(e){
-    if(!panel||panel.style.display==='none') return;
-    if(e.code==='Escape'){ e.preventDefault(); e.stopPropagation(); cancel(); }
+  // While the panel is open, keys belong to it (typing the code), not the game.
+  window.addEventListener('keydown',function(e){
+    if(!isOpen()) return;
+    if(e.code==='Escape'){ e.preventDefault(); back(); }
+    else if(e.key==='Enter'&&e.target&&e.target.tagName==='BUTTON'){ /* native click */ }
+    e.stopImmediatePropagation();
   },true);
 
-  window.MV_NET_UI={open:show, close:cancel, isOpen:function(){ return !!(panel&&panel.style.display!=='none'); }};
+  // Clicks / taps on the panel and the chip: the game's own document-level capture
+  // handlers (boot splash skip, title click, select taps) would eat them, so take
+  // them at the window capture phase, before any of those, and act here.
+  function ours(t){ return t&&t.closest?t.closest('#mvNetPanel,#mvNetChip'):null; }
+  window.addEventListener('click',function(e){
+    var root=ours(e.target); if(!root) return;
+    e.stopPropagation();
+    if(root.id==='mvNetChip'){ e.preventDefault(); if(VOICE()) VOICE().cycle(); return; }
+    var btn=e.target.closest('button');
+    if(!btn||btn.disabled) return;
+    var v=btn.getAttribute('data-v');
+    if(v){ if(VOICE()) VOICE().setMode(v); return; }
+    if(typeof btn.onclick==='function') btn.onclick.call(btn,e);
+  },true);
+  ['touchstart','touchend','mousedown','pointerup'].forEach(function(t){
+    window.addEventListener(t,function(e){ if(ours(e.target)) e.stopPropagation(); },{capture:true,passive:true});
+  });
+
+  // ---- pad navigation inside the panel ----------------------------------------
+  var pf=0, padPrev={}, padRep=0;
+  function focusables(){
+    if(!panel) return [];
+    return Array.prototype.filter.call(panel.querySelectorAll('button,#mvNetCode'),function(b){ return b.offsetParent!==null&&!b.disabled; });
+  }
+  function padFocus(i){
+    var f=focusables(); if(!f.length) return;
+    pf=(i+f.length)%f.length;
+    f.forEach(function(b){ b.classList.remove('pf'); });
+    f[pf].classList.add('pf');
+  }
+  function letterStep(d){
+    var v=NET.normCode(el.Code.value).split(''), A='ABCDEFGHJKLMNPQRSTUVWXYZ';
+    var at=Math.min(v.length,NET.CODE_LEN-1);
+    if(at>=v.length) v.push('A');
+    else v[at]=A.charAt((A.indexOf(v[at])+d+A.length)%A.length);
+    el.Code.value=v.join('');
+  }
+  setInterval(function(){
+    if(!isOpen()) return;
+    var pads=navigator.getGamepads?navigator.getGamepads():[], gp=null;
+    for(var i=0;i<pads.length;i++) if(pads[i]&&pads[i].connected){ gp=pads[i]; break; }
+    if(!gp) return;
+    var b=function(n){ return !!(gp.buttons[n]&&gp.buttons[n].pressed); };
+    var ax=gp.axes[0]||0, ay=gp.axes[1]||0;
+    var now={a:b(0),b:b(1),l:b(14)||ax<-0.5,r:b(15)||ax>0.5,u:b(12)||ay<-0.5,d:b(13)||ay>0.5};
+    var edge=function(k){ return now[k]&&!padPrev[k]; };
+    var f=focusables(), cur=f[pf];
+    var onCode=cur&&cur.id==='mvNetCode';
+    if(edge('l')) padFocus(pf-1);
+    if(edge('r')) padFocus(pf+1);
+    if(onCode&&edge('u')) letterStep(1);
+    if(onCode&&edge('d')){ if(NET.normCode(el.Code.value).length<NET.CODE_LEN) el.Code.value=NET.normCode(el.Code.value)+'A'; else letterStep(-1); }
+    if(!onCode&&(edge('u')||edge('d'))) padFocus(pf+(now.d?1:-1));
+    if(edge('a')&&cur){ if(onCode){ var v=NET.normCode(el.Code.value); if(v.length===NET.CODE_LEN) startJoin(v); else el.Code.value=v+'A'; } else cur.click(); }
+    if(edge('b')) back();
+    padPrev=now;
+  },50);
+
+  // ---- ?join=CODE links (and QR scans) ------------------------------------------
+  (function(){
+    var m=/[?&]join=([A-Za-z]{4})\b/.exec(location.search||'');
+    if(!m) return;
+    var code=NET.normCode(m[1]);
+    var t0=Date.now();
+    var wait=setInterval(function(){
+      var ready=false;
+      try{ ready=!!document.body&&typeof _gameState!=='undefined'&&!!_gameState; }catch(e){}
+      if(!ready&&Date.now()-t0<20000) return;
+      clearInterval(wait);
+      show(null); setView('join'); el.Code.value=code;
+      el.Status.textContent='Press JOIN to enter room '+code+'.';
+      try{ el.Go.focus(); }catch(e){}
+      padFocus(focusables().indexOf(el.Go));
+    },300);
+  })();
+
+  window.MV_NET_UI={open:show, hide:hide, close:back, isOpen:isOpen, host:startHost, join:startJoin, view:function(){ return view; }};
 })();

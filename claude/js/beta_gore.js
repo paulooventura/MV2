@@ -127,7 +127,7 @@
   function shapeGeom(hb,a,kind){
     const cx=hb.x+hb.w*0.5, cy=hb.y+hb.h*0.5, lift=(a&&a._lift)||0;
     const gr=(a&&typeof foeGroove==='function')?foeGroove(a):null;
-    if(kind==='tri'||kind==='triDown') return {kind,hb,tri:triVerts(hb,a,kind==='triDown'),cx,cy};
+    if(kind==='tri'||kind==='triDown') return nudgeGeom({kind,hb,tri:triVerts(hb,a,kind==='triDown'),cx,cy},a);
     if(kind==='square'){
       const rot=((a&&a.ang)||0)+((a&&a.og&&a.gAng)||0)+(gr?gr.rot:0);
       return {kind,hb,verts:rectVerts(cx,cy,hb.w,hb.h,rot),cx,cy};
@@ -165,6 +165,25 @@
   }
   // Where a box-face anchor (side,t) lands on the drawn outline. Returns the
   // world point, a drip direction, its bounded run, and the pool style + edge.
+  // drawAi wobbles the painted foe (foeGroove) after the hitbox is placed.
+  // The stain clip has to take that same shift or the ink sits off the art.
+  function artNudge(a){
+    const gr=(a&&typeof foeGroove==='function')?foeGroove(a):null;
+    if(!gr) return null;
+    const sc=(typeof sw==='function'?sw(1):1)||1;
+    const wob=gr.wave||0;
+    return {dx:(gr.dx||0)/sc, dy:((gr.dy||0)+wob*0.5)/sc, rot:(gr.rot||0)*0.5+wob*0.004};
+  }
+  function nudgeGeom(sg,a){
+    const n=artNudge(a);
+    if(!n||(!n.dx&&!n.dy&&!n.rot)) return sg;
+    const cx=sg.cx, cy=sg.cy, cs=Math.cos(n.rot), sn=Math.sin(n.rot);
+    const mv=q=>{ const x=q.x-cx, y=q.y-cy; return {x:cx+x*cs-y*sn+n.dx, y:cy+x*sn+y*cs+n.dy}; };
+    if(sg.tri){ sg.tri={A:mv(sg.tri.A), B:mv(sg.tri.B), C:mv(sg.tri.C), down:sg.tri.down}; }
+    if(sg.verts) sg.verts=sg.verts.map(mv);
+    sg.cx+=n.dx; sg.cy+=n.dy;
+    return sg;
+  }
   function shapeAnchor(sg,side,t){
     if(!sg) return null;
     const hb=sg.hb;
@@ -443,21 +462,52 @@
   //   flat, glossy puddle on that floor; it spreads a little, and where it reaches the edge of
   //   the platform it runs over the lip: a drip swells under the edge, lets go, and falls to
   //   the platform below, where it pools again. (Blood that hits a wall still stains it.)
-  const puddles=[], hang=[], seeps=[], clouds=[];
+  const puddles=[], hang=[], seeps=[], films=[], clouds=[];
   const TS=()=>(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
   function floorTop(x,y){ const t=TS(); return hitFloor(x,y+2)?Math.floor((y+2)/t)*t:null; }
   function onFloor(x,fy){ return hitFloor(x,fy+3)&&!hitFloor(x,fy-3); }
+  // A drop inside a roof must land on the highest face, not a tile buried in the stack.
+  function surfaceTop(x,y){
+    const t=TS();
+    if(hitFloor(x,y)){
+      let yy=y;
+      for(let n=0;n<20&&hitFloor(x,yy-3);n++) yy-=t;
+      const fy=Math.floor(yy/t)*t;
+      if(onFloor(x,fy)) return fy;
+    }
+    return floorTop(x,y);
+  }
+  // Fish-scale roofs: a scale's crown is the high paint, the gap between scales is deeper.
+  // 0 at a crown, ~5 in a groove. Liquid settles into the grooves first.
+  function crownSag(x){
+    const t=TS(), lx=((x%t)+t)%t;
+    const fromCrown=Math.abs(((lx%16)+16)%16-8);
+    return (fromCrown/8)*5;
+  }
   function pour(x,fy,m){
     if(!isFinite(x)||fy==null) return;
-    for(const q of puddles) if(q.y===fy&&x>=q.x0-12&&x<=q.x1+12){ q.m=Math.min(55,q.m+m); q.x0=Math.min(q.x0,x-4); q.x1=Math.max(q.x1,x+4); q.age=0; return; }
-    puddles.push({x0:x-6,x1:x+6,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6});   // spills wide from the first drop
+    const reach=10+Math.sqrt(Math.max(0,m))*10;
+    for(const q of puddles) if(q.y===fy&&x>=q.x0-reach&&x<=q.x1+reach){ q.m=Math.min(55,q.m+m); q.x0=Math.min(q.x0,x-4); q.x1=Math.max(q.x1,x+4); q.age=0; return; }
+    puddles.push({x0:x-6,x1:x+6,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6,seepN:0});
     if(puddles.length>100) puddles.shift();
   }
+  function addHang(x,y,m){
+    const mm=Math.max(0.08,m);
+    for(const h of hang) if(Math.abs(h.x-x)<14&&Math.abs(h.y-y)<10){ h.m=Math.min(4.5,h.m+mm); return; }
+    hang.push({x,y,g:0,m:mm});
+    if(hang.length>48) hang.shift();
+  }
+  function addFilm(x,y,m){
+    for(const f of films) if(Math.abs(f.y-y)<8&&x>=f.x0-18&&x<=f.x1+18){ f.m=Math.min(14,f.m+m); f.x0=Math.min(f.x0,x-2); f.x1=Math.max(f.x1,x+2); f.age=0; return; }
+    films.push({x0:x-4,x1:x+4,y,m:Math.max(0.08,m),age:0});
+    if(films.length>40) films.shift();
+  }
+  function ceilingAt(x,y){ return hitFloor(x,y-3)&&!hitFloor(x,y+2); }
   window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }, spray:(x,y,n,b)=>spray(x,y,n,b), state:()=>({drops:drops.length, seeps:seeps.length, seepsDone:seeps.filter(q=>q.done).length, onChars:estains.filter(q=>q.me).length, puddles:puddles.length})};
   // Paulo, Nov 13: blood (and ink) never hangs in the air or sits inside a wall: it lands on a surface; on a wall
   // it slides down in a little line, and where the wall ends it lets go as a drop that falls to the next surface
   function splat(x,y,r){
-    const fy=floorTop(x,y);
+    const fy=surfaceTop(x,y);
     if(fy!=null&&onFloor(x,fy)){ pour(x,fy,0.7+r*0.45); return; }
     let side=0; for(const s of [-1,1]) if(hitFloor(x+s*4,y)){ side=s; break; }
     if(!side){ if(hitFloor(x,y)) return; drops.push({x,y,px:x,py:y,vx:0,vy:0.8,r:Math.max(1,r),t:5,max:900,chunk:false,drip:true}); return; }   // nothing to stick to: it keeps falling
@@ -469,8 +519,12 @@
     for(let i=puddles.length-1;i>=0;i--){
       const q=puddles[i]; q.age++;
       if(q.age>60*70||q.m<0.08){ puddles.splice(i,1); continue; }
-      const want=8+Math.sqrt(q.m)*18, cx=(q.x0+q.x1)/2, half=(q.x1-q.x0)/2;
-      if(half<want){ q.x0-=0.18; q.x1+=0.18; }
+      const want=6+Math.sqrt(q.m)*14, half=(q.x1-q.x0)/2;
+      const rate=(INK()?0.32:0.14)*(0.35+Math.min(1.6,q.m*0.07));
+      if(half<want){ q.x0-=rate; q.x1+=rate; }
+      // grooves are deeper than the crowns, so a shallow pool creeps into them
+      const sL=crownSag(q.x0), sR=crownSag(q.x1);
+      if(q.m<6){ if(sR>sL+0.6) q.x1+=rate*0.45; else if(sL>sR+0.6) q.x0-=rate*0.45; }
       // past the lip: the edge stops at the drop and the blood runs over it
       for(const side of [-1,1]){
         const ex=side<0?q.x0:q.x1;
@@ -479,24 +533,53 @@
         let k=ex; for(let n=0;n<64&&!onFloor(k,q.y);n++) k-=side;     // back to the last floor under it
         if(side<0) q.x0=k; else q.x1=k;
         const key=side<0?'dl':'dr';
-        q[key]+=0.03+q.m*0.008;
-        if(q[key]>=1&&q.m>0.25){
-          q[key]=0; q.m-=0.22;
-          hang.push({x:k+side*1.5,y:q.y,g:0,m:0.22});
+        q[key]+=(INK()?0.055:0.028)*(0.45+Math.min(2.2,q.m*0.09));
+        if(q[key]>=1&&q.m>0.3){
+          const dump=Math.min(q.m*0.32, 0.28+q.m*0.1);
+          q[key]=0; q.m-=dump;
+          addHang(k+side*1.5,q.y,dump);
         }
       }
     }
-    // (Paulo, Nov 13) blood on the ground soaks down: a thin line works its way down through it, and where the
-    // solid ends (a cave's ceiling under it) it beads up and drips
-    for(const q of puddles){ if(q.age>150&&q.m>0.6&&seeps.length<50&&Math.random()<0.006){ const x=q.x0+Math.random()*(q.x1-q.x0); if(hitFloor(x,q.y+4)){ seeps.push({x,y:q.y+1,len:0,done:false,a:0.55+Math.random()*0.3}); q.m-=0.15; } } }
-    for(const s of seeps){ if(s.done) continue; s.len+=INK()?0.22:0.12;
-      if(!hitFloor(s.x,s.y+s.len+1)){ s.done=true; hang.push({x:s.x,y:s.y+s.len-4,g:0,m:0.2}); hang.push({x:s.x,y:s.y+s.len-4,g:-0.6,m:0.2}); } }
-    // drips swell under the lip, then let go
-    for(let i=hang.length-1;i>=0;i--){
-      const h=hang[i]; h.g+=INK()?0.075:0.04;                           // ink runs thinner: drips form twice as fast
-      if(h.g>=1){ drops.push({x:h.x,y:h.y+4,px:h.x,py:h.y+4,vx:0,vy:0.6,r:1.6,t:5,max:400,chunk:false,drip:true}); hang.splice(i,1); }
+    // A deep pool soaks through as a few channels, not a field of straws.
+    for(const q of puddles){
+      const cap=q.m>8?3:1;
+      if(q.age>80&&q.m>1.3&&(q.seepN||0)<cap&&seeps.length<24&&Math.random()<0.02){
+        const x=q.x0+Math.random()*(q.x1-q.x0);
+        if(hitFloor(x,q.y+4)){ seeps.push({x,y:q.y+1,len:0,done:false,a:0.72}); q.m-=0.28; q.seepN=(q.seepN||0)+1; }
+      }
     }
-    if(hang.length>80) hang.splice(0,hang.length-80);
+    for(const s of seeps){ if(s.done) continue; s.len+=INK()?0.28:0.14;
+      if(!hitFloor(s.x,s.y+s.len+1)){ s.done=true; addFilm(s.x,s.y+s.len,0.4); } }
+    // Under the floor the soak is one film. It runs along the ceiling toward
+    // the eaves; a thick film sheds a tongue instead of a row of beads.
+    for(let i=films.length-1;i>=0;i--){
+      const f=films[i]; f.age++;
+      if(f.age>60*50||f.m<0.05){ films.splice(i,1); continue; }
+      const flow=(INK()?1.15:0.55)*(0.12+Math.min(1.4,f.m*0.11));
+      if(ceilingAt(f.x0-1,f.y)) f.x0-=flow;
+      if(ceilingAt(f.x1+1,f.y)) f.x1+=flow;
+      for(const side of [-1,1]){
+        const ex=side<0?f.x0:f.x1;
+        let lip=ex;
+        if(!ceilingAt(ex,f.y)){
+          let k=ex; for(let n=0;n<48&&!ceilingAt(k,f.y);n++) k-=side;
+          if(side<0) f.x0=k; else f.x1=k; lip=k;
+        }else if(ceilingAt(ex+side*2,f.y)) continue;
+        if(f.m>0.35){ const shed=Math.min(f.m*0.025,0.012+f.m*0.006)*(INK()?1.5:1); f.m-=shed; addHang(lip,f.y,shed); }
+      }
+      if(f.m>2.4){ const shed=Math.min(0.04,f.m*0.004); f.m-=shed; addHang((f.x0+f.x1)*0.5,f.y,shed); }
+    }
+    // a heavy drip lets go sooner and keeps a neck behind it
+    for(let i=hang.length-1;i>=0;i--){
+      const h=hang[i]; h.g+=(INK()?0.09:0.045)*(0.55+Math.min(2,h.m||0.2));
+      if(h.g>=1){
+        const r=Math.max(1.2,Math.min(3.4,0.7+(h.m||0.2)*1.15));
+        drops.push({x:h.x,y:h.y+4,px:h.x,py:h.y+4,vx:0,vy:0.35+(h.m||0.2)*0.4,r,t:5,max:400,chunk:false,drip:true});
+        if((h.m||0)>0.85){ h.m*=0.42; h.g=0.15; }
+        else hang.splice(i,1);
+      }
+    }
   }
   function drawSeeps(){
     // T546: on a ramp the soak follows the slope diagonal instead of standing as a
@@ -508,10 +591,25 @@
       const ang=(sl&&sl.angle)?sl.angle:0;
       if(ang){
         ctx.save(); ctx.translate(X,Y); ctx.rotate(ang);
-        ctx.fillRect(-Math.max(0.6,sw(0.7)),0,Math.max(1,sw(1.4)),len);
+        ctx.fillRect(-Math.max(0.5,sw(0.55)),0,Math.max(1,sw(1.1)),len);
         ctx.restore();
-      }else ctx.fillRect(X-Math.max(0.6,sw(0.7)),Y,Math.max(1,sw(1.4)),len);
-      if(!s.done){ ctx.beginPath(); ctx.arc(X-Math.sin(ang)*len,Y+Math.cos(ang)*len,Math.max(1,sw(1.2)),0,Math.PI*2); ctx.fill(); }
+      }else ctx.fillRect(X-Math.max(0.5,sw(0.55)),Y,Math.max(1,sw(1.1)),len);
+    }
+  }
+  function drawFilms(){
+    for(const f of films){
+      if(!nearView((f.x0+f.x1)/2,f.y,160)) continue;
+      const x0=sx(f.x0), x1=sx(f.x1), y=sy(f.y), w=x1-x0;
+      if(w<1) continue;
+      const th=Math.max(1.2,sw(0.7+Math.sqrt(f.m)*1.15));
+      const mid=(x0+x1)*0.5;
+      ctx.fillStyle=IC('#5a000c');
+      ctx.beginPath();
+      ctx.moveTo(x0,y);
+      ctx.quadraticCurveTo(mid,y+th*1.35,x1,y);
+      ctx.lineTo(x1,y+th*0.28);
+      ctx.quadraticCurveTo(mid,y+th*0.55,x0,y+th*0.28);
+      ctx.closePath(); ctx.fill();
     }
   }
   function drawPuddles(){
@@ -521,36 +619,39 @@
       const x0=sx(q.x0), x1=sx(q.x1), y=sy(q.y), h=Math.max(1.5,sw(th)), w=x1-x0;
       if(w<1) continue;
       ctx.save(); ctx.globalAlpha=a;
-      // the body: a flat sheet with rounded, slightly bulging ends
+      // Shallow liquid follows the scale grooves. A deep pool fills them and sits level.
+      const fill=Math.min(1,q.m/8), dip=1-fill*0.85;
       const g=ctx.createLinearGradient(0,y-h,0,y+1);
       g.addColorStop(0,IC('#a3061e')); g.addColorStop(0.5,IC('#6e0010')); g.addColorStop(1,IC('#3a0006'));
       ctx.fillStyle=IC(g); ctx.beginPath();
       ctx.moveTo(x0,y+0.5);
-      ctx.quadraticCurveTo(x0-h*0.6,y-h*0.2,x0+h*0.9,y-h);
-      for(let k=1;k<=6;k++){ const xx=x0+h*0.9+(w-h*1.8)*k/6, wob=Math.sin(q.ph+k*1.7+(typeof fr==='number'?fr*0.02:0))*h*0.12; ctx.lineTo(xx,y-h+wob); }
-      ctx.quadraticCurveTo(x1+h*0.6,y-h*0.2,x1,y+0.5);
+      ctx.lineTo(x0,y-h*(0.25+0.2*fill));
+      const n=Math.max(4,Math.min(16,Math.round(w/8)));
+      for(let k=0;k<=n;k++){
+        const u=k/n, wx=q.x0+(q.x1-q.x0)*u;
+        ctx.lineTo(x0+w*u, y-h*(0.42+0.58*fill)+sw(crownSag(wx))*dip);
+      }
+      ctx.lineTo(x1,y+0.5);
       ctx.closePath(); ctx.fill();
-      // the shine: a thin highlight along the top and a couple of glints
-      ctx.strokeStyle=IC('rgba(255,140,150,0.55)'); ctx.lineWidth=Math.max(1,sw(0.8));
-      ctx.beginPath(); ctx.moveTo(x0+w*0.12,y-h*0.78); ctx.lineTo(x0+w*0.55,y-h*0.82); ctx.stroke();
-      ctx.fillStyle=IC('rgba(255,220,225,0.7)');
-      ctx.fillRect(x0+w*0.2,y-h*0.85,Math.max(1,sw(1.4)),Math.max(1,sw(0.7)));
-      if(w>sw(30)) ctx.fillRect(x0+w*0.66,y-h*0.7,Math.max(1,sw(1)),Math.max(1,sw(0.6)));
+      ctx.strokeStyle=IC('rgba(255,140,150,0.4)'); ctx.lineWidth=Math.max(1,sw(0.6));
+      ctx.beginPath(); ctx.moveTo(x0+w*0.15,y-h*(0.35+0.4*fill)); ctx.lineTo(x0+w*0.5,y-h*(0.4+0.42*fill)); ctx.stroke();
       ctx.restore();
     }
-    // a drip hanging from the lip: a thin neck and a swelling bead
+    // a drip is a tongue: wider and longer when more of it is hanging there
     for(const h of hang){
-      const X=sx(h.x), Y=sy(h.y), len=sw(2+h.g*7), r=Math.max(1,sw(1+h.g*1.4));
+      const X=sx(h.x), Y=sy(h.y), m=h.m||0.2;
+      const w=Math.max(1,sw(0.55+m*1.5)), len=sw(3+h.g*(7+m*6));
       ctx.fillStyle=IC('#7a0012');
-      ctx.fillRect(X-Math.max(0.6,sw(0.5)),Y,Math.max(1.2,sw(1)),len);
-      ctx.beginPath(); ctx.ellipse(X,Y+len,r,r*1.25,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle=IC('rgba(255,170,180,0.6)'); ctx.fillRect(X-r*0.4,Y+len-r*0.5,Math.max(1,r*0.35),Math.max(1,r*0.35));
+      ctx.beginPath();
+      ctx.moveTo(X-w*0.45,Y); ctx.lineTo(X+w*0.45,Y);
+      ctx.lineTo(X+w*0.16,Y+len); ctx.lineTo(X-w*0.16,Y+len);
+      ctx.closePath(); ctx.fill();
     }
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; clouds.length=0; if(window.MV_BETA) MV_BETA.waterStain=0; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
-    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; } return; }
+    if(id!==stage){ stage=id; clouds.length=0; if(window.MV_BETA) MV_BETA.waterStain=0; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
+    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; seeps.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
     if(splashN>0){ splashSfx(splashN); splashN=0; }
@@ -639,7 +740,7 @@
     { const Bq=window.MV_BETA; if(Bq&&(Bq.results||Bq.popup||Bq.ending||Bq.trans||Bq.contScreen||Bq.overT>0)) return; }
     const zOwn=!(typeof _zoomSaved!=='undefined'&&_zoomSaved);                 // (inside the world pass the zoom may already be on)
     if(zOwn&&typeof _worldZoomBegin==='function') _worldZoomBegin();
-    try{ drawSeeps(); drawPuddles(); }catch(e){}
+    try{ drawSeeps(); drawFilms(); drawPuddles(); }catch(e){}
     for(const c of clouds){ const a=0.35*(1-c.t/90); ctx.fillStyle=IC('rgba(140,0,16,'+a.toFixed(3)+')'); ctx.beginPath(); ctx.arc(sx(c.x),sy(c.y),Math.max(1,sw(c.r)),0,Math.PI*2); ctx.fill(); }
     try{ if(IVF()) drawDreams(); }catch(e){}
     for(const s of stains){
@@ -651,7 +752,7 @@
       for(let b=0;b<(s.bits||3);b++){
         const ox=((b*5)%7)-3, oy=((b*3)%5)-1;
         ctx.fillStyle=IC('rgba('+(90+b*20)+',0,10,'+s.a.toFixed(2)+')');
-        ctx.beginPath(); ctx.arc(sw(ox),sw(oy+ (s.drip?0:b)),Math.max(1,sw(s.r*(0.7+b*0.15))),0,Math.PI*2); ctx.fill();
+        ctx.fillRect(sw(ox)*0.15, sw(oy), Math.max(1,sw(s.r*0.55)), Math.max(2,sw(s.r*(1.4+b*0.2))));
       }
       if(s.drip>0){ ctx.fillStyle=IC('rgba(120,0,12,'+s.a.toFixed(2)+')'); ctx.fillRect(-0.6,0,1.2,sw(3)); }
       ctx.restore();
