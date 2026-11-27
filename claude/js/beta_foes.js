@@ -47,15 +47,48 @@
     pad=pad||0;
     const bx=e.x-pad, by=e.y-pad, bw=e.w+pad*2, bh=e.h+pad*2;
     if(boxFree(bx,by,bw,bh)) return false;
-    for(let d=2;d<=T*1.5;d+=2){
-      for(const [dx,dy] of [[d,0],[-d,0],[0,d],[0,-d]]){
+    // Shortest way out. Pushing down costs extra, so a body sitting in the
+    // floor comes up onto it instead of being shoved through into the dirt.
+    let best=null;
+    for(let d=2;d<=T*3;d+=2){
+      for(const [dx,dy] of [[0,-d],[d,0],[-d,0],[0,d]]){
         if(!boxFree(bx+dx,by+dy,bw,bh)) continue;
-        e.x+=dx; e.y+=dy; e.vx=0; e.vy=0;
-        if(e._path){ e._path.length=0; }
-        return true;
+        const cost=d+(dy>0?28:0);
+        if(!best||cost<best.cost) best={dx,dy,cost};
       }
     }
+    if(!best){
+      for(let d=T*3;d<=240;d+=4){ if(boxFree(bx,by-d,bw,bh)){ best={dx:0,dy:-d,cost:d}; break; } }
+    }
+    if(!best) return false;
+    e.x+=best.dx; e.y+=best.dy; e.vx=0; e.vy=0;
+    if(e._path){ e._path.length=0; }
+    return true;
+  }
+  // The drawn polygon is rounder than its box. If any point of that shape is
+  // in rock, lift the body until the whole shape is clear. Never leave it in the floor.
+  function rimClear(cx,cy,R){
+    if(solid(cx,cy)) return false;
+    for(let i=0;i<8;i++){ const a=i*Math.PI/4; if(solid(cx+Math.cos(a)*R, cy+Math.sin(a)*R)) return false; }
+    return true;
+  }
+  function liftClear(e,R){
+    const cx=e.x+e.w/2; let cy=e.y+e.h/2;
+    if(rimClear(cx,cy,R)) return false;
+    for(let d=2;d<=280;d+=2){
+      if(!rimClear(cx,cy-d,R)) continue;
+      e.y-=d; if((e.vy||0)>0) e.vy=0;
+      return true;
+    }
     return false;
+  }
+  function moveClear(e,R){
+    const ox=e.x, oy=e.y;
+    e.x+=e.vx||0;
+    if(!rimClear(e.x+e.w/2, oy+e.h/2, R)){ e.x=ox; e.vx=0; }
+    e.y+=e.vy||0;
+    if(!rimClear(e.x+e.w/2, e.y+e.h/2, R)){ e.y=oy; e.vy=0; }
+    liftClear(e,R);
   }
   const centre=()=>({x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5});
   function clearLine(x0,y0,x1,y1){ const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/12); for(let i=1;i<n;i++){ if(solid(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return false; } return true; }
@@ -345,9 +378,10 @@
   function bubbleTick(){
     for(let i=fBubbles.length-1;i>=0;i--){
       const b=fBubbles[i]; b.t++;
-      const wetHere=B.inWater&&B.inWater(b.x,b.y), wetAbove=B.inWater&&B.inWater(b.x,b.y-8);
-      if(wetHere){ b.vy=Math.max(-2.2,b.vy-0.05); b.y+=b.vy; b.x+=Math.sin(b.t*0.15+b.ph)*0.6; }
-      if(!wetHere||!wetAbove||solid(b.x,b.y-8)||b.t>420){
+      const surf=B.waterSurface?B.waterSurface(b.x,b.y):null;
+      const rising=surf!=null&&b.y>surf+2&&!solid(b.x,b.y-8)&&b.t<420;
+      if(rising){ b.vy=Math.max(-2.2,(b.vy||0)-0.05); b.y+=b.vy; b.x+=Math.sin(b.t*0.15+b.ph)*0.6; continue; }
+      {
         let boiled=0; try{ if(B.boilAt) boiled=B.boilAt(b.x,b.y+4,0.7); }catch(er){}
         if(typeof PFXS!=='undefined') for(let k=0;k<7;k++){ const a=-Math.PI/2+(Math.random()-0.5)*2.4, s=2+Math.random()*4; PFXS.push({x:b.x,y:b.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:10+(Math.random()*10|0),maxLife:20,r:0.8+Math.random()*0.6,col:Math.random()<0.5?'#bfefff':'#fff6a0',spark:true}); }
         try{ if(typeof sfxAt==='function') sfxAt(b,'zap',1.6+Math.random()*0.4); }catch(er){}
@@ -409,27 +443,35 @@
   function fPelTick(){
     for(let i=F_PEL.length-1;i>=0;i--){
       const b=F_PEL[i]; b.t++;
-      const wp=!!(B.inWater&&B.inWater(b.x,b.y));
-      const above=!!(B.inWater&&B.inWater(b.x,b.y-10));
-      const ceil=solid(b.x,b.y-8);
+      const surf=B.waterSurface?B.waterSurface(b.x,b.y):null;
       if(b.stage===0){
-        if(!wp||!above||ceil||b.t>360){
-          b.stage=1; b.floatT=96; b.vy=0;
+        // live spark: climb to the surface. The foe's own body does not count as "out of the water".
+        const atSurf=surf!=null&&b.y<=surf+2;
+        const blocked=solid(b.x,b.y-7)&&surf!=null&&b.y>surf+6;
+        if(atSurf||blocked||(surf==null&&b.t>20)||b.t>420){
+          b.stage=1; b.floatT=atSurf?110:48; b.vy=0;
+          if(atSurf) b.y=surf-1;
           try{ if(typeof sfxAt==='function') sfxAt({x:b.x,y:b.y,w:0,h:0},'bubble_pop',1); else S('bubble_pop',1); }catch(er){ S('zap',1.8); }
           try{ if(B.boilAt) B.boilAt(b.x,b.y+4,0.4); }catch(er){}
         }else{
-          b.vy=Math.max(-2.8,(b.vy||-1.4)-0.07);
-          b.y+=b.vy; b.x+=Math.sin(b.t*0.14+b.ph)*0.4;
+          b.vy=Math.max(-2.4,(b.vy||-1.2)-0.06);
+          b.y+=b.vy; b.x+=Math.sin(b.t*0.14+b.ph)*0.35;
         }
       }else if(b.stage===1){
-        b.y+=Math.sin(b.t*0.1+b.ph)*0.22;
+        if(surf!=null) b.y=surf-1+Math.sin(b.t*0.12+b.ph)*1.1;
+        else b.y+=Math.sin(b.t*0.1+b.ph)*0.2;
         if(p&&(b.t%16)===0&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
-        if(--b.floatT<=0){ b.stage=2; b.vy=0.35; }
+        if(--b.floatT<=0){ b.stage=2; b.vy=0.25; }
       }else{
-        b.vy=Math.min(5.2,(b.vy||0)+0.22);
-        const ny=b.y+b.vy;
-        if(solid(b.x,ny+6)||b.t>520){ F_PEL.splice(i,1); continue; }
-        b.y=ny;
+        // spent: fall to the floor under it, in small steps so it cannot pass through
+        b.vy=Math.min(5.5,(b.vy||0)+0.28);
+        let left=b.vy, hit=false;
+        while(left>0){
+          const step=Math.min(3,left);
+          if(solid(b.x,b.y+5+step)||solid(b.x-3,b.y+5+step)||solid(b.x+3,b.y+5+step)){ hit=true; break; }
+          b.y+=step; left-=step;
+        }
+        if(hit||b.t>640){ F_PEL.splice(i,1); continue; }
       }
     }
     if(F_PEL.length>48) F_PEL.splice(0,F_PEL.length-48);
@@ -466,9 +508,8 @@
     if(e.cd>0) e.cd--;
     e.spin+=e.st==='zap'?0.08:(e.og?0:0.008);
     e.vy=Math.min((e.vy||0)+0.42,9); e.vx=(e.vx||0)*0.82;
-    if(boxFree(e.x,e.y+e.vy,e.w,e.h)) e.y+=e.vy; else e.vy=0;
-    if(boxFree(e.x+e.vx,e.y,e.w,e.h)) e.x+=e.vx; else e.vx=0;
-    e.og=!boxFree(e.x,e.y+2,e.w,e.h);                              // on the floor: it lies on a face — its float-spin hands over to the notches
+    moveClear(e, e.w*0.56);
+    e.og=!rimClear(e.x+e.w/2, e.y+e.h/2+3, e.w*0.56);              // the drawn shape is on the floor, not the smaller box
     if(e.og&&e.st!=='zap'){ e.ang=(e.ang||0)+(e.spin||0); e.spin=0; }
     // T487 (Paulo, Nov 11): on the ground it moves by pushing on its corner notches — it rolls over
     // them, tipping up onto a corner and dropping onto the next face (a stumble, not a slide)
@@ -613,7 +654,7 @@
     if(e._recoilT>0||e._dodgeT>0){ if(e._recoilT>0) e._recoilT--; if(e._dodgeT>0) e._dodgeT--; e.vx*=0.9; e.vy*=0.9; e.rot+=(e.vx||0)*0.004; }
     else{ e.vx=(e.vx||0)*0.92+(tx-c.x)*0.0025*spd; e.vy=(e.vy||0)*0.9+(ty-c.y)*0.006*spd; }
     if(e.xMin!=null&&e.x+e.w/2<e.xMin*1-40&&e.vx<0) e.vx*=-0.5; if(e.xMax!=null&&e.x+e.w/2>e.xMax+40&&e.vx>0) e.vx*=-0.5;
-    e.x+=e.vx; e.y+=e.vy;
+    moveClear(e, 56);
     // a laugh now and then while it's fighting
     if(e.awake&&e.alive&&fr>(e._tauntAt||0)){ if(e._tauntAt){ e._mockT=70; e._mockLine=(()=>{const L=moodLines(TAUNT,GORE_TAUNT,CUTE_TAUNT);return L[(e._tn=(e._tn|0)+1)%L.length];})(); try{ laugh(e); }catch(er){} } e._tauntAt=fr+540+Math.floor(Math.random()*300); }
     if(e.awake) e.rot+=hard?0.035:ph===2?0.016:0.01;                   // asleep in the bowl it lies still on a face
