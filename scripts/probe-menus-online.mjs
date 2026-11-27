@@ -52,7 +52,11 @@ try {
       } else { console.log('no house brother in this stage; opening the window directly'); await pg.evaluate(() => MV_BROTHER_ASK.open()); }
       if (SHOTS) await pg.screenshot({ path: 'test-results/brother-ask.png' });
       await pg.evaluate(() => MV_BROTHER_ASK.pick(1));
-      ok('ADD PLAYER 2 switches to local co-op in place', await pg.evaluate(() => _playerCount === 2 && p2 && !p2._aiCompanion && _gameState === 'game' && !_paused));
+      // the controls picker (controls_setup.js) pauses while it is up; closing it resumes the run
+      const ctl = await pg.evaluate(() => !!(window.MV_CONTROLS && MV_CONTROLS.isOpen()));
+      if (ctl) await pg.evaluate(() => MV_CONTROLS.close());
+      const st2 = await pg.evaluate(() => ({ pc: _playerCount, p2: !!p2, ai: !!(p2 && p2._aiCompanion), gs: _gameState, paused: _paused }));
+      ok('ADD PLAYER 2 switches to local co-op in place', st2.pc === 2 && st2.p2 && !st2.ai && st2.gs === 'game' && !st2.paused, { controlsPicker: ctl, ...st2 });
       // saves round-trip
       const r = await pg.evaluate(() => {
         localStorage.setItem('mv2.story.slots.v1', JSON.stringify([{ stageId: '1.2', mask: 3 }, null, null, null, null]));

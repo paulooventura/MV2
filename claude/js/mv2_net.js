@@ -131,6 +131,7 @@
 
   function remBucket(seat){
     seat=seat|0;
+    if(remotes[-1]) delete remotes[-1];
     if(!remotes[seat]) remotes[seat]={buf:[], latest:null, hello:null, peerId:null};
     return remotes[seat];
   }
@@ -383,6 +384,11 @@
 
   function handle(pk, fromConn){
     if(!pk||typeof pk!=='object') return;
+    // Host: the seat it gave this connection wins. A joiner's packets sent before its 'seat'
+    // welcome lands carry seat -1; filed as remotes[-1], that stale packet sorted first in
+    // primaryLatest(), so the host never saw the joiner enter the stage (flaky race).
+    if(st.role==='host'&&fromConn&&fromConn._mvSeat!=null&&fromConn._mvSeat>=0&&(pk.seat==null||(pk.seat|0)<0)) pk.seat=fromConn._mvSeat;
+    if(pk.seat!=null&&(pk.seat|0)<0&&pk.t!=='bye') return;
     switch(pk.t){
       case 'seat':
         mySeat=pk.seat|0;
@@ -862,7 +868,7 @@
     // apply local identity once in-stage
     try{ if(ID&&pl&&!pl._netPuppet) ID.applyToActor(pl, localIdentity()); }catch(e){}
     syncPuppets();
-    if(now-lastSend>=SEND_MS){ lastSend=now; sendState(heroSnap(pl)); }
+    if(now-lastSend>=SEND_MS&&mySeat>=0){ lastSend=now; sendState(heroSnap(pl)); }
     if(now-lastEnemy>=ENEMY_MS&&!loading()){ lastEnemy=now; computeOwners(); sendEnemies(); }
     if(now-lastWorldSnap>=WORLD_SNAP_MS&&!loading()&&inTimeline()){ lastWorldSnap=now; if(st.role==='host') sendWorldSnap(); }
     applyEnemies();

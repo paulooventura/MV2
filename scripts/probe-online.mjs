@@ -62,6 +62,9 @@ try {
   ok('both linked', await until(Bp, () => MV_NET.isLinked(), null, 25000) && await until(A, () => MV_NET.isLinked(), null, 5000),
     { A: await A.evaluate(() => MV_NET.status()), B: await Bp.evaluate(() => MV_NET.status()) });
   ok('a room link is not the same stage yet', await A.evaluate(() => MV_NET.isLinked() && !MV_NET.inTimeline() && MV_NET.phase() === 'room') && await Bp.evaluate(() => MV_NET.isLinked() && !MV_NET.inTimeline() && MV_NET.phase() === 'room'));
+  // Since build 422 the host's room stays open (seats fill up to 5); PICK YOUR HERO moves on.
+  await until(A, () => !document.getElementById('mvNetDone').disabled, null, 5000);
+  await A.click('#mvNetDone');
   ok('host moves on to hero select', await until(A, () => !MV_NET_UI.isOpen() && _gameState === 'select' && _selectStep === 1, null, 5000));
   if (SHOTS) await Bp.screenshot({ path: 'test-results/online-join-wait.png' });
 
@@ -70,7 +73,9 @@ try {
   ok('host in stage 1.1', await until(A, () => _gameState === 'game' && MV_BETA.stageId === '1.1' && !MV_BETA.loading && p, null, 40000));
   ok('joiner follows into 1.1 as VENTURE', await until(Bp, () => _gameState === 'game' && MV_BETA.stageId === '1.1' && !MV_BETA.loading && p && p.hero === 'venture', null, 40000),
     await Bp.evaluate(() => ({ gs: _gameState, st: MV_BETA.stageId, hero: p && p.hero })));
-  ok('each sees the other as a puppet', await until(A, () => p2 && p2._netPuppet && p2.hero === 'venture', null, 8000) && await until(Bp, () => p2 && p2._netPuppet && p2.hero === 'mind', null, 8000));
+  const pupA = await until(A, () => p2 && p2._netPuppet && p2.hero === 'venture', null, 8000), pupB = await until(Bp, () => p2 && p2._netPuppet && p2.hero === 'mind', null, 8000);
+  const pupInfo = async pg => pg.evaluate(() => ({ me: p && p.hero, p2: !!p2, puppet: !!(p2 && p2._netPuppet), hero: p2 && p2.hero, st: MV_BETA.stageId, ph: MV_NET.phase(), tl: MV_NET.inTimeline() }));
+  ok('each sees the other as a puppet', pupA && pupB, { A: await pupInfo(A), B: await pupInfo(Bp) });
   ok('both are in the same stage', await until(A, () => MV_NET.inTimeline() && MV_NET.phase() === 'timeline', null, 8000) && await until(Bp, () => MV_NET.inTimeline() && MV_NET.phase() === 'timeline', null, 8000));
   ok('online keeps a solo camera (playerCount 1)', await A.evaluate(() => _playerCount) === 1 && await Bp.evaluate(() => _playerCount) === 1);
 
@@ -84,10 +89,11 @@ try {
   ok('host sees joiner move', await until(A, x => p2 && Math.abs(p2.x - x) < 40, bx, 4000));
 
   // Loaded jump / charge: duckCharge + duckBoostReady must cross the wire (Build 426)
-  await A.evaluate(() => { p.duckCharge = 90; p.duckBoostReady = true; p.wallGrip = 20; p._wallChargeReady = true; p.runRamp = 1; });
+  // held like a real charge: the local update clears duckCharge the next frame, so a one-shot set raced the 20 Hz send
+  await A.evaluate(() => { window.__hold && clearInterval(window.__hold); window.__hold = setInterval(() => { p.duckCharge = 90; p.duckBoostReady = true; p.wallGrip = 20; p._wallChargeReady = true; p.runRamp = 1; }, 16); setTimeout(() => clearInterval(window.__hold), 1500); });
   ok('joiner sees host loaded-jump charge', await until(Bp, () => p2 && p2.duckBoostReady === true && (p2.duckCharge || 0) >= 80 && p2._wallChargeReady === true, null, 4000),
     await Bp.evaluate(() => p2 && ({ duck: p2.duckCharge, ready: p2.duckBoostReady, wall: p2._wallChargeReady, run: p2.runRamp })));
-  await Bp.evaluate(() => { p.duckCharge = 90; p.duckBoostReady = true; });
+  await Bp.evaluate(() => { window.__hold && clearInterval(window.__hold); window.__hold = setInterval(() => { p.duckCharge = 90; p.duckBoostReady = true; }, 16); setTimeout(() => clearInterval(window.__hold), 1500); });
   ok('host sees joiner loaded-jump charge', await until(A, () => p2 && p2.duckBoostReady === true && (p2.duckCharge || 0) >= 80, null, 4000),
     await A.evaluate(() => p2 && ({ duck: p2.duckCharge, ready: p2.duckBoostReady })));
 
