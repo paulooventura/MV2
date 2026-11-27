@@ -372,7 +372,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){
         var u=(r.active&&r.active.scriptURL)||'';
         if(u.indexOf('/claude/sw.js')>=0) return r.unregister();
       }));
-    }).finally(function(){
+    }).catch(function(){}).finally(function(){
       navigator.serviceWorker.register(swUrl).catch(function(){});
     });
   });
