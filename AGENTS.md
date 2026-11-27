@@ -128,3 +128,7 @@ After completing substantive work in this repo, **commit and push to `dev` witho
 **Do not commit:** `.vs/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
 
 **Remote:** `https://github.com/paulooventura/MV2.git` · work branch `dev` · live branch `main` (Daily Ship only)
+
+## No-tunneling guarantee (build 451)
+
+`claude/js/beta_tunnel.js` runs once per frame after every other module and keeps foes (all types), flying/pushed/thrown blocks and both heroes out of rock: a swept check from last frame's clear spot (stop at the rock, slide along it) plus a last-resort depenetration (lift/push to the nearest free spot, never hopping a wall). `scripts/probe-tunnel.mjs` (`npm run selftest:tunnel`, also part of `npm run selftest`) steps thousands of flung frames per stage and fails on any embed or crossing; `--noguard` shows the engine without the net. Fix new movers at the source too, but never ship one the probe flags.

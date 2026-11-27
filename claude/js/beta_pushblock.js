@@ -43,11 +43,20 @@
   }
   B.pushLaunch=launch;
 
+  function cellHeldByFlyer(c,r,self){
+    const x=c*T, y=r*T;
+    for(const o of BWALLS){
+      if(o===self||!(o.hp>0)||!(o._fly||o._pb)||o._carried) continue;
+      if(Math.min(o.x+o.w,x+T)-Math.max(o.x,x)>4&&Math.min(o.y+o.h,y+T)-Math.max(o.y,y)>4) return true;
+    }
+    return false;
+  }
   function settle(bw){
     const c0=Math.floor((bw.x+T/2)/T), r0=Math.floor((bw.y+T/2)/T);
     let best=null, bd=1e9;
     for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
       const c=c0+dc, r=r0+dr; if(!B.cellFree(c,r)) continue;
+      if(cellHeldByFlyer(c,r,bw)) continue;          // never stamp rock under a block that is still flying through this cell
       const d=Math.hypot((c+0.5)*T-bw.x-T/2,(r+0.5)*T-bw.y-T/2); if(d<bd){ bd=d; best={c,r}; }
     }
     if(!best) return false;
