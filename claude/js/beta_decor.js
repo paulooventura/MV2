@@ -611,30 +611,105 @@
     }
     return (d._chamber={x,y,w,h});
   }
-  // the Knowl tree is drawn solid and still — no hanging drops, no light shafts.
+  // Paulo 2026-11-27: canopy never paints over solid floors/walls. It fills the
+  // open chamber, presses under the ceiling like it's outgrowing the space, and
+  // only pushes thin stems + leaves through real fissures in the slab above.
+  function treeFissures(B,d,cb){
+    if(d._fissures) return d._fissures;
+    const out=[];
+    const cells=B&&B.level&&B.level.cells;
+    if(!cells||!cells.length) return (d._fissures=out);
+    const nr=cells.length, nc=cells[0].length||0;
+    const solid=(r,c)=>r>=0&&r<nr&&c>=0&&c<nc&&!!cells[r][c];
+    const c0=Math.max(0,Math.floor(cb.x/T)), c1=Math.min(nc-1,Math.floor((cb.x+cb.w)/T));
+    const topR=Math.max(0,Math.min(nr-1,Math.floor(cb.y/T)));
+    // A fissure = open cell in the ceiling slab (or the row above) inside the tree span.
+    for(let c=c0;c<=c1;c++){
+      let holeR=-1;
+      if(!solid(topR,c)) holeR=topR;
+      else if(topR>0&&!solid(topR-1,c)) holeR=topR-1;
+      if(holeR<0) continue;
+      // Prefer true gaps: solid neighbours on at least one side (a crack, not a doorway).
+      const crack=solid(holeR,c-1)||solid(holeR,c+1)||solid(topR,c-1)||solid(topR,c+1);
+      out.push({c, holeR, crack:!!crack, x:c*T+T/2, y:holeR*T+T*0.15});
+    }
+    return (d._fissures=out);
+  }
+  function treeSeekCeiling(B,d,cb,bx,by){
+    const ceil=cb.y;
+    if(!(cb.w>8&&cb.h>8)) return;
+    ctx.save();
+    // Pressed crown: leaves flattened under the floor line — outgrowing, seeking a way out.
+    const span=Math.min(cb.w*0.92,560);
+    for(let i=0;i<18;i++){
+      const t=i/17, x=bx+(t-0.5)*span+(hash(i,91)-0.5)*18;
+      if(x<cb.x+8||x>cb.x+cb.w-8) continue;
+      const lean=(hash(i,92)-0.5)*0.9, s=7+hash(i,93)*7;
+      const y=ceil+3+hash(i,94)*5;
+      ctx.save();
+      ctx.translate(X(x),Y(y));
+      ctx.rotate(lean);
+      ctx.scale(1,0.55);                                      // flattened against the slab
+      ctx.fillStyle=hash(i,95)<0.35?'#8ae8c8':hash(i,95)<0.7?'#249876':'#0e5848';
+      ctx.beginPath(); ctx.moveTo(S(s),0);
+      ctx.bezierCurveTo(S(s*0.4),S(s*0.5),S(-s*0.2),S(s*0.35),S(-s*0.85),0);
+      ctx.bezierCurveTo(S(-s*0.2),S(-s*0.35),S(s*0.4),S(-s*0.5),S(s),0);
+      ctx.fill();
+      ctx.restore();
+      // thin seeking stem curling along the underside
+      if(i%2===0){
+        const x1=x+lean*22, y1=ceil+10+hash(i,96)*8;
+        ctx.strokeStyle='rgba(30,90,70,0.85)'; ctx.lineWidth=Math.max(1,S(1.6));
+        ctx.beginPath(); ctx.moveTo(X(x),Y(ceil+14));
+        ctx.quadraticCurveTo(X((x+x1)/2),Y(ceil+6),X(x1),Y(y1)); ctx.stroke();
+      }
+    }
+    // Breakthrough: only where the slab really opens — stem finds the crack, leaf above.
+    const holes=treeFissures(B,d,cb);
+    for(let i=0;i<holes.length;i++){
+      const h=holes[i];
+      if(!h.crack&&holes.length>2&&i%2) continue;             // keep sparse if the roof is mostly open
+      const sx=bx+(h.x-bx)*0.55, sy=Math.min(by-TREE.CY+80,ceil+40);
+      ctx.strokeStyle='#1c463e'; ctx.lineWidth=Math.max(1.2,S(2.2));
+      ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(X(sx),Y(sy));
+      ctx.quadraticCurveTo(X((sx+h.x)/2+(hash(i,97)-0.5)*12),Y(ceil-2),X(h.x),Y(h.y)); ctx.stroke();
+      // leaf / fruit just through the fissure (in the open cell, not over solid)
+      const ly=h.y-6-hash(i,98)*10, ls=5+hash(i,99)*5;
+      ctx.fillStyle=hash(i,100)<0.4?'#8ae8c8':'#249876';
+      ctx.beginPath(); ctx.ellipse(X(h.x),Y(ly),S(ls),S(ls*0.55),hash(i,101)-0.5,0,Math.PI*2); ctx.fill();
+      if(hash(i,102)>0.55){
+        const rg=ctx.createRadialGradient(X(h.x-2),Y(ly-ls-4),1,X(h.x),Y(ly-ls-2),S(4));
+        rg.addColorStop(0,'#f4fff8'); rg.addColorStop(1,'#0c6450');
+        ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(X(h.x),Y(ly-ls-2),S(3.2),0,Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
   function knowlTree(d){
     if(!treeImg) buildTree();
     const bx=d.x+T/2, by=d.y;                           // anchor = middle of the floor cell's top edge
     if(!inView(bx-TREE.W/2,by-TREE.H-60,TREE.W,TREE.H+80)) return;
-    // The full canopy stands in front of the blocks. A chamber clip was cutting
-    // the crown on the tile edges, so the tree read as a stump.
+    const B=window.MV_BETA;
+    const cb=treeChamber(B,d);
     ctx.save();
-    // soft ambient wash — the cached canopy carries its own light now
+    // Main canopy + light stay inside the open chamber — never over solid tiles.
+    ctx.beginPath(); ctx.rect(X(cb.x),Y(cb.y),S(cb.w),S(cb.h)); ctx.clip();
     glow(bx,by-TREE.CY+60,420,0.15,'rgba(140,255,210,');
     ctx.drawImage(treeImg, X(bx-TREE.W/2), Y(by-TREE.H), S(TREE.W), S(TREE.H));
-    // (hanging drops removed — they read as strings in the air)
-    // a few steady leaf sparkles in the canopy keep the tree quietly alive
     for(let i=0;i<10;i++){
       const a=hash(i,81)*Math.PI*2, rr=Math.sqrt(hash(i,82));
       const x=bx+Math.cos(a)*rr*260, y=by-TREE.CY+Math.sin(a)*rr*110;
+      if(y<cb.y+4) continue;
       glow(x,y,11,0.18,'rgba(150,255,220,');
     }
-    // knowl motes rising
     for(let i=0;i<24;i++){
       const t=((fr*0.004+hash(i,41))%1), x=bx+(hash(i,42)-0.5)*460+Math.sin(t*10+i)*14, y=by-10-t*560;
+      if(y<cb.y) continue;
       ctx.fillStyle='rgba(160,255,220,'+(Math.sin(t*Math.PI)*0.85)+')'; ctx.fillRect(X(x),Y(y),S(2.5),S(2.5));
     }
     ctx.restore();
+    try{ treeSeekCeiling(B,d,cb,bx,by); }catch(e){}
   }
   // Woody roots into the earth, drawn after the dirt so they read in the soil.
   // Thick forked limbs, the same bark as the trunk — not thin light strings.
@@ -871,13 +946,29 @@
       const gg=ctx.createLinearGradient(0,Y(y-150),0,Y(y));
       gg.addColorStop(0,'rgba(120,255,200,0)'); gg.addColorStop(1,'rgba(120,255,200,'+(0.22*pulse)+')');
       ctx.fillStyle=gg; ctx.fillRect(X(x-7),Y(y-150),S(14),S(150));
+      glow(x,y,46,0.45*pulse,'rgba(110,255,200,');
+    }else{
+      // T631: soft contact shadow only — no floaty aura (that read as paper).
+      ctx.fillStyle='rgba(0,0,0,0.34)'; ctx.beginPath();
+      ctx.ellipse(X(x+Math.sin(k.rot||0)*2),Y(y+12),S(9+Math.abs(Math.sin(k.rot||0))*2),S(2.4),0,0,Math.PI*2); ctx.fill();
     }
-    glow(x,y,46,0.45*pulse,'rgba(110,255,200,');
     if(restsMoved(k,y+14)){ ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(y+14),S(10),S(2.5),0,0,Math.PI*2); ctx.fill(); }
     ctx.save();
     if(tumble){ ctx.translate(X(x),Y(y)); ctx.rotate(k.rot||0); ctx.translate(-X(x),-Y(y)); }
-    teardrop(x,y+4,8,'#7dffcf','#13684e');
-    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.ellipse(X(x-2.5),Y(y-2),S(1.8),S(3.2),-0.4,0,Math.PI*2); ctx.fill();
+    if(tumble){
+      // Solid pebble: dark rim behind + thicker edge (reads as volume, not a flat cutout).
+      teardrop(x+1.2,y+5.2,8.1,'#0a3a2c','#062218');
+      teardrop(x,y+4,8,'#5ad4a8','#0d4a36');
+      ctx.strokeStyle='#063025'; ctx.lineWidth=S(2);
+      ctx.beginPath(); ctx.moveTo(X(x),Y(y+4-8*2.2));
+      ctx.bezierCurveTo(X(x+8*1.2),Y(y+4-8*0.9),X(x+8*1.1),Y(y+4+8),X(x),Y(y+4+8));
+      ctx.bezierCurveTo(X(x-8*1.1),Y(y+4+8),X(x-8*1.2),Y(y+4-8*0.9),X(x),Y(y+4-8*2.2));
+      ctx.stroke();
+    }else{
+      teardrop(x,y+4,8,'#7dffcf','#13684e');
+    }
+    ctx.fillStyle=tumble?'rgba(255,255,255,0.55)':'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.ellipse(X(x-2.5),Y(y-2),S(1.8),S(3.2),-0.4,0,Math.PI*2); ctx.fill();
     ctx.restore();
     if(!tumble) for(let i=0;i<3;i++){                                // sparkles orbiting
       const a=fr*0.05+i*2.09+(k.bob||0), r=16+3*Math.sin(fr*0.1+i);
@@ -924,7 +1015,9 @@
     if(!inView(x-60,cy-60,120,110)) return;
     const hw=S(13), hh=S(24), X0=X(x), Y0=Y(cy);
     const tumble=!!(k._fly||Math.abs(k.spin||0)>0.02||Math.abs(k.rot||0)>0.05);
-    glow(x,cy,echo?60:54,0.34+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,170,');
+    // T631: no floaty glow while tumbling — contact shadow + hard gem only.
+    if(!tumble) glow(x,cy,echo?60:54,0.34+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,170,');
+    else { ctx.fillStyle='rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(11),S(2.6),0,0,Math.PI*2); ctx.fill(); }
     if(restsMoved(k,k.y+13)){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(12),S(2.5),0,0,Math.PI*2); ctx.fill(); }
     const O=[[0,-hh],[hw,-hh/2],[hw,hh/2],[0,hh],[-hw,hh/2],[-hw,-hh/2]];           // the outline
     const I=O.map(([u,v])=>[u*0.42,v*0.42]);                                           // the table (inner hexagon)

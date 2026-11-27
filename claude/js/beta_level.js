@@ -524,8 +524,8 @@
 
   // ── Cubes ───────────────────────────────────────────────────────
   //   - An unsupported cube always falls, one cell at a time, speeding up.
-  //   - XLR push / MAG pull act on release along the aim (up/down/left/right):
-  //     1-3 cells, more when MIND is close and the item was held longer.
+  //   - XLR push / MAG pull act on press along the aim (up/down/left/right).
+  //     Paulo 2026-11-27: not on release. Hold still runs the air/pull field.
   //   - Visual slide is a short ease; the grid cell flips at once.
   const CUBE={RANGE:260, CHARGE_FULL:60, SLIDE_FR:7, NEAR:96};
   const cubes=()=>BWALLS.filter(b=>b.cube&&b.hp>0&&!b._carried&&!b._fly);
@@ -635,42 +635,52 @@
     chainTick();
     flyTick();
     magnetTick();
-    // XLR / MAG act when the button is let go
+    // T633 (Paulo 2026-11-27): XLR / MEG push-pull fire on PRESS, not release.
+    // Hold still runs the continuous air/pull field; letting go does nothing extra.
     const xlrNow=!!(p&&p.xlrOn&&ITEM===2), magNow=!!(p&&p.magOn&&ITEM===3);
-    // Paulo: aimed down while standing, a TAP launches him at once — as hard as
-    // the power he has (100% = a full launch); the power is spent
-    // …unless there are blocks right under him (a trapdoor): then the blast is for THEM — it
-    // pushes them down the hole (Paulo, Oct 22: no more launching off the trapdoor and getting stuck)
-    if(xlrNow&&!B._xlrWasOn&&typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&B.onXlrRelease&&!blastCandidates().length){
-      const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
-      B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};
-      B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45));
-      p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
+    const xlrPress=xlrNow&&!B._xlrWasOn, magPress=magNow&&!B._magWasOn;
+    if(xlrPress){
+      B.relPow=powNow();
+      B.xlrAim={x:p.aimDX,y:p.aimDY};
+      const downTap=typeof _itemDownAim==='function'&&_itemDownAim(p)&&_playerOnGround(p)&&!blastCandidates().length;
+      // Aimed down on ground with no cubes underfoot = self-launch (power from the bar).
+      if(downTap&&B.onXlrRelease){
+        const ch=Math.max(0,Math.min(1,(p.itemStamina||0)/100));
+        B.relPow=Math.min(1,ch/0.18); B.xlrAim={x:0,y:1};
+        B.onXlrRelease(ch*(B.FEEL?B.FEEL.XLR_FULL:45));
+        p.itemStamina=0; p._itemRest=ITEM_REST; B._xlrTapped=true;
+      }else{
+        // Instant shove strength from current power (was "hold charge" on release).
+        const held=8+Math.round(B.relPow*(B.FEEL?B.FEEL.XLR_FULL:45));
+        fireCube('push',held); blastEnemies(held);
+        if(B.onXlrRelease) B.onXlrRelease(held);
+        if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,9*B.relPow+2*B.relPow,220); }
+        spend(ITEM_COST.XLR_BASE+ITEM_COST.XLR_CHARGE*B.relPow);
+      }
+      B.chX=0;
     }
     B._xlrWasOn=xlrNow; if(!xlrNow) B._xlrTapped=false;
     if(B._xlrTapped){ B.chX=0; B.downCubeHeld=false; }
     else if(xlrNow){
       B.chX++; B.xlrAim={x:p.aimDX,y:p.aimDY};
-      blowAround();                                              // the air pushes enemies while you hold it (the MAG's pull already does)
+      blowAround();                                              // air keeps shoving foes while held
       fieldShove(1);
       B.downCubeHeld=(p.aimDY||0)>0.55&&powNow()>=0.06&&blastCandidates().length>0;
-      if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }   // the blow shoves frags away
+      if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,0.5*(0.2+0.8*powNow()),180); }
       for(const bw of cubes()){
         if(bw.only==='pull'||bw._carried||bw._fly) continue;
         if(Math.hypot(bw.vx||0,bw.vy||0)>0.8) throwCube(bw,(bw.vx||0)*4,(bw.vy||0)*4);
       }
-    } else if(B.chX>0){
-      B.downCubeHeld=false;
-      // Paulo (Oct 21): every blast costs power on top of the hold, and its strength is
-      // the power left — spamming it empties the bar and the pushes fade to nothing
-      B.relPow=powNow(); fireCube('push',B.chX); blastEnemies(B.chX); if(B.onXlrRelease) B.onXlrRelease(B.chX);
-      if(B.forceFrags){ const t0=xlrTip(); B.forceFrags(t0.x,t0.y,Math.atan2(p.aimDY,p.aimDX),1,9*Math.min(1,B.chX/45)*B.relPow+2*B.relPow,220); }
-      spend(ITEM_COST.XLR_BASE+ITEM_COST.XLR_CHARGE*Math.min(1,B.chX/45)); B.chX=0;
+    } else { B.downCubeHeld=false; B.chX=0; }
+    if(magPress){
+      B.relPow=powNow();
+      const held=8+Math.round(B.relPow*60);
+      if(!B.mag.lockedThisHold) fireCube('pull',held);
+      spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*B.relPow);
+      B.chM=0; B.mag.lockedThisHold=false;
     }
-    if(magNow) B.chM++; else if(B.chM>0){
-      B.relPow=powNow(); if(!B.mag.lockedThisHold) fireCube('pull',B.chM);
-      spend(ITEM_COST.MAG_BASE+ITEM_COST.MAG_CHARGE*Math.min(1,B.chM/60)); B.chM=0; B.mag.lockedThisHold=false;
-    }
+    B._magWasOn=magNow;
+    if(magNow) B.chM++; else { B.chM=0; B.mag.lockedThisHold=false; }
     ramCubes();
   }
   const ITEM_COST={XLR_BASE:28, XLR_CHARGE:27, MAG_BASE:22, MAG_CHARGE:20}, ITEM_REST=20;   // Oct 22: the bar waits less before refilling (was 35)   // Paulo (Oct 21): drains a bit faster, refills sooner
@@ -965,26 +975,22 @@
     seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // area against a 32px omni (weight 3)
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
-  // T602 (Paulo, Nov 27): collision hull = sprite outline; mass from that size/shape.
-  // Crystal hex matches beta_decor.crystal (hw=13, hh=24, centre y-10).
-  // Seed teardrop matches beta_decor.seed teardrop(x,y+4,r=8).
+  // T602 / T631 (Paulo, Nov 27): hull = sprite outline; mass = solid pebble/gem
+  // (not paper-light). Crystal hex matches beta_decor.crystal; seed teardrop matches seed().
   function knowlHull(k){
     if(k&&(k.kind==='crystal'||k.kind==='echo')) return {type:'hex', ox:0, oy:-10, hw:13, hh:24};
     return {type:'tear', ox:0, oy:4, r:8};
   }
   function knowlMass(k){
-    const h=knowlHull(k);
-    if(h.type==='hex'){
-      const area=2*h.hw*2*h.hh*0.72;                       // hex fills most of its bbox
-      return Math.max(0.7, Math.round(area/1024*3*10)/10);
-    }
-    const area=Math.PI*(h.r*1.15)*(h.r*1.65);               // teardrop ≈ tall ellipse
-    return Math.max(0.35, Math.round(area/1024*3*10)/10);
+    // Dense solids: seed ≈ half an omni (pebble), crystal ≈ a full omni chunk.
+    if(k&&(k.kind==='crystal'||k.kind==='echo')) return 2.6;
+    return 1.55;
   }
   function primeKnowl(k){
     if(!k) return k;
     k._anchored=true; k._fly=false; k._moved=false; k.vx=0; k.vy=0;
     k._mass=knowlMass(k); k._hull=knowlHull(k);
+    k.rot=0; k.spin=0;
     return k;
   }
   function detachKnowl(k,vx,vy){
@@ -993,6 +999,8 @@
     k._anchored=false; k._moved=true; k._fly=true; k._rest=0; k._flyT=0; k.got=false;
     k.vx=(k.vx||0)+(vx||0); k.vy=(k.vy||0)+(vy||0);
     if(!k._mass) k._mass=knowlMass(k);
+    // Kick starts a tumble — no flat slide.
+    k.spin=(k.spin||0)+(vx||0)*0.1-(vy||0)*0.02;
     return !free||Math.hypot(vx||0,vy||0)>0.01;
   }
   B.primeKnowl=primeKnowl; B.detachKnowl=detachKnowl; B.knowlHull=knowlHull; B.knowlMass=knowlMass;
@@ -1211,7 +1219,13 @@
   }
   function rescueTick(){
     for(const k of KDROP){ if(!k||k.got||k._carried||k._anchored||!(k._fly||k._moved)) continue;   // only ones that have been moved (the level's own rest where they're placed)
-      const s=freeSpot(k.x,k.y,(x,y)=>knowlInRock(x,y,k)); /* outline in rock */ if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx=0; k.vy=0; k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
+      // T631: only yank if deeply stuck (centre solid) — outline grazes on slopes used to
+      // teleport seeds every frame (paper/glitch feel). Keep momentum after a real rescue.
+      if(!knowlInRock(k.x,k.y,k)) continue;
+      const centreStuck=solidPx(k.x,k.y+((k._hull||knowlHull(k)).oy||0));
+      if(!centreStuck&&k._fly) continue;
+      const s=freeSpot(k.x,k.y,(x,y)=>knowlInRock(x,y,k));
+      if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx*=0.35; k.vy=Math.min(k.vy,0); k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
     if(typeof ITEM_DROPS!=='undefined') for(const d of ITEM_DROPS){
       if(!d||d.got) continue;
       const its=(B.crateLoose?B.crateLoose(d):(d._box&&d._box.item?[d._box.item]:[]));
@@ -1227,60 +1241,81 @@
       if(k._anchored){ k.x=k.ox; k.y=k.oy; k.vx=0; k.vy=0; k._fly=false; k.rot=0; k.spin=0; continue; }
       if(k._carried||k.got) continue;
       const hull0=k._hull||knowlHull(k);
-      const foot0=hull0.type==='hex'?14:12;
+      const footOff=hull0.type==='hex'?14:12;
       // Settled on a ramp? Keep tumbling — don't leave a seed parked mid-slope.
       if(!k._fly){
-        const sl0=knowlSlope(k,k.y+foot0);
-        if(sl0&&Math.abs(sl0.ang)>0.08){ k._fly=true; k._rest=0; k._flyT=0; k.vx+=(Math.sin(sl0.ang)*0.4); }
+        const sl0=knowlSlope(k,k.y+footOff);
+        if(sl0&&Math.abs(sl0.ang)>0.08){ k._fly=true; k._rest=0; k._flyT=0; k.vx+=(Math.sin(sl0.ang)*0.55); k.spin=(k.spin||0)+k.vx*0.1; }
         else continue;
       }
-      const m=Math.max(0.35,k._mass||knowlMass(k));
-      const hull=hull0;
-      const footOff=foot0;
-      // heavier gems fall a touch faster / resist shove; light seeds float longer
-      const grav=GRAV*(0.55+0.35*Math.min(1.4,m));
-      k.vy=Math.min(k.vy+grav,10+m*1.2); k.vx*=0.995;
-      if(B.inWater&&B.inWater(k.x,k.y)){ k.vx*=0.92; if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*1.6,-2.4); k._rest=0; } else k.vy=Math.min(k.vy-GRAV*0.6,1.6); }
-      const nx=k.x+k.vx; if(knowlOutlineSolid(nx,k.y,k)){ k.vx*=-0.4; k.spin=-(k.spin||0)*0.5; } else k.x=nx;
-      const ny=k.y+k.vy;
-      let ground=false;
-      if(knowlOutlineSolid(k.x,ny,k)&&ny>=k.y){
-        const _hitV=k.vy;   // capture before it is reversed (dump line 87: glass sound when seeds hit the floor)
-        if(k.kind==='seed'&&_hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
-        else if(k.kind!=='seed'&&_hitV>2.2&&!(k._landSfxF>0)){
+      const m=Math.max(1.2,k._mass||knowlMass(k));
+      // T631: full gravity like cubes — no paper float.
+      k.vy=Math.min(k.vy+GRAV,14); k.vx*=0.997;
+      if(B.inWater&&B.inWater(k.x,k.y)){
+        k.vx*=0.9;
+        if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*0.85,-1.6); k._rest=0; }
+        else k.vy=Math.min(k.vy-GRAV*0.45,2.0);
+        k.spin=(k.spin||0)*0.9;
+      }
+      // Substep like flyTick — kills tunnel + paper flicker on slopes.
+      const steps=Math.max(1,Math.ceil(Math.max(Math.abs(k.vx),Math.abs(k.vy))/5));
+      let ground=false, hitV=0;
+      for(let s=0;s<steps;s++){
+        const nx=k.x+k.vx/steps;
+        if(knowlOutlineSolid(nx,k.y,k)){
+          k.vx=Math.abs(k.vx)>1.2?-k.vx*0.28:0;
+          k.spin=-(k.spin||0)*0.55;
+        }else k.x=nx;
+        const ny=k.y+k.vy/steps;
+        if(knowlOutlineSolid(k.x,ny,k)){
+          if(ny>=k.y){
+            ground=true; hitV=Math.max(hitV,k.vy);
+            k.vy=(k.vy>2.4)?-k.vy*0.22:0;
+            k.vx*=0.82;
+          }else{
+            k.vy=Math.abs(k.vy)*0.25;
+          }
+        }else k.y=ny;
+      }
+      if(ground){
+        if(k.kind==='seed'&&hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
+        else if(k.kind!=='seed'&&hitV>2.2&&!(k._landSfxF>0)){
           k._landSfxF=10;
-          try{ sfxAt(k,'object_land',Math.min(1,_hitV/(7+m)*Math.sqrt(m/0.8))); }catch(e){}
+          try{ sfxAt(k,'object_land',Math.min(1,hitV/(6+m)*Math.sqrt(m/2.6))); }catch(e){}
         }
-        if(k._glassF>0) k._glassF--;
-        if(k._landSfxF>0) k._landSfxF--;
-        ground=true;
-        k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.86;
-        // Snap onto the real surface (flat or ramp) so we never rest floating in a slope cell.
+        // Snap to standY once — stops outline fighting the slope every frame (paper flutter).
         const foot=k.y+footOff;
-        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:footOff+4,maxDrop:T}):null;
+        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:footOff+6,maxDrop:T}):null;
         if(fy!=null) k.y=fy-footOff;
         const sl=knowlSlope(k,k.y+footOff);
         if(sl){
-          // T628: tumble / roll downhill like other solid physics objects.
-          k.vx+=(Math.sin(sl.ang)*0.55)/Math.max(0.5,m);
-          k.spin=(k.spin||0)+k.vx*0.08;
+          k.vx+=(Math.sin(sl.ang)*0.7)/Math.max(1,m*0.55);
+          // Roll with the surface: spin tracks velocity (solid tumble, not flat slide).
+          k.spin=k.vx*0.14;
           k._rest=0;
-        }else if(Math.abs(k.vx)<0.18&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
-        else k._rest=0;
+        }else{
+          // Flat ground: rolling friction → settle like a pebble.
+          k.spin=(k.spin||0)*0.55+(k.vx||0)*0.08;
+          k.vx*=0.88;
+          if(Math.abs(k.vx)<0.22&&Math.abs(k.vy)<0.35) k._rest=(k._rest||0)+1;
+          else k._rest=0;
+        }
+      }else{
+        k._rest=0;
+        k.spin=(k.spin||0)*0.988;
       }
-      else if(knowlOutlineSolid(k.x,ny,k)&&ny<k.y){ k.vy=Math.abs(k.vy)*0.3; }
-      else { k.y=ny; k._rest=0; }
-      // Air tumble from angular momentum; damp hard once settled on flat ground.
-      k.spin=(k.spin||0)*(ground?0.92:0.985);
+      if(k._glassF>0) k._glassF--;
+      if(k._landSfxF>0) k._landSfxF--;
       k.rot=(k.rot||0)+(k.spin||0);
-      if(ground&&!knowlSlope(k,k.y+footOff)){
-        k.rot+=(0-(k.rot||0))*0.12;
-        if(Math.abs(k.rot)<0.04) k.rot=0;
+      // Flat settle: ease upright slowly; keep a bit of lean while still rolling.
+      if(ground&&!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)<0.45){
+        k.rot+=(0-(k.rot||0))*0.08;
+        if(Math.abs(k.rot)<0.03&&Math.abs(k.spin)<0.02){ k.rot=0; k.spin=0; }
       }
       knowlTouchesEnemy(k);
-      const stillRolling=!!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)>0.12;
-      if(!stillRolling&&((k._rest||0)>6||(k._flyT=(k._flyT||0)+1)>600)){
-        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0;
+      const stillRolling=!!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)>0.1;
+      if(!stillRolling&&((k._rest||0)>5||(k._flyT=(k._flyT||0)+1)>600)){
+        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0; k.rot=0;
         const foot=k.y+footOff;
         const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:8,maxDrop:T}):null;
         if(fy!=null) k.y=fy-footOff;
@@ -2707,7 +2742,7 @@
   const ITEM_INFO=[
     {name:'TRS LASER CANNON', lines:['HOLD X (Q) TO CHARGE, LET GO TO FIRE.','THE LASER BREAKS OMNI BLOCKS AND THE GOLD','CAGE BLOCKS - CAREFUL, CAGES EXPLODE','AND SET EACH OTHER OFF!']},
     {name:'RCA GRAPPLING HOOK', lines:['PRESS X (Q) TO FIRE. TAP DOWN PAYS OUT ALL THE SLACK.','TAP UP MAKES IT TAUT, JACK TIP TO THE LATCH.','A LIGHTER CATCH IS PULLED TO THE JACK. HOLD THAT','SLACK 1.5S, OR TAP DOWN AGAIN, AND IT SNAPS FREE.']},
-    {name:'XLR PUSH JACK', lines:['HOLD X (Q) TO CHARGE, LET GO TO PUSH THE WHOLE','ROW OF BLOCKS YOU AIM AT. BLUE BLOCKS ONLY','MOVE FOR THE XLR. AIM AT THE FLOOR (DOWN + X):','HOLD TO HOVER, FULL POWER LAUNCHES YOU UP.']},
+    {name:'XLR PUSH JACK', lines:['PRESS X (Q) TO PUSH THE WHOLE ROW OF BLOCKS','YOU AIM AT — FIRES ON PRESS, NOT RELEASE.','BLUE BLOCKS ONLY MOVE FOR THE XLR. AIM AT THE','FLOOR (DOWN + X): TAP TO LAUNCH, HOLD TO HOVER.']},
     {name:'MEG', lines:['HOLD X (Q) TO GRAB AND CARRY ONE THING: A BLOCK,','AN ANTAGONIST OR A KNOWL. AIM DOWN AND IT LOCKS TO','THE FLOOR. THE GRIP WEAKENS AS POWER DRAINS.','SWING THE ARM AND LET GO TO THROW.']}
   ];
   B.ITEM_INFO=ITEM_INFO;
@@ -2740,8 +2775,8 @@
   // the device in hand), and a quiet prompt. It settles in with a little drop and a light sweep.
   const POP={0:{col:[255,205,90], line:'HOLD {X} TO CHARGE - LET GO TO FIRE'},
     1:{col:[255,150,60], line:'{X} THROWS IT - UP REELS IN, DOWN GIVES SLACK'},
-    2:{col:[210,220,235], line:'HOLD {X}, LET GO - A BLAST THAT SHOVES'},
-    3:{col:[255,80,90], line:'HOLD {X} TO GRAB - SWING AND LET GO TO THROW'},
+    2:{col:[210,220,235], line:'PRESS {X} - A BLAST THAT SHOVES (FIRES ON PRESS)'},
+    3:{col:[255,80,90], line:'PRESS {X} TO PULL BLOCKS - HOLD TO GRAB / THROW'},
     4:{col:[255,160,70], line:'GO UNDERWATER WITHOUT SHORTING OUT'},
     5:{col:[255,200,140], line:'TAP {X} TO SLASH - HOLD IT TO HEAT THE BLADE'}};
   function popKey(){ try{ return typeof uiActLabel==='function'?uiActLabel('swap'):'X'; }catch(e){ return 'X'; } }
@@ -2759,7 +2794,7 @@
     if(rw) drawText(R.trim(), x, y, '#f4ecff', 2);
   }
   const CHIP_NAME=['TRS','RCA','XLR','MEG','ISOLATOR','KIRITSUKE'];
-  const CHIP_HINT=['HOLD {X}, LET GO','{X} THROWS THE HOOK','HOLD {X} TO SHOVE','HOLD {X} TO GRAB','STAYS DRY IN WATER','TAP {X}, HOLD TO HEAT'];
+  const CHIP_HINT=['HOLD {X}, LET GO','{X} THROWS THE HOOK','PRESS {X} TO SHOVE','PRESS {X} TO PULL','STAYS DRY IN WATER','TAP {X}, HOLD TO HEAT'];
   // Beside the brother who found it. Drawn in the world pass so a split view
   // keeps it in that player's half.
   B.drawItemChip=function(){
