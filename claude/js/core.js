@@ -170,6 +170,7 @@ function _uiRGB(col){
 }
 function _uiMix(rgb,to,k){ return 'rgb('+rgb.map((v,i)=>Math.round(v+(to[i]-v)*k)).join(',')+')'; }
 function textW(s,scl=2){
+  if(typeof uiDevText==='function') s=uiDevText(s);   // T119: same words drawText will draw
   scl=(scl|0)||1;
   s=_uiFontReady?String(s).toUpperCase():_fontNorm(s);
   if(!s.length) return 0;
@@ -379,6 +380,7 @@ function _blitFontGlyph(px,gx,y,scl,col){
   for(const[cx2,cy2] of px) ctx.fillRect(gx+cx2*scl,y+cy2*scl,scl,scl);
 }
 function drawText(s,x,y,col,scl=2){
+  if(typeof uiDevText==='function') s=uiDevText(s);   // T119: prompts follow the device in hand
   if(_uiFontReady){ _drawText16(String(s).toUpperCase(),x,y,col,(scl|0)||1); return; }
   s=_fontNorm(s); x|=0; y|=0; scl=(scl|0)||1;
   const adv=FONT_CELL*scl;

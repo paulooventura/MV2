@@ -289,6 +289,30 @@ function uiGlyph(action,x,y,scl){
   }
   ctx.restore(); return w;
 }
+// T119 / Steam Full Controller Support (Paulo, Nov 26): the fixed "PRESS ..." prompts written for
+// the pad follow the device in hand too: keyboard keys, the pad's own button names (Xbox / PS /
+// Nintendo), or TAP on a phone. Called from drawText / drawTextC; cached per device.
+const _uiDevTextCache=new Map();
+function uiDevText(s){
+  if(typeof s!=='string'||s.indexOf('PRESS ')<0) return s;
+  const dev=_uiDev==='mouse'?'key':_uiDev, k=dev+'|'+_uiPadFamily+'|'+s;
+  let o=_uiDevTextCache.get(k);
+  if(o!==undefined) return o;
+  const pad=dev==='pad', touch=dev==='touch';
+  const ok=pad?uiActLabel('jump'):touch?'':'ENTER';
+  const start=pad?uiActLabel('pause'):'ENTER';
+  const lead=w=>touch?'TAP':'PRESS '+w;
+  o=s;
+  if(o==='PRESS START') o=touch?'TAP TO START':'PRESS '+start;
+  else if(o.indexOf('PRESS START')===0) o=lead(start)+o.slice(11);
+  else if(o==='PRESS A, START OR ENTER') o=touch?'TAP TO GO ON':'PRESS '+(pad?ok+' OR '+start:ok);
+  else if(o.indexOf('PRESS A OR ENTER')===0) o=lead(ok)+o.slice(16);
+  else if(o==='PRESS ANY BUTTON') o=touch?'TAP TO GO ON':pad?o:'PRESS ANY KEY';
+  else if(o.indexOf('PRESS Y AGAIN')===0) o=(touch?'TAP Y':'PRESS '+uiActLabel('punch'))+o.slice(7);
+  if(_uiDevTextCache.size>400) _uiDevTextCache.clear();
+  _uiDevTextCache.set(k,o);
+  return o;
+}
 function uiMenuHint(kind){
   uiWatchPad();
   const ok=_uiDev==='pad'||_uiDev==='touch'?uiActLabel('jump'):'ENTER';
@@ -448,7 +472,6 @@ function _pauseInput(){
     try{ sfx('confirm'); }catch(e){}
     if(it==='RESUME') _togglePause();
     else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
-    else if(it==='LEAVE A NOTE'){ if(window.MV_SIGNAL) MV_SIGNAL.open(); }
     else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
     else if(it==='EXIT'){
       _paused=false;

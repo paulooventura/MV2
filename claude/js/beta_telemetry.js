@@ -65,7 +65,8 @@
       value:Math.max(0,Math.min(86400,value|0)),
       detail:clip(detail,300)
     };
-    if((kind==='crash'||kind==='note')&&!row.detail) return false;
+    if(kind==='note') return false;   // notes removed (Nov 26 2026)
+    if(kind==='crash'&&!row.detail) return false;
     q.push(row); used++;
     return true;
   }
@@ -179,80 +180,10 @@
     if(document.visibilityState==='hidden') hide();
   });
 
-  // ── Leave a note (pause menu + title Options) ───────────────
-  let box=null, field=null, thanks=null, buttons=null, openNote=false, typed=false;
-  function ensure(){
-    if(box) return;
-    box=document.createElement('div');
-    box.setAttribute('role','dialog');
-    box.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:80;width:min(440px,92vw);padding:22px 22px 18px;background:#12081c;border:2px solid #ffe39a;border-radius:16px;color:#f4ecff;font:16px/1.3 system-ui,sans-serif;box-shadow:0 16px 50px rgba(0,0,0,.55)';
-    const title=document.createElement('div');
-    title.textContent='Leave a note';
-    title.style.cssText='font-weight:700;letter-spacing:.04em;margin-bottom:10px;color:#ffe39a';
-    field=document.createElement('input');
-    field.type='text'; field.maxLength=300; field.autocomplete='off'; field.spellcheck=false;
-    field.setAttribute('aria-label','Leave a note');
-    field.placeholder='One line for the people making the game';
-    field.style.cssText='width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid #6a5888;background:#1c1030;color:#fff';
-    buttons=document.createElement('div');
-    buttons.style.cssText='display:flex;gap:10px;margin-top:12px';
-    const sendBtn=document.createElement('button');
-    sendBtn.type='button'; sendBtn.textContent='Send';
-    const backBtn=document.createElement('button');
-    backBtn.type='button'; backBtn.textContent='Back';
-    [sendBtn, backBtn].forEach(function(b){
-      b.style.cssText='flex:1;font-size:16px;padding:10px 0;border-radius:10px;border:0;background:#2a1848;color:#ffe39a;cursor:pointer';
-    });
-    thanks=document.createElement('div');
-    thanks.textContent='Got it, thank you';
-    thanks.style.cssText='display:none;text-align:center;padding:28px 8px;font-size:20px;color:#ffe39a';
-    buttons.appendChild(sendBtn); buttons.appendChild(backBtn);
-    box.appendChild(title); box.appendChild(field); box.appendChild(buttons); box.appendChild(thanks);
-    box.addEventListener('click', function(e){ e.stopPropagation(); });
-    box.addEventListener('touchstart', function(e){ e.stopPropagation(); }, {passive:true});
-    field.addEventListener('keydown', function(e){
-      typed=true; e.stopPropagation();
-      if(e.key==='Enter'){ e.preventDefault(); send(); }
-      else if(e.key==='Escape'){ e.preventDefault(); close(); }
-    });
-    sendBtn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); send(); });
-    backBtn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); close(); });
-    document.body.appendChild(box);
-    box.hidden=true;
-  }
-  function open(){
-    ensure();
-    openNote=true; typed=false; send.done=false;
-    thanks.style.display='none';
-    field.style.display=''; buttons.style.display='flex';
-    field.value=''; box.hidden=false;
-    try{ field.focus(); }catch(e){}
-  }
-  function close(){
-    openNote=false;
-    if(box) box.hidden=true;
-  }
-  function send(){
-    if(!field||send.done) return;
-    const text=clip(field.value,300);
-    if(!text) return;
-    send.done=true;
-    field.value='';
-    enqueue('note', 0, text);
-    flush(true);
-    field.style.display='none';
-    buttons.style.display='none';
-    thanks.style.display='block';
-    setTimeout(close, 1200);
-  }
-  function pad(ev){
-    if(!openNote) return;
-    const back=ev?!!ev.back:(typeof Kj!=='undefined'&&(Kj['Escape']||(Kj['KeyE']&&!(typeof K!=='undefined'&&K['KeyE_kb']))));
-    const ok=ev?!!ev.confirm:(typeof Kj!=='undefined'&&(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']));
-    if(back){ close(); return; }
-    if(ok&&!typed) send();
-    typed=false;
-  }
+  // Leave a note: removed (Paulo, Nov 26 2026, Steam launch). No free text is ever sent.
+  // MV_SIGNAL.open/close/pad stay as no-ops so older callers never break.
+  const openNote=false;
+  function open(){} function close(){} function pad(){}
 
   window.MV_SIGNAL={
     open:open, close:close, pad:pad,

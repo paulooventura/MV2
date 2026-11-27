@@ -2454,6 +2454,19 @@
     4:{col:[255,160,70], line:'GO UNDERWATER WITHOUT SHORTING OUT'},
     5:{col:[255,200,140], line:'TAP {X} TO SLASH - HOLD IT TO HEAT THE BLADE'}};
   function popKey(){ try{ return typeof uiActLabel==='function'?uiActLabel('swap'):'X'; }catch(e){ return 'X'; } }
+  // T119: the item button is drawn as the real button picture of the device in hand (keycap,
+  // Xbox/Nintendo face button, PlayStation square, phone X), not just its name.
+  function drawPopLine(line, cx, y){
+    const at=line.indexOf('{X}');
+    if(at<0||typeof uiGlyph!=='function'){ drawTextC(line.replace('{X}',popKey()), cx, y, '#f4ecff', 2); return; }
+    const L=line.slice(0,at), R=line.slice(at+3), gap=8;
+    ctx.save(); ctx.globalAlpha=0; const gw=uiGlyph('swap',0,0,2); ctx.restore();   // measure only
+    const lw=L.trim()?textW(L.trim(),2)+gap:0, rw=R.trim()?textW(R.trim(),2)+gap:0;
+    let x=Math.round(cx-(lw+gw+rw)/2);
+    if(lw){ drawText(L.trim(), x, y, '#f4ecff', 2); x+=lw; }
+    uiGlyph('swap', x, y-3, 2); x+=gw+gap;
+    if(rw) drawText(R.trim(), x, y, '#f4ecff', 2);
+  }
   function drawPopup(){
     const P=B.popup, a=Math.min(1,P.t/14), e=1-Math.pow(1-a,3), info=ITEM_INFO[P.item]||{name:'?',lines:['']}, pp=POP[P.item]||{col:[255,230,160],line:info.lines[0]||''};
     const c=pp.col, rgb=(al)=>'rgba('+c[0]+','+c[1]+','+c[2]+','+al+')';
@@ -2483,7 +2496,7 @@
     ctx.globalAlpha=a;
     const ty=cy+R*0.75;
     uiLogo(info.name, cx, ty, 40, {sweep:200});
-    drawTextC(pp.line.replace('{X}',popKey()), cx, ty+62, '#f4ecff', 2);
+    drawPopLine(pp.line, cx, ty+62);
     if(P.t>40){ ctx.globalAlpha=0.55+0.3*Math.sin(fr*0.08); drawTextC((typeof uiMenuHint==='function'?uiMenuHint('story'):'PRESS A'), cx, H-54, rgb(1), 2); }
     ctx.restore();
     ctx.globalAlpha=1;
