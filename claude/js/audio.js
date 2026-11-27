@@ -96,9 +96,9 @@ function _filterMode(){
     const q=new URLSearchParams(location.search).get('console');
     if(q) return q;
     const v=localStorage.getItem('mv2.console');
-    if(v) return v;
+    if(v&&(v!=='ink'||localStorage.getItem('mv2.ink')==='1')) return v;
   }catch(e){}
-  return 'ink';
+  return 'off';   // Paulo, Nov 26: standard look by default; Ink & Vinyl is unlocked in play
 }
 // Ink & Vinyl keeps 清き旋律. GORE is Chaos Theory. SNES has two themes:
 // the first on 1.1 and the title, the second (清き旋律 stori) on the

@@ -25,9 +25,10 @@
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
 <script src="js/mv_palette.js?v=413"></script>
-<script>window.MV_BUILD='414';
-/* T425 (Paulo, Nov 11): every boot starts on Ink & Vinyl; a filter picked in Options lasts for that session */
-try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','ink'); }catch(e){}</script>
+<script>window.MV_BUILD='415';
+/* T425 (Paulo, Nov 11): every boot starts the same way; a filter picked in Options lasts for that session.
+   Paulo, Nov 26: that start is the standard look again (Ink & Vinyl is unlocked in play, see console16.js) */
+try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
 (function(){
   if(location.protocol==='file:') return;
@@ -298,7 +299,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/save.js?v=278"></script>
 <script src="js/core.js?v=414"></script>
 <script src="js/sfx-replacements.js?v=1"></script>
-<script src="js/audio.js?v=405"></script>
+<script src="js/audio.js?v=415"></script>
 <script src="js/sound16.js?v=384"></script>
 <script src="js/sfx_posh.js?v=336"></script>
 <script src="js/soundlab.js?v=1"></script>
@@ -310,9 +311,12 @@ window.onerror=function(msg,src,line,col,err){
   <script src="js/weapons.js?v=406"></script>
 <script src="js/ui.js?v=414"></script>
 <script src="js/ui_select.js?v=402"></script>
-<!-- MV2 online co-op (netcode + copy/paste signalling panel) -->
-<script src="js/mv2_net.js?v=1"></script>
-<script src="js/mv2_net_ui.js?v=1"></script>
+<!-- MV2 online co-op (Nov 26 2026): room codes over WebRTC (PeerJS, MIT) + proximity voice + host/join screens -->
+<script src="js/vendor/peerjs.min.js?v=1.5.4"></script>
+<script src="js/vendor/qrcode.js?v=1.4.4"></script>
+<script src="js/mv2_net.js?v=2"></script>
+<script src="js/mv2_voice.js?v=2"></script>
+<script src="js/mv2_net_ui.js?v=2"></script>
   <script src="js/render.js?v=411"></script>
 <script src="js/editor.js?v=t170"></script>
 <script src="js/map_edit.js?v=t134"></script>
@@ -354,13 +358,13 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/beta_pushblock.js?v=330"></script>
 <script src="js/beta_items.js?v=397"></script>
 <script src="js/beta_enemy_f.js?v=368"></script>
-<script src="js/console16.js?v=412"></script>
+<script src="js/console16.js?v=415"></script>
 <script src="js/beta_splash.js?v=382"></script>
 <script src="js/ui_manual.js?v=397"></script>
 <script src="js/beta_story.js?v=362"></script>
 <!-- beta_telemetry.js off (Paulo, Nov 12: no telemetry, only the save slots, which stay on the player's machine) -->
 <script src="js/ink_vinyl.js?v=404"></script>
-<script src="js/beta_lift.js?v=410"></script>
+<script src="js/beta_lift.js?v=415"></script>
 <script src="js/beta_doors.js?v=408"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){

@@ -460,10 +460,13 @@
     const C=window.MV_CONSOLE; if(!C||typeof C.set!=='function'||C.mode===m) return;
     // GORE is a secret filter: reaching it 33 floors down unlocks it, as the code on the FILTER row does
     if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){ _goreUnlock(); return; }
+    // Ink & Vinyl is found here (Paulo, Nov 26): the 33rd floor unlocks it for good, then switches to it
+    let unlocked=false;
+    if(m==='ink'&&typeof C.unlockInk==='function') unlocked=C.unlockInk();
     if(!S.forced) S.baseMode=C.mode;
     S.settingFromFilter=true;
     try{ C.set(m); } finally{ S.settingFromFilter=false; }
-    if(C.mode===m){ S.forced=m; try{ uiShowToast(m==='ink'?'INK & VINYL - THE 33RD FLOOR':'GORE - 33 FLOORS DOWN'); }catch(e){} }
+    if(C.mode===m){ S.forced=m; if(!unlocked){ try{ uiShowToast(m==='ink'?'INK & VINYL - THE 33RD FLOOR':'GORE - 33 FLOORS DOWN'); }catch(e){} } }
   }
   function aboard(m){
     if(onCab(m)) return true;
