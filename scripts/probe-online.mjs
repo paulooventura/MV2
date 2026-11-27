@@ -83,6 +83,14 @@ try {
   const bx = await Bp.evaluate(() => { p.x = Math.max(40, p.x - 120); return p.x; });
   ok('host sees joiner move', await until(A, x => p2 && Math.abs(p2.x - x) < 40, bx, 4000));
 
+  // Loaded jump / charge: duckCharge + duckBoostReady must cross the wire (Build 426)
+  await A.evaluate(() => { p.duckCharge = 90; p.duckBoostReady = true; p.wallGrip = 20; p._wallChargeReady = true; p.runRamp = 1; });
+  ok('joiner sees host loaded-jump charge', await until(Bp, () => p2 && p2.duckBoostReady === true && (p2.duckCharge || 0) >= 80 && p2._wallChargeReady === true, null, 4000),
+    await Bp.evaluate(() => p2 && ({ duck: p2.duckCharge, ready: p2.duckBoostReady, wall: p2._wallChargeReady, run: p2.runRamp })));
+  await Bp.evaluate(() => { p.duckCharge = 90; p.duckBoostReady = true; });
+  ok('host sees joiner loaded-jump charge', await until(A, () => p2 && p2.duckBoostReady === true && (p2.duckCharge || 0) >= 80, null, 4000),
+    await A.evaluate(() => p2 && ({ duck: p2.duckCharge, ready: p2.duckBoostReady })));
+
   // Enemies: joiner hits an enemy the host owns -> host applies it
   await A.waitForTimeout(600);
   const en = await A.evaluate(() => ({ n: ENEMS.length, base: MV_NET.base(), own: MV_NET.owners() }));

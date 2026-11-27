@@ -538,7 +538,10 @@ function _playerChargeInfo(pl){
   const wallC=pl.wallGrip>0?Math.min(1,wallWC/60):0;
   const skidC=Math.max(0,Math.min(1,pl._skidCharge||0));
   const springC=Math.max(Math.min(1,(pl.duckCharge||0)/60), skidC);
-  const sprinting=pl===p&&isSprintHeld()&&(pl.og||_playerOnGround(pl))&&_moveInputX()!==0;
+  // Online puppet: no local keys — use the streamed runRamp so the friend's sprint charge still reads.
+  const sprinting=pl&&pl._netPuppet
+    ? ((pl.runRamp||0)>0.02)
+    : (pl===p&&isSprintHeld()&&(pl.og||_playerOnGround(pl))&&_moveInputX()!==0);
   const runC=sprinting?(pl.runRamp||0):0;
   const springReady=!!pl.duckBoostReady||skidC>=0.98;
   const wallReady=!!pl._wallChargeReady;

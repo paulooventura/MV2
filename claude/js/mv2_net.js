@@ -247,7 +247,11 @@
   function toast(m){ try{ if(typeof uiShowToast==='function') uiShowToast(m); }catch(e){} }
   function r1(n){ n=+n; return isFinite(n)?Math.round(n*10)/10:0; }
 
-  var HERO_F=['x','y','vx','vy','fc','og','hp','maxHp','item','pt','pCharge','pCharging','crouchAmt','aimDX','aimDY','xlrOn','magOn','inv','hitF','wheelAngle','landF','_sitT','laserCharging','laserCharge'];
+  // Punch charge (pCharge/pCharging) was already on the wire. Loaded jump / wall cling /
+  // sprint charge live on duckCharge+duckBoostReady+wallGrip+_wallChargeReady+runRamp —
+  // without them the friend never sees (or mirrors) the spring load on the other hero.
+  var HERO_F=['x','y','vx','vy','fc','og','hp','maxHp','item','pt','pCharge','pCharging','crouchAmt','aimDX','aimDY','xlrOn','magOn','inv','hitF','wheelAngle','landF','_sitT','laserCharging','laserCharge',
+              'duckCharge','duckBoostReady','wallGrip','_wallChargeReady','_springFloat','runRamp','_skidCharge'];
   var EN_F=['x','y','vx','vy','fc','dir','og','hp','mhp','alive','_mindOff','shutF','_stayDown','_shutCount','_downs','pt','pCharging','pCharge',
             'hitF','flashF','signolState','chargeT','aiMode','item','xlrOn','magOn','crouchAmt','aimDX','aimDY','_rebootFill','inv',
             'laserCharging','laserCharge','_shutSettled','_shorted','wheelAngle','_kbF'];
