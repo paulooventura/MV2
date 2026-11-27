@@ -1199,7 +1199,10 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           }else{
             _damageBwall(_stood,_charged?'punchCharged':'punch',{shakeX:0,shakeY:_charged?6:4,vy:_stood.movable?(_charged?4:2.2):0});
           }
-          if(_hitKind==='block'){ spawnDebris(_stood,10); p._pRecoil=10; }
+          if(_hitKind==='block'){
+            if(_stood.only!=='push'&&_stood.only!=='pull') spawnDebris(_stood,10);
+            p._pRecoil=10;
+          }
           p.vy=-(_charged?4.2:2.6); p.og=false; p._groundHold=0;
         }else if(typeof _punchCrates==='function'&&_punchCrates(_cx,_feet+4,12,Math.PI/2,_charged,shWX,shWY)){
           p._hitDone=true;_hit=true;_hitKind='crate'; p._pRecoil=8;
@@ -1262,7 +1265,9 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           // T431 (Paulo, Nov 11): the punch moves an omni block toward the punch, by its weight
           // (beta_level B.punchShove); MIND's momentum into the punch sends it farther
           try{ if(!_charged&&!p._aiCompanion&&bw.hp>0&&window.MV_BETA&&MV_BETA.on&&MV_BETA.punchShove) MV_BETA.punchShove(bw,Math.cos(punchAngle),Math.sin(punchAngle),false); }catch(e){}
-          spawnDebris(bw,10);p._pRecoil=10;
+          // push/pull stay whole — no crumb spray (clang lives in _damageBwall)
+          if(bw.only!=='push'&&bw.only!=='pull') spawnDebris(bw,10);
+          p._pRecoil=10;
           p.vx-=Math.cos(punchAngle)*(_charged?4:2.5);
           p.vy-=Math.sin(punchAngle)*(_charged?2:1);
           break;

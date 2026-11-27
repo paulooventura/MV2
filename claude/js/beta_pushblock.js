@@ -115,7 +115,9 @@
       const nx=bw.x+bw.vx/steps, hx=hitsAt(nx,bw.y);
       if(hx){
         const nb=B.cubeAt&&B.cubeAt(hx.c,hx.r), sp=Math.abs(bw.vx);
-        if(isPush(nb)&&sp>1.2){ launch(nb,bw.vx*0.75,-0.4); bw.vx*=0.2; }      // knocks the next push block on
+        // T612: force through the stack — push→push launches; push→omni shoves the line by mass
+        if(isPush(nb)&&sp>1.2){ launch(nb,bw.vx*0.75,-0.4); bw.vx*=0.2; }
+        else if(nb&&nb.cube&&!nb._fly&&sp>1.2&&B.shoveCubeLine&&B.shoveCubeLine(nb,Math.sign(bw.vx)||1,0,sp)){ bw.vx*=0.18; }
         else { wall=Math.sign(bw.vx); bw.vx=sp>2?-bw.vx*PB.BOUNCE:0; bw.spin=-(bw.spin||0)*0.5; }
         if(sp>1.5){ S(bw,'omniblock_chip'); bw.shakeX=-Math.sign(bw.vx||1)*3; }
       } else bw.x=nx;

@@ -745,6 +745,28 @@
   }
   function cubeAt(c,r){ for(const b of cubes()) if(b.homeCol===c&&b.homeRow===r) return b; return null; }
   B.cubeAt=cubeAt;
+  // T612 (Paulo, Nov 27): shove a resting cube AND the line behind it (mass-aware cells).
+  // Force goes through the stack — blocks don't ghost; a blocked line just thumps solid.
+  // Used by punch, flying-cube impact, and push-block trains (heroes/objects/foes feel it).
+  function shoveCubeLine(bw,dc,dr,impulse){
+    if(!bw||bw.hp<=0||!bw.cube||bw._fly||bw._carried||busy(bw)||holdsStill(bw)) return false;
+    if((!dc&&!dr)||bw.homeCol==null) return false;
+    const list=lineFrom(bw,dc,dr,'push');
+    if(!list||!list.length) return false;
+    const lineW=list.reduce((w,b)=>w+weightOf('cube',b),0)||1;
+    const go=Math.max(1,Math.round(Math.max(1,impulse||1)*Math.min(1,7/lineW)));
+    if(!stepOpen(list,dc,dr)){
+      for(const b of list){ b.shakeX=(dc||0)*4; b.shakeY=(dr||0)*3; b.hitGlow=10; }
+      try{ sfxAt(list[0],'omniblock_chip'); }catch(e){}
+      return true;                                              // solid contact, no ghost clip
+    }
+    for(const b of list){ b.wedge=false; b.hitGlow=12; }
+    B_CHAINS.push({list,dc,dr,left:go,cells:go});
+    try{ sfxAt(list[0],'omniblock_chip'); }catch(e){}
+    return true;
+  }
+  B.shoveCubeLine=shoveCubeLine;
+  B.lineFrom=lineFrom;
   function chainTick(){
     for(let i=B_CHAINS.length-1;i>=0;i--){
       const ch=B_CHAINS[i];
@@ -1021,6 +1043,44 @@
     bw._hookHung=true; bw._fly=true; bw._carried=false; bw._ox=bw._oy=0;
     if(B.flying.indexOf(bw)<0) B.flying.push(bw);
   };
+  // T612: flying cubes never ghost through each other — mass-aware separate + impulse share.
+  function separateFlyingCubes(){
+    const fly=B.flying.filter(b=>b&&b._fly&&b.hp>0&&!b._hookHung&&!b._pb&&!b._carried);
+    for(let i=0;i<fly.length;i++) for(let j=i+1;j<fly.length;j++){
+      const a=fly[i], b=fly[j];
+      const ox=Math.min(a.x+T,b.x+T)-Math.max(a.x,b.x), oy=Math.min(a.y+T,b.y+T)-Math.max(a.y,b.y);
+      if(ox<=0||oy<=0) continue;
+      const mA=weightOf('cube',a), mB=weightOf('cube',b), inv=1/Math.max(0.5,mA+mB);
+      if(ox<oy){
+        const s=a.x<b.x?-1:1;
+        a.x+=s*ox*mB*inv; b.x-=s*ox*mA*inv;
+        const mid=(a.vx*mA+b.vx*mB)/(mA+mB);
+        a.vx=mid+(a.vx-mid)*-0.25; b.vx=mid+(b.vx-mid)*-0.25;
+      }else{
+        const s=a.y<b.y?-1:1;
+        a.y+=s*oy*mB*inv; b.y-=s*oy*mA*inv;
+        if(s<0){ if(a.vy>0) a.vy=Math.min(a.vy,0); if(b.vy<0) b.vy=Math.max(b.vy,0); }
+        else { if(b.vy>0) b.vy=Math.min(b.vy,0); if(a.vy<0) a.vy=Math.max(a.vy,0); }
+        const mid=(a.vy*mA+b.vy*mB)/(mA+mB);
+        a.vy=mid+(a.vy-mid)*-0.2; b.vy=mid+(b.vy-mid)*-0.2;
+      }
+    }
+  }
+  // Side-hit into a resting cube: shove that line by momentum (force through the stack).
+  function flyHitResting(bw,nx,ny,axis){
+    const cx=axis==='x'?nx+(bw.vx>0?T-3:3):bw.x+T/2;
+    const cy=axis==='y'?ny+(bw.vy>0?T-3:3):bw.y+T/2;
+    const c=Math.floor(cx/T), r=Math.floor(cy/T);
+    const nb=cubeAt(c,r);
+    if(!nb||nb===bw||nb._fly||holdsStill(nb)) return false;
+    if(axis==='x'&&Math.abs(bw.vx)>1.4){
+      if(shoveCubeLine(nb,Math.sign(bw.vx)||1,0,Math.abs(bw.vx))){ bw.vx*=0.22; return true; }
+    }
+    if(axis==='y'&&bw.vy>2.2){
+      if(shoveCubeLine(nb,0,1,bw.vy)){ bw.vy*=0.2; return true; }
+    }
+    return false;
+  }
   function flyTick(){
     for(let i=B.flying.length-1;i>=0;i--){
       const bw=B.flying[i];
@@ -1033,14 +1093,22 @@
       let ground=false;
       for(let s=0;s<steps;s++){
         const nx=bw.x+bw.vx/steps;
-        if(boxHits(nx,bw.y)){ bw.vx=Math.abs(bw.vx)>2?-bw.vx*0.3:0; bw.spin=-(bw.spin||0)*0.5; try{ if(Math.abs(bw.vx)>1.2) sfxAt(bw,'omniblock_chip'); }catch(e){} }
+        if(boxHits(nx,bw.y)){
+          if(!flyHitResting(bw,nx,bw.y,'x')){
+            bw.vx=Math.abs(bw.vx)>2?-bw.vx*0.3:0; bw.spin=-(bw.spin||0)*0.5;
+            try{ if(Math.abs(bw.vx)>1.2) sfxAt(bw,'omniblock_chip'); }catch(e){}
+          }
+        }
         else bw.x=nx;
         const ny=bw.y+bw.vy/steps;
         if(boxHits(bw.x,ny)){
           if(bw.vy>0) ground=true;
-          bw.vy=(bw.vy>3)?-bw.vy*0.25:0; if(!(bw._tossT>0)) bw.vx*=0.78;
+          if(!(bw.vy>0&&flyHitResting(bw,bw.x,ny,'y'))){
+            bw.vy=(bw.vy>3)?-bw.vy*0.25:0; if(!(bw._tossT>0)) bw.vx*=0.78;
+          }
         }else bw.y=ny;
       }
+      separateFlyingCubes();
       bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.45:0.98);
       if(ground&&!bw._magStuck){
         const step=Math.PI/2;
@@ -1319,12 +1387,15 @@
   const RAM_HEFT=2.2;
   // T431: a punch moves an omni block toward the punch, by its weight; MIND's momentum into the
   // punch sends it farther. (A loaded punch still smashes a whole omni block - render.js.)
+  // T612: prefer shoving the whole line (stack force) so contacts feel solid, not styrofoam.
   B.punchShove=function(bw,ux,uy,charged){
     if(!bw||bw.hp<=0||!bw.cube||bw.only||bw._fly||bw._carried||busy(bw)||holdsStill(bw)) return false;
     const m=weightOf('cube',bw)*RAM_HEFT, massP=bodyMass(p);
     const mom=Math.max(0,(p.vx||0)*ux+(p.vy||0)*uy);
     const k=((charged?9:4.2)+mom*0.7)*(massP/(massP+m));
     if(k<1.4) return false;
+    const dc=Math.abs(ux)>=0.45?Math.sign(ux)|0:0, dr=Math.abs(uy)>=0.45?Math.sign(uy)|0:0;
+    if((dc||dr)&&bw.homeCol!=null&&shoveCubeLine(bw,dc,dr,Math.max(1,(charged?2.2:1.2)*(k/4.2)))) return true;
     throwCube(bw, ux*k, uy*k-1.2-Math.max(0,-uy)*1.5);
     return true;
   };

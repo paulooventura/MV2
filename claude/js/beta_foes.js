@@ -28,7 +28,17 @@
   // GORE filter makes the small foes (E eye / F cube) press the attack. The
   // heptagon below never reads this: its patterns, timings and rage are unchanged.
   const GORE=()=>!!(window.MV_CONSOLE&&MV_CONSOLE.mode==='gore');
-  const solid=(x,y)=>typeof gridWorldSolid==='function'&&gridWorldSolid(x,y);
+  // T606: BWALLS (omni / push / pull) are solid for foes everywhere, same as the tile grid.
+  const solid=(x,y)=>{
+    if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)) return true;
+    if(typeof BWALLS!=='undefined'){
+      for(const bw of BWALLS){
+        if(!bw||!(bw.hp>0)) continue;
+        if(x>=bw.x&&x<bw.x+bw.w&&y>=bw.y&&y<bw.y+bw.h) return true;
+      }
+    }
+    return false;
+  };
   const boxFree=(x,y,w,h)=>!(solid(x+3,y+3)||solid(x+w-3,y+3)||solid(x+3,y+h-3)||solid(x+w-3,y+h-3)||solid(x+w/2,y+h/2));
   // T534: the E eye is a floater, but it must never be *inside* a wall. If a bad
   // spawn, a shove or a moving platform buries it, nudge it out by the smallest

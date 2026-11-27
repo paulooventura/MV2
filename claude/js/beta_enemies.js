@@ -67,22 +67,55 @@
     return e;
   };
 
-  // Paulo (Oct 20): the dirt under a slope is solid to them too — they never sink into a hill
-  function solidAt(x,y){
-    if(typeof gridWorldSolid!=='function') return false;
-    if(gridWorldSolid(x,y)) return true;
-    const c=Math.floor(x/T), r=Math.floor(y/T);
-    if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); return sy!=null&&y>=sy; }
-    return false;
-  }
-  // the top of the ground under x near `feet` (a slope's line, or a block's top)
-  function groundTop(x,feet){
-    const c=Math.floor(x/T);
-    for(let r=Math.floor((feet-T)/T);r<=Math.floor((feet+T)/T);r++){
-      if(gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); if(sy!=null&&sy>=feet-T&&sy<=feet+T) return sy; }
-      if(gridSolid(c,r)&&!gridSolid(c,r-1)&&!gridIsSlope(c,r-1)&&r*T>=feet-T) return r*T;
+  // Paulo (Oct 20): the dirt under a slope is solid to them too — they never sink into a hill.
+  // T606 (Paulo, Nov 27): omni / push / pull cubes in BWALLS are floor for foes EVERYWHERE —
+  // same as MIND. They roll on top of the blocks; they only fall when that cell is open.
+  function bwallAt(x,y){
+    if(typeof BWALLS==='undefined') return null;
+    for(const bw of BWALLS){
+      if(!bw||!(bw.hp>0)) continue;
+      if(x>=bw.x&&x<bw.x+bw.w&&y>=bw.y&&y<bw.y+bw.h) return bw;
     }
     return null;
+  }
+  function solidAt(x,y){
+    if(typeof gridWorldSolid==='function'&&gridWorldSolid(x,y)) return true;
+    const c=Math.floor(x/T), r=Math.floor(y/T);
+    if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); if(sy!=null&&y>=sy) return true; }
+    if(bwallAt(x,y)) return true;
+    // crates / item boxes are solid objects for foes too (same precise-contact rule)
+    if(typeof CRATES!=='undefined'){
+      for(const cr of CRATES){
+        if(!cr||cr.broken||!(cr.hp>0||cr.hp==null)) continue;
+        if(x>=cr.x&&x<cr.x+cr.w&&y>=cr.y&&y<cr.y+cr.h) return true;
+      }
+    }
+    return false;
+  }
+  // the top of the ground under x near `feet` (slope / tile / BWALL / crate)
+  function groundTop(x,feet){
+    let top=null;
+    const consider=y=>{ if(y!=null&&y>=feet-T&&y<=feet+T&&(top==null||y<top)) top=y; };
+    const c=Math.floor(x/T);
+    for(let r=Math.floor((feet-T)/T);r<=Math.floor((feet+T)/T);r++){
+      if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){ const sy=gridSlopeY(c,r,x); consider(sy); }
+      if(typeof gridSolid==='function'&&gridSolid(c,r)&&!gridSolid(c,r-1)&&!(typeof gridIsSlope==='function'&&gridIsSlope(c,r-1))&&r*T>=feet-T) consider(r*T);
+    }
+    if(typeof BWALLS!=='undefined'){
+      for(const bw of BWALLS){
+        if(!bw||!(bw.hp>0)) continue;
+        if(x<bw.x+2||x>bw.x+bw.w-2) continue;
+        consider(bw.y);
+      }
+    }
+    if(typeof CRATES!=='undefined'){
+      for(const cr of CRATES){
+        if(!cr||cr.broken) continue;
+        if(x<cr.x+2||x>cr.x+cr.w-2) continue;
+        consider(cr.y);
+      }
+    }
+    return top;
   }
   function floorSnap(e,feet){                   // feet onto the highest ground under its width
     let top=null;

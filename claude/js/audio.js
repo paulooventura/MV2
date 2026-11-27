@@ -822,6 +822,11 @@ function sfx(t){
       o(523,659,.22,.15,0.54,'triangle');
       break;
     case'omniblock_chip':nz(.05,.14,false,0.55);o(210,70,.05,.08,0,'triangle');break;
+    case'pushblock_clang':
+      // solid / indestructible push-pull punch (fallback if posh isn't loaded)
+      nz(.03,.08,false,0.28);
+      o(100,42,.14,.2,0,'sine');o(230,90,.06,.1,0,'triangle');o(880,420,.08,.05,0.02,'triangle');
+      break;
     case'omniblock_shatter':
       nz(.18,.28,false,0.38);nz(.12,.18,true,0.22,0.04);
       o(420,90,.14,.16,0,'square');o(180,48,.16,.14,0.03,'triangle');

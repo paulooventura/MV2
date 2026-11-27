@@ -240,6 +240,15 @@
       for(let k=0;k<6;k++) hiss(a,{f:rnd(1300,4800),q:6,dt:0.01+k*rnd(0.012,0.03),d:0.03,v:rnd(0.07,0.13)});
       tone(a,{f:rnd(650,900),d:0.03,v:0.06,type:'triangle',hp:500});
     },
+    // T611 (Paulo, Nov 27): punch on a push/pull block — dense metal thud + short ring.
+    // Reads as solid / not destroyable; deliberately not the omni crunch or shatter.
+    pushblock_clang(a){
+      tone(a,{f:rnd(88,108),f1:40,d:0.2,v:0.34});                                    // heavy body
+      tone(a,{f:rnd(210,250),f1:85,d:0.09,v:0.18,type:'triangle'});                  // mid knock
+      bell(a,{f:rnd(760,900),ratio:1.41,index:1.6,d:0.24,v:0.075,rev:0.28});         // brief metal ring
+      tone(a,{f:rnd(1350,1650),d:0.035,v:0.045,type:'triangle',hp:700});             // tip tick
+      hiss(a,{type:'lowpass',f:700,f1:160,d:0.07,v:0.05,rate:0.25});                 // soft air only — no grit
+    },
     // ... and breaking one CRUSHES: a heavy thud, a roar of rubble, shards raining down
     omniblock_shatter(a){
       tone(a,{f:115,f1:34,d:0.5,v:0.34}); tone(a,{f:58,f1:28,d:0.6,v:0.24});

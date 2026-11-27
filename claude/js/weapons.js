@@ -294,7 +294,18 @@ function _debrisCollide(d){
 function _damageBwall(bw,kind,fx){
   if(!bw||bw.hp<=0) return;
   if(bw.only==='laser'&&!(typeof kind==='string'&&kind.indexOf('laser')===0)) return;   // TRS-only block
-  if(bw.only==='push'||bw.only==='pull') return;   // push / pull blocks: punches and lasers don't break or shove them
+  // push / pull: punches and lasers don't break them. Distinct solid clang
+  // (T611 / Paulo 2026-11-27) so heroes + projectiles read them as indestructible.
+  if(bw.only==='push'||bw.only==='pull'){
+    fx=fx||{};
+    const hit=typeof kind==='string'&&(kind.indexOf('punch')===0||kind.indexOf('laser')===0);
+    if(hit){
+      if(fx.shakeX) bw.shakeX=fx.shakeX; if(fx.shakeY) bw.shakeY=fx.shakeY;
+      bw.hitGlow=10;
+      try{ sfxAt(bw,'pushblock_clang'); }catch(e){}
+    }
+    return;
+  }
   fx=fx||{};
   if(_isRedBwall(bw)){
     const pct=typeof kind==='string'?(RED_BWALL_DMG[kind]||0):kind;
@@ -1187,7 +1198,7 @@ function updateEnemyShots(){
       if(bw.hp<=0) continue;
       const _bwBox={x:bw.x+(bw._ox||0),y:bw.y+(bw._oy||0),w:bw.w,h:bw.h,rot:bw.rot||0};
       if(!_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,_bwBox)) continue;
-      if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfxAt(s,'omniblock_chip'); }catch(e){} }
+      if(bw.only==='push'||bw.only==='pull'){ bw.shakeX=(s.vx>0?1:-1)*3; bw.hitGlow=12; spawnSpark(s.x,s.y,-s.vx,-s.vy); try{ sfxAt(s,'pushblock_clang'); }catch(e){} }
       else _damageBwall(bw,(s.power||1)>1.5?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2});
       spawnHitBurst(s.x,s.y,s.vx,s.vy,'#ff6644',8);
       ESHOTS.splice(i,1); eBlk=true; break;
