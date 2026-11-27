@@ -1,0 +1,707 @@
+// ============================================================
+//  ui_select.js â€” the Story Mode select screens, in the key art's look
+//  (Paulo, Oct 22: "this UI looks terribleâ€¦ give a fun/hype look/feel to
+//  the character selection")
+//
+//  Two steps, same handlers as before (ui.js): HOW DO YOU RIDE? (1P / 2P
+//  local / 2P online) and CHOOSE YOUR LEAD (Mind / Venture).
+//  The look: the stage's swirling night sky behind (beta_sky.js), big tilted
+//  hero cards cut from the title art, the picked hero lit in its own colour
+//  (purple / red) with light rays, rising sparks and a bob, the other one
+//  dimmed and tagged ALLY; names in the logo's pixel letters; keycap hints.
+//  Everything eases (cards grow / shrink, the seam pulses) so a switch feels
+//  like a punch, not a repaint.
+// ============================================================
+(function(){
+  'use strict';
+  const IMG={}, FEATHER={};
+  for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=433'; IMG[k]=im; }
+  const HERO={
+    mind:{name:'MIND', col:'#8B5FCF', deep:'#3a1466', glow:'91,42,140', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
+    venture:{name:'VENTURE', col:'#D9472B', deep:'#5a1010', glow:'217,71,43', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},
+  };
+  const MODES=[
+    {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#C9A24A'},
+    {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
+    {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
+    {id:3, name:'ONLINE', sub:'UP TO 5 RIDERS', icon:'net', col:'#C9A24A'},
+  ];
+  const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
+  const EYE={mind:{u:0.50,v:0.31}, venture:{u:0.50,v:0.28}};
+  let eyeT=0, eyeKey='mind', ask=null;
+  const sparks=[];
+  const ease=(a,b,k)=>a+(b-a)*k;
+
+  // the backdrop and the light rays drift slowly: paint them every 3rd frame and blit that copy in
+  // between (rays use the spots asked for last frame; additive blends this big cost ~5-9 ms in Firefox)
+  let bgC=null, bgN=0, rayPrev=[], rayNext=[];
+  function bg(){
+    const cv=ctx.canvas;
+    if(bgC&&bgC.width===cv.width&&bgC.height===cv.height&&(bgN++%3)!==0){
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='copy'; ctx.drawImage(bgC,0,0); ctx.restore();
+      return;
+    }
+    bgPaint();
+    for(const r of rayPrev) raysNow(r[0],r[1],r[2],r[3]);
+    if(!bgC||bgC.width!==cv.width||bgC.height!==cv.height){ bgC=document.createElement('canvas'); bgC.width=cv.width; bgC.height=cv.height; bgN=1; }
+    const o=bgC.getContext('2d'); o.globalCompositeOperation='copy'; o.drawImage(cv,0,0);
+  }
+  function bgPaint(){
+    // the stage sky (swirls, stars, ridge, town) â€” or a dark fallback
+    let ok=false;
+    try{ if(window.MV_SKY){ ctx.save(); MV_SKY.draw({stageId:'1.1'}, H*0.9); ctx.restore(); ok=true; } }catch(e){}
+    if(!ok){ ctx.fillStyle='#1E1B27'; ctx.fillRect(0,0,W,H); }
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(2,10,6,0.35)'); g.addColorStop(0.55,'rgba(2,10,6,0.55)'); g.addColorStop(1,'rgba(2,8,4,0.92)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+  // a tilted card: a parallelogram, skewed by `sk` px across its height
+  function cardPath(x,y,w,h,sk,c=ctx){ c.beginPath(); c.moveTo(x+sk,y); c.lineTo(x+w+sk,y); c.lineTo(x+w-sk,y+h); c.lineTo(x-sk,y+h); c.closePath(); }
+  // light rays: twelve soft beams, baked once per colour, spun live (nearest-neighbour: a smoothed
+  // rotate of this size costs ~3x more in Firefox and looks the same on soft beams)
+  const RAYS={};
+  function raySprite(rgb){
+    if(RAYS[rgb]) return RAYS[rgb];
+    const c=document.createElement('canvas'); c.width=c.height=840; const o=c.getContext('2d');
+    o.translate(420,420);
+    const g=o.createLinearGradient(0,0,0,-420); g.addColorStop(0,'rgba('+rgb+',0.16)'); g.addColorStop(1,'rgba('+rgb+',0)');
+    o.fillStyle=g;
+    for(let i=0;i<12;i++){ o.rotate(Math.PI/6); o.beginPath(); o.moveTo(-14,0); o.lineTo(-70,-420); o.lineTo(70,-420); o.lineTo(14,0); o.closePath(); o.fill(); }
+    return (RAYS[rgb]=c);
+  }
+  function rays(cx,cy,rgb,a){ rayNext.push([cx,cy,rgb,a]); }
+  function raysNow(cx,cy,rgb,a){
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha*=Math.min(1,a); ctx.imageSmoothingEnabled=false;
+    ctx.translate(cx,cy); ctx.rotate(fr*0.004);
+    ctx.drawImage(raySprite(rgb),-420,-420);
+    ctx.restore();
+  }
+  function keycap(x,y,label,text,col){
+    ctx.save(); ctx.font='22px "MV Pixel", monospace'; const kw=Math.max(34,ctx.measureText(label).width+18); ctx.restore();
+    ctx.fillStyle='#020a04'; uiRound(x+2,y+3,kw,30,4); ctx.fill();
+    const g=ctx.createLinearGradient(0,y,0,y+30); g.addColorStop(0,'#2c4a34'); g.addColorStop(1,'#122418'); ctx.fillStyle=g; uiRound(x,y,kw,30,4); ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=1.5; uiRound(x+0.5,y+0.5,kw-1,29,4); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(x+4,y+3,kw-8,2);
+    drawTextC(label,x+kw/2,y+7,'#e8ffd8',2);
+    drawText(text,x+kw+10,y+7,col,2);
+    return kw+10+textW(text,2)+28;
+  }
+  function hintY(){
+    const L=window.uiLayout?uiLayout():{pad:{b:0},oneCol:false};
+    if(!L.oneCol) return H-48;
+    return H-Math.max(28,(L.pad&&L.pad.b)||0)-4;
+  }
+  function hints(){
+    const L=window.uiLayout?uiLayout():{oneCol:false};
+    let line=window.uiMenuHint?uiMenuHint('select'):'TAP TO PICK';
+    if(_selectStep===1&&typeof _playModeIdx!=='undefined'&&_playModeIdx===3&&!onlineLinked()){
+      const pad=typeof _uiDev!=='undefined'&&(_uiDev==='pad'||_uiDev==='touch');
+      const ok=pad&&typeof uiActLabel==='function'?uiActLabel('jump'):'ENTER';
+      line=(typeof _uiDev!=='undefined'&&_uiDev==='touch')?'TAP ONLINE TO HOST OR JOIN':ok+'  HOST OR JOIN A ROOM';
+    }
+    drawTextC(line,W/2,hintY(),'#d8ffc8',L.oneCol?2:3);
+  }
+  function title(main,sub){
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(one){
+      const L=uiLayout();
+      const y=Math.max(6,(L.inset&&L.inset.t)||0);
+      drawTextC(main,W/2,y,'#f2ffe8',3);
+      if(sub) drawTextC(sub,W/2,y+30,'#d8ffc8',2);
+      return y+58;
+    }
+    uiLogo(main,W/2,26,46,{col:'#b8f5a0',sweep:300});
+    drawTextC(sub,W/2,108,'#d8ffc8',3);
+    return 150;
+  }
+  function spark(x,y,col){ sparks.push({x,y,vx:(Math.random()-0.5)*0.8,vy:-0.6-Math.random()*1.2,life:60+Math.random()*40,max:100,col,r:1+Math.random()*2.5}); }
+  function sparkTick(){
+    for(let i=sparks.length-1;i>=0;i--){ const s=sparks[i]; s.x+=s.vx+Math.sin((fr+i*7)*0.05)*0.3; s.y+=s.vy; if(--s.life<=0) sparks.splice(i,1); }
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    for(const s of sparks){ const a=Math.min(1,s.life/30)*0.9; ctx.fillStyle=s.col; ctx.globalAlpha=a; ctx.fillRect(Math.round(s.x),Math.round(s.y),Math.ceil(s.r),Math.ceil(s.r)); if(s.r>2.5){ ctx.globalAlpha=a*0.5; ctx.fillRect(Math.round(s.x)-2,Math.round(s.y)+1,s.r+4,1); } }
+    ctx.restore();
+  }
+
+  // â”€â”€ step 2: the heroes â”€â”€
+  // a hero's art with its card treatment baked in: 'blur' = the dark blurred fill, 'face' = the portrait
+  // feathered at the sides. Grey for the hero who isn't picked. Sized for a card `full` px tall.
+  function baked(key,sel,kind,full){
+    const ck=key+'|'+(sel?1:0)+'|'+kind+'|'+Math.round(full); let off=FEATHER[ck];
+    if(off) return off;
+    const im=IMG[key], ar=im.naturalHeight/im.naturalWidth;
+    const o=(off=document.createElement('canvas')).getContext('2d');
+    if(kind==='blur'){
+      const w=Math.ceil(full*0.8), h=Math.ceil(w*ar);
+      off.width=w; off.height=h;
+      o.filter=(sel?'':'grayscale(0.75) ')+'blur(6px) brightness(0.45)';
+      o.drawImage(im,0,0,w,h);
+    }else{
+      const ih=Math.ceil(full*0.98*1.04), iw=Math.ceil(ih/ar);
+      off.width=iw; off.height=ih; o.imageSmoothingEnabled=false;
+      if(!sel) o.filter='grayscale(0.75) brightness(0.5)';
+      o.drawImage(im,0,0,iw,ih); o.filter='none'; o.globalCompositeOperation='destination-in';
+      const fg=o.createLinearGradient(0,0,iw,0); fg.addColorStop(0,'rgba(0,0,0,0)'); fg.addColorStop(0.1,'#000'); fg.addColorStop(0.9,'#000'); fg.addColorStop(1,'rgba(0,0,0,0)'); o.fillStyle=fg; o.fillRect(0,0,iw,ih);
+    }
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
+  }
+  // the hero's colour washed up from the bottom (a name plate), lit in its colour when picked
+  function cardWash(c,H0,sel,x,y,w,h,sk){
+    const g=c.createLinearGradient(0,y+h*0.45,0,y+h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(0.55,'rgba(4,6,10,0.75)'); g.addColorStop(1,'rgba(4,6,10,0.96)');
+    c.fillStyle=g; c.fillRect(x-sk,y,w+2*sk,h);
+    if(sel){ c.globalCompositeOperation='overlay'; c.fillStyle='rgba('+H0.glow+',0.22)'; c.fillRect(x-sk,y,w+2*sk,h); c.globalCompositeOperation='source-over'; }
+  }
+  // the card face (deep colour, blurred art, feathered portrait, wash) cut to the tilted card shape
+  function cardArt(key,sel,w,h,sk,k){
+    const ck=key+'|'+(sel?1:0)+'|card|'+w+'x'+h+'|'+Math.round(sk)+'|'+k; let off=FEATHER[ck];
+    if(off) return off;
+    const H0=HERO[key], im=IMG[key], ar=im.naturalHeight/im.naturalWidth;
+    off=document.createElement('canvas'); off.width=Math.ceil(w+2*sk); off.height=Math.ceil(h);
+    const o=off.getContext('2d'), x=sk, y=0, cx=x+w/2;
+    o.imageSmoothingEnabled=false;
+    cardPath(x,y,w,h,sk,o); o.clip();
+    o.fillStyle=H0.deep; o.fillRect(x-sk,y,w+2*sk,h);
+    const cw2=w+2*sk, ch2=cw2*ar;
+    o.drawImage(baked(key,sel,'blur',h), cx-cw2/2, y-(ch2-h)*0.3, cw2, ch2);
+    const ih=h*0.98*(1+0.03*k), iw=ih/ar;
+    o.drawImage(baked(key,sel,'face',h), cx-iw/2, y+h*0.01, iw, ih);
+    cardWash(o,H0,sel,x,y,w,h,sk);
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
+  }
+  // scl (desktop only): the card's size, 1 = full; smaller cards sit centred on the full card's height
+  function heroCard(key,cx,sel,k,box,topName,scl,badge){
+    const H0=HERO[key], im=IMG[key];
+    const sc=scl!=null?scl:0.9+0.1*k;
+    let w,h,x,y,sk;
+    if(box){ w=box.w; h=box.h; x=box.x; y=box.y+(sel?Math.sin(fr*0.07)*3:0); sk=12; cx=x+w/2; }
+    else if(scl!=null){ w=Math.round(340*sc); h=Math.round(480*sc); x=Math.round(cx-w/2); y=Math.round(150+(480-h)/2+(sel?Math.sin(fr*0.07)*4:0)); sk=22*sc; }
+    else { w=Math.round(340*sc); h=Math.round(480*sc); x=Math.round(cx-w/2); y=Math.round(130+(1-k)*26+(sel?Math.sin(fr*0.07)*4:0)); sk=22*sc; }
+    const small=!box&&sc<0.8;
+    // drop shadow + light rays behind the lead
+    if(k>0.05) rays(cx,y+h*0.42,H0.glow,k);
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,0.55)'; cardPath(x+8,y+10,w,h,sk); ctx.fill(); ctx.restore();
+    // the art: the whole card face is baked once at its full size and scaled with the ease
+    if(im.complete&&im.naturalWidth){
+      const fw=box?w:340, fh=box?h:480, fsk=box?sk:22;
+      ctx.save(); ctx.imageSmoothingEnabled=true;
+      ctx.drawImage(cardArt(key,sel,fw,fh,fsk,box?(sel?1:0.2):(sel?1:0)), x-sk, y, w+2*sk, h);
+      ctx.restore();
+      if(sel&&eyeKey===key&&eyeT>0.04){
+        const ar=im.naturalHeight/im.naturalWidth, ih=h*0.98*(1+0.03*k), iw=ih/ar;
+        const e=EYE[key], z=1+eyeT*3.4;
+        const zw=iw*z, zh=ih*z;
+        const ex=cx-iw/2+iw*e.u, ey=y+h*0.01+ih*e.v;
+        ctx.save(); cardPath(x,y,w,h,sk); ctx.clip(); ctx.imageSmoothingEnabled=false; ctx.globalAlpha=Math.min(1,eyeT*1.35);
+        ctx.beginPath(); ctx.arc(ex,ey,18+ (1-eyeT)*h*0.45,0,Math.PI*2); ctx.clip();
+        ctx.drawImage(im, ex-zw*e.u, ey-zh*e.v, zw, zh);
+        ctx.restore();
+      }
+    }else{
+      ctx.save(); cardPath(x,y,w,h,sk); ctx.clip();
+      ctx.fillStyle=H0.deep; ctx.fillRect(x-sk,y,w+2*sk,h);
+      cardWash(ctx,H0,sel,x,y,w,h,sk);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?H0.col:'rgba(120,130,140,0.6)'; cardPath(x,y,w,h,sk); ctx.stroke();
+    ctx.shadowBlur=0; ctx.lineWidth=1; ctx.strokeStyle='rgba(0,0,0,0.7)'; cardPath(x+5,y+5,w-10,h-10,sk*0.95); ctx.stroke();
+    ctx.restore();
+    // name + role + tag. On a phone the face buttons cover the bottom, so the name sits high.
+    const ny=topName?y+16:(h<200?y+Math.max(8,h-86):y+h-112);
+    ctx.save(); if(!sel) ctx.globalAlpha=0.55;
+    uiLogo(H0.name,cx,ny,small?32:(sel?50:40),{col:H0.col,sweep:200});
+    drawTextC(H0.role,cx,ny+36,sel?'#ffffff':'#d8ffc8',h<200||small?2:3);
+    if(h>=200&&!small) drawTextC(H0.tag,cx,ny+70,sel?H0.col:'#8aa090',2);
+    ctx.restore();
+    // badge: an unmistakable P1 / P2 chip in co-op (P1 rides the picked card,
+    // P2 the other one); LEAD / ALLY in the single-human modes.
+    const coop=(typeof _playerCount!=='undefined'&&_playerCount===2);
+    const lead=coop?'P1':'LEAD', ally=coop?'P2':(window.MV_SIBLING&&!MV_SIBLING.on?'AT HOME':'SHADOW');
+    const bt=badge!=null?badge:(sel?lead:ally);
+    const bs=coop?3:2, bh=coop?38:30, bw=Math.max(textW(bt,bs)+26,coop?66:0);
+    const bx=Math.round(cx-bw/2+sk*0.6), by=topName?ny+78:y-(coop?22:16);
+    ctx.save(); ctx.translate(bx+bw/2,by+bh/2); ctx.rotate(-0.05); ctx.translate(-(bx+bw/2),-(by+bh/2));
+    ctx.fillStyle='#020a04'; uiRound(bx+3,by+4,bw,bh,coop?9:4); ctx.fill();
+    ctx.fillStyle=coop?(sel?'#ffe39a':'#7ad8ff'):(sel?H0.col:'#2a3036'); uiRound(bx,by,bw,bh,coop?9:4); ctx.fill();
+    if(coop){ ctx.strokeStyle='#ffffff'; ctx.lineWidth=2; uiRound(bx+2,by+2,bw-4,bh-4,7); ctx.stroke(); }
+    drawTextC(bt,bx+bw/2,by+(coop?9:7),coop?'#0a0410':(sel?'#0a0410':'#9aa0a8'),bs);
+    ctx.restore();
+    if(sel&&fr%3===0) spark(x+Math.random()*w, y+h-20-Math.random()*h*0.6, H0.col);
+    if(sel){
+      const beam=(fr%80)/80, L=16;
+      ctx.save();
+      ctx.strokeStyle=H0.col; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(x,y+L); ctx.lineTo(x,y); ctx.lineTo(x+L,y);
+      ctx.moveTo(x+w-L,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+L);
+      ctx.moveTo(x,y+h-L); ctx.lineTo(x,y+h); ctx.lineTo(x+L,y+h);
+      ctx.moveTo(x+w-L,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h-L);
+      ctx.stroke();
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle='rgba('+(H0.glow||'180,255,210')+',0.45)';
+      ctx.fillRect(x+10, y+4+beam*(h-10), w-20, 3);
+      ctx.restore();
+    }
+    return {x,y,w,h};
+  }
+  function phoneHeroRow(key,sel,box){
+    const H0=HERO[key], im=IMG[key];
+    uiPanel(box.x,box.y,box.w,box.h,{r:14,sel:sel,flat:true,accent:sel?H0.col:'rgba(140,170,150,0.35)'});
+    const ph=Math.max(24,box.h-16), pw=Math.min(box.w*0.28, ph*0.85);
+    if(im.complete&&im.naturalWidth){
+      ctx.save();
+      ctx.beginPath(); ctx.rect(box.x+8,box.y+8,pw,ph); ctx.clip();
+      if(!sel) ctx.filter='grayscale(0.7) brightness(0.55)';
+      const iw=pw, ih=iw*im.naturalHeight/im.naturalWidth;
+      ctx.drawImage(im, box.x+8, box.y+8-(ih-ph)*0.35, iw, ih);
+      ctx.restore();
+    }
+    const tx=box.x+pw+22;
+    drawText(H0.name, tx, box.y+Math.max(8,box.h*0.22), sel?H0.col:'#d8ffc8', 3);
+    drawText(H0.role, tx, box.y+Math.max(40,box.h*0.58), sel?'#ffffff':'#b7c8b4', 2);
+    if(sel) drawTextR(_playerCount===2?'P1':'LEAD', box.x+box.w-12, box.y+10, _playerCount===2?'#ffe39a':H0.col, 2);
+    return box;
+  }
+  function phonePills(label,opts,cur,x,y,w,row,focus){
+    const h=40, labW=textW(label,2)+12;
+    if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.45+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x,y-4,w,h+8,12); ctx.stroke(); ctx.restore(); }
+    drawText(label,x+6,y+10,'#d8ffc8',2);
+    const avail=Math.max(80,w-labW-10), pw=Math.floor((avail-8)/opts.length);
+    let xx=x+labW;
+    opts.forEach(o=>{
+      const on=o.k===cur;
+      ctx.fillStyle=on?'rgba(20,40,28,0.95)':'rgba(8,16,12,0.8)';
+      uiRound(xx,y,pw,h,h/2); ctx.fill();
+      ctx.strokeStyle=on?o.col:'rgba(120,150,130,0.45)'; ctx.lineWidth=on?3:1.5;
+      uiRound(xx+1,y+1,pw-2,h-2,h/2); ctx.stroke();
+      drawTextC(o.label,xx+pw/2,y+12,on?'#ffffff':'#9aab9c',2);
+      sibRects.push({x:xx,y,w:pw,h,row,k:o.k});
+      xx+=pw+8;
+    });
+  }
+  function drawPhoneHeroes(){
+    const L=uiLayout();
+    const top=Math.max(10,(L.inset&&L.inset.t)||0)+6;
+    const showSwitches=!!window.MV_SIBLING;   // SOLO | WITH | CO-OP stays on screen in co-op too
+    const yHint=hintY();
+    const bottom=Math.min(H-12, yHint-(showSwitches?8:0));
+    const x0=Math.max(12,(L.inset&&L.inset.l)||0);
+    const x1=W-Math.max(12,(L.inset&&L.inset.r)||0);
+    const gap=16;
+    const full=Math.max(280, x1-x0);
+    const mSel=_heroChoice==='mind';
+    const leadW=Math.round(full*0.62), sideW=full-leadW-gap;
+    const h=Math.max(220, bottom-top- (showSwitches?52:0));
+    const leadKey=mSel?'mind':'venture', sideKey=mSel?'venture':'mind';
+    const leadBox={x:mSel?x0:x0+sideW+gap, y:top, w:leadW, h};
+    const sideBox={x:mSel?x0+leadW+gap:x0, y:top+10, w:sideW, h:h-10};
+    heroRects=[];
+    heroRects.push(Object.assign({k:sideKey}, heroCard(sideKey, sideBox.x+sideBox.w/2, false, 0.2, sideBox, true)));
+    heroRects.push(Object.assign({k:leadKey}, heroCard(leadKey, leadBox.x+leadBox.w/2, true, 1, leadBox, true)));
+    drawTextC('CHOOSE YOUR LEAD', W/2, top+4, '#f2ffe8', 2);
+    if(showSwitches){
+      sibRects=[];
+      const y=top+h+8;
+      phonePills('BROTHER',BROTHER_OPTS,brotherChoice(),x0,y,full,1,selRow===1);
+    }
+    hints();
+  }
+  // The qualities, read from the game's own numbers (player.js HERO_STATS, physics.js LIFE_REGEN_*,
+  // main.js power refill, beta_level.js weights), so the screen can't drift from how they play.
+  // Each bar is that brother against the stronger of the two; the thin tick is the other brother.
+  let QROWS=null, QLAB=0;
+  const qBar=[];
+  function qualityRows(){
+    const HS=typeof HERO_STATS!=='undefined'?HERO_STATS:{mind:{top:1,accel:1,punch:{dmg:13,loadF:24,loadDmg:40,loadReach:54}},venture:{top:0.9,accel:1.3,punch:{dmg:18,loadF:14,loadDmg:30,loadReach:66}}};
+    const regM=typeof LIFE_REGEN_FRAMES!=='undefined'?LIFE_REGEN_FRAMES:60, regV=typeof LIFE_REGEN_FRAMES_VEN!=='undefined'?LIFE_REGEN_FRAMES_VEN:84;
+    const wM=(window.MV_BETA&&MV_BETA.WEIGHT&&MV_BETA.WEIGHT.mindTotal)||9.5, wV=7.6;   // Venture's 7.6: beta_level.js bodyMass
+    const m=HS.mind, v=HS.venture;
+    return [
+      ['TOP SPEED', m.top, v.top],
+      ['PICK-UP', m.accel, v.accel],
+      ['PUNCH', m.punch.dmg, v.punch.dmg],
+      ['LOADED PUNCH', m.punch.loadDmg, v.punch.loadDmg],
+      ['QUICK LOAD', 1/m.punch.loadF, 1/v.punch.loadF],
+      ['LOADED REACH', m.punch.loadReach, v.punch.loadReach],
+      ['HEALING', 1/regM, 1/regV],
+      ['POWER REFILL', 1.5, 2.1],                                                         // main.js itemStamina refill
+      ['WEIGHT', wM, wV],
+    ];
+  }
+  function qualities(x0,x1){
+    const pw=Math.min(440,Math.round(x1-x0)); if(pw<240) return;
+    if(!QROWS){ QROWS=qualityRows(); for(const r of QROWS) QLAB=Math.max(QLAB,textW(r[0],2)); }
+    const key=_heroChoice==='venture'?'venture':'mind', other=key==='mind'?'venture':'mind', H0=HERO[key], H1=HERO[other];
+    const px=Math.round((x0+x1)/2-pw/2), py=214, ph=406;
+    const since=fr-(anim.swF||0);
+    if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:12,flat:true,accent:H0.col,alpha:0.82});
+    const pz=1+0.06*Math.sin(fr*0.1)+anim.punch*0.25;
+    ctx.save(); ctx.translate(px+pw/2,py-14); ctx.scale(pz,pz); uiLogo('&',0,-22,44,{col:'#b8f5a0',sweep:180}); ctx.restore();
+    drawText(H0.name,px+16,py+22,H0.col,2);
+    const lg=textW(H1.name,1); ctx.fillStyle=H1.col; ctx.fillRect(px+pw-16-lg-10,py+22,3,14); drawText(H1.name,px+pw-16-lg,py+25,H1.col,1);
+    const lx=px+16, bx=lx+QLAB+12, bw=px+pw-16-bx, ry0=py+58, rowH=Math.floor((ph-58-14)/QROWS.length);
+    for(let i=0;i<QROWS.length;i++){
+      const [lab,mv,vv]=QROWS[i], mx=Math.max(mv,vv), me=(key==='mind'?mv:vv)/mx, ot=(key==='mind'?vv:mv)/mx;
+      if(since>i*3) qBar[i]=(qBar[i]||0)+(me-(qBar[i]||0))*0.16;
+      const f=qBar[i]||0, ry=ry0+i*rowH, best=me>=0.999, fw=Math.round((bw-2)*f);
+      drawText(lab,lx,ry,best?'#ffffff':'#b7c8b4',2);
+      ctx.fillStyle='rgba(2,8,4,0.85)'; ctx.fillRect(bx,ry+2,bw,12);
+      ctx.strokeStyle='rgba(120,150,130,0.45)'; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,ry+2.5,bw-1,11);
+      ctx.fillStyle=H0.col;                                                                // segmented, like a VU meter
+      for(let sx=0;sx<fw;sx+=6) ctx.fillRect(bx+1+sx,ry+3,Math.min(5,fw-sx),10);
+      if(best&&fw>8){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.3+0.25*Math.sin(fr*0.12+i); ctx.fillRect(bx+fw-7,ry+1,8,14); ctx.restore(); }
+      ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle=H1.col; ctx.fillRect(bx+1+Math.round((bw-2)*ot)-2,ry-1,3,18); ctx.restore();
+    }
+  }
+  function drawHeroes(){
+    const mSel=_heroChoice==='mind';
+    syncCoopHero();                                      // P2 is always the brother P1 did NOT pick
+    if(anim.last!==_heroChoice){ anim.punch=1; anim.last=_heroChoice; anim.swF=fr; eyeT=1; eyeKey=_heroChoice; for(let i=0;i<24;i++) spark((mSel?W*0.3:W*0.7)+(Math.random()-0.5)*260, H*0.55+(Math.random()-0.5)*260, HERO[_heroChoice].col); }
+    eyeT*=0.9;
+    anim.mind=ease(anim.mind,mSel?1:0,0.18); anim.venture=ease(anim.venture,mSel?0:1,0.18); anim.punch*=0.86;
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(one){ drawPhoneHeroes(); sparkTick(); return; }
+    const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
+    const coopSub='P1 — '+HERO[_heroChoice].name+'   ·   P2 — '+HERO[_heroChoice==='mind'?'venture':'mind'].name;
+    title('CHOOSE YOUR LEAD', ((window.MV_NET&&MV_NET.isActive())||_playModeIdx===3)?'ONLINE: SEATS 1–2 ARE MIND & VENTURE · SEATS 3–5 PICK CRAYON, NAME & HAT':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
+    // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
+    // qualities panel fills the middle between them.
+    const order=mSel?['venture','mind']:['mind','venture'];
+    const SM=0.6, M=40, leadX=M+22+170, smallX=M+22*SM+170*SM;
+    const pos={}, cards={};
+    for(const k of ['mind','venture']){
+      const t=anim[k], c=leadX*t+smallX*(1-t)+(k===_heroChoice?anim.punch*10:0);
+      pos[k]={cx:k==='mind'?c:W-c, scl:SM+(1-SM)*t};
+    }
+    heroRects=[];
+    for(const k of order){ cards[k]=heroCard(k, pos[k].cx, k===_heroChoice, anim[k], null, false, pos[k].scl); heroRects.push(Object.assign({k}, cards[k])); }
+    const sk=s=>22*s;
+    const gapL=pos.mind.cx+170*pos.mind.scl+sk(pos.mind.scl)+18, gapR=pos.venture.cx-170*pos.venture.scl-sk(pos.venture.scl)-18;
+    qualities(gapL, gapR);
+    sparkTick();
+    // Keep the SOLO | WITH | CO-OP row visible in co-op too, with CO-OP lit —
+    // Paulo still wants to see (and switch) that row on the cards he likes.
+    if(window.MV_SIBLING) sibToggle();
+    hints();
+  }
+  // Paulo (Oct 22): on this screen, under the heroes, two switches â€”
+  //   COMPANION: SOLO (the other sibling stays home as an NPC) / WITH SIBLING (it shadows you)
+  //   FRIENDLY FIRE: OFF / ON (it can always be punched, blown, pulled and shoved; ON it also gets hurt)
+  // ^ v moves between the hero row and the two switches, < > changes the focused one. Mouse / touch: tap.
+  let sibRects=[], selRow=0;
+  // Paulo: the BROTHER row stays exactly as it looks — SOLO / WITH — with a
+  // third CO-OP segment beside it. CO-OP means 2 HUMAN players and stays right
+  // here on the hero cards (no party screen): P1 picks a brother, P2 gets the other.
+  const BROTHER_OPTS=[
+    {k:0,label:'SOLO',col:'#C9A24A'},
+    {k:1,label:'WITH',col:'#ffb86a'},
+    {k:2,label:'CO-OP',col:'#7ad8ff'},
+    {k:3,label:'ONLINE',col:'#C9A24A'},   // Paulo, Nov 27: up to 5 riders (mv2_net_ui.js host / join)
+  ];
+  const onlineLinked=()=>!!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked());
+  function openOnline(){ if(window.MV_NET_UI) MV_NET_UI.open(); else if(typeof uiShowToast==='function') uiShowToast('ONLINE PLAY DID NOT LOAD'); }
+  function brotherChoice(){
+    if(onlineLinked()||(typeof _playModeIdx!=='undefined'&&_playModeIdx===3)) return 3;
+    if(typeof _playerCount!=='undefined'&&_playerCount===2) return 2;
+    return (window.MV_SIBLING&&MV_SIBLING.on)?1:0;
+  }
+  // One rule, used by the screen and by gameplay: in 2-human co-op P2 always
+  // rides the brother P1 didn't pick. There can never be two Minds or two Ventures.
+  function syncCoopHero(){
+    if(typeof _playerCount!=='undefined'&&_playerCount===2&&typeof _p2HeroChoice!=='undefined')
+      _p2HeroChoice=_heroChoice==='mind'?'venture':'mind';
+  }
+  function setCompanion(on){
+    if(!window.MV_SIBLING||_playerCount===2) return;
+    MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
+  }
+  function setBrotherChoice(v){
+    v=((v|0)+4)%4;
+    if(v!==3&&onlineLinked()&&window.MV_NET) MV_NET.disconnect();   // leaving ONLINE closes the room
+    if(v===3){
+      // ONLINE: one human here, the friend plays the other brother on their device.
+      if(typeof _playerCount!=='undefined') _playerCount=1;
+      if(typeof _playModeIdx!=='undefined') _playModeIdx=3;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+      try{ sfx('menu'); }catch(e2){}
+      return;
+    }
+    if(v===2){
+      // Straight to the SAME select screen — never _gameState='partysetup'.
+      if(typeof _playerCount!=='undefined') _playerCount=2;
+      if(typeof _playModeIdx!=='undefined') _playModeIdx=2;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+      if(typeof _selectStep!=='undefined') _selectStep=1;
+      syncCoopHero();
+      try{ sfx('confirm'); }catch(e2){}
+      return;
+    }
+    // Back to one human: clear co-op, then apply SOLO / WITH as before.
+    if(typeof _playerCount!=='undefined') _playerCount=1;
+    if(typeof _playModeIdx!=='undefined'&&_playModeIdx===3) _playModeIdx=v;
+    if(window.MV_SIBLING) setCompanion(v===1);
+    else if(typeof _playModeIdx!=='undefined') _playModeIdx=v;
+    syncCoopHero();
+  }
+  function pillGroup(label,opts,cur,x,y,focus,row){
+    const h=34;
+    ctx.save(); ctx.font='22px "MV Pixel", monospace';
+    const ws=opts.map(o=>Math.max(108,ctx.measureText(o.label).width+56)); ctx.restore();
+    const lw=textW(label,2)+14;
+    const tw=lw+ws.reduce((a,b)=>a+b,0)+(opts.length-1)*8;
+    if(focus){ ctx.save(); ctx.strokeStyle='rgba(216,255,200,'+(0.55+0.35*Math.sin(fr*0.15))+')'; ctx.lineWidth=2; uiRound(x-8,y-6,tw+16,h+12,12); ctx.stroke(); ctx.restore(); }
+    drawText(label,x,y+8,focus?'#ffffff':'#d8ffc8',2);
+    let xx=x+lw;
+    opts.forEach((o,i)=>{
+      const sel=o.k===cur, w=ws[i], col=o.col;
+      ctx.fillStyle='#020a04'; uiRound(xx+2,y+3,w,h,h/2); ctx.fill();
+      ctx.fillStyle=sel?'rgba('+_uiRGB(col).join(',')+',0.3)':'rgba(10,20,14,0.85)'; uiRound(xx,y,w,h,h/2); ctx.fill();
+      ctx.save(); ctx.strokeStyle=sel?col:'rgba(120,150,130,0.5)'; ctx.lineWidth=sel?2.5:1.5; uiRound(xx+0.5,y+0.5,w-1,h-1,h/2); ctx.stroke(); ctx.restore();
+      drawTextC(o.label,xx+w/2+(sel?8:0),y+9,sel?'#ffffff':'#7a8a80',2);
+      if(sel&&typeof uiCursor==='function') uiCursor(xx+14,y+h/2,7);
+      sibRects.push({x:xx,y,w,h,row,k:o.k}); xx+=w+8;
+    });
+    return tw;
+  }
+  function sibToggle(){
+    sibRects=[];
+    const L=window.uiLayout?uiLayout():{oneCol:false,panelX:40,panelW:520,pad:{b:0}};
+    const cur=brotherChoice();
+    if(L.oneCol){
+      const y=H-Math.max(110,(L.pad.b||0)+110);
+      pillGroup('BROTHER',BROTHER_OPTS,cur,L.panelX+12,y,selRow===1,1);
+      return;
+    }
+    ctx.save(); ctx.font='22px "MV Pixel", monospace';
+    const w1=BROTHER_OPTS.reduce((t,o)=>t+Math.max(108,textW(o.label,2)+36),0)+16+textW('BROTHER',2)+14; ctx.restore();
+    pillGroup('BROTHER',BROTHER_OPTS,cur,W/2-w1/2,H-108,selRow===1,1);
+  }
+  function rowChange(dx){
+    if(ask){ ask.sel=dx>0?1:0; try{ sfx('menu'); }catch(e2){} return; }
+    if(selRow===0){ _heroChoice=dx<0?'mind':'venture'; return; }
+    if(selRow===1) setBrotherChoice(brotherChoice()+(dx>0?1:-1));
+    try{ sfx('menu'); }catch(e2){}
+  }
+  // Paulo (Oct 22): pick with the mouse / a finger â€” a tap on a card picks it, a tap on the picked
+  // card goes on; the switches switch. A tap anywhere else does nothing.
+  let modeRects=[], heroRects=[], lastTouch=0;
+  const inR=(b,mx,my)=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h;
+  function selectTap(cx,cy){
+    const c=document.getElementById('c'); if(!c) return;
+    const r=c.getBoundingClientRect(), mx=(cx-r.left)*(W/r.width), my=(cy-r.top)*(H/r.height);
+    const beep=()=>{ try{ sfx('menu'); }catch(e2){} };
+    if(_selectStep===0){
+      for(const b of modeRects) if(inR(b,mx,my)){ if(_playModeIdx===b.i) startGame(); else { _playModeIdx=b.i; beep(); } return; }
+      return;
+    }
+    if(ask){
+      const mid=W/2;
+      ask.sel=mx<mid?0:1;
+      beep();
+      startGame();
+      return;
+    }
+    // The BROTHER row stays tappable in co-op too, so a player can switch back to SOLO / WITH.
+    if(window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
+      selRow=b.row;
+      if(b.row===1&&brotherChoice()!==b.k){ setBrotherChoice(b.k); beep(); }
+      if(b.row===1&&b.k===3&&!onlineLinked()) openOnline();
+      return;
+    }
+    for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }
+  }
+  document.addEventListener('click',e=>{
+    if(_gameState!=='select') return;
+    if(e.target&&e.target.closest&&e.target.closest('#mvNetPanel')) return;   // net panel owns its clicks
+    e.stopImmediatePropagation();
+    if(performance.now()-lastTouch<700) return;               // the click a tap makes after its touchstart
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    selectTap(e.clientX,e.clientY);
+  },true);
+  document.addEventListener('touchstart',e=>{
+    if(_gameState!=='select'||!e.touches||!e.touches[0]) return;
+    if(e.target&&e.target.closest&&e.target.closest('#mvNetPanel')) return;   // net panel owns its touches
+    if(e.target&&e.target.id!=='c') return;                   // on-screen pad buttons keep working
+    e.stopImmediatePropagation(); lastTouch=performance.now();
+    if(typeof _unlockAudio==='function') _unlockAudio();
+    selectTap(e.touches[0].clientX,e.touches[0].clientY);
+  },{capture:true,passive:true});
+  // the pad (player.js): dy moves between rows, dx changes the focused row. Returns true if it took it.
+  window.MV_SELECT_NAV=function(dx,dy){
+    if(_gameState!=='select'||(!dx&&!dy)) return false;
+    const one=window.uiLayout&&uiLayout().oneCol;
+    if(_selectStep===0){
+      if(one){
+        const d=(dy||dx)>0?1:MV_MODE_N-1;
+        _playModeIdx=(_playModeIdx+d)%MV_MODE_N;
+      }else{
+        let col=_playModeIdx%2, row=(_playModeIdx/2)|0;
+        if(dx) col=(col+(dx>0?1:-1)+2)%2;
+        if(dy) row=(row+(dy>0?1:-1)+2)%2;
+        _playModeIdx=Math.min(MV_MODE_N-1,row*2+col);
+      }
+      try{ sfx('menu'); }catch(e2){}
+      return true;
+    }
+    if(ask){
+      if(dx) ask.sel=dx>0?1:0;
+      try{ sfx('menu'); }catch(e2){}
+      return true;
+    }
+    if(!window.MV_SIBLING){
+      if(dx<0||(one&&dy<0)) _heroChoice='mind';
+      if(dx>0||(one&&dy>0)) _heroChoice='venture';
+      return true;
+    }
+    // Co-op uses the very same hero row + BROTHER row navigation as SOLO / WITH:
+    // dx on the hero row flips P1's brother; dx on the BROTHER row switches mode.
+    if(one&&selRow===0&&dy){
+      if(dy>0&&_heroChoice==='mind'){ _heroChoice='venture'; try{ sfx('menu'); }catch(e2){} return true; }
+      if(dy<0&&_heroChoice==='venture'){ _heroChoice='mind'; try{ sfx('menu'); }catch(e2){} return true; }
+    }
+    if(dy){ selRow=Math.max(0,Math.min(1,selRow+dy)); try{ sfx('menu'); }catch(e2){} }
+    if(dx) rowChange(dx);
+    return true;
+  };
+  window.MV_SELECT_FF_TOGGLE=function(){ window.MV_SELECT_NAV(0,1); };
+  window.addEventListener('keydown',e=>{
+    if(_gameState!=='select'||_selectStep!==1||!window.MV_SIBLING) return;
+    const dy={ArrowUp:-1,KeyW:-1,ArrowDown:1,KeyS:1}[e.code]||0, dx={ArrowLeft:-1,KeyA:-1,ArrowRight:1,KeyD:1}[e.code]||0;
+    if(dx||dy){ window.MV_SELECT_NAV(dx,dy); e.preventDefault(); e.stopImmediatePropagation(); }
+    if(e.code==='Escape'||e.code==='Backspace') selRow=0;
+  },true);
+
+  // â”€â”€ step 1: the mode â”€â”€
+  function icon(kind,cx,cy,col,s){
+    ctx.save(); ctx.translate(cx,cy); ctx.scale(s,s); ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=3;
+    const bulb=(x)=>{ ctx.beginPath(); ctx.arc(x,-16,13,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#04140e'; ctx.beginPath(); ctx.ellipse(x,-15,7,5,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,-15,2.6,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(x-12,0,24,22); ctx.beginPath(); ctx.arc(x,34,10,0,Math.PI*2); ctx.stroke(); };
+    if(kind==='one') bulb(0);
+    else if(kind==='two'){ bulb(-20); bulb(20); }
+    else if(kind==='shadow'){ ctx.globalAlpha=0.45; bulb(-22); ctx.globalAlpha=1; ctx.fillStyle=col; bulb(14); }
+    else if(kind==='net'){ // two brothers linked by a signal — online co-op
+      bulb(-22); bulb(22);
+      ctx.beginPath(); ctx.arc(0,6,12,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,6,22,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+    }
+    else { ctx.beginPath(); ctx.arc(0,-6,12,Math.PI,0); ctx.stroke(); ctx.fillRect(-16,-6,32,28); ctx.fillStyle='#04140e'; ctx.fillRect(-2,2,4,10); }
+    ctx.restore();
+  }
+  // a mode card's body (drop shadow, glass, frame) baked at full size; drawn scaled with its ease.
+  // 4px margin so the frame's stroke isn't cut.
+  function modeBody(m,sel,w,h,sk){
+    const ck='mode|'+m.id+'|'+(sel?1:0)+'|'+w+'x'+h+'|'+sk; let off=FEATHER[ck];
+    if(off) return off;
+    off=document.createElement('canvas'); off.width=Math.ceil(w+2*sk+8+7); off.height=Math.ceil(h+8+9);
+    const o=off.getContext('2d'), x=sk+4, y=4;
+    o.fillStyle='rgba(0,0,0,0.5)'; cardPath(x+7,y+9,w,h,sk,o); o.fill();
+    const g=o.createLinearGradient(0,y,0,y+h); g.addColorStop(0,sel?'rgba(30,60,40,0.96)':'rgba(10,22,16,0.9)'); g.addColorStop(1,'rgba(3,10,6,0.96)');
+    o.fillStyle=g; cardPath(x,y,w,h,sk,o); o.fill();
+    o.lineWidth=sel?4:2; o.strokeStyle=sel?m.col:'rgba(110,150,120,0.5)'; cardPath(x,y,w,h,sk,o); o.stroke();
+    if(Object.keys(FEATHER).length>80) for(const k2 in FEATHER) delete FEATHER[k2];
+    return (FEATHER[ck]=off);
+  }
+  function drawModes(){
+    const L=window.uiLayout?uiLayout():{oneCol:false,panelW:520,panelX:(1024-520)/2,pad:{b:0},inset:{t:0}};
+    const one=L.oneCol;
+    const top=title('HOW DO YOU RIDE?', 'PICK HOW YOU GO')+(one?8:0);
+    const gap=16;
+    const bottom=one?hintY()-36:H-64;
+    const want=one?112:200;
+    const fit=Math.max(1, Math.min(one?4:2, Math.floor((bottom-top+gap)/(want+gap))));
+    const vis=one?fit:4;
+    const NM=MV_MODE_N, start=one?Math.max(0, Math.min(_playModeIdx, NM-vis)):0;
+    const cols=one?1:2;
+    const cw=one?L.panelW:Math.min(360, Math.floor((W-80-gap)/2));
+    const ch=Math.min(one?140:220, Math.floor((bottom-top-(Math.max(1,one?vis:2)-1)*gap)/(one?vis:2)));
+    const gridW=cols*cw+(cols-1)*gap;
+    const x0=Math.round((W-gridW)/2), y0=top;
+    modeRects=[];
+    if(one&&start>0) drawTextC('^', W/2, top-8, '#d8ffc8', 2);
+    MODES.forEach((m,i)=>{
+      if(i>=NM) return;                                                     // T137: store build hides 2P ONLINE
+      if(one&&(i<start||i>=start+vis)) return;
+      const col=one?0:(i===NM-1&&NM%2?0.5:i%2), row=one?(i-start):(i/2)|0;  // an odd last card sits centred
+      const sel=_playModeIdx===i, key='m'+i; anim[key]=ease(anim[key],sel?1:0,0.2);
+      const k=anim[key], sc=0.96+0.04*k, w=cw*sc, h=ch*sc;
+      const cx=x0+col*(cw+gap)+cw/2, x=cx-w/2, y=y0+row*(ch+gap)+(1-k)*8+(sel?Math.sin(fr*0.08)*2:0), sk=one?8:14;
+      modeRects.push({i,x:x-sk,y,w:w+sk,h});
+      const rgb=_uiRGB(m.col).join(',');
+      if(sel&&!m.locked) rays(cx,y+h*0.4,rgb,k*0.8);
+      const body=modeBody(m,sel,cw,ch,sk);
+      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(body, x-sk-4, y-4, body.width*sc, body.height*sc); ctx.restore();
+      const short=h<150;
+      icon(m.icon,cx,short?y+28:y+h*0.34,sel?m.col:(m.locked?'#3a4a40':'#5a7a62'),short?1: (sel?1.5:1.2));
+      ctx.save(); if(!sel) ctx.globalAlpha=0.6;
+      uiLogo(m.name,cx,short?y+h-52:(y+h-100),m.name.length>9?(sel?22:20):(sel?30:26),{col:m.locked?'#7a8a80':m.col,sweep:220});
+      drawTextC(m.sub,cx,short?y+h-22:y+h-36,sel?'#ffffff':'#d8ffc8',2);
+      ctx.restore();
+      if(sel&&!m.locked&&fr%4===0) spark(x+Math.random()*w,y+h-20-Math.random()*h*0.5,m.col);
+    });
+    if(one&&start+vis<NM) drawTextC('v', W/2, bottom-4, '#d8ffc8', 2);
+    sparkTick();
+    hints();
+  }
+
+  function drawAsk(){
+    if(!ask) return;
+    const two=_playerCount===2;
+    ctx.save();
+    ctx.fillStyle='rgba(4,8,6,0.72)'; ctx.fillRect(0,0,W,H);
+    const pw=Math.min(640,W-48), ph=220, px=(W-pw)/2, py=(H-ph)/2;
+    if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:16});
+    else { ctx.fillStyle='#102018'; ctx.fillRect(px,py,pw,ph); }
+    drawTextC(two?'CALL YOUR BROTHER?':'DOES YOUR BROTHER COME?', W/2, py+28, '#f2ffe8', 3);
+    drawTextC(two?'PLAYER 2 RIDES WITH YOU':'COME ALONG, OR STAY IN THE HOUSE', W/2, py+68, '#d8ffc8', 2);
+    const opts=two?['CALL','NOT NOW']:['COMES','STAYS'];
+    opts.forEach((t,i)=>{
+      const on=ask.sel===i, bw=220, bx=W/2-240+i*250, by=py+110;
+      ctx.fillStyle=on?'#1c3a28':'#0c1812';
+      if(typeof uiRound==='function'){ uiRound(bx,by,bw,52,10); ctx.fill(); }
+      else ctx.fillRect(bx,by,bw,52);
+      ctx.strokeStyle=on?'#b8f5a0':'#3a5a48'; ctx.lineWidth=on?3:1.5;
+      if(typeof uiRound==='function'){ uiRound(bx,by,bw,52,10); ctx.stroke(); }
+      drawTextC(t, bx+bw/2, by+16, on?'#ffffff':'#9aab9c', 2);
+    });
+    ctx.restore();
+  }
+  // Paulo (Nov 26): the BROTHER row is the choice — no "DOES YOUR BROTHER COME?" box after it.
+  // SOLO = he stays home, WITH = AI brother, CO-OP = player 2 (picks controls first when that
+  // screen exists), ONLINE = host / join a room first, then pick the hero.
+  let controlsPicked=false;
+  window.MV_SELECT_GATE=function(){
+    if(window.MV_SIBLING) MV_SIBLING.ff=true;
+    ask=null;
+    if(brotherChoice()===3&&!onlineLinked()){ openOnline(); return true; }
+    if(_playerCount===2&&window.MV_CONTROLS&&typeof MV_CONTROLS.open==='function'&&!controlsPicked){
+      controlsPicked=true;
+      try{ MV_CONTROLS.open({then:function(){ try{ startGame(); }catch(e){} }}); return true; }catch(e){}
+    }
+    controlsPicked=false;
+    return false;
+  };
+  let lastDraw=0, lastStep=-1;
+  window.drawSelect=function(){
+    const now=performance.now();
+    if(now-lastDraw>200||lastStep!==_selectStep){ rayPrev=[]; bgN=0; }   // fresh entry / step: no stale rays
+    lastDraw=now; lastStep=_selectStep;
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    bg();
+    if(_selectStep===0) drawModes(); else drawHeroes();
+    rayPrev=rayNext; rayNext=[];
+    drawAsk();
+    // Online link state (mv2_net.js) — visible on both select steps.
+    if(window.MV_NET&&MV_NET.isActive()){
+      const ns=MV_NET.status();
+      drawText('● ONLINE  ROOM '+String(ns.code||'')+'  ·  '+(MV_NET.role()==='host'?'YOU HOST':'JOINED')+(ns.ping?'  ·  '+ns.ping+' MS':''),12,H-24,'#7ad8ff',2);
+    }
+    if(typeof _drawUiToast==='function') _drawUiToast();
+    ctx.restore(); ctx.imageSmoothingEnabled=true;
+  };
+
+  // The COUCH CO-OP party screen is gone: CO-OP now stays on the hero cards
+  // (BROTHER row -> CO-OP). main.js still calls drawPartySetup() on the old
+  // partysetup state, so leave a harmless no-op to keep that path safe.
+  window.drawPartySetup = function(){};
+})();
