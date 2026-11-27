@@ -1,0 +1,561 @@
+{
+ "at": "2026-11-27T14:44:52.260Z",
+ "build": "448",
+ "stages": [
+  {
+   "id": "1.1",
+   "cols": 120,
+   "rows": 68,
+   "tile": 32,
+   "collision": "assets/catalog/stage-1-1/collision-map.png",
+   "counts": {
+    "solid": 2899,
+    "oneway": 15,
+    "destructible": 103,
+    "slopes": 12
+   },
+   "foes": {
+    "b_circle": 1,
+    "b_tri": 1
+   },
+   "objects": {
+    "BLOCK · #7a3cc8": 52,
+    "PUSH · #3070d0": 38,
+    "PULL · #d0362c": 9,
+    "LASER · #e0b020": 8
+   },
+   "items": [
+    {
+     "kind": "hero",
+     "name": "mind",
+     "img": "assets/catalog/stage-1-1/hero-mind.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "hero",
+     "name": "venture",
+     "img": "assets/catalog/stage-1-1/hero-venture.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "foe",
+     "name": "b_circle",
+     "img": "assets/catalog/stage-1-1/foe-b_circle.png",
+     "w": 30,
+     "h": 30,
+     "hp": 50,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      76,
+      25
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_tri",
+     "img": "assets/catalog/stage-1-1/foe-b_tri.png",
+     "w": 74,
+     "h": 64,
+     "hp": 50,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      33,
+      30
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "BLOCK · #7a3cc8",
+     "img": "assets/catalog/stage-1-1/object-BLOCK-7a3cc8.png",
+     "w": 32,
+     "h": 32,
+     "hp": 100,
+     "count": 52,
+     "at": [
+      26,
+      32
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "PUSH · #3070d0",
+     "img": "assets/catalog/stage-1-1/object-PUSH-3070d0.png",
+     "w": 32,
+     "h": 32,
+     "hp": 1000000,
+     "count": 38,
+     "at": [
+      26,
+      33
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "PULL · #d0362c",
+     "img": "assets/catalog/stage-1-1/object-PULL-d0362c.png",
+     "w": 32,
+     "h": 32,
+     "hp": 1000000,
+     "count": 9,
+     "at": [
+      32,
+      45
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "LASER · #e0b020",
+     "img": "assets/catalog/stage-1-1/object-LASER-e0b020.png",
+     "w": 32,
+     "h": 32,
+     "hp": 100,
+     "count": 8,
+     "at": [
+      73,
+      13
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "knowl shell",
+     "img": "assets/catalog/stage-1-1/object-knowl-shell.png",
+     "w": 32,
+     "h": 32,
+     "count": 9,
+     "at": [
+      113,
+      23
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "gate",
+     "img": "assets/catalog/stage-1-1/object-gate.png",
+     "w": 96,
+     "h": 160,
+     "count": 1,
+     "at": [
+      113,
+      27
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "laitu",
+     "img": "assets/catalog/stage-1-1/object-laitu.png",
+     "w": 48,
+     "h": 48,
+     "count": 1,
+     "at": [
+      52,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "id": "1.2",
+   "cols": 72,
+   "rows": 68,
+   "tile": 32,
+   "collision": "assets/catalog/stage-1-2/collision-map.png",
+   "counts": {
+    "solid": 1141,
+    "oneway": 0,
+    "destructible": 28,
+    "slopes": 26
+   },
+   "foes": {
+    "b_circle": 4,
+    "b_tri": 2,
+    "b_square": 2,
+    "square": 1,
+    "b_cube": 1
+   },
+   "objects": {
+    "LASER · #e0b020": 12,
+    "BLOCK · #7a3cc8": 8,
+    "PUSH · #3070d0": 4,
+    "PULL · #d0362c": 4
+   },
+   "items": [
+    {
+     "kind": "hero",
+     "name": "mind",
+     "img": "assets/catalog/stage-1-2/hero-mind.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "hero",
+     "name": "venture",
+     "img": "assets/catalog/stage-1-2/hero-venture.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "foe",
+     "name": "b_circle",
+     "img": "assets/catalog/stage-1-2/foe-b_circle.png",
+     "w": 30,
+     "h": 30,
+     "hp": 50,
+     "rank": "minion",
+     "count": 4,
+     "at": [
+      29,
+      29
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_tri",
+     "img": "assets/catalog/stage-1-2/foe-b_tri.png",
+     "w": 74,
+     "h": 64,
+     "hp": 50,
+     "rank": "minion",
+     "count": 2,
+     "at": [
+      41,
+      22
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_square",
+     "img": "assets/catalog/stage-1-2/foe-b_square.png",
+     "w": 80,
+     "h": 80,
+     "hp": 50,
+     "rank": "minion",
+     "count": 2,
+     "at": [
+      43,
+      40
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "square",
+     "img": "assets/catalog/stage-1-2/foe-square.png",
+     "w": 64,
+     "h": 96,
+     "hp": 100,
+     "rank": "enemy",
+     "count": 1,
+     "at": [
+      44,
+      58
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_cube",
+     "img": "assets/catalog/stage-1-2/foe-b_cube.png",
+     "w": 122,
+     "h": 122,
+     "hp": 9999,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      13,
+      57
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "LASER · #e0b020",
+     "img": "assets/catalog/stage-1-2/object-LASER-e0b020.png",
+     "w": 32,
+     "h": 32,
+     "hp": 100,
+     "count": 12,
+     "at": [
+      37,
+      49
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "BLOCK · #7a3cc8",
+     "img": "assets/catalog/stage-1-2/object-BLOCK-7a3cc8.png",
+     "w": 32,
+     "h": 32,
+     "hp": 100,
+     "count": 8,
+     "at": [
+      57,
+      50
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "PUSH · #3070d0",
+     "img": "assets/catalog/stage-1-2/object-PUSH-3070d0.png",
+     "w": 32,
+     "h": 32,
+     "hp": 1000000,
+     "count": 4,
+     "at": [
+      59,
+      50
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "PULL · #d0362c",
+     "img": "assets/catalog/stage-1-2/object-PULL-d0362c.png",
+     "w": 32,
+     "h": 32,
+     "hp": 1000000,
+     "count": 4,
+     "at": [
+      60,
+      50
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "knowl shell",
+     "img": "assets/catalog/stage-1-2/object-knowl-shell.png",
+     "w": 32,
+     "h": 32,
+     "count": 15,
+     "at": [
+      61,
+      39
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "isoPickup",
+     "img": "assets/catalog/stage-1-2/object-isoPickup.png",
+     "w": 48,
+     "h": 48,
+     "count": 1,
+     "at": [
+      4,
+      55
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "gate",
+     "img": "assets/catalog/stage-1-2/object-gate.png",
+     "w": 96,
+     "h": 160,
+     "count": 1,
+     "at": [
+      64,
+      41
+     ]
+    }
+   ]
+  },
+  {
+   "id": "1.3",
+   "cols": 96,
+   "rows": 86,
+   "tile": 32,
+   "collision": "assets/catalog/stage-1-3/collision-map.png",
+   "counts": {
+    "solid": 2784,
+    "oneway": 34,
+    "destructible": 32,
+    "slopes": 28
+   },
+   "foes": {
+    "b_circle": 2,
+    "b_square": 1,
+    "b_tri": 1,
+    "square": 1,
+    "b_eye": 1,
+    "b_cube": 1,
+    "b_boss": 1
+   },
+   "objects": {
+    "LASER · #e0b020": 32
+   },
+   "items": [
+    {
+     "kind": "hero",
+     "name": "mind",
+     "img": "assets/catalog/stage-1-3/hero-mind.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "hero",
+     "name": "venture",
+     "img": "assets/catalog/stage-1-3/hero-venture.png",
+     "w": 40,
+     "h": 70
+    },
+    {
+     "kind": "foe",
+     "name": "b_circle",
+     "img": "assets/catalog/stage-1-3/foe-b_circle.png",
+     "w": 30,
+     "h": 30,
+     "hp": 50,
+     "rank": "minion",
+     "count": 2,
+     "at": [
+      14,
+      46
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_square",
+     "img": "assets/catalog/stage-1-3/foe-b_square.png",
+     "w": 80,
+     "h": 80,
+     "hp": 50,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      15,
+      13
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_tri",
+     "img": "assets/catalog/stage-1-3/foe-b_tri.png",
+     "w": 74,
+     "h": 64,
+     "hp": 50,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      16,
+      45
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "square",
+     "img": "assets/catalog/stage-1-3/foe-square.png",
+     "w": 64,
+     "h": 96,
+     "hp": 100,
+     "rank": "enemy",
+     "count": 1,
+     "at": [
+      29,
+      32
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_eye",
+     "img": "assets/catalog/stage-1-3/foe-b_eye.png",
+     "w": 110,
+     "h": 114,
+     "hp": 30,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      39,
+      10
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_cube",
+     "img": "assets/catalog/stage-1-3/foe-b_cube.png",
+     "w": 122,
+     "h": 122,
+     "hp": 9999,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      37,
+      59
+     ]
+    },
+    {
+     "kind": "foe",
+     "name": "b_boss",
+     "img": "assets/catalog/stage-1-3/foe-b_boss.png",
+     "w": 112,
+     "h": 112,
+     "hp": 360,
+     "rank": "minion",
+     "count": 1,
+     "at": [
+      70,
+      58
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "LASER · #e0b020",
+     "img": "assets/catalog/stage-1-3/object-LASER-e0b020.png",
+     "w": 32,
+     "h": 32,
+     "hp": 100,
+     "count": 32,
+     "at": [
+      31,
+      50
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "savePt",
+     "img": "assets/catalog/stage-1-3/object-savePt.png",
+     "w": 48,
+     "h": 48,
+     "count": 1,
+     "at": [
+      44,
+      23
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "knifePickup",
+     "img": "assets/catalog/stage-1-3/object-knifePickup.png",
+     "w": 48,
+     "h": 48,
+     "count": 1,
+     "at": [
+      72,
+      80
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "isoPickup",
+     "img": "assets/catalog/stage-1-3/object-isoPickup.png",
+     "w": 48,
+     "h": 48,
+     "count": 1,
+     "at": [
+      47,
+      34
+     ]
+    },
+    {
+     "kind": "object",
+     "name": "gate",
+     "img": "assets/catalog/stage-1-3/object-gate.png",
+     "w": 96,
+     "h": 160,
+     "count": 1,
+     "at": [
+      91,
+      75
+     ]
+    }
+   ]
+  }
+ ]
+}
