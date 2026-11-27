@@ -531,13 +531,15 @@
       pl._ridePlat=null; return;
     }
     const dpt=mindDepth();
-    if(dpt.f>0.25){
-      // underwater: gravity mostly cancelled by buoyancy, a gentle sink, heavy drag
-      const f=Math.min(1,dpt.f);
-      pl.vy-=GRAV*0.74*f; vy=pl.vy;
-      if(pl.vy>1.6) pl.vy=vy=1.6;
-      if(pl.vy<-7) pl.vy=vy=-7;
-      pl.vx*=1-0.07*f; vx=pl.vx;
+    if(dpt.f>0.15){
+      // Water, not gel: the surface barely holds you, and drag grows with speed
+      // (a plunge keeps going; a slow swim is light). No speed ceiling.
+      const f=Math.min(1,dpt.f), deep=Math.max(0,(f-0.2)/0.8);
+      pl.vy-=GRAV*(0.12+0.40*deep);
+      const k=0.003+0.014*deep;
+      pl.vx-=pl.vx*Math.abs(pl.vx)*k;
+      pl.vy-=pl.vy*Math.abs(pl.vy)*(k*0.85);
+      vx=pl.vx; vy=pl.vy;
     }
     const y0=pl.y, riding=B.ridePlat;
     _origMove.call(this, pl, vx, vy);
@@ -652,18 +654,34 @@
     for(let k=0;k<Math.min(30,6+d.m*6);k++){ const a=-Math.PI*Math.random(); PFXS.push({x:d.x,y:d.y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.8,life:18,maxLife:18,r:2+Math.random()*2,col:k%2?'#a8c8d8':'#e4eef2'}); }
     try{ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash) MV_BETA_AUDIO.splash(Math.min(1,0.25+d.m*0.2)); }catch(e){}
   }
-  // an impact throws water out of the hit point (real drops) and rings the surface;
-  // coming out (up=true) the hole fills back in and the surface heaves
-  function splash(x,y,power,up){
+  // a crown: the middle of the splash goes up, the edges go up and out.
+  // the drops carry real water and fall back into the pool.
+  function crown(x,y,mass,power,up,dirx){
+    if(!(mass>0.02)) return;
+    const n=Math.max(7,Math.min(16,6+(power|0))), each=mass/n, lift=up?0.62:1;
+    for(let k=0;k<n;k++){
+      const side=n===1?0:(k/(n-1))*2-1;
+      const ang=-Math.PI/2+side*(up?0.7:1.05);
+      const sp=lift*(1.8+Math.min(8,power)*0.42)*(0.75+Math.random()*0.45);
+      B.drops.push({x:x+side*(8+Math.min(18,power)), y:y-(up?2:6), vx:Math.cos(ang)*sp+(dirx||0)*0.4, vy:Math.sin(ang)*sp, m:each});
+    }
+  }
+  // an impact throws water out of the hit point (real drops) and the surface
+  // heaves. coming out (up=true) is a smaller sheet as the body leaves.
+  function splash(x,y,power,up,dirx){
     const sf=surfaceNear(x,y); if(!sf) return;
     const sx0=(sf.x+0.5)*F.CS;
-    wave(sx0,up?power*0.9:-power*1.3,2);
-    const mass=takeSurface(sf,Math.min(1.6,power*0.07));
-    spray(sx0,sf.top-3,mass,Math.min(10,2+power),power,0);
-    const n=Math.min(18,4+power*2|0);
-    for(let k=0;k<n;k++){ const a=-Math.PI*(0.15+Math.random()*0.7);
-      PFXS.push({x:sx0+(Math.random()-0.5)*24,y:sf.top-2,vx:Math.cos(a)*(1+Math.random()*2.5),vy:Math.sin(a)*(1.5+Math.random()*power*0.5),life:18+Math.random()*12|0,maxLife:30,r:1.5+Math.random()*2,col:k%3?'#a8c8d8':'#e4eef2'}); }
-    try{ if(power>0.6&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/8)); } }catch(e){}
+    const spread=Math.max(3,Math.min(8,2+(power*0.4)|0));
+    wave(sx0,(up?0.8:-1.6)*power,spread);
+    const push=Math.min(0.22,0.03+power*0.018);
+    shove(sx0-8,sf.top+6,-1,push); shove(sx0+8,sf.top+6,1,push);
+    if(!up){ shove(sx0-8,sf.top+22,-1,push*0.45); shove(sx0+8,sf.top+22,1,push*0.45); }
+    const mass=takeSurface(sf,Math.min(up?2.4:5.5,0.4+power*0.42));
+    crown(sx0,sf.top-2,mass,power,up,dirx||0);
+    const n=Math.min(10,3+(power*0.6)|0);
+    for(let k=0;k<n;k++){ const side=Math.random()*2-1, ang=-Math.PI/2+side*0.9;
+      PFXS.push({x:sx0+side*16,y:sf.top-2,vx:Math.cos(ang)*(1.2+Math.random()*power*0.35)+(dirx||0),vy:Math.sin(ang)*(2+Math.random()*power*0.4),life:16+Math.random()*14|0,maxLife:30,r:1.2+Math.random()*1.6,col:k%3?'#c5e4f2':'#f4fbff'}); }
+    try{ if(power>0.6&&window.MV_BETA_AUDIO&&MV_BETA_AUDIO.splash){ MV_SPATIAL_from({x,y}); MV_BETA_AUDIO.splash(Math.min(1,power/10)); } }catch(e){}
   }
   // push water along a row (adds to the flow between cells)
   function shove(x,y,dir,P){
@@ -1183,9 +1201,14 @@
     const list=bodies();
     // splashes as things cross the surface
     for(const b of list){
-      const cx=b.x+b.w/2, cy=b.y+b.h/2, inside=waterAt(cx,cy), was=!!b.ref._inW;
-      if(inside&&!was&&Math.abs(b.vy)>0.6) splash(cx,cy,Math.min(9,Math.abs(b.vy)*0.45*Math.sqrt(b.m)),false);
-      if(!inside&&was&&b.vy<-1) splash(cx,cy,Math.min(6,Math.abs(b.vy)*0.3*Math.sqrt(b.m)),true);
+      const cx=b.x+b.w/2, cy=b.y+b.h/2, inside=waterAt(cx,cy), feetY=b.y+b.h-6;
+      const feetIn=waterAt(cx,feetY), wasFeet=!!b.ref._feetW, spd=Math.abs(b.vy);
+      if(feetIn&&!wasFeet&&b.vy>1.15){
+        splash(cx,feetY,Math.min(12,spd*0.62*Math.sqrt(Math.max(0.35,b.m))),false,Math.sign(b.vx||0));
+        if(b.me){ p.vy*=0.88; p.vx*=0.94; }   // a slice of the fall becomes the crown; the rest goes through
+      }
+      if(!feetIn&&wasFeet&&b.vy<-1.3) splash(cx,feetY,Math.min(7,spd*0.4*Math.sqrt(Math.max(0.35,b.m))),true,Math.sign(b.vx||0));
+      b.ref._feetW=feetIn;
       b.ref._inW=inside;
       if(inside&&Math.abs(b.vx)>1.2&&fr%3===0&&!waterAt(cx,b.y-6)){ wave(cx+Math.sign(b.vx)*b.w/2,-Math.abs(b.vx)*0.2,1); }
       if(inside&&(b.me||Math.abs(b.vx)+Math.abs(b.vy)>0.4)&&fr%(b.me?6:12)===0) B.bubbles.push({x:cx+(Math.random()-0.5)*b.w*0.6,y:cy,r:3+Math.random()*4,vy:-0.7-Math.random()*0.9});
