@@ -46,7 +46,7 @@ async function runWithPuppeteer() {
   const puppeteer = await import('puppeteer');
   const browser = await puppeteer.default.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--mute-audio'],
   });
   try {
     const page = await browser.newPage();

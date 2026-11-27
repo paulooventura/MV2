@@ -16,7 +16,7 @@ const srv = http.createServer((req, res) => {
 const out = 'test-results/main-flow';
 fs.mkdirSync(out, { recursive: true });
 
-const b = await chromium.launch();
+const b = await chromium.launch({ args: ['--mute-audio'] });
 const pg = await b.newPage({ viewport: { width: 1100, height: 1000 } });
 const errs = [], steps = [];
 pg.on('pageerror', e => errs.push(e.message));

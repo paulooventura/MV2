@@ -35,7 +35,7 @@ function startServer() {
   });
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });
 const { srv, port } = await startServer();
 const page = await browser.newPage();
 const errors = [];

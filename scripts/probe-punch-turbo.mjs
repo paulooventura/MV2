@@ -46,7 +46,7 @@ async function main() {
     try { bound = await startServer(port); break; } catch (e) { if (port === 8799) throw e; }
   }
   const { srv, port } = bound;
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });
   let results = [];
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

@@ -94,7 +94,7 @@ async function main() {
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.addInitScript(() => {
