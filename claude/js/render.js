@@ -395,13 +395,38 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   ctx.beginPath();ctx.arc(dotX,dotY,2.2,0,Math.PI*2);ctx.fillStyle=dotOff?'#880000':'#00cc44';ctx.fill();
   ctx.beginPath();ctx.arc(dotX,dotY,1.3,0,Math.PI*2);ctx.fillStyle=dotOff?'#ff3333':'#7dff9a';ctx.fill();
   // the thick record on top: a black slab with grooves, wider than the box, a sheen on its face
-  // (the turntable deck: lifts off the cabinet a few px while falling, still held on two posts)
-  const dl=status?0:_deckMotion(p), dset=status?0:(p._deckSettle||0)*1.6, dk=Math.max(0,dl-dset);
+  // (Build 431: fall detach — vinyl deck lifts clear of the subwoofer cabinet so players can see it)
+  const dm=status?null:_deckMotionFull(p);
+  const dl=dm?dm.lift:0, dset=dm?dm.settle:0, drot=dm?dm.rot:0, dk=Math.max(0,dl-dset);
+  const cabSquash=dk>0.4?Math.min(0.08,dk*0.0065):0;
+  if(cabSquash>0.002){
+    // subwoofer squashes a hair as the deck pulls free
+    ctx.save();
+    ctx.translate(bx,y+bh); ctx.scale(1+cabSquash*0.55,1-cabSquash); ctx.translate(-bx,-(y+bh));
+    ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(x-2,y+bh-3,bw+4,4);
+    ctx.restore();
+  }
   ctx.save();
   if(dk>0.05){
-    ctx.fillStyle='#000'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0-0.5,y+10-dk,6,dk+3);
-    ctx.fillStyle='#4a4e58'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0+0.5,y+10-dk,4,dk+3);
-    ctx.fillStyle='rgba(255,255,255,0.28)'; for(const px0 of [x+3,x+bw-8]) ctx.fillRect(px0+0.5,y+10-dk,1,dk+3);
+    // posts stretch between cabinet and deck — gap is the readable part
+    const postTop=y+10-dk, postH=dk+4;
+    for(const px0 of [x+4,x+bw-9]){
+      ctx.fillStyle='#000'; ctx.fillRect(px0-0.8,postTop,6.2,postH);
+      const pg=ctx.createLinearGradient(0,postTop,0,postTop+postH);
+      pg.addColorStop(0,'#8a909c'); pg.addColorStop(0.45,'#4a4e58'); pg.addColorStop(1,'#1c1e24');
+      ctx.fillStyle=pg; ctx.fillRect(px0,postTop,4.4,postH);
+      ctx.fillStyle='rgba(255,255,255,0.38)'; ctx.fillRect(px0,postTop,1.2,postH);
+    }
+    // dust puff in the gap (first frames of a real detach)
+    if(dm&&dm.dust>0.04){
+      const a=Math.min(0.55,dm.dust), midY=y+10-dk*0.45;
+      for(let i=0;i<5;i++){
+        const t=(i/5)+fr*0.03, px=bx+(i-2)*7+Math.sin(t*6+i)*2, py=midY-Math.sin(t*4+i)*2, r=1.2+dm.dust*2.2*(1-i*0.12);
+        ctx.fillStyle='rgba(200,190,170,'+(a*(0.55-i*0.08)).toFixed(3)+')';
+        ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.translate(bx,y+6); ctx.rotate(drot); ctx.translate(-bx,-(y+6));
     ctx.translate(0,-dk);
   }
   const rx0=x-3, rw=bw+6, ry0=y, rh=12;
@@ -512,21 +537,32 @@ function _hatMotion(dir){
   return {ang:pl._hatAng||0, lift:pl._hatLift||0};
 }
 function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.lift); ctx.rotate(m.ang); ctx.translate(-px,-py); }
-// Paulo 2026-11-26: while he falls, the turntable deck (the thick record, its chrome orbs and the bulb on
-// top) lifts a few pixels off the speaker cabinet, like the hat lifts off the head, and settles back on
-// landing. Nothing flies, spins or drifts: it stays mounted. Same falling test as the hat. Screen px.
-function _deckMotion(pl){
-  if(!pl||pl.mirror||window._hatStill) return 0;
-  if(pl._deckFr===fr) return pl._deckLift||0;
+// Paulo 2026-11-26 / Build 431: while he falls, the vinyl deck lifts off the subwoofer cabinet
+// (same falling test as the hat). Was ~5 px and hard to see — now a readable gap with a quick
+// pop, light tilt, gap dust, and a clunk settle. Still mounted on posts; not a free flyaway.
+function _deckMotionFull(pl){
+  if(!pl||pl.mirror||window._hatStill) return {lift:0,settle:0,rot:0,dust:0};
+  if(pl._deckFr===fr) return {lift:pl._deckLift||0,settle:(pl._deckSettle||0)*2.4,rot:pl._deckRot||0,dust:pl._deckDust||0};
   pl._deckFr=fr;
   const falling=!pl.og&&(pl.vy||0)>0.6&&!(pl.hook&&pl.hook.st==='on');
-  const liftT=falling?Math.min(5,1.6+(pl._fallD||0)*0.012):0;
+  const fallD=pl._fallD||0;
+  // Snap open in the first ~12 px of fall, then ease to a clear ~12 px gap (was max 5).
+  const liftT=falling?Math.min(12,2.8+fallD*0.055+Math.min(4,Math.max(0,(pl.vy||0)-0.6)*1.1)):0;
   const cur=pl._deckLift||0;
-  if(!falling&&cur>1.5&&pl.og) pl._deckSettle=1;                    // just landed: the deck clunks back down
-  const next=cur+(liftT-cur)*(liftT>cur?0.3:0.5);
-  pl._deckSettle=(pl._deckSettle||0)*0.72;
+  if(falling&&cur<1.2&&liftT>2) pl._deckDust=1;                    // puff when the gap first opens
+  if(!falling&&cur>2&&pl.og){ pl._deckSettle=1; pl._deckDust=Math.max(pl._deckDust||0,0.55); }
+  const up=liftT>cur;
+  const next=cur+(liftT-cur)*(up?0.42:0.55);                       // snappy open, quick close
+  const face=(pl.fc===false)?-1:1;
+  const rotT=falling?-face*Math.min(0.11,0.02+fallD*0.0009+next*0.0055):0;
+  pl._deckRot=(pl._deckRot||0)+(rotT-(pl._deckRot||0))*(up?0.28:0.4);
+  pl._deckSettle=(pl._deckSettle||0)*0.68;
+  pl._deckDust=(pl._deckDust||0)*0.86;
   pl._deckLift=next;
-  return next;
+  return {lift:next,settle:(pl._deckSettle||0)*2.4,rot:pl._deckRot||0,dust:pl._deckDust||0};
+}
+function _deckMotion(pl){
+  return _deckMotionFull(pl).lift;
 }
 // GUARD (groove fix): hatTY is in hat units (×9 px). Clamp the brim so it always
 // sits on top of the bulb (never below its centre), whatever a groove/tilt value
@@ -1191,6 +1227,11 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       if(!p._hitDone&&!_hit&&typeof _punchCrates==='function'&&_punchCrates(_wx,_wy,_wr,punchAngle,_charged,shWX,shWY)){
         p._hitDone=true;_hit=true;_hitKind='crate';p._pRecoil=8;
       }
+      // T602: punch detaches anchored crystals / seeds (outline hit + mass kick)
+      if(!p._hitDone&&!_hit&&window.MV_BETA&&MV_BETA.on&&typeof MV_BETA.punchKnowl==='function'&&MV_BETA.punchKnowl(_wx,_wy,_wr,punchAngle,_charged)){
+        p._hitDone=true;_hit=true;_hitKind='knowl';p._pRecoil=6;
+        try{ sfx('hit'); }catch(e){}
+      }
       // Breakable walls
       if(!p._hitDone&&!_hit) for(const bw of BWALLS){
         if(bw.hp<=0)continue;
@@ -1650,7 +1691,7 @@ function drawCharacter(){
   const _leftJab=p._punchHand==='L'&&p.pt>0;
   // Offbeat shoulder/arm sway: nudge only the SCREEN shoulder; world coords
   // (wall check + punch angle) stay untouched, and the rope arm's tip is not moved.
-  const _dkA=Math.max(0,_deckMotion(p)-(p._deckSettle||0)*1.6);
+  const _dmA=_deckMotionFull(p), _dkA=Math.max(0,_dmA.lift-_dmA.settle);
   if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
   else drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
@@ -1749,7 +1790,7 @@ function drawCharacter(){
   // hatTY is in hat units (×9 px), so even gHead*0.5 would shove the brim through
   // the bulb. These are pixel-space offsets, kept in the drawHead args only.
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
-  const _dk=Math.max(0,_deckMotion(p)-(p._deckSettle||0)*1.6);
+  const _dmH=_deckMotionFull(p), _dk=Math.max(0,_dmH.lift-_dmH.settle);
   drawHead(wcx+gHeadX,sy(headCY+gHead)-_dk,p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
   window._mindHeadDmg=0;
 

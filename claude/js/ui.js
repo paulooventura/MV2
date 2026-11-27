@@ -232,12 +232,15 @@ function _goreFeed(dir){
   else _goreStep=dir===GORE_SEQ[0]?1:0;
 }
 function _filterName(){
-  const m=window.MV_CONSOLE&&MV_CONSOLE.mode;
-  if(m==='snes') return 'A  SNES';
-  if(m==='md') return 'B  MEGA DRIVE';
-  if(m==='ink') return 'D  INK & VINYL';
+  // Paulo 2026-11-27: Unfiltered / A / B / Ink & Vinyl / Gore — never POSH / SNES / Mega Drive in Options.
+  const C=window.MV_CONSOLE; if(!C) return '-';
+  if(typeof C.label==='function') return C.label(C.mode);
+  const m=C.mode;
+  if(m==='snes') return 'A';
+  if(m==='md') return 'B';
+  if(m==='ink') return 'INK & VINYL';
   if(m==='gore') return 'GORE';
-  return 'C  POSH';
+  return 'UNFILTERED';
 }
 function _sfxPackName(){
   const n=window.MV_SFX?MV_SFX.current:null;

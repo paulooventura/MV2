@@ -320,6 +320,8 @@
       if(floorY!=null){ k.y=k.oy=floorY-15; k.ox=k.x; }
       k.floorY=floorY!=null?floorY:(r+1)*T; k.c=c;
     }
+    // T602: every Knowl starts locked at its spawn; punch / push / pull frees it.
+    for(const k of KDROP) primeKnowl(k);
 
     B._placeEnt=placeEnt;
     for(const e of ents){                     // tag what each level entity made, so the editor can erase it
@@ -339,8 +341,8 @@
         case 'Seed': {                          // editor-placed seed (level seeds come in as Knowls)
           const fy=typeof gridStandY==='function'?gridStandY(cx,feet,{maxUp:4,maxDrop:T*2}):null;
           const sy=fy!=null?fy-15:y+T/2;
-          KDROP.push({x:cx, y:sy, ox:cx, oy:sy, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2,
-            kind:'seed', floorY:fy!=null?fy:feet, c:g.c}); break;
+          const sk={x:cx, y:sy, ox:cx, oy:sy, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2,
+            kind:'seed', floorY:fy!=null?fy:feet, c:g.c}; primeKnowl(sk); KDROP.push(sk); break;
         }
         case 'MindSpawn':
           _spawnX=cx-SW/2; _spawnY=feet-FEET_OFF; break;
@@ -349,10 +351,11 @@
           B.need={crystals:F(e,'crystals')|0||3, seeds:F(e,'seeds')|0||6, boss:F(e,'boss')|0}; break;
         case 'EchoCrystal':
           B.echoNeed++;
-          KDROP.push({x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2, kind:'echo'}); break;
+          { const ek={x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false, bob:Math.random()*Math.PI*2, kind:'echo'};
+            primeKnowl(ek); KDROP.push(ek); } break;
         case 'Crystal':
-          KDROP.push({x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false,
-            bob:Math.random()*Math.PI*2, kind:'crystal'}); break;
+          { const ck={x:cx, y:y+T/2, ox:cx, oy:y+T/2, px:0, py:0, vx:0, vy:0, got:false,
+            bob:Math.random()*Math.PI*2, kind:'crystal'}; primeKnowl(ck); KDROP.push(ck); } break;
         case 'Rca':
           _mapRopePickup={x, y, w:T, h:T, got:false};
           B.crateCells.add(g.c+','+g.r); break;
@@ -940,9 +943,40 @@
     seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // area against a 32px omni (weight 3)
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
+  // T602 (Paulo, Nov 27): collision hull = sprite outline; mass from that size/shape.
+  // Crystal hex matches beta_decor.crystal (hw=13, hh=24, centre y-10).
+  // Seed teardrop matches beta_decor.seed teardrop(x,y+4,r=8).
+  function knowlHull(k){
+    if(k&&(k.kind==='crystal'||k.kind==='echo')) return {type:'hex', ox:0, oy:-10, hw:13, hh:24};
+    return {type:'tear', ox:0, oy:4, r:8};
+  }
+  function knowlMass(k){
+    const h=knowlHull(k);
+    if(h.type==='hex'){
+      const area=2*h.hw*2*h.hh*0.72;                       // hex fills most of its bbox
+      return Math.max(0.7, Math.round(area/1024*3*10)/10);
+    }
+    const area=Math.PI*(h.r*1.15)*(h.r*1.65);               // teardrop ≈ tall ellipse
+    return Math.max(0.35, Math.round(area/1024*3*10)/10);
+  }
+  function primeKnowl(k){
+    if(!k) return k;
+    k._anchored=true; k._fly=false; k._moved=false; k.vx=0; k.vy=0;
+    k._mass=knowlMass(k); k._hull=knowlHull(k);
+    return k;
+  }
+  function detachKnowl(k,vx,vy){
+    if(!k||k._carried) return false;
+    const free=!k._anchored;
+    k._anchored=false; k._moved=true; k._fly=true; k._rest=0; k._flyT=0; k.got=false;
+    k.vx=(k.vx||0)+(vx||0); k.vy=(k.vy||0)+(vy||0);
+    if(!k._mass) k._mass=knowlMass(k);
+    return !free||Math.hypot(vx||0,vy||0)>0.01;
+  }
+  B.primeKnowl=primeKnowl; B.detachKnowl=detachKnowl; B.knowlHull=knowlHull; B.knowlMass=knowlMass;
   function weightOf(kind,ref){
     if(kind==='cube') return WEIGHT[ref.only||'omni']||3;
-    if(kind==='knowl') return ref.kind==='crystal'?WEIGHT.crystal:WEIGHT.seed;
+    if(kind==='knowl') return (ref&&ref._mass)!=null?ref._mass:knowlMass(ref);
     if(kind==='enemy'){
       if(WEIGHT[ref.type]) return WEIGHT[ref.type];
       const area=Math.max(1,(ref.w||32)*(ref.h||32));
@@ -1055,15 +1089,29 @@
   // Paulo, Nov 13: "No items, foes, characters, or anything that moves ... should be able to get inside
   // walls/floors/ceilings EVER." Whatever ends up in rock — a Knowl (dropped from the MAG, thrown, flying), a jack
   // on the floor — is put back at once on the nearest free spot, upward first.
-  function knowlInRock(x,y){ return solidPx(x,y)||solidPx(x-KR+2,y)||solidPx(x+KR-2,y)||solidPx(x,y-KR+2)||solidPx(x,y+KR-2); }
+  // T602: solid tests use the sprite outline (hex / teardrop), not a circle alone.
+  function knowlOutlineSolid(x,y,k){
+    const h=knowlHull(k), cx=x+(h.ox||0), cy=y+(h.oy||0);
+    if(h.type==='hex'){
+      const pts=[[0,-h.hh],[h.hw,-h.hh/2],[h.hw,h.hh/2],[0,h.hh],[-h.hw,h.hh/2],[-h.hw,-h.hh/2],[0,0]];
+      for(const [u,v] of pts) if(solidPx(cx+u,cy+v)) return true;
+      return false;
+    }
+    const r=h.r;
+    return solidPx(cx,cy-r*2.2)||solidPx(cx+r*1.15,cy)||solidPx(cx-r*1.15,cy)||solidPx(cx,cy+r)||solidPx(cx,cy);
+  }
+  function knowlInRock(x,y,k){
+    if(k) return knowlOutlineSolid(x,y,k);
+    return solidPx(x,y)||solidPx(x-KR+2,y)||solidPx(x+KR-2,y)||solidPx(x,y-KR+2)||solidPx(x,y+KR-2);
+  }
   function freeSpot(x,y,inRock){
     if(!inRock(x,y)) return null;
     for(let r=4;r<=4*T;r+=4) for(const [dx,dy] of [[0,-1],[1,0],[-1,0],[0,1],[1,-1],[-1,-1],[1,1],[-1,1]]){ const nx=x+dx*r, ny=y+dy*r; if(!inRock(nx,ny)) return {x:nx,y:ny}; }
     return null;
   }
   function rescueTick(){
-    for(const k of KDROP){ if(!k||k.got||k._carried||!(k._fly||k._moved)) continue;   // only ones that have been moved (the level's own rest where they're placed)
-      const s=freeSpot(k.x,k.y,(x,y)=>solidPx(x,y)); /* its centre in rock (a resting seed may touch the floor) */ if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx=0; k.vy=0; k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
+    for(const k of KDROP){ if(!k||k.got||k._carried||k._anchored||!(k._fly||k._moved)) continue;   // only ones that have been moved (the level's own rest where they're placed)
+      const s=freeSpot(k.x,k.y,(x,y)=>knowlInRock(x,y,k)); /* outline in rock */ if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx=0; k.vy=0; k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
     if(typeof ITEM_DROPS!=='undefined') for(const d of ITEM_DROPS){
       if(!d||d.got) continue;
       const its=(B.crateLoose?B.crateLoose(d):(d._box&&d._box.item?[d._box.item]:[]));
@@ -1076,28 +1124,47 @@
   }
   function knowlFlyTick(){
     for(const k of KDROP){
+      if(k._anchored){ k.x=k.ox; k.y=k.oy; k.vx=0; k.vy=0; k._fly=false; continue; }
       if(!k._fly) continue;
-      k.vy=Math.min(k.vy+GRAV*0.8,12); k.vx*=0.99;
+      const m=Math.max(0.35,k._mass||knowlMass(k));
+      // heavier gems fall a touch faster / resist shove; light seeds float longer
+      const grav=GRAV*(0.55+0.35*Math.min(1.4,m));
+      k.vy=Math.min(k.vy+grav,10+m*1.2); k.vx*=0.99;
       if(B.inWater&&B.inWater(k.x,k.y)){ k.vx*=0.92; if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*1.6,-2.4); k._rest=0; } else k.vy=Math.min(k.vy-GRAV*0.6,1.6); }
-      const nx=k.x+k.vx; if(solidPx(nx+Math.sign(k.vx)*KR,k.y)){ k.vx*=-0.4; } else k.x=nx;
+      const nx=k.x+k.vx; if(knowlOutlineSolid(nx,k.y,k)){ k.vx*=-0.4; } else k.x=nx;
       const ny=k.y+k.vy;
-      if(solidPx(k.x,ny+KR)){
+      if(knowlOutlineSolid(k.x,ny,k)&&ny>=k.y){
         const _hitV=k.vy;   // capture before it is reversed (dump line 87: glass sound when seeds hit the floor)
         if(k.kind==='seed'&&_hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
         if(k._glassF>0) k._glassF--;
         k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
       }
-      else if(solidPx(k.x,ny-KR)){ k.vy=Math.abs(k.vy)*0.3; }
+      else if(knowlOutlineSolid(k.x,ny,k)&&ny<k.y){ k.vy=Math.abs(k.vy)*0.3; }
       else { k.y=ny; k._rest=0; }
       knowlTouchesEnemy(k);
       if((k._rest||0)>6||(k._flyT=(k._flyT||0)+1)>600){
         k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0;
-        const fy=typeof gridStandY==='function'?gridStandY(k.x,k.y+KR,{maxUp:8,maxDrop:T}):null;
-        if(fy!=null&&k.kind==='seed') k.y=fy-15;
+        const foot=k.y+((k._hull||knowlHull(k)).type==='hex'?14:12);
+        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:8,maxDrop:T}):null;
+        if(fy!=null) k.y=fy-((k.kind==='seed')?15:12);
         k.ox=k.x; k.oy=k.y; k.got=false;
       }else{ k.ox=k.x; k.oy=k.y; }
     }
   }
+  // Punch / XLR shove frees an anchored Knowl and sends it by its mass.
+  B.punchKnowl=function(wx,wy,wr,ang,charged){
+    let hit=false;
+    for(const k of KDROP){
+      if(!k||k._carried||(k.got&&!k._fly&&!k._anchored)) continue;
+      const h=knowlHull(k), cx=k.x+h.ox, cy=k.y+h.oy;
+      const rw=h.type==='hex'?h.hw:h.r*1.2, rh=h.type==='hex'?h.hh:h.r*1.7;
+      if(Math.abs(wx-cx)>rw+wr||Math.abs(wy-cy)>rh+wr) continue;
+      const m=knowlMass(k), kick=((charged?7.2:4.4)+Math.max(0,(typeof p!=='undefined'&&p?Math.hypot(p.vx||0,p.vy||0):0)*0.35))/Math.max(0.4,m);
+      detachKnowl(k, Math.cos(ang)*kick, Math.sin(ang)*kick-1.4);
+      hit=true;
+    }
+    return hit;
+  };
   function knowlTouchesEnemy(k){
     for(const e of ENEMS){
       if(!e._betaEnemy||(e._knowlCd||0)>0) continue;
@@ -1142,7 +1209,7 @@
   function dropHeld(h){
     const v=throwVel();
     if(h.kind==='cube') throwCube(h.ref, v.vx, v.vy);
-    else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
+    else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._anchored=false; k._moved=true; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
     else if(h.kind==='enemy'){
       const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy; e._tossT=14;
       e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true; e._newHome=true;   // (Paulo, Nov 13) it stays where you drop it
@@ -1237,6 +1304,16 @@
       c2.vx=(c2.vx||0)*0.9+f.ax*2.1;
       c2.vy=(c2.vy||0)*0.9+f.ay*2.1;
       c2.og=false;
+    }
+    // T602: XLR push / MAG pull detaches anchored Knowls, then throws by mass
+    for(const k of KDROP){
+      if(!k||k._carried||(k.got&&!k._fly&&!k._anchored)) continue;
+      const h=knowlHull(k), m=knowlMass(k);
+      const f=hit(k.x+h.ox,k.y+h.oy,m);
+      if(!f||f.s<0.08+0.04*m||!losClear(k.x,k.y)) continue;
+      if(k._anchored){ if(f.s<0.14+0.05*m) continue; detachKnowl(k,f.ax*10,f.ay*10-0.8); continue; }
+      if(k._fly){ k.vx=(k.vx||0)+f.ax*1.5; k.vy=(k.vy||0)+f.ay*1.5; }
+      else if(f.s>0.12+0.05*m) detachKnowl(k,f.ax*9,f.ay*9-0.6);
     }
   }
   const RAM_HEFT=2.2;
@@ -1521,7 +1598,7 @@
           r.homeCol=r.homeRow=r.homeX=r.homeY=null;          // no home while carried (the game would keep re-opening it)
           r._carried=true; r._ox=r._oy=0; r.wedge=false;
         }else if(best.kind==='knowl'){
-          const k=best.ref; k._carried=true; k._fly=false; k.got=true; k.w=22; k.h=22;
+          const k=best.ref; detachKnowl(k,0,0); k._carried=true; k._fly=false; k.got=true; k.w=22; k.h=22;
         }else{
           best.ref._betaHeld=true;
           if(best.kind==='enemy'){ best.ref._shutSettled=true; best.ref.mn=-1e6; best.ref.mx=1e6; }
@@ -1540,7 +1617,7 @@
       const r=h.ref, w=h.kind==='knowl'?22:(r.w||T), hh=h.kind==='knowl'?22:(r.h||T);
       const half=Math.abs(tip.ux)*w/2+Math.abs(tip.uy)*hh/2;
       const cx=tip.x+tip.ux*(along+half), cy=tip.y+tip.uy*(along+half);
-      if(h.kind==='knowl'){ r._moved=true; if(!knowlInRock(cx,cy)){ r.x=r.ox=cx; r.y=r.oy=cy; } r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }   // (build 410) never carried into rock: it waits at its last free spot
+      if(h.kind==='knowl'){ r._moved=true; r._anchored=false; if(!knowlInRock(cx,cy,r)){ r.x=r.ox=cx; r.y=r.oy=cy; } r.px=r.py=0; r.vx=r.vy=0; knowlTouchesEnemy(r); }   // (build 410) never carried into rock: it waits at its last free spot
       else { r.x=cx-w/2; r.y=cy-hh/2; r.vx=p.vx||0; r.vy=p.vy||0; }
       if(h.kind==='enemy'){ r.shotCd=Math.max(r.shotCd||0,30); r.hitF=Math.max(r.hitF||0,2); }
       along+=half*2;

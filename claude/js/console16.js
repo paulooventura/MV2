@@ -20,23 +20,24 @@
 //  stepped palette fades. The CRT pass (crt_room.js) reads the mode for its
 //  224 scanlines, its blur and the Model 1 "jailbars". Sound: sound16.js.
 //
-//  C · POSH (mode 'off'): none of the console treatment — full resolution,
-//  full colour, smooth, clean sound. A fresh game starts in Ink & Vinyl
-//  instead; A and B are the nostalgia switches. The CRT TV is independent:
-//  switching filters never turns it on or off — that's its own button/control.
+//  Unfiltered (mode 'off'): none of the console treatment — full resolution,
+//  full colour, smooth, clean sound. A/B are nostalgia switches. The CRT TV is
+//  independent: switching filters never turns it on or off.
 //
 //  Mode: Options menu (FILTER). Storage key stays mv2.console.
-//  GORE / Ink & Vinyl stay hidden until unlock (secret Options code, or ±33 on the 1.3 lift).
-//  Unlock keys: mv2.gore='1', mv2.ink='1'. Standard boot is always POSH (off).
+//  Player-facing names: Unfiltered / A / B / Ink & Vinyl / Gore.
+//  Ink & Vinyl / Gore stay hidden until unlock (secret Options code, or ±33 on the 1.3 lift).
+//  Unlock keys: mv2.gore='1', mv2.ink='1'. Standard boot is always Unfiltered (off).
 // ============================================================
 (function(){
   'use strict';
   const MODES={
-    snes:{name:'SNES', w:256, h:224, hw:512, hh:448},
-    md:  {name:'MEGA DRIVE', w:320, h:224, hw:640, hh:448}
+    snes:{name:'A', w:256, h:224, hw:512, hh:448},
+    md:  {name:'B', w:320, h:224, hw:640, hh:448}
   };
+  const LABELS={off:'UNFILTERED',snes:'A',md:'B',ink:'INK & VINYL',gore:'GORE'};
   const qs=(()=>{ try{ return new URLSearchParams(location.search).get('console'); }catch(e){ return null; } })();
-  // 'ink' (D · INK & VINYL, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
+  // 'ink' (Ink & Vinyl, Oct 23): no console treatment here — ink_vinyl.js finishes the frame as a woodblock print
   const plain=m=>m==='off'||m==='ink'||m==='gore';
   const goreOn=()=>{ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } };
   // T425 (Paulo, Nov 11): every boot starts the same way, and a filter picked in Options lasts for that
@@ -44,7 +45,8 @@
   // ?console= still wins (labs, QA). Selftest stays clean.
   // Paulo, Nov 26 (build 415): the game starts on the standard look; Ink & Vinyl is found in play
   // (ride the 1.3 lift up to the 33rd floor). Unlock kept in localStorage 'mv2.ink'='1'.
-  // T601 (Paulo, Nov 27): cycle/set must NOT offer ink/gore until unlocked — never default-on via localStorage.
+  // T601 / T602 (Paulo, Nov 27): cycle/set must NOT offer ink/gore until unlocked — never default-on.
+  // PLAY uses root index.html — keep its MV_BUILD + ?v= in sync with build.txt or the lock never ships.
   const inkUnlocked=()=>{ try{ return localStorage.getItem('mv2.ink')==='1'; }catch(e){ return false; } };
   const allowed=m=>{
     if(MODES[m]||m==='off') return true;
@@ -67,12 +69,14 @@
       // earned unlock only — a leftover 'ink'/'gore' from older builds never boots locked filters on
       if(v&&allowed(v)) return v;
     }catch(e){}
-    return 'off';   // standard look (was 'ink' since T580)
+    return 'off';   // Unfiltered (was 'ink' since T580)
   })();
   const listeners=[];
   const api={
     get mode(){ return mode; },
-    get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
+    get name(){ return LABELS[mode]||'UNFILTERED'; },
+    label(m){ return LABELS[m]||String(m||''); },
+    cycleModes:cycleList,
     inkUnlocked,
     goreUnlocked:goreOn,
     unlockInk(){ if(inkUnlocked()) return false; try{ localStorage.setItem('mv2.ink','1'); }catch(e){}
@@ -88,12 +92,13 @@
     },
     cycle(dir){
       const L=cycleList();
-      let i=L.indexOf(mode); if(i<0) i=0;
+      // If a leftover locked mode is active (labs / stale tab), snap into the unlocked list first
+      let i=L.indexOf(mode); if(i<0){ api.set(L[0]); i=0; }
       api.set(L[(i+(dir<0?L.length-1:1))%L.length]);
     },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
-    MODES
+    MODES, LABELS
   };
   window.MV_CONSOLE=api;
   try{ if(mode==='gore'||mode==='ink'){ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(mode); } }catch(e){}  // T547: boot with the picked filter on the scale
@@ -293,7 +298,7 @@
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';
     bar.style.cssText='display:flex;gap:6px;justify-content:center;align-items:center;margin:8px auto 2px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;color:#7868a0';
-    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH'],['ink','D · INK & VINYL']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
+    bar.innerHTML='<span>FILTER</span>'+cycleList().map(m=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+(LABELS[m]||m)+'</button>').join('');
     if(window.MV_TV){ bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><button type="button" class="mv-tvbtn" aria-pressed="'+MV_TV.on+'">'+(MV_TV.on?'CRT TV: ON':'CRT TV: OFF')+'</button>'); }
     bar.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.classList.contains('mv-tvbtn')){ MV_TV.toggle(); const c=document.getElementById('c'); if(c&&c.focus) c.focus(); return; }
