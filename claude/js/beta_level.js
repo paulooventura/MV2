@@ -972,19 +972,21 @@
   //   grip, how fast things fly when thrown, what a thrown thing does when it
   //   hits, and how MIND bounces (js/beta_feel.js).
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
-    seed:0.5, crystal:0.8, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // area against a 32px omni (weight 3)
+    seed:2.8, crystal:3.6, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // T636: gems, not paper
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
   B.WEIGHT=WEIGHT;
-  // T602 / T631 (Paulo, Nov 27): hull = sprite outline; mass = solid pebble/gem
-  // (not paper-light). Crystal hex matches beta_decor.crystal; seed teardrop matches seed().
+  // T636 (Paulo, Nov 27 playtest): hull = artwork outline (seed teardrop / crystal hex in
+  // beta_decor.js); mass = solid gemstone — heavy tumble + bounce, never paper/floaty.
   function knowlHull(k){
+    // crystal(): cy=k.y-10, outline O=[[0,-hh],[hw,-hh/2],...] with hw=13, hh=24
     if(k&&(k.kind==='crystal'||k.kind==='echo')) return {type:'hex', ox:0, oy:-10, hw:13, hh:24};
+    // seed(): teardrop(x, y+4, r=8) — tip at oy-r*2.2, belly at oy+r, width ±r*1.1
     return {type:'tear', ox:0, oy:4, r:8};
   }
   function knowlMass(k){
-    // Dense solids: seed ≈ half an omni (pebble), crystal ≈ a full omni chunk.
-    if(k&&(k.kind==='crystal'||k.kind==='echo')) return 2.6;
-    return 1.55;
+    // Dense gemstones: seed ≈ one omni, crystal ≈ a heavy chunk (sinks, tumbles).
+    if(k&&(k.kind==='crystal'||k.kind==='echo')) return 3.6;
+    return 2.8;
   }
   function primeKnowl(k){
     if(!k) return k;
@@ -1197,16 +1199,22 @@
   // Paulo, Nov 13: "No items, foes, characters, or anything that moves ... should be able to get inside
   // walls/floors/ceilings EVER." Whatever ends up in rock — a Knowl (dropped from the MAG, thrown, flying), a jack
   // on the floor — is put back at once on the nearest free spot, upward first.
-  // T602: solid tests use the sprite outline (hex / teardrop), not a circle alone.
+  // T636: solid tests sample the artwork outline (hex vertices / teardrop bezier), not a circle.
   function knowlOutlineSolid(x,y,k){
     const h=knowlHull(k), cx=x+(h.ox||0), cy=y+(h.oy||0);
     if(h.type==='hex'){
-      const pts=[[0,-h.hh],[h.hw,-h.hh/2],[h.hw,h.hh/2],[0,h.hh],[-h.hw,h.hh/2],[-h.hw,-h.hh/2],[0,0]];
+      const hw=h.hw, hh=h.hh;
+      const pts=[[0,-hh],[hw*0.5,-hh*0.75],[hw,-hh/2],[hw,hh/2],[hw*0.5,hh*0.75],[0,hh],
+        [-hw*0.5,hh*0.75],[-hw,hh/2],[-hw,-hh/2],[-hw*0.5,-hh*0.75],[0,0],[0,-hh*0.4],[0,hh*0.4]];
       for(const [u,v] of pts) if(solidPx(cx+u,cy+v)) return true;
       return false;
     }
+    // Teardrop samples matching beta_decor.teardrop bezier (r, tip up).
     const r=h.r;
-    return solidPx(cx,cy-r*2.2)||solidPx(cx+r*1.15,cy)||solidPx(cx-r*1.15,cy)||solidPx(cx,cy+r)||solidPx(cx,cy);
+    const pts=[[0,-r*2.2],[r*0.7,-r*1.4],[r*1.15,-r*0.5],[r*1.1,r*0.35],[r*0.55,r*0.85],[0,r],
+      [-r*0.55,r*0.85],[-r*1.1,r*0.35],[-r*1.15,-r*0.5],[-r*0.7,-r*1.4],[0,-r*0.3],[0,r*0.2]];
+    for(const [u,v] of pts) if(solidPx(cx+u,cy+v)) return true;
+    return false;
   }
   function knowlInRock(x,y,k){
     if(k) return knowlOutlineSolid(x,y,k);
@@ -1249,13 +1257,14 @@
         else continue;
       }
       const m=Math.max(1.2,k._mass||knowlMass(k));
-      // T631: full gravity like cubes — no paper float.
-      k.vy=Math.min(k.vy+GRAV,14); k.vx*=0.997;
+      // T636: full gravity like a gem — never paper float (seeds used to cork-float in water).
+      k.vy=Math.min(k.vy+GRAV,14); k.vx*=0.998;
       if(B.inWater&&B.inWater(k.x,k.y)){
-        k.vx*=0.9;
-        if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*0.85,-1.6); k._rest=0; }
-        else k.vy=Math.min(k.vy-GRAV*0.45,2.0);
-        k.spin=(k.spin||0)*0.9;
+        k.vx*=0.92;
+        // Dense gem: slight drag, still sinks. Crystals a touch denser than seeds.
+        const lift=k.kind==='seed'?0.28:0.18;
+        k.vy=Math.min(k.vy-GRAV*lift, 3.4);
+        k.spin=(k.spin||0)*0.94;
       }
       // Substep like flyTick — kills tunnel + paper flicker on slopes.
       const steps=Math.max(1,Math.ceil(Math.max(Math.abs(k.vx),Math.abs(k.vy))/5));
@@ -1263,17 +1272,20 @@
       for(let s=0;s<steps;s++){
         const nx=k.x+k.vx/steps;
         if(knowlOutlineSolid(nx,k.y,k)){
-          k.vx=Math.abs(k.vx)>1.2?-k.vx*0.28:0;
-          k.spin=-(k.spin||0)*0.55;
+          k.vx=Math.abs(k.vx)>1.0?-k.vx*0.38:0;
+          k.spin=-(k.spin||0)*0.65+(k.vx||0)*0.08;
         }else k.x=nx;
         const ny=k.y+k.vy/steps;
         if(knowlOutlineSolid(k.x,ny,k)){
           if(ny>=k.y){
             ground=true; hitV=Math.max(hitV,k.vy);
-            k.vy=(k.vy>2.4)?-k.vy*0.22:0;
-            k.vx*=0.82;
+            // Hard gem bounce — heavier mass = slightly softer rebound.
+            const bounce=Math.max(0.18, 0.42-m*0.04);
+            k.vy=(k.vy>1.8)?-k.vy*bounce:0;
+            k.vx*=0.86;
+            k.spin=(k.spin||0)*0.7+(k.vx||0)*0.12;
           }else{
-            k.vy=Math.abs(k.vy)*0.25;
+            k.vy=Math.abs(k.vy)*0.28;
           }
         }else k.y=ny;
       }

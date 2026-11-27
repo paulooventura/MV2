@@ -82,11 +82,37 @@
   // MIND's body hitbox in tile pixels — shared by apply() and the close tick.
   const body=()=>{ if(!p) return null; const x0=p.x+SW*0.2, x1=p.x+SW*0.8, y1=p.y+FEET_OFF, y0=y1-100; return {x0,x1,y0,y1}; };
   const hitsBody=(c,r)=>{ const b=body(); return b&&c*T<b.x1&&(c+1)*T>b.x0&&r*T<b.y1&&(r+1)*T>b.y0; };
+  const doorBlocked=(d)=>{ const b=body(); return !!(b&&d.c*T<b.x1&&(d.c+1)*T>b.x0&&d.r0*T<b.y1&&(d.r1+1)*T>b.y0); };
+  // Visual openness 0=shut … 1=fully open (same curve as drawDoor).
+  function doorOpenK(d){
+    if(d.st==='shut') return 0;
+    if(d.st==='open'||d.st==='smashed') return 1;
+    if(d.st==='closing') return Math.max(0,1-d.t/14);
+    return Math.min(1,d.t/26);                           // opening
+  }
+  // T636 (Paulo): collision ↔ art stay in sync. No invisible solid when the door
+  // looks open; no walk-through while the leaf still blocks the threshold.
+  function doorPassable(d){
+    if(d.st==='open'||d.st==='smashed') return true;
+    if(d.st==='shut') return false;
+    if(d.st==='closing') return true;                    // leaf swinging shut — keep threshold clear until latched
+    // opening: clear once the leaf has swung past ~half (same moment the old t===8 did)
+    return doorOpenK(d)>=0.30;
+  }
+  function syncDoorGrid(d){
+    if(typeof MV_GRID_SOLID==='undefined'||typeof MV_GRID_AIR==='undefined') return;
+    const air=doorPassable(d);
+    for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r, air?MV_GRID_AIR:MV_GRID_SOLID);
+  }
   function apply(){
     if(typeof MV_GRID_SOLID==='undefined') return;
-    for(const d of S.doors){ let blocked=false; for(let r=d.r0;r<=d.r1;r++) if(hitsBody(d.c,r)) blocked=true;
-      if(blocked){ d.st='open'; d.t=99; continue; }
-      for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID); }
+    for(const d of S.doors){
+      // Spawned inside the frame: force open AND clear the solid (old code set
+      // st=open but left the grid solid → invisible wall with no door art).
+      if(doorBlocked(d)){ d.st='open'; d.t=99; syncDoorGrid(d); continue; }
+      if(d.st==='shut') syncDoorGrid(d);
+      else syncDoorGrid(d);
+    }
     for(const t of S.traps) for(let c=t.c0;c<=t.c1;c++) gridSet(c,t.r,MV_GRID_SOLID);
     for(const [c,r] of S.attic.cells) gridSet(c,r,MV_GRID_AIR);
     for(let c=13;c<=17;c++){ gridSet(c,11,MV_GRID_SOLID); try{ if(B.level&&B.level.cells&&B.level.cells[11]) B.level.cells[11][c]=1; if(B.skin&&B.skin[11]) B.skin[11][c]=1; }catch(e){} }   // the new ridge cap (drawn as roof)
@@ -116,11 +142,7 @@
     if(!pk||!S.doors) return;
     const d=S.doors.find(q=>q.id===pk.id); if(!d) return;
     const prev=d.st; d.st=pk.st||d.st; d.t=pk.t|0; if(pk.side!=null) d.side=pk.side|0;
-    if(d.st==='open'||d.st==='smashed'||(d.st==='opening'&&d.t>=8)){
-      for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR);
-    }else if(d.st==='shut'||(d.st==='closing'&&d.t>=14)){
-      for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID);
-    }
+    syncDoorGrid(d);
     if(prev!==d.st&&(d.st==='opening'||d.st==='smashed')){ try{ thud(1); }catch(e){} }
   };
   S.netApplyTrap=function(pk){
@@ -181,19 +203,18 @@
     if(!on()){ if(S.lv&&!B.on) S.lv=null; return; }
     if(S.lv!==B.level){ S.lv=B.level; build(); apply(); }
     for(const d of S.doors){
-      if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); netDoor(d); } }
-      else if(d.st==='smashed'){ d.t++; if(d.t===2){ for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,18,'#8a6a44'); }
+      if(d.st==='opening'){ d.t++; if(d.t>=26){ d.st='open'; thud(0.8); netDoor(d); } }
+      else if(d.st==='smashed'){ d.t++; if(d.t===2) dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,18,'#8a6a44');
         if(d.t>=10){ d.st='open'; thud(1.2); netDoor(d); } }
       else if(d.st==='closing'){
         d.t++;
-        const b=body();
-        const blocked=b&&d.c*T<b.x1&&(d.c+1)*T>b.x0&&d.r0*T<b.y1&&(d.r1+1)*T>b.y0;
-        if(d.t>=14&&!blocked){                          // wait until MIND has stepped out of the way
-          for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID);
-          d.st='shut'; d.t=0; thud(1.1); netDoor(d);
-        }
+        // Can't latch shut while MIND is in the frame — keep swinging closed visually,
+        // but hold the solid off until he clears (no ghost wall crushing him).
+        if(d.t>=14&&!doorBlocked(d)){ d.st='shut'; d.t=0; thud(1.1); netDoor(d); }
       }
       else if(d.st==='shut') d.t++;                      // debounce clock since the last close
+      // Every frame: hitbox matches the leaf. Fixes open-with-solid and shut-with-air ghosts.
+      syncDoorGrid(d);
     }
     for(const t of S.traps){
       if(t.shake>0) t.shake--;
@@ -219,18 +240,22 @@
   function plank(x,y,w,h,base,dark){ ctx.fillStyle=base; ctx.fillRect(X(x),Y(y),W2(w),W2(h)); ctx.fillStyle=dark; for(let yy=0;yy<h;yy+=10) ctx.fillRect(X(x),Y(y+yy),W2(w),Math.max(1,W2(1))); }
   function drawDoor(d){
     const x=d.c*T, y=d.r0*T, h=(d.r1-d.r0+1)*T;
-    // T: a closing door swings back the other way, not open further.
-    const k=d.st==='shut'?0:d.st==='open'?1:d.st==='closing'?Math.max(0,1-d.t/14):Math.min(1,d.t/26), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
-    const wv=Math.max(5,T*Math.cos(ang)), hingeX=d.side>0?x+T:x, px=d.side>0?hingeX-wv:hingeX;   // swings away from you, hinged on the far edge
+    // Same openness curve the hitbox uses (doorOpenK) — art and solid stay matched.
+    const k=doorOpenK(d), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
+    // T636: when fully open keep a readable edge-on leaf (not a 5px vanishing strip).
+    const wv=Math.max(k>0.85?9:5, T*Math.cos(ang)), hingeX=d.side>0?x+T:x, px=d.side>0?hingeX-wv:hingeX;
     ctx.save();
     ctx.fillStyle='rgba(10,6,4,0.75)'; ctx.fillRect(X(x),Y(y),W2(T),W2(h));                          // the dark doorway behind it
     ctx.fillStyle='#3a2414'; ctx.fillRect(X(x-2),Y(y-4),W2(T+4),W2(5));                                 // the lintel
     const shade=0.75+0.25*Math.cos(ang);
     plank(px,y+2,wv,h-2,'rgb('+Math.round(122*shade)+','+Math.round(78*shade)+','+Math.round(44*shade)+')','rgba(40,22,10,0.55)');
     ctx.strokeStyle='#2a160a'; ctx.lineWidth=Math.max(1,W2(2)); ctx.strokeRect(X(px),Y(y+2),W2(wv),W2(h-2));
-    if(wv>12){ ctx.fillStyle='#d8b060'; ctx.beginPath(); ctx.arc(X(d.side>0?px+5:px+wv-5),Y(y+h*0.55),Math.max(1.5,W2(2.6)),0,Math.PI*2); ctx.fill();   // the handle
-      ctx.fillStyle='rgba(255,210,140,0.55)'; ctx.fillRect(X(px+wv*0.25),Y(y+12),W2(wv*0.5),W2(16)); }                                                  // a little window
-    for(const yy of [y+14,y+h-16]){ ctx.fillStyle='#1c120a'; ctx.fillRect(X(d.side>0?hingeX-6:hingeX),Y(yy),W2(6),W2(4)); }                           // hinges
+    if(wv>12){ ctx.fillStyle='#d8b060'; ctx.beginPath(); ctx.arc(X(d.side>0?px+5:px+wv-5),Y(y+h*0.55),Math.max(1.5,W2(2.6)),0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,210,140,0.55)'; ctx.fillRect(X(px+wv*0.25),Y(y+12),W2(wv*0.5),W2(16)); }
+    else if(k>0.5){ // edge-on leaf still shows a thin brass handle glint so "open" reads as a door, not empty air
+      ctx.fillStyle='#d8b060'; ctx.fillRect(X(d.side>0?px+2:px+wv-4),Y(y+h*0.52),W2(3),W2(8));
+    }
+    for(const yy of [y+14,y+h-16]){ ctx.fillStyle='#1c120a'; ctx.fillRect(X(d.side>0?hingeX-6:hingeX),Y(yy),W2(6),W2(4)); }
     ctx.restore();
   }
   function drawTrap(t){

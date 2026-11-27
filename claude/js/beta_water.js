@@ -1114,34 +1114,60 @@
     }
   }
 
-  // T452 (Paulo, Nov 11): "the water pixels on the slopes look like straight horizontal lines ... we want
-  // the water effects, look, and physics to be as close to real life's as possible." A ramp is a
-  // staircase of water cells, so water used to rest on its steps as flat bands. Water standing in a
-  // ramp's cells now runs downhill (to the next cell down the slope, or down and along), so it
-  // sheets down ramps and pools at the bottom; the drawing is clipped to the ramp's line.
+  // T452 / T636 (Paulo): water on ramps must sheet downhill on the diagonal and pool at the
+  // bottom — never rest as horizontal stair bands. Drain hard (several passes) so cells on a
+  // ramp can't hold a flat pool; drawing builds one continuous ribbon along the slope line.
   function slopeSlide(){
     const S2=F.slopes; if(!S2||!S2.length) return;
     const {NX,NY,M,BLK}=F;
-    for(let k=0;k<S2.length;k+=3){
-      const c=S2[k], r=S2[k+1], dir=S2[k+2];
-      for(let dy=1;dy>=0;dy--) for(let dx=0;dx<2;dx++){
-        const x=c*2+dx, y=r*2+dy, i=y*NX+x; if(BLK[i]||M[i]<0.002) continue;
-        const nx=x+dir; if(nx<0||nx>=NX) continue;
-        let j=y*NX+nx; if(BLK[j]&1){ if(y+1<NY&&!(BLK[j+NX]&1)) j+=NX; else continue; }
-        else if(y+1<NY&&!(BLK[j+NX]&1)&&M[j+NX]<0.9) j+=NX;                 // down and along: it sheets down
-        // T628: drain a bit harder so sheets keep flowing downhill instead of stair-pooling.
-        const room=Math.max(0,1-M[j]), t=Math.min(M[i]*0.55,room,0.35); if(t<=0) continue;
-        M[i]-=t; M[j]+=t;
+    // Three passes: leftover from a half-drain still read as stairs on the next frame.
+    for(let pass=0;pass<3;pass++){
+      for(let k=0;k<S2.length;k+=3){
+        const c=S2[k], r=S2[k+1], dir=S2[k+2];
+        for(let dy=1;dy>=0;dy--) for(let dx=0;dx<2;dx++){
+          const x=c*2+dx, y=r*2+dy, i=y*NX+x; if(BLK[i]||M[i]<0.001) continue;
+          const nx=x+dir; if(nx<0||nx>=NX) continue;
+          let j=y*NX+nx;
+          if(BLK[j]&1){ if(y+1<NY&&!(BLK[j+NX]&1)) j+=NX; else continue; }
+          else if(y+1<NY&&!(BLK[j+NX]&1)&&M[j+NX]<0.95) j+=NX;           // prefer down-and-along
+          const room=Math.max(0,1-M[j]), t=Math.min(M[i]*0.85,room,0.55); if(t<=0) continue;
+          M[i]-=t; M[j]+=t; grow(j);
+        }
       }
     }
   }
-  function slopeClip(){                                    // a clip that leaves the ramps' solid triangles out of the water
+  function slopeClip(){                                    // punch solid ramp triangles out of the water fill
     const S2=F.slopes; if(!S2||!S2.length) return null;
     const path=new Path2D(); path.rect(-10,-10,W+20,H+20); const t=MV_GRID.tile;
     for(let k=0;k<S2.length;k+=3){ const c=S2[k], r=S2[k+1], x0=c*t, x1=x0+t, y0=r*t, y1=y0+t; if(sx(x1)<-8||sx(x0)>W+8||sy(y1)<-8||sy(y0)>H+8) continue;
       const yl=gridSlopeY(c,r,x0+0.01), yr=gridSlopeY(c,r,x1-0.01);
       path.moveTo(sx(x0),sy(yl)); path.lineTo(sx(x1),sy(yr)); path.lineTo(sx(x1),sy(y1)); path.lineTo(sx(x0),sy(y1)); path.closePath(); }
     return path;
+  }
+  // Continuous slope-surface polyline samples (world) for ribbon drawing — one band per run.
+  function slopeRunsOnScreen(){
+    const S2=F.slopes; if(!S2||!S2.length) return [];
+    const t=MV_GRID.tile, runs=[], used={};
+    for(let k=0;k<S2.length;k+=3){
+      const c0=S2[k], r0=S2[k+1], dir=S2[k+2], key0=r0+','+c0; if(used[key0]) continue;
+      // Walk the contiguous same-dir ramp left→right.
+      let cL=c0, cR=c0, r=r0;
+      while(true){ const c=cL-1; if(c<0||!gridSlopeKind(c,r)) break; const yl=gridSlopeY(c,r,c*t+1), yr=gridSlopeY(c,r,(c+1)*t-1);
+        if(yl==null||yr==null||((yr>yl?1:-1)!==dir)) break; cL=c; }
+      while(true){ const c=cR+1; if(c>=MV_GRID.cols||!gridSlopeKind(c,r)) break; const yl=gridSlopeY(c,r,c*t+1), yr=gridSlopeY(c,r,(c+1)*t-1);
+        if(yl==null||yr==null||((yr>yl?1:-1)!==dir)) break; cR=c; }
+      const pts=[];
+      for(let c=cL;c<=cR;c++){
+        used[r+','+c]=1;
+        const x0=c*t, x1=x0+t, y0=gridSlopeY(c,r,x0+0.01), y1=gridSlopeY(c,r,x1-0.01);
+        if(y0==null||y1==null) continue;
+        if(sx(x1)<-8||sx(x0)>W+8||sy(Math.max(y0,y1))<-8||sy(Math.min(y0,y1))>H+8) continue;
+        if(!pts.length) pts.push({x:x0,y:y0});
+        pts.push({x:x1,y:y1});
+      }
+      if(pts.length>=2) runs.push({pts, dir, r, c0:cL, c1:cR});
+    }
+    return runs;
   }
   function waterTick(){
     platformTick();
@@ -1520,9 +1546,11 @@
         const side=(x>0&&em(i-1)>0.5)||(x<NX-1&&em(i+1)>0.5);
         const midY=y*CS+CS*0.5;
         const sl0=rampY(X0+0.5, midY), sr0=rampY(X1-0.5, midY);
-        // Thin sheet on a ramp: sample into the continuous column buffers (not a lone quad).
-        if(sl0!=null&&sr0!=null&&(!sup||m<0.95)){
-          const thick=Math.max(2.5, Math.min(CS*0.95, (0.25+m*0.9)*CS));
+        // T636: ANY water whose floor is a ramp is a diagonal sheet — including full cells
+        // (m>=0.95 with solid support). The old `!sup||m<0.95` gate fell through to flat
+        // standing quads; slopeClip then sawed them into the zigzag Paulo still sees.
+        if(sl0!=null&&sr0!=null){
+          const thick=Math.max(2.5, Math.min(CS*1.15, (0.2+Math.min(1,m)*1.05)*CS));
           const tl=sl0-thick, tr=sr0-thick;
           if(has[x]==null||tl<topL[x]){ topL[x]=tl; topR[x]=tr; botL[x]=sl0; botR[x]=sr0; has[x]=1; }
           if(tl<tMin) tMin=tl; if(Math.max(sl0,sr0)>bMax) bMax=Math.max(sl0,sr0);
@@ -1574,16 +1602,28 @@
         let tl=topL[x], tr=topR[x], wL=1, wR=1;
         if(has[x-1]!=null){ tl+=topR[x-1]; wL++; }
         if(has[x+1]!=null){ tr+=topL[x+1]; wR++; }
-        // Soften interior of each column toward its own mid + neighbors.
         const mid=(topL[x]+topR[x])*0.5;
         nL[x]=(tl+mid)/(wL+1); nR[x]=(tr+mid)/(wR+1);
       }
       for(let x=b.x0;x<=b.x1;x++) if(has[x]!=null){ topL[x]=nL[x]; topR[x]=nR[x]; }
-      // Weld shared edges so adjacent columns share one height (kills residual stairs).
       for(let x=b.x0;x<b.x1;x++){
         if(has[x]==null||has[x+1]==null) continue;
         const mid=(topR[x]+topL[x+1])*0.5; topR[x]=mid; topL[x+1]=mid;
       }
+    }
+    // T636: slope columns must stay PARALLEL to the ramp after smoothing — otherwise the
+    // free surface reverts to flat cell tops and slopeClip cuts them into stairs again.
+    for(let x=b.x0;x<=b.x1;x++){
+      if(has[x]!==1) continue;
+      const deepL=Math.max(2.5, botL[x]-topL[x]), deepR=Math.max(2.5, botR[x]-topR[x]);
+      const deep=(deepL+deepR)*0.5;
+      topL[x]=botL[x]-deep; topR[x]=botR[x]-deep;
+    }
+    for(let x=b.x0;x<b.x1;x++){
+      if(has[x]!==1||has[x+1]!==1) continue;
+      // Shared edge: average depth, keep both bottoms (already on the diagonal).
+      const d0=botR[x]-topR[x], d1=botL[x+1]-topL[x+1], d=(d0+d1)*0.5;
+      topR[x]=botR[x]-d; topL[x+1]=botL[x+1]-d;
     }
 
     // Build one continuous Path2D per contiguous column run (quadratic surface).
@@ -1599,7 +1639,6 @@
         pts.push({x:(x+0.5)*CS, y:(topL[x]+topR[x])*0.5});
         pts.push({x:(x+1)*CS, y:topR[x]});
       }
-      // Surface path: quadratic through midpoints for a continuous liquid curve.
       pool.moveTo(sx(pts[0].x), sy(pts[0].y));
       if(pts.length===2) pool.lineTo(sx(pts[1].x), sy(pts[1].y));
       else{
@@ -1610,7 +1649,6 @@
         const last=pts[pts.length-1];
         pool.lineTo(sx(last.x), sy(last.y));
       }
-      // Close under bottom (also continuous, slope-aware).
       pool.lineTo(sx((x1+1)*CS), sy(botR[x1]));
       for(let x=x1;x>=x0;x--){
         pool.lineTo(sx((x+0.5)*CS), sy((botL[x]+botR[x])*0.5));
@@ -1625,6 +1663,36 @@
       else flushRun(x-1);
     }
     flushRun(b.x1);
+
+    // T636: also stamp continuous ribbons along whole slope runs (tile chain), so a
+    // thin sheet never breaks into per-fluid-cell stairs even if a column was missed.
+    try{
+      const runs=slopeRunsOnScreen();
+      const {NX:nx2,M:m2,BLK:blk2}=F;
+      for(const run of runs){
+        const pts=run.pts; if(pts.length<2) continue;
+        let mass=0, nSamp=0;
+        for(let i=0;i<pts.length-1;i++){
+          const xMid=(pts[i].x+pts[i+1].x)*0.5, yMid=(pts[i].y+pts[i+1].y)*0.5;
+          const cx=Math.floor(xMid/CS), cy=Math.floor((yMid-CS*0.4)/CS);
+          if(cx<0||cy<0||cx>=nx2||cy>=F.NY) continue;
+          const ii=cy*nx2+cx; if(blk2[ii]&1) continue;
+          if(m2[ii]>0.002){ mass+=m2[ii]; nSamp++; }
+          if(cy>0&&!(blk2[ii-nx2]&1)&&m2[ii-nx2]>0.002){ mass+=m2[ii-nx2]*0.5; nSamp++; }
+        }
+        if(nSamp<1||mass<0.01) continue;
+        const thick=Math.max(3, Math.min(CS*1.2, (0.15+Math.min(2.2,mass/Math.max(1,nSamp))*0.9)*CS));
+        // Ribbon: parallel offset of the slope polyline.
+        pool.moveTo(sx(pts[0].x), sy(pts[0].y-thick));
+        for(let i=1;i<pts.length;i++) pool.lineTo(sx(pts[i].x), sy(pts[i].y-thick));
+        for(let i=pts.length-1;i>=0;i--) pool.lineTo(sx(pts[i].x), sy(pts[i].y));
+        pool.closePath();
+        const surf=[]; for(let i=0;i<pts.length;i++) surf.push({x:pts[i].x, y:pts[i].y-thick});
+        surfRuns.push(surf);
+        const yLo=pts.reduce((a,p)=>Math.min(a,p.y-thick),1e9), yHi=pts.reduce((a,p)=>Math.max(a,p.y),-1e9);
+        if(yLo<tMin) tMin=yLo; if(yHi>bMax) bMax=yHi;
+      }
+    }catch(e){}
 
     const elec=live.length>0;
     if(bMax>tMin){
