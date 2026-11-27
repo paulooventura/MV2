@@ -56,6 +56,10 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 .catRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
 .catCard{border:1.4px solid var(--sumi);background:#fff9ee;padding:6px;border-radius:2px}
 .catImg{height:130px;display:grid;place-items:center;background:#1a1624;overflow:hidden}.catImg img{max-width:100%;max-height:130px;image-rendering:pixelated}
+.hbWrap{position:relative;display:inline-block;line-height:0}
+.hb{position:absolute;border:2px solid #3cff8a;background:rgba(60,255,138,.12);box-shadow:0 0 0 1px rgba(0,0,0,.6);pointer-events:none}
+.hb.edit{pointer-events:auto;cursor:nwse-resize;border-style:dashed}
+.hbRow{font-size:11px;margin-top:4px}.hbRow input{width:52px;font:inherit;font-size:11px}
 .catCard .nm{font-weight:bold;font-size:13px;margin-top:4px}.catCard .meta{font-size:10.5px;color:var(--mica);line-height:1.4}.catCard code{font-size:9.5px}
 </style>
 </head>
@@ -80,6 +84,7 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
   <section class="panel">
     <div class="row" style="margin-top:0"><div class="tabs" id="catStages" style="margin-left:0"></div>
       <select id="catFilter" style="font:inherit;font-size:12px"><option value="all">Everything</option><option value="hero">Characters</option><option value="foe">Foes</option><option value="object">Objects &amp; pickups</option></select>
+      <label style="font-size:12px"><input type="checkbox" id="catBoxes" checked> show collision boxes</label>
       <button class="btn" id="catRecap">Recapture from the game</button></div>
     <div class="sub" id="catInfo" style="margin-top:6px"></div>
     <div class="cols" style="margin-top:8px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
@@ -162,7 +167,7 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 <script src="js/board-notes.js?v=1"></script>
 <script src="js/awdjoo_map.js"></script>
 <script src="js/art-tiles.js?v=1"></script>
-<script src="js/art-catalog.js?v=1"></script>
+<script src="js/art-catalog.js?v=2"></script>
 <script>
 (function(){
 'use strict';

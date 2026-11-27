@@ -35,7 +35,8 @@ for (const st of STAGES) {
     // ---- what is in the stage ----
     const list = [];
     const heroes = [p, (typeof p2 !== 'undefined' && p2 && p2.hero) ? p2 : null].filter(Boolean);
-    heroes.forEach((h, i) => list.push({ kind: 'hero', name: (h.hero || 'mind') + (i ? ' (brother / P2)' : ' (P1)'), x: h.x, y: h.y, w: h.w || 40, h: h.h || 70, ref: h }));
+    // the heroes' body box is the shared SW x SH (physics.js), anchored at p.x, p.y
+    heroes.forEach((h, i) => list.push({ kind: 'hero', name: (h.hero || 'mind') + (i ? ' (brother / P2)' : ' (P1)'), x: h.x, y: h.y, w: SW, h: SH, ref: h }));
     const seenFoe = {}, foeCount = {};
     for (const e of ENEMS) { const k = e.type || 'foe'; foeCount[k] = (foeCount[k] || 0) + 1; if (!seenFoe[k]) { seenFoe[k] = 1; list.push({ kind: 'foe', name: k, x: e.x, y: e.y, w: e.w, h: e.h, hp: e.mhp || e.hp, rank: e.rank }); } }
     const seenBw = {}, bwCount = {};
@@ -51,15 +52,18 @@ for (const st of STAGES) {
       const pad = Math.max(24, Math.min(o.w, o.h) * 0.6), x0 = sx(o.x - pad), y0 = sy(o.y - pad - (o.kind === 'hero' ? 40 : 0)), w = sw(o.w + 2 * pad), h = sw(o.h + 2 * pad + (o.kind === 'hero' ? 40 : 0));
       const c = document.createElement('canvas'); c.width = Math.max(8, Math.round(w)); c.height = Math.max(8, Math.round(h));
       c.getContext('2d').drawImage(cvs, x0, y0, w, h, 0, 0, c.width, c.height);
-      return c.toDataURL('image/png');
+      // where the collision box sits inside this cut-out (cut-out pixels)
+      const box = [sx(o.x) - x0, sy(o.y) - y0, sw(o.w), sw(o.h)].map(v => Math.round(v));
+      return { img: c.toDataURL('image/png'), box };
     };
     for (const o of list) {
       if (o.kind === 'hero' && o.ref === p) {   // both looks of the lead: Mind and Venture
         const was = p.hero;
-        for (const hero of ['mind', 'venture']) { p.hero = hero; R.items.push({ kind: 'hero', name: hero, img: shot(o), w: o.w, h: o.h }); }
+        for (const hero of ['mind', 'venture']) { p.hero = hero; const s = shot(o); R.items.push({ kind: 'hero', name: hero, img: s.img, box: s.box, w: Math.round(o.w), h: Math.round(o.h) }); }
         p.hero = was; continue;
       }
-      R.items.push({ kind: o.kind, name: o.name, img: shot(o), w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
+      const s = shot(o);
+      R.items.push({ kind: o.kind, name: o.name, img: s.img, box: s.box, w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
         count: o.kind === 'foe' ? foeCount[o.name] : o.kind === 'object' ? (bwCount[o.name] || o.count || 1) : 1, at: [Math.round(o.x / T), Math.round(o.y / T)] });
     }
     // ---- the collision map, with everything marked ----
