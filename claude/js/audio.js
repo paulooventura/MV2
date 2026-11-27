@@ -96,7 +96,7 @@ function _filterMode(){
     const q=new URLSearchParams(location.search).get('console');
     if(q) return q;
     const v=localStorage.getItem('mv2.console');
-    if(v&&(v!=='ink'||localStorage.getItem('mv2.ink')==='1')) return v;
+    if(v) return v;
   }catch(e){}
   return 'off';   // Paulo, Nov 26: standard look by default; Ink & Vinyl is unlocked in play
 }
@@ -543,9 +543,8 @@ function _cueFilterMusic(){
   // stop the title/story/OST elements so they cannot keep the main theme going.
   try{
     const B=window.MV_BETA, A=window.MV_BETA_AUDIO;
-    if(B&&B.on&&A&&typeof A.recure==='function'&&(typeof _gameState==='undefined'||_gameState==='game'||_gameState==='options')){
-      A.recure();
-      return;
+    if(B&&B.on&&A&&typeof A.recure==='function'&&(typeof _gameState==='undefined'||_gameState==='game'||_gameState==='options'||_gameState==='paused')){
+      if(A.recure()) return;
     }
   }catch(e){}
   if(!_audioUnlocked||!_activeBgmType) return;

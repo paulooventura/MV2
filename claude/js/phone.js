@@ -9,18 +9,14 @@
     try { return /(?:^|[?&])phone=1(?:&|$)/i.test(location.search); }
     catch (e) { return false; }
   }
-  function coarsePtr() {
-    try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; }
-    catch (e) { return false; }
-  }
+  // A phone or tablet only. A short desktop window, a touchscreen PC, or a
+  // virtual monitor must not grow the on-screen pad.
   function looksPhone() {
     if (forced()) return true;
-    const mobileUa = /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile/i.test(ua);
-    const tabletUa = /iPad|Android(?!.*Mobile)/i.test(ua)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const shortScreen = Math.min(screen.width || 9999, screen.height || 9999) <= 1024;
-    const shortView = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 540;
-    return mobileUa || tabletUa || (coarsePtr() && (shortScreen || shortView)) || shortView;
+    const mobileUa = /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile|Windows Phone/i.test(ua);
+    const ipad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && !/Windows/i.test(ua));
+    const androidTablet = /Android/i.test(ua) && !/Mobile/i.test(ua);
+    return mobileUa || ipad || androidTablet;
   }
   function isLand() {
     try {

@@ -643,10 +643,12 @@
     }
   }
   function recure(){
-    if(!current) return;
-    const next=pathOf(current), prev=els[current];
-    if(prev&&prev._path===next) return;
-    play(current,{restart:true});
+    // The song that is playing swaps to this filter's soundtrack. Title and
+    // story stay with audio.js when no stage track is running.
+    if(!current||!els[current]) return false;
+    const next=pathOf(current);
+    if(els[current]._path!==next) play(current,{restart:true});
+    return true;
   }
   // Outside the car, a long ride still leans the score toward Gore or Ink & Vinyl.
   // Inside the car the stage is almost silent and the HQ bed plays instead.

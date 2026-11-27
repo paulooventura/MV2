@@ -49,7 +49,7 @@
     if(qs&&(MODES[qs]||plain(qs)||qs==='gore')) return qs;
     try{
       const v=localStorage.getItem('mv2.console');
-      if(v&&(MODES[v]||plain(v)||v==='gore')&&(v!=='ink'||inkUnlocked())) return v;
+      if(v&&(MODES[v]||plain(v)||v==='gore')) return v;
     }catch(e){}
     return 'off';   // standard look (was 'ink' since T580)
   })();
@@ -60,10 +60,10 @@
     inkUnlocked,
     unlockInk(){ if(inkUnlocked()) return false; try{ localStorage.setItem('mv2.ink','1'); }catch(e){}
       try{ uiShowToast('INK & VINYL UNLOCKED'); }catch(e){} try{ sfx('confirm'); }catch(e){} syncUi(); return true; },
-    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; if(m==='ink'&&!inkUnlocked()&&qs!=='ink') return; mode=m;
+    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; mode=m;
       try{ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(m); }catch(e){}   // T547: GORE = -33, I&V = +33
       try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
-    cycle(dir){ const L=['off','snes','md'].concat(inkUnlocked()?['ink']:[],['gore']); /* (Nov 18) GORE is a normal filter now; the code unlocks the BLOOD/INK SPILL option */ const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
+    cycle(dir){ const L=['off','snes','md','ink','gore']; const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES
@@ -266,7 +266,7 @@
     if(!anchor||!anchor.parentNode) return;
     bar=document.createElement('div'); bar.className='mv-console-bar';
     bar.style.cssText='display:flex;gap:6px;justify-content:center;align-items:center;margin:8px auto 2px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;color:#7868a0';
-    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH']].concat(inkUnlocked()?[['ink','D · INK & VINYL']]:[]).map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
+    bar.innerHTML='<span>CONSOLE</span>'+[['snes','A · SNES'],['md','B · MEGA DRIVE'],['off','C · POSH'],['ink','D · INK & VINYL']].map(([m,l])=>'<button type="button" data-m="'+m+'" style="all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid #3a2878">'+l+'</button>').join('');
     if(window.MV_TV){ bar.insertAdjacentHTML('beforeend','<span style="width:14px"></span><button type="button" class="mv-tvbtn" aria-pressed="'+MV_TV.on+'">'+(MV_TV.on?'CRT TV: ON':'CRT TV: OFF')+'</button>'); }
     bar.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.classList.contains('mv-tvbtn')){ MV_TV.toggle(); const c=document.getElementById('c'); if(c&&c.focus) c.focus(); return; }
