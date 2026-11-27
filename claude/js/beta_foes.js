@@ -431,7 +431,7 @@
   // shoots electro spark pellets from its angle notches. Underwater the pellets
   // are spawned in an air bubble that rises to the surface (a 'zap' at the pop),
   // then the pellet stays, floating electrocuting nearby, dies out after a few
-  // seconds, falls to the floor and disappears.
+  // seconds, falls to the floor and lies there like a tire spike: walk on it and it cuts.
   const F_PEL=[];
   function spawnFPellets(e){
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, R=e.w*0.56;
@@ -462,7 +462,7 @@
         else b.y+=Math.sin(b.t*0.1+b.ph)*0.2;
         if(p&&(b.t%16)===0&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
         if(--b.floatT<=0){ b.stage=2; b.vy=0.25; }
-      }else{
+      }else if(b.stage===2){
         // spent: fall to the floor under it, in small steps so it cannot pass through
         b.vy=Math.min(5.5,(b.vy||0)+0.28);
         let left=b.vy, hit=false;
@@ -471,7 +471,20 @@
           if(solid(b.x,b.y+5+step)||solid(b.x-3,b.y+5+step)||solid(b.x+3,b.y+5+step)){ hit=true; break; }
           b.y+=step; left-=step;
         }
-        if(hit||b.t>640){ F_PEL.splice(i,1); continue; }
+        if(b.t>640){ F_PEL.splice(i,1); continue; }
+        if(hit){ b.stage=3; b.vy=0; b.floorT=360; b.hurtCd=0; }
+      }else{
+        // on the floor: a spike. Stepping on it cuts, the same way a tire spike would.
+        if(b.hurtCd>0) b.hurtCd--;
+        if(p&&b.hurtCd<=0){
+          const fx=p.x+SW/2, fy=p.y+FEET_OFF;
+          if(Math.abs(fx-b.x)<16&&fy>=b.y-16&&fy<=b.y+8){
+            b.hurtCd=36;
+            const shove=Math.sign(fx-b.x)||(p.fc?-1:1);
+            try{ applyPlayerHit(shove*2.4,-2.4,6); }catch(er){}
+          }
+        }
+        if(--b.floorT<=0){ F_PEL.splice(i,1); continue; }
       }
     }
     if(F_PEL.length>48) F_PEL.splice(0,F_PEL.length-48);
@@ -487,9 +500,14 @@
         ctx.globalCompositeOperation='source-over';
         ctx.strokeStyle='rgba(220,245,255,0.85)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
       }
-      ctx.strokeStyle=b.stage===2?'rgba(255,246,160,0.9)':'rgba(255,255,255,0.9)'; ctx.lineWidth=1.2; ctx.beginPath();
-      for(let k=0;k<3;k++){ const a=b.t*0.45+k*2.3; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.7,y+Math.sin(a)*r*0.7); }
-      ctx.stroke();
+      if(b.stage===3){
+        ctx.fillStyle='#f3efe6'; ctx.strokeStyle='#1c1a19'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x-sw(5),y+sw(2)); ctx.lineTo(x,y-sw(8)); ctx.lineTo(x+sw(5),y+sw(2)); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }else{
+        ctx.strokeStyle=b.stage===2?'rgba(255,246,160,0.9)':'rgba(255,255,255,0.9)'; ctx.lineWidth=1.2; ctx.beginPath();
+        for(let k=0;k<3;k++){ const a=b.t*0.45+k*2.3; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.7,y+Math.sin(a)*r*0.7); }
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
