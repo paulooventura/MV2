@@ -247,7 +247,7 @@
   function toast(m){ try{ if(typeof uiShowToast==='function') uiShowToast(m); }catch(e){} }
   function r1(n){ n=+n; return isFinite(n)?Math.round(n*10)/10:0; }
 
-  var HERO_F=['x','y','vx','vy','fc','og','hp','maxHp','item','pt','pCharge','pCharging','crouchAmt','aimDX','aimDY','xlrOn','magOn','inv','hitF','wheelAngle','landF','_sitT'];
+  var HERO_F=['x','y','vx','vy','fc','og','hp','maxHp','item','pt','pCharge','pCharging','crouchAmt','aimDX','aimDY','xlrOn','magOn','inv','hitF','wheelAngle','landF','_sitT','laserCharging','laserCharge'];
   var EN_F=['x','y','vx','vy','fc','dir','og','hp','mhp','alive','_mindOff','shutF','_stayDown','_shutCount','_downs','pt','pCharging','pCharge',
             'hitF','flashF','signolState','chargeT','aiMode','item','xlrOn','magOn','crouchAmt','aimDX','aimDY','_rebootFill','inv',
             'laserCharging','laserCharge','_shutSettled','_shorted','wheelAngle','_kbF'];
@@ -270,6 +270,10 @@
             st:b.stageId||null, se:myEpoch, ld:loading()?1:0, gs:gs(), cm:(b.carryMask|0)};
     var hk=actor.hook;
     if(hk&&hk.st&&hk.st!=='idle') pk.hk=[hk.st,r1(hk.ex),r1(hk.ey),r1(hk.ax),r1(hk.ay)];
+    if(actor&&!actor._netPuppet&&typeof ITEM==='number'){
+      var ix=HERO_F.indexOf('item');
+      if(ix>=0) pk.a[ix]=ITEM;
+    }
     return pk;
   }
 

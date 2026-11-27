@@ -3268,7 +3268,7 @@ let _coopFXGuard=false;
 function _coopDrawP2FX(){
   if(_coopFXGuard) return;
   if(typeof p2==='undefined'||!p2||p2===p||p2._aiCompanion) return;
-  if(typeof _playerCount!=='undefined'&&_playerCount!==2) return;
+  if(typeof _playerCount!=='undefined'&&_playerCount!==2&&!p2._netPuppet) return;
   _coopFXGuard=true;
   const oldP=p, oldItem=ITEM;
   const oldShots=p2.shots, oldES=(typeof ESHOTS!=='undefined'?ESHOTS:null), oldTF=(typeof TRS_FLAMES!=='undefined'?TRS_FLAMES:null);

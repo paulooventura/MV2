@@ -197,12 +197,57 @@
     });
     return Promise.all(jobs).then(function(){ return out; });
   }
+  // A "..." thought cloud pops off a hero who is talking. Yours appears while
+  // your mic is open. Theirs appears only while you can actually hear them.
+  var popMe=0, popThem=0;
+  function blob(x,y,w,h){
+    ctx.fillRect(x,y,w,h);
+    ctx.fillRect(x-2,y+2,w+4,h-4);
+  }
+  function cloud(pl, pop){
+    if(!pl||pop<0.05||typeof ctx==='undefined'||typeof sx!=='function'||typeof sy!=='function') return;
+    var w=pl.w||48;
+    var ax=sx(pl.x+w*0.62), ay=sy(pl.y-2);
+    var n=typeof fr==='number'?fr:0;
+    var s=0.55+0.45*pop;
+    ctx.save();
+    ctx.translate(ax, ay-18*s);
+    ctx.scale(s,s);
+    ctx.globalAlpha=Math.min(1, pop*1.4);
+    ctx.fillStyle='#1C1A19';
+    blob(-16,-13,34,18);
+    ctx.fillRect(-3,8,4,4); ctx.fillRect(-7,12,3,3);
+    ctx.fillStyle='#EFE6D2';
+    blob(-15,-12,32,16);
+    ctx.fillRect(-2,7,3,3); ctx.fillRect(-6,11,2,2);
+    ctx.fillStyle='#1C1A19';
+    for(var i=0;i<3;i++){
+      var on=((n>>3)%3)===i;
+      ctx.globalAlpha=Math.min(1, pop*(on?1:0.45));
+      ctx.fillRect(-8+i*7, -6, on?3:2, on?3:2);
+    }
+    ctx.restore();
+  }
+  function approach(cur, on){ return cur+( (on?1:0) -cur)*(on?0.38:0.2); }
+  function draw(){
+    if(typeof ctx==='undefined') return;
+    try{
+      var inGame=typeof _gameState!=='undefined'&&_gameState==='game'&&V.mode!=='off';
+      var meOn=inGame&&typeof p!=='undefined'&&!!p&&talking();
+      var themOn=inGame&&typeof p2!=='undefined'&&!!p2&&!!p2._netPuppet&&V.gain>0.08&&level(rAna)>0.02;
+      popMe=approach(popMe, meOn);
+      popThem=approach(popThem, themOn);
+      if(popMe>0.05&&p) cloud(p, popMe);
+      if(popThem>0.05&&p2) cloud(p2, popThem);
+    }catch(e){}
+  }
+
   window.MV_VOICE={
     stats:stats,
     setMode:setMode, cycle:cycle, mode:function(){ return V.mode; }, muted:function(){ return V.muted; },
     toggleMute:toggleMute, talking:talking, gain:function(){ return V.gain; },
     level:function(){ return level(lAna); }, remoteLevel:function(){ return level(rAna); },
     state:state, onChange:function(cb){ if(typeof cb==='function') cbs.push(cb); },
-    NEAR:NEAR, FAR:FAR
+    draw:draw, NEAR:NEAR, FAR:FAR
   };
 })();
