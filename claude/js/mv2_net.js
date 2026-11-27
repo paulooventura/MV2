@@ -47,6 +47,7 @@
   var PUBLIC_URL='https://mindandventure.pauloventura.org/';
 
   var st={role:null, status:'offline', detail:'', code:'', linked:false, ping:0};
+  var toldTimeline=false, lastPhase='offline';
   var peer=null, conn=null, connTimer=null, hostTries=0;
   var statusCbs=[], pktCbs={};
   var buf=[], latest=null, hello=null, lastSend=0, lastEnemy=0, lastPing=0;
@@ -68,7 +69,8 @@
   // ---- status ---------------------------------------------------------------
   function status(){
     return {active:!!st.role, linked:st.linked, role:st.role, status:st.status, detail:st.detail,
-            code:st.code, ping:st.ping, buffered:buffered(), remoteHero:latest?latest.h:null, remoteStage:latest?latest.st:null};
+            code:st.code, ping:st.ping, buffered:buffered(), remoteHero:latest?latest.h:null, remoteStage:latest?latest.st:null,
+            phase:phase()};
   }
   function setStatus(s,d){
     st.status=s; st.detail=d||'';
@@ -97,6 +99,7 @@
   function resetGame(){
     buf=[]; latest=null; hello=null; own=''; remEn={}; base=0; baseStage=null;
     myEpoch=0; lastStage=null; followUntil=0; followEpoch=-1;
+    toldTimeline=false; lastPhase='offline';
   }
   function dropPuppet(){
     try{ if(typeof p2!=='undefined'&&p2&&p2._netPuppet) p2=null; }catch(e){}
@@ -136,9 +139,11 @@
     c.on('open',function(){
       if(conn!==c) return;
       if(connTimer){ clearTimeout(connTimer); connTimer=null; }
-      st.linked=true;
+      st.linked=true; lastPhase='room';
       send({t:'hi', v:2, id:MY_ID, role:st.role, h:heroName()});
-      setStatus('connected', st.role==='host'?'Your friend joined!':'Connected to room '+st.code);
+      setStatus('connected', st.role==='host'
+        ?'In the room. Pick your hero and the stage opens for both.'
+        :'In the room. Waiting for the host to start.');
     });
     c.on('data',function(d){ if(conn===c) handle(d); });
     c.on('close',function(){
@@ -300,6 +305,36 @@
     }else if(actor.hook&&actor.hook.st&&actor.hook.st!=='idle'){ actor.hook.st='idle'; actor.hook.tgt=null; }
   }
 
+  // In the room = the wire is up. Entering = a stage is loading. In the timeline =
+  // both are in play, on the same stage, and neither is still loading it.
+  function inTimeline(){
+    if(!st.linked||!latest) return false;
+    if(latest.gs!=='game'||!inGame()||loading()||latest.ld) return false;
+    return !!latest.st&&latest.st===stageId();
+  }
+  function phase(){
+    if(!st.linked) return 'offline';
+    if(inTimeline()) return 'timeline';
+    if(inGame()||(latest&&latest.gs==='game'&&latest.st)) return 'entering';
+    return 'room';
+  }
+  function notePhase(){
+    if(!st.linked){ lastPhase='offline'; return; }
+    var p=phase();
+    if(p===lastPhase) return;
+    lastPhase=p;
+    if(p==='timeline'){
+      if(!toldTimeline){ toldTimeline=true; toast('IN THE SAME STAGE'); }
+      setStatus('connected','In the same stage.');
+    }else if(p==='entering'){
+      setStatus('connected', st.role==='host'?'Your friend is entering the stage.':'Entering the stage.');
+    }else if(p==='room'){
+      setStatus('connected', st.role==='host'
+        ?'In the room. Pick your hero and the stage opens for both.'
+        :'In the room. Waiting for the host to start.');
+    }
+  }
+
   // ---- stage follow (Lamport: newest change wins, the host wins ties) --------
   function trackStage(){
     var sid=stageId();
@@ -421,6 +456,7 @@
   // ---- per-frame hooks (main.js) ----------------------------------------------
   function tick(pl){
     if(!st.linked) return;
+    notePhase();
     var now=Date.now();
     if(now-lastPing>PING_MS){ lastPing=now; send({t:'ping',c:now}); }
     trackStage();
@@ -441,6 +477,7 @@
   // the link alive and follow the friend into their stage from here.
   setInterval(function(){
     if(!st.linked||inGame()) return;
+    notePhase();
     var now=Date.now();
     if(now-lastPing>PING_MS){ lastPing=now; send({t:'ping',c:now}); }
     if(now-lastSend>=250){ lastSend=now; var b=B()||{}; send({t:'p', a:[], h:heroName(), st:null, se:myEpoch, ld:0, gs:gs(), cm:b.carryMask|0}); }
@@ -451,6 +488,7 @@
     host:host, join:join, disconnect:disconnect,
     status:status, role:function(){ return st.role; }, code:function(){ return st.code; },
     isActive:function(){ return st.linked; }, isLinked:function(){ return st.linked; },
+    inTimeline:inTimeline, phase:phase,
     onStatus:onStatus, onPacket:onPacket, sendPacket:send,
     tick:tick, applyVisual:applyVisual,
     remote:function(){ return latest; }, hello:function(){ return hello; },

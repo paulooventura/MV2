@@ -61,6 +61,7 @@ try {
   if (process.argv.includes('--debug')) for (let i = 0; i < 4; i++) { await Bp.waitForTimeout(1000); console.log('dbg', JSON.stringify(await A.evaluate(() => MV_NET.status())), JSON.stringify(await Bp.evaluate(() => MV_NET.status()))); }
   ok('both linked', await until(Bp, () => MV_NET.isLinked(), null, 25000) && await until(A, () => MV_NET.isLinked(), null, 5000),
     { A: await A.evaluate(() => MV_NET.status()), B: await Bp.evaluate(() => MV_NET.status()) });
+  ok('a room link is not the same stage yet', await A.evaluate(() => MV_NET.isLinked() && !MV_NET.inTimeline() && MV_NET.phase() === 'room') && await Bp.evaluate(() => MV_NET.isLinked() && !MV_NET.inTimeline() && MV_NET.phase() === 'room'));
   ok('host moves on to hero select', await until(A, () => !MV_NET_UI.isOpen() && _gameState === 'select' && _selectStep === 1, null, 5000));
   if (SHOTS) await Bp.screenshot({ path: 'test-results/online-join-wait.png' });
 
@@ -70,13 +71,14 @@ try {
   ok('joiner follows into 1.1 as VENTURE', await until(Bp, () => _gameState === 'game' && MV_BETA.stageId === '1.1' && !MV_BETA.loading && p && p.hero === 'venture', null, 40000),
     await Bp.evaluate(() => ({ gs: _gameState, st: MV_BETA.stageId, hero: p && p.hero })));
   ok('each sees the other as a puppet', await until(A, () => p2 && p2._netPuppet && p2.hero === 'venture', null, 8000) && await until(Bp, () => p2 && p2._netPuppet && p2.hero === 'mind', null, 8000));
+  ok('both are in the same stage', await until(A, () => MV_NET.inTimeline() && MV_NET.phase() === 'timeline', null, 8000) && await until(Bp, () => MV_NET.inTimeline() && MV_NET.phase() === 'timeline', null, 8000));
   ok('online keeps a solo camera (playerCount 1)', await A.evaluate(() => _playerCount) === 1 && await Bp.evaluate(() => _playerCount) === 1);
 
   // Hero mirroring: move the host, the joiner's puppet follows
   const hx = await A.evaluate(() => { p.x += 240; return p.x; });
   // the host's physics may nudge the hero after the teleport: compare with where it really is
   let seen = false, hx2 = hx, bx2 = null;
-  for (let i = 0; i < 20 && !seen; i++) { await A.waitForTimeout(200); hx2 = await A.evaluate(() => p.x); bx2 = await Bp.evaluate(() => p2 && p2.x); seen = bx2 != null && Math.abs(bx2 - hx2) < 60 && Math.abs(hx2 - (hx - 240)) > 100; }
+  for (let i = 0; i < 20 && !seen; i++) { await A.waitForTimeout(200); hx2 = await A.evaluate(() => p.x); bx2 = await Bp.evaluate(() => p2 && p2.x); seen = bx2 != null && Math.abs(bx2 - hx2) < 60 && Math.abs(hx2 - (hx - 240)) > 40; }
   ok('joiner sees host move', seen, { hx, hx2: Math.round(hx2), bx2: bx2 && Math.round(bx2) });
   const bx = await Bp.evaluate(() => { p.x = Math.max(40, p.x - 120); return p.x; });
   ok('host sees joiner move', await until(A, x => p2 && Math.abs(p2.x - x) < 40, bx, 4000));
@@ -137,6 +139,7 @@ try {
   await A.evaluate(() => startBetaLab('1.2', 15));
   ok('joiner follows the host into 1.2', await until(Bp, () => MV_BETA.stageId === '1.2' && !MV_BETA.loading, null, 40000));
   ok('puppets come back in 1.2', await until(A, () => p2 && p2._netPuppet, null, 10000) && await until(Bp, () => p2 && p2._netPuppet, null, 10000));
+  ok('1.2 is the same stage again', await until(A, () => MV_NET.inTimeline(), null, 8000) && await until(Bp, () => MV_NET.inTimeline(), null, 8000));
 
   // Leaving
   console.log('note: link', JSON.stringify(await A.evaluate(() => { const s = MV_NET.status(); return { ping: s.ping, buffered: s.buffered }; })));

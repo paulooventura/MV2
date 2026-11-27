@@ -64,7 +64,7 @@
     panel.innerHTML=
       '<div class="box">'+
         '<h2>2P ONLINE</h2>'+
-        '<p class="sub">Play with a friend on another PC, Steam or phone. No account, no names.</p>'+
+        '<p class="sub">Play with a friend on another PC, Steam or phone. No account, no names. A link puts you in their room, and you share a stage once you are both in it.</p>'+
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
@@ -165,8 +165,10 @@
   function render(s){
     if(panel){
       var txt=s.detail||String(s.status||'').toUpperCase();
+      if(s.phase==='timeline') txt='In the same stage.';
+      else if(s.phase==='entering') txt=s.role==='host'?'Your friend is entering the stage.':'Entering the stage.';
+      else if(s.phase==='room'&&s.linked) txt=s.role==='host'?'In the room. Pick your hero and the stage opens for both.':'In the room. Waiting for the host to start.';
       if(s.linked&&s.ping) txt+='  ·  ping '+s.ping+' ms';
-      if(s.linked&&s.role==='joiner') txt+=(s.remoteStage?'  ·  jumping into the stage…':'  ·  waiting for the host to pick a hero and start…');
       if(view!=='menu'||s.status!=='offline') el.Status.textContent=txt;
       el.Status.style.color=s.linked?'#C9A24A':(/error|closed/.test(s.status)?'#d85868':'#EFE6D2');
       el.Done.disabled=!(s.linked&&s.role==='host');
@@ -200,7 +202,8 @@
     if(!live) return;
     var v=VOICE(), m=v?v.mode():'off', vs=v?v.state():{};
     var vt=m==='off'?'VOICE OFF':(m==='open'?(vs.muted?'MIC MUTED':'OPEN MIC'):(vs.ptt?'TALKING':'HOLD T'));
-    chip.innerHTML='ONLINE '+(s.code||'')+(s.ping?' · '+s.ping+'ms':'')+' · '+vt+'<span class="mic" id="mvNetMicDot"></span>';
+    var tag=s.phase==='timeline'?'TOGETHER':(s.phase==='entering'?'ENTERING':'IN THE ROOM');
+    chip.innerHTML=tag+' '+(s.code||'')+(s.ping?' · '+s.ping+'ms':'')+' · '+vt+'<span class="mic" id="mvNetMicDot"></span>';
   }
   setInterval(function(){
     renderChip();
@@ -341,7 +344,7 @@
       if(!ready&&Date.now()-t0<20000) return;
       clearInterval(wait);
       show(null); setView('join'); el.Code.value=code;
-      el.Status.textContent='Press JOIN to enter room '+code+'.';
+      startJoin(code);
       try{ el.Go.focus(); }catch(e){}
       padFocus(focusables().indexOf(el.Go));
     },300);
