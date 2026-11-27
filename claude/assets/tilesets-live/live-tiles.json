@@ -1,0 +1,276 @@
+{
+ "at": "2026-11-27T14:25:01.292Z",
+ "tile": 32,
+ "tiles": [
+  {
+   "name": "dirt.0",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.0.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.1",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.1.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.2",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.2.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.3",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.3.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.4",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.4.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.5",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.5.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.6",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.6.png",
+   "skin": true
+  },
+  {
+   "name": "dirt.7",
+   "group": "Ground · dirt (every stage)",
+   "file": "assets/tilesets-live/dirt.7.png",
+   "skin": true
+  },
+  {
+   "name": "stone.0",
+   "group": "Basement stone",
+   "file": "assets/tilesets-live/stone.0.png",
+   "skin": true
+  },
+  {
+   "name": "stone.1",
+   "group": "Basement stone",
+   "file": "assets/tilesets-live/stone.1.png",
+   "skin": true
+  },
+  {
+   "name": "cave.0",
+   "group": "Cave",
+   "file": "assets/tilesets-live/cave.0.png",
+   "skin": true
+  },
+  {
+   "name": "cave.1",
+   "group": "Cave",
+   "file": "assets/tilesets-live/cave.1.png",
+   "skin": true
+  },
+  {
+   "name": "cave.2",
+   "group": "Cave",
+   "file": "assets/tilesets-live/cave.2.png",
+   "skin": true
+  },
+  {
+   "name": "cave.3",
+   "group": "Cave",
+   "file": "assets/tilesets-live/cave.3.png",
+   "skin": true
+  },
+  {
+   "name": "brick.0",
+   "group": "House brick",
+   "file": "assets/tilesets-live/brick.0.png",
+   "skin": true
+  },
+  {
+   "name": "brick.1",
+   "group": "House brick",
+   "file": "assets/tilesets-live/brick.1.png",
+   "skin": true
+  },
+  {
+   "name": "roof",
+   "group": "Roof shingles",
+   "file": "assets/tilesets-live/roof.png",
+   "skin": true
+  },
+  {
+   "name": "roofTop",
+   "group": "Roof shingles",
+   "file": "assets/tilesets-live/roofTop.png",
+   "skin": true
+  },
+  {
+   "name": "wood",
+   "group": "House interior planks",
+   "file": "assets/tilesets-live/wood.png",
+   "skin": true
+  },
+  {
+   "name": "scales",
+   "group": "Stage 1.2 pink scales",
+   "file": "assets/tilesets-live/scales.png",
+   "skin": true
+  },
+  {
+   "name": "scalesTop",
+   "group": "Stage 1.2 pink scales",
+   "file": "assets/tilesets-live/scalesTop.png",
+   "skin": true
+  },
+  {
+   "name": "city.residential.top.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.top.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.top.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.top.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.top.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.top.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.top.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.top.3.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.residential.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.residential.3.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.top.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.top.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.top.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.top.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.top.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.top.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.top.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.top.3.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.commercial.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.commercial.3.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.top.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.top.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.top.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.top.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.top.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.top.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.top.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.top.3.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.0",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.0.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.1",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.1.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.2",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.2.png",
+   "skin": false
+  },
+  {
+   "name": "city.tech.3",
+   "group": "Stage 1.3 towers (by position: view and ask)",
+   "file": "assets/tilesets-live/city.tech.3.png",
+   "skin": false
+  }
+ ]
+}

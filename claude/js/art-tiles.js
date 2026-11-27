@@ -5,6 +5,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const SETS=[
+  {live:true,path:'assets/tilesets-live/live-tiles.json',name:'THE GAME\'S OWN TILES (what you see in play)',tw:32,th:32,cols:12},
   {path:'assets/tiles/tiles-1-1.png',name:'Stage 1.1 suburb',tw:16,th:16,names:['grass','grass mid','slope L','slope R','','','soil','soil dark','curb','walk','road','dash','fence','hedge','drive','roof','roof teal','cream wall','coral wall','sky wall','window','door','garage','porch','mailbox','planter','sea','trunk','fronds','hibiscus']},
   {path:'assets/home baked sprites/material/MV2 tilesheet.png',name:'Awdjoo tilesheet (Tiled)',tw:8,th:8,cols:12,count:144,gid:'MV2 tilesheet.tsx'},
   {path:'assets/home baked sprites/material/spawn spots.png',name:'Spawn spots (Tiled)',tw:8,th:8,cols:8,count:64,gid:'spawn spots.tsx'},
@@ -27,8 +28,45 @@ function toHex(r,g,b){ return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).t
 function msg(t,cls){ const m=$('tsMsg'); m.textContent=t; m.className='msg '+(cls||''); }
 
 /* ---------- load ---------- */
+/* the live set: one 32px tile per code-drawn texture, captured from the running game (scripts/capture-live-tiles.mjs) */
+let SKINS={};
+function pickLive(){
+  $('tsRecap').classList.remove('hidden');
+  fetch(S.set.path+'?t='+Date.now()).then(r=>r.json()).then(j=>{
+    const L=j.tiles||[], tw=32, cl=S.set.cols, rows=Math.ceil(L.length/cl);
+    S.live=L; S.set=Object.assign({},S.set,{count:L.length,names:L.map(t=>t.name+(t.skin?'':' (view only)'))});
+    S.orig=canvas(cl*tw,rows*tw); S.ts=canvas(cl*tw,rows*tw); let left=L.length;
+    const done=()=>{ if(--left) return; S.zoom=Math.max(1,Math.min(4,Math.floor(Math.max(300,$('tsSheet').parentElement.clientWidth-4)/S.ts.width)));
+      $('tsZoom').value=S.zoom; $('tsTw').value=tw; $('tsTh').value=tw; S.view='room'; document.querySelector('input[name=tsView][value=room]').checked=true;
+      document.querySelector('input[name=tsView][value=map]').disabled=true; S.room=null; all(); palette();
+      const n=Object.keys(SKINS).length; msg('Captured from the running game '+(j.at||'').slice(0,16).replace('T',' ')+'. '+(n?n+' tile(s) carry your skin in the game now.':'No skins yet: the game draws these in code.')); };
+    L.forEach((t,i)=>{ const x=(i%cl)*tw, y=Math.floor(i/cl)*tw, a=new Image();
+      a.onload=()=>{ ctx(S.orig).drawImage(a,x,y); ctx(S.ts).drawImage(a,x,y);
+        if(SKINS[t.name]){ const b=new Image(); b.onload=()=>{ const g=ctx(S.ts); g.clearRect(x,y,tw,tw); g.drawImage(b,x,y,tw,tw); done(); }; b.onerror=done; b.src=encodeURI(SKINS[t.name].path)+'?t='+Date.now(); }
+        else done(); };
+      a.onerror=done; a.src=encodeURI(t.file)+'?t='+Date.now(); });
+  }).catch(()=>msg('No captured tiles yet. Press "Recapture from the game".','err'));
+}
+function useLive(){
+  // send every edited tile that the game can skin; tiles put back to the captured look lose their skin
+  const send={}, drop=[], keep=[]; let viewOnly=0;
+  S.live.forEach((t,i)=>{ const [x,y]=tileXY(i), a=ctx(S.ts).getImageData(x,y,32,32).data, b=ctx(S.orig).getImageData(x,y,32,32).data;
+    let same=true; for(let k=0;k<a.length;k++) if(a[k]!==b[k]){ same=false; break; }
+    if(!t.skin){ if(!same) viewOnly++; return; }
+    if(same){ if(SKINS[t.name]) drop.push(t.name); return; }
+    const c=canvas(32,32); ctx(c).drawImage(S.ts,x,y,32,32,0,0,32,32); send[t.name]=c.toDataURL('image/png').split(',')[1]; keep.push(t.name); });
+  msg('Saving '+keep.length+' tile(s)…');
+  const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+  (drop.length?post('/api/tile-skin-reset',{names:drop}):Promise.resolve({ok:true,skins:SKINS}))
+    .then(j=>{ SKINS=j.skins||SKINS; return keep.length?post('/api/tile-skin',{skins:send}):j; })
+    .then(j=>{ if(!j.ok) throw new Error(j.error||'not saved'); SKINS=j.skins||SKINS;
+      msg((keep.length?keep.length+' tile(s) now drawn with your version in the game: '+keep.slice(0,6).join(', ')+(keep.length>6?'…':'')+'. ':'')+(drop.length?drop.length+' back to the original. ':'')
+        +(viewOnly?viewOnly+' tower tile(s) are view-only (the towers build tiles by position): use "Ask" below for those. ':'')+'Reload the game (Ctrl+F5) to see it.','ok'); })
+    .catch(e=>msg('Not saved: '+e.message,'err'));
+}
 function pick(i){
-  S.set=SETS[i]; S.sel=0; S.undo=[];
+  S.set=SETS[i]; S.sel=0; S.undo=[]; $('tsRecap').classList.toggle('hidden',!S.set.live);
+  if(S.set.live) return pickLive();
   const im=new Image(); im.onload=()=>{
     S.orig=canvas(im.naturalWidth,im.naturalHeight); ctx(S.orig).drawImage(im,0,0);
     S.ts=canvas(im.naturalWidth,im.naturalHeight); ctx(S.ts).drawImage(im,0,0);
@@ -186,6 +224,7 @@ function all(light){ drawSheet(); drawTile(); drawSeams(); if(!light||$('tsLive'
 
 /* ---------- save ---------- */
 function useInGame(){
+  if(S.set.live) return useLive();
   msg('Saving…');
   fetch('/api/sprite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:S.set.path,how:'tileset',data:S.ts.toDataURL('image/png').split(',')[1]})})
     .then(r=>r.json()).then(j=>{ if(!j.ok) throw new Error(j.error||'not saved'); SPR[S.set.path]={path:j.replacement};
@@ -193,6 +232,8 @@ function useInGame(){
     .catch(e=>msg('Not saved: '+e.message,'err'));
 }
 function resetGame(){
+  if(S.set.live) return fetch('/api/tile-skin-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({all:true})})
+    .then(r=>r.json()).then(j=>{ if(j.ok){ SKINS={}; pick(0); msg('Every level tile is back to the original drawing.','ok'); } });
   fetch('/api/sprite-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:S.set.path})})
     .then(r=>r.json()).then(j=>{ if(j.ok){ delete SPR[S.set.path]; pick(SETS.indexOf(S.set)); msg('Original is back in the game.','ok'); } });
 }
@@ -223,7 +264,10 @@ function init(){
   $('tsCtxZoom').oninput=drawContext; $('tsLive').onchange=drawContext;
   const cx=$('tsCtx'); cx.oncontextmenu=e=>e.preventDefault(); cx.onpointerdown=e=>{ cx._d=true; roomPaint(e); }; cx.onpointermove=e=>{ if(cx._d) roomPaint(e); }; cx.onpointerup=()=>cx._d=false;
   if(window.BoardNotes&&BoardNotes.box) $('tsAsk').appendChild(BoardNotes.box('art:tilesets'));
-  (location.protocol==='http:'?fetch('/api/art-index',{cache:'no-store'}).then(r=>r.json()).then(j=>{ SPR=j.sprites||{}; }).catch(()=>{}):Promise.resolve()).then(()=>pick(0));
+  $('tsRecap').onclick=()=>{ msg('Opening the game in a hidden, muted browser to capture its tiles (about 20 s)…');
+    fetch('/api/capture-tiles',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
+      .then(j=>{ if(!j.ok) throw new Error((j.error||j.log||'').slice(-200)); pick(0); }).catch(e=>msg('Capture failed: '+e.message,'err')); };
+  (location.protocol==='http:'?fetch('/api/art-index',{cache:'no-store'}).then(r=>r.json()).then(j=>{ SPR=j.sprites||{}; SKINS=j.skins||{}; }).catch(()=>{}):Promise.resolve()).then(()=>pick(0));
 }
 window.MV_ArtTiles={init};
 })();

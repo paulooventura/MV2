@@ -112,7 +112,23 @@
     if(tex.ok) return;
     tex.dirt=[0,1,2,3,4,5,6,7].map(texDirt); tex.stone=[0,1].map(texStone); tex.cave=[0,1,2,3].map(texCave);
     tex.brick=[0,1].map(texBrick); tex.roof=texRoof(false); tex.roofTop=texRoof(true); tex.wood=texWood(); tex.scales=texScales(false); tex.scalesTop=texScales(true); tex.ok=true;
+    applyTileSkins();
   }
+  // Art Board (Paulo 2026-11-27: "our actual game ... I need the tilesets and all that"): the code-drawn tiles by name,
+  // and skins painted in the Art Board (window.MV_TILE_SKINS from js/sfx-replacements.js) drawn over them in place.
+  function tileList(){ textures(); const L=[];
+    for(const k of ['dirt','stone','cave','brick']) tex[k].forEach((c,i)=>L.push([k+'.'+i,c]));
+    for(const k of ['roof','roofTop','wood','scales','scalesTop']) L.push([k,tex[k]]);
+    return L; }
+  const _tileBase={};
+  function applyTileSkins(){ const SK=window.MV_TILE_SKINS; if(!SK) return;
+    tileList().forEach(([name,c])=>{ if(!SK[name]) return;
+      const base=document.createElement('canvas'); base.width=c.width; base.height=c.height; base.getContext('2d').drawImage(c,0,0); _tileBase[name]=base;
+      const im=new Image(); im.onload=()=>{ const g=c.getContext('2d'); g.imageSmoothingEnabled=false; g.clearRect(0,0,c.width,c.height); g.drawImage(im,0,0,c.width,c.height);
+        if(name.startsWith('dirt.')) for(const k in _dirtDeep) delete _dirtDeep[k]; };
+      im.src=SK[name]; }); }
+  // the code-drawn tiles as they were before any skin (for the Art Board's capture)
+  function tileTextures(){ return tileList().map(([name,c])=>({name,canvas:_tileBase[name]||c,skinned:!!_tileBase[name]})); }
   function blit(img,c,r){ ctx.drawImage(img, X(c*T), Y(r*T), S(T)+1, S(T)+1); }
   // dirt darkening with depth, baked into the tile (was a second full-tile fill on every deep block)
   const _dirtDeep={};
@@ -1605,7 +1621,7 @@
   // the texture a solid tile of skin s is drawn with (1.3's secret rooms paint their walls back over themselves)
   function solidTex(c,r,s){ if(s>=7&&window.MV_CITY){ const im=MV_CITY.img(c,r,s,false); if(im) return im; }
     return s===1?tex.roof:s===2?tex.brick[r&1]:s===3?tex.wood:s===6?tex.scales:tex.dirt[(c*5+r*3)&7]; }
-  window.MV_BETA_DECOR={P, world, solidTex, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
+  window.MV_BETA_DECOR={P, world, solidTex, tileTextures, itemCrateScreen, itemCrate, isolatorIcon, sky, seed, crystal, itemCrate, glow, teardrop, choirLevel:()=>MV_BETA.choirLevel||0};
   hookHeartGlow();
   hookFgArt();
 })();

@@ -4,3 +4,5 @@ window.MV_SFX_REPLACEMENTS = {
 };
 window.MV_SPRITE_REPLACEMENTS = {
 };
+window.MV_TILE_SKINS = {
+};
