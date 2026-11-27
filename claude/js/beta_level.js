@@ -1001,8 +1001,12 @@
     k._anchored=false; k._moved=true; k._fly=true; k._rest=0; k._flyT=0; k.got=false;
     k.vx=(k.vx||0)+(vx||0); k.vy=(k.vy||0)+(vy||0);
     if(!k._mass) k._mass=knowlMass(k);
-    // Kick starts a tumble — no flat slide.
-    k.spin=(k.spin||0)+(vx||0)*0.1-(vy||0)*0.02;
+    // Leaving the spawn spot starts a real tumble. A crystal will not stay
+    // balanced on a point, and a seed will not stay balanced on its tip.
+    const gem=k.kind==='crystal'||k.kind==='echo';
+    k.spin=(k.spin||0)+(vx||0)*0.16-(vy||0)*0.05;
+    if(Math.abs(k.spin)<(gem?0.07:0.025)) k.spin+=(((k.x+k.y)|0)%2?1:-1)*(gem?0.09:0.035);
+    k._lean=Math.sign(k.spin)||1;
     return !free||Math.hypot(vx||0,vy||0)>0.01;
   }
   B.primeKnowl=primeKnowl; B.detachKnowl=detachKnowl; B.knowlHull=knowlHull; B.knowlMass=knowlMass;
@@ -1218,21 +1222,55 @@
   // Paulo, Nov 13: "No items, foes, characters, or anything that moves ... should be able to get inside
   // walls/floors/ceilings EVER." Whatever ends up in rock — a Knowl (dropped from the MAG, thrown, flying), a jack
   // on the floor — is put back at once on the nearest free spot, upward first.
-  // T636: solid tests sample the artwork outline (hex vertices / teardrop bezier), not a circle.
-  function knowlOutlineSolid(x,y,k){
-    const h=knowlHull(k), cx=x+(h.ox||0), cy=y+(h.oy||0);
+  // T636: solid tests sample the artwork outline. The samples turn with k.rot,
+  // on the same pivot the picture uses, so a tipped gem cannot occupy the floor.
+  function knowlRot(u,v,ang){
+    const c=Math.cos(ang), s=Math.sin(ang);
+    return [u*c-v*s, u*s+v*c];
+  }
+  function knowlLocal(k){
+    const h=knowlHull(k);
     if(h.type==='hex'){
       const hw=h.hw, hh=h.hh;
-      const pts=[[0,-hh],[hw*0.5,-hh*0.75],[hw,-hh/2],[hw,hh/2],[hw*0.5,hh*0.75],[0,hh],
-        [-hw*0.5,hh*0.75],[-hw,hh/2],[-hw,-hh/2],[-hw*0.5,-hh*0.75],[0,0],[0,-hh*0.4],[0,hh*0.4]];
-      for(const [u,v] of pts) if(solidPx(cx+u,cy+v)) return true;
-      return false;
+      const v=[[0,-hh],[hw,-hh/2],[hw,hh/2],[0,hh],[-hw,hh/2],[-hw,-hh/2]];
+      const pts=v.slice();
+      for(let i=0;i<v.length;i++){ const a=v[i], b=v[(i+1)%v.length]; pts.push([(a[0]+b[0])/2,(a[1]+b[1])/2]); }
+      pts.push([0,0],[0,-hh*0.45],[0,hh*0.45]);
+      return {h, pts, aroundCenter:true};
     }
-    // Teardrop samples matching beta_decor.teardrop bezier (r, tip up).
     const r=h.r;
-    const pts=[[0,-r*2.2],[r*0.7,-r*1.4],[r*1.15,-r*0.5],[r*1.1,r*0.35],[r*0.55,r*0.85],[0,r],
-      [-r*0.55,r*0.85],[-r*1.1,r*0.35],[-r*1.15,-r*0.5],[-r*0.7,-r*1.4],[0,-r*0.3],[0,r*0.2]];
-    for(const [u,v] of pts) if(solidPx(cx+u,cy+v)) return true;
+    return {h, aroundCenter:false, pts:[
+      [0,-r*2.2],[r*0.55,-r*1.5],[r*1.15,-r*0.15],[r*0.85,r*0.65],[0,r],
+      [-r*0.85,r*0.65],[-r*1.15,-r*0.15],[-r*0.55,-r*1.5],[0,0],[0,-r*0.6]
+    ]};
+  }
+  // Offsets from (x,y), already rotated. Crystal pivots on its centre; the seed
+  // pivots on its anchor, with the teardrop hanging just below that point.
+  function knowlOffs(k){
+    const loc=knowlLocal(k), ang=k.rot||0, h=loc.h, out=[];
+    for(const [u,v] of loc.pts){
+      if(loc.aroundCenter){ const p=knowlRot(u,v,ang); out.push([h.ox+p[0], h.oy+p[1]]); }
+      else { const p=knowlRot(u, (h.oy||0)+v, ang); out.push(p); }
+    }
+    return out;
+  }
+  // What the shape is standing on: one vertex, or an edge when two points share the floor.
+  function knowlSupport(k){
+    const offs=knowlOffs(k);
+    let a=null, b=null;
+    for(const p of offs){ if(!a||p[1]>a[1]){ b=a; a=p; } else if(!b||p[1]>b[1]) b=p; }
+    if(!b) b=a;
+    const flat=(a[1]-b[1])<2.4;
+    const ox=flat?(a[0]+b[0])/2:a[0], drop=flat?(a[1]+b[1])/2:a[1];
+    return {ox, drop, flat, left:Math.min(a[0],b[0]), right:Math.max(a[0],b[0])};
+  }
+  function seedTipDown(rot){
+    let a=(rot||0)%(Math.PI*2); if(a<0) a+=Math.PI*2;
+    const d=Math.abs(a-Math.PI);
+    return Math.min(d, Math.PI*2-d)<0.55;
+  }
+  function knowlOutlineSolid(x,y,k){
+    for(const [u,v] of knowlOffs(k)) if(solidPx(x+u,y+v)) return true;
     return false;
   }
   function knowlInRock(x,y,k){
@@ -1268,7 +1306,7 @@
       if(k._anchored){ k.x=k.ox; k.y=k.oy; k.vx=0; k.vy=0; k._fly=false; k.rot=0; k.spin=0; continue; }
       if(k._carried||k.got) continue;
       const hull0=k._hull||knowlHull(k);
-      const footOff=hull0.type==='hex'?14:12;
+      const footOff=knowlSupport(k).drop;
       // Settled on a ramp? Keep tumbling — don't leave a seed parked mid-slope.
       if(!k._fly){
         const sl0=knowlSlope(k,k.y+footOff);
@@ -1314,21 +1352,33 @@
           k._landSfxF=10;
           try{ sfxAt(k,'object_land',Math.min(1,hitV/(6+m)*Math.sqrt(m/2.6))); }catch(e){}
         }
-        // Snap to standY once — stops outline fighting the slope every frame (paper flutter).
-        const foot=k.y+footOff;
-        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:footOff+6,maxDrop:T}):null;
-        if(fy!=null) k.y=fy-footOff;
-        const sl=knowlSlope(k,k.y+footOff);
+        // Sit on the rotated outline, then tip toward the face that can hold it.
+        const sup=knowlSupport(k);
+        const fy=typeof gridStandY==='function'?gridStandY(k.x+sup.ox,k.y+sup.drop,{maxUp:sup.drop+8,maxDrop:T}):null;
+        if(fy!=null) k.y=fy-sup.drop;
+        const gem=hull0.type==='hex';
+        if(sup.flat){
+          if(sup.right<-1) k.spin=(k.spin||0)-0.05;
+          else if(sup.left>1) k.spin=(k.spin||0)+0.05;
+          else k.spin=(k.spin||0)*0.72;
+        }else if(gem){
+          const lean=Math.abs(sup.ox)<1.6?(k._lean||1):Math.sign(sup.ox);
+          if(Math.abs(k.spin||0)<0.16) k.spin=(k.spin||0)+lean*0.035;
+        }else if(seedTipDown(k.rot)){
+          if(Math.abs(k.spin||0)<0.14) k.spin=(k.spin||0)+(k._lean||1)*0.04;
+        }else if(Math.abs(sup.ox)>3){
+          k.spin=(k.spin||0)+Math.sign(sup.ox)*0.02;
+        }
+        const rad=gem?(hull0.hh*0.72):(hull0.r*1.35);
+        if(Math.abs(k.vx)>0.3) k.spin=(k.spin||0)+((k.vx/rad)-(k.spin||0))*0.2;
+        const sl=knowlSlope(k,k.y+sup.drop);
         if(sl){
           k.vx+=(Math.sin(sl.ang)*0.7)/Math.max(1,m*0.55);
-          // Roll with the surface: spin tracks velocity (solid tumble, not flat slide).
-          k.spin=k.vx*0.14;
           k._rest=0;
         }else{
-          // Flat ground: rolling friction → settle like a pebble.
-          k.spin=(k.spin||0)*0.55+(k.vx||0)*0.08;
-          k.vx*=0.88;
-          if(Math.abs(k.vx)<0.22&&Math.abs(k.vy)<0.35) k._rest=(k._rest||0)+1;
+          k.vx*=0.9;
+          const settled=sup.flat||(!gem&&!seedTipDown(k.rot));
+          if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.35&&settled) k._rest=(k._rest||0)+1;
           else k._rest=0;
         }
       }else{
@@ -1338,18 +1388,22 @@
       if(k._glassF>0) k._glassF--;
       if(k._landSfxF>0) k._landSfxF--;
       k.rot=(k.rot||0)+(k.spin||0);
-      // Flat settle: ease upright slowly; keep a bit of lean while still rolling.
-      if(ground&&!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)<0.45){
-        k.rot+=(0-(k.rot||0))*0.08;
-        if(Math.abs(k.rot)<0.03&&Math.abs(k.spin)<0.02){ k.rot=0; k.spin=0; }
+      // A resting crystal keeps the face it landed on. A seed eases onto its belly, not its tip.
+      if(ground&&Math.abs(k.vx)<0.35){
+        if(hull0.type==='hex'){
+          if(knowlSupport(k).flat) k.spin*=0.5;
+        }else if(!seedTipDown(k.rot)){
+          const turns=Math.PI*2, target=turns*Math.round((k.rot||0)/turns);
+          if(Math.abs((k.rot||0)-target)<0.9){ k.rot+=(target-k.rot)*0.14; k.spin*=0.5; }
+        }
       }
       knowlTouchesEnemy(k);
       const stillRolling=!!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)>0.1;
       if(!stillRolling&&((k._rest||0)>5||(k._flyT=(k._flyT||0)+1)>600)){
-        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0; k.rot=0;
-        const foot=k.y+footOff;
-        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:8,maxDrop:T}):null;
-        if(fy!=null) k.y=fy-footOff;
+        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0;
+        const sup=knowlSupport(k);
+        const fy=typeof gridStandY==='function'?gridStandY(k.x+sup.ox,k.y+sup.drop,{maxUp:8,maxDrop:T}):null;
+        if(fy!=null) k.y=fy-sup.drop;
         k.ox=k.x; k.oy=k.y; k.got=false;
       }else{ k.ox=k.x; k.oy=k.y; }
     }
@@ -1412,7 +1466,7 @@
   function dropHeld(h){
     const v=throwVel();
     if(h.kind==='cube') throwCube(h.ref, v.vx, v.vy);
-    else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k._anchored=false; k._moved=true; k._fly=true; k.vx=v.vx; k.vy=v.vy; k._rest=0; k._flyT=0; }
+    else if(h.kind==='knowl'){ const k=h.ref; k._carried=false; k.vx=0; k.vy=0; detachKnowl(k, v.vx, v.vy); }
     else if(h.kind==='enemy'){
       const e=h.ref; e._betaHeld=false; e.og=false; e.vx=v.vx; e.vy=v.vy; e._tossT=14;
       e.mn=-1e6; e.mx=1e6; e._thrownF=60; e._reCenter=true; e._newHome=true;   // (Paulo, Nov 13) it stays where you drop it

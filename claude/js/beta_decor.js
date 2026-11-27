@@ -610,22 +610,42 @@
     const bx=d.x+T/2, by=d.y;
     let x=bx-TREE.W/2, y=by-TREE.H-40, w=TREE.W, h=TREE.H+64;   // safe fallback (no grid)
     const cells=B&&B.level&&B.level.cells;
-    if(cells&&cells.length){
-      const nr=cells.length, nc=cells[0].length||0;
-      const solid=(r,c)=>r>=0&&r<nr&&c>=0&&c<nc&&!!cells[r][c];
-      const c=Math.max(0,Math.min(nc-1,Math.floor(bx/T)));
-      // top of the contiguous open column above the tree's footing = the floor line
-      let r=Math.max(0,Math.min(nr-1,Math.floor(by/T)-1));
-      while(r>0&&!solid(r-1,c)) r--;
-      const top=r*T;
-      // open width at the crown's middle row
-      const rc=Math.max(0,Math.min(nr-1,Math.floor((by-TREE.CY)/T)));
+    if(!(cells&&cells.length)) return (d._chamber={x,y,w,h,rows:null});
+    const nr=cells.length, nc=cells[0].length||0;
+    const solid=(r,c)=>r>=0&&r<nr&&c>=0&&c<nc&&!!cells[r][c];
+    const c=Math.max(0,Math.min(nc-1,Math.floor(bx/T)));
+    let topR=Math.max(0,Math.min(nr-1,Math.floor(by/T)-1));
+    while(topR>0&&!solid(topR-1,c)) topR--;
+    const botR=Math.min(nr-1,Math.floor(by/T));
+    const rows=[], tuck=10;
+    let minX=1e9, maxX=-1e9;
+    for(let r=topR;r<=botR;r++){
+      if(solid(r,c)){ rows.push({y:r*T, x:bx, w:0}); continue; }
       let l=c, rt=c;
-      while(l>0&&!solid(rc,l-1)) l--;
-      while(rt+1<nc&&!solid(rc,rt+1)) rt++;
-      x=l*T-16; w=(rt+1)*T+16-x; y=top; h=Math.max(24,by+28-top);
+      while(l>0&&!solid(r,l-1)) l--;
+      while(rt+1<nc&&!solid(r,rt+1)) rt++;
+      const rx=l*T-tuck, rw=(rt+1-l)*T+tuck*2;
+      rows.push({y:r*T, x:rx, w:rw});
+      if(rx<minX) minX=rx;
+      if(rx+rw>maxX) maxX=rx+rw;
     }
-    return (d._chamber={x,y,w,h});
+    if(!rows.length) return (d._chamber={x,y,w,h,rows:null});
+    return (d._chamber={x:minX, y:topR*T, w:Math.max(8,maxX-minX), h:Math.max(24,(botR+1)*T-topR*T), rows});
+  }
+  // The open cave, row by row. A single rectangle was slicing the crown on a
+  // straight line wherever one narrow row happened to be.
+  function clipChamber(cb){
+    ctx.beginPath();
+    const rows=cb.rows;
+    if(!rows||rows.length<2){ ctx.rect(X(cb.x),Y(cb.y),S(cb.w),S(cb.h)); ctx.clip(); return; }
+    ctx.moveTo(X(rows[0].x), Y(rows[0].y));
+    for(let i=1;i<rows.length;i++) ctx.lineTo(X(rows[i].x), Y(rows[i].y));
+    const last=rows[rows.length-1];
+    ctx.lineTo(X(last.x), Y(last.y+T));
+    ctx.lineTo(X(last.x+last.w), Y(last.y+T));
+    for(let i=rows.length-1;i>=0;i--) ctx.lineTo(X(rows[i].x+rows[i].w), Y(rows[i].y));
+    ctx.closePath();
+    ctx.clip();
   }
   // Paulo 2026-11-27: canopy never paints over solid floors/walls. It fills the
   // open chamber, presses under the ceiling like it's outgrowing the space, and
@@ -653,13 +673,15 @@
   }
   function treeSeekCeiling(B,d,cb,bx,by){
     const ceil=cb.y;
-    if(!(cb.w>8&&cb.h>8)) return;
+    const topRow=cb.rows&&cb.rows[0];
+    const spanW=topRow?topRow.w:cb.w, spanL=topRow?topRow.x:cb.x;
+    if(!(spanW>8&&cb.h>8)) return;
     ctx.save();
     // Pressed crown: leaves flattened under the floor line — outgrowing, seeking a way out.
-    const span=Math.min(cb.w*0.92,560);
+    const span=Math.min(spanW*0.92,560);
     for(let i=0;i<18;i++){
       const t=i/17, x=bx+(t-0.5)*span+(hash(i,91)-0.5)*18;
-      if(x<cb.x+8||x>cb.x+cb.w-8) continue;
+      if(x<spanL+8||x>spanL+spanW-8) continue;
       const lean=(hash(i,92)-0.5)*0.9, s=7+hash(i,93)*7;
       const y=ceil+3+hash(i,94)*5;
       ctx.save();
@@ -709,9 +731,12 @@
     const B=window.MV_BETA;
     const cb=treeChamber(B,d);
     ctx.save();
-    // Main canopy + light stay inside the open chamber — never over solid tiles.
-    ctx.beginPath(); ctx.rect(X(cb.x),Y(cb.y),S(cb.w),S(cb.h)); ctx.clip();
-    glow(bx,by-TREE.CY+60,420,0.15,'rgba(140,255,210,');
+    // The canopy fills the open cave, row by row, and the tree's own light
+    // brightens that cave. It still does not paint across the floor above.
+    clipChamber(cb);
+    ctx.globalCompositeOperation='lighter';
+    glow(bx,by-TREE.CY+40,480,0.26,'rgba(170,255,220,');
+    ctx.globalCompositeOperation='source-over';
     ctx.drawImage(treeImg, X(bx-TREE.W/2), Y(by-TREE.H), S(TREE.W), S(TREE.H));
     for(let i=0;i<10;i++){
       const a=hash(i,81)*Math.PI*2, rr=Math.sqrt(hash(i,82));
@@ -799,7 +824,7 @@
       // paints straight over the solid floor and bricks above the tree.
       const a=0.34;
       ctx.save();
-      ctx.beginPath(); ctx.rect(X(cb.x),Y(cb.y),S(cb.w),S(cb.h)); ctx.clip();
+      clipChamber(cb);
       ctx.globalCompositeOperation='lighter';
       const g=ctx.createRadialGradient(X(bx),Y(by-10),0,X(bx),Y(by-10),S(95));
       g.addColorStop(0,'rgba(235,255,248,'+a+')'); g.addColorStop(0.4,'rgba(140,255,220,'+(a*0.5)+')'); g.addColorStop(1,'rgba(80,220,190,0)');
@@ -1059,6 +1084,7 @@
     ctx.restore();
     // facet edges: thin bright lines, rainbow-tinted
     ctx.save(); ctx.lineJoin='round';
+    if(tumble){ ctx.translate(X0,Y0); ctx.rotate(k.rot||0); ctx.translate(-X0,-Y0); }
     ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=Math.max(1,S(0.8));
     ctx.beginPath(); for(let i=0;i<6;i++){ ctx.moveTo(X0+I[i][0],Y0+I[i][1]); ctx.lineTo(X0+O[i][0],Y0+O[i][1]); } ctx.stroke();
     path(I); ctx.stroke();
@@ -1596,10 +1622,9 @@
       const x=X(c*T), y=Y(r*T);
       const up=r>0&&!cells[r-1][c], dn=r+1<cells.length&&!cells[r+1][c];
       const lf=c>0&&!cells[r][c-1], rt=c+1<cells[r].length&&!cells[r][c+1];
-      if(dn){ const g=ctx.createLinearGradient(0,y+z-sh,0,y+z); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.42)'); ctx.fillStyle=g; ctx.fillRect(x,y+z-sh,z,sh); }
-      if(lf){ ctx.fillStyle=rim+'0.10)'; ctx.fillRect(x,y,Math.max(1,S(3)),z); }
-      if(rt){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.fillRect(x+z-Math.max(1,S(4)),y,Math.max(1,S(4)),z); }
-      if(up){ ctx.fillStyle=rim+'0.22)'; ctx.fillRect(x,y,z,Math.max(1,S(2))); }
+      if(dn){ ctx.fillStyle='rgba(0,0,0,0.14)'; ctx.fillRect(x,y+z-Math.max(1,S(3)),z,Math.max(1,S(3))); }
+      if(lf){ ctx.fillStyle=rim+'0.10)'; ctx.fillRect(x,y,Math.max(1,S(2)),z); }
+      if(up){ ctx.fillStyle=rim+'0.16)'; ctx.fillRect(x,y,z,Math.max(1,S(2))); }
       // vines from ledges that face the night air
       if(dn&&B.stageId!=='1.3'&&r<=(B.horizonRow!=null?B.horizonRow:30)+12&&vh(c,r)<0.22){   // (no vines on the 1.3 towers)
         const len=2+Math.floor(vh(c+7,r)*5), vx=x+S(6+vh(c,r+3)*20), sway=Math.sin(fr*0.03+c)*S(1.5);

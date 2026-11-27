@@ -240,22 +240,55 @@
   function plank(x,y,w,h,base,dark){ ctx.fillStyle=base; ctx.fillRect(X(x),Y(y),W2(w),W2(h)); ctx.fillStyle=dark; for(let yy=0;yy<h;yy+=10) ctx.fillRect(X(x),Y(y+yy),W2(w),Math.max(1,W2(1))); }
   function drawDoor(d){
     const x=d.c*T, y=d.r0*T, h=(d.r1-d.r0+1)*T;
+    ctx.save();
+    // A running loaded punch still smashes it (the fist logic is unchanged).
+    // What is left is broken timber, not a black hole.
+    if(d.st==='smashed'){
+      for(let i=0;i<6;i++){
+        ctx.save();
+        ctx.translate(X(x+8+i*3), Y(y+16+i*h*0.12));
+        ctx.rotate((i-2.5)*0.32);
+        ctx.fillStyle=i%2?'#c4894e':'#8d5a30';
+        ctx.fillRect(-W2(5),-W2(7),W2(11),W2(16+(i%3)*6));
+        ctx.fillStyle='#e7c48a';
+        ctx.fillRect(-W2(5),-W2(7),W2(2),W2(16+(i%3)*6));
+        ctx.restore();
+      }
+      ctx.restore();
+      return;
+    }
     // Same openness curve the hitbox uses (doorOpenK) — art and solid stay matched.
     const k=doorOpenK(d), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
-    // T636: when fully open keep a readable edge-on leaf (not a 5px vanishing strip).
     const wv=Math.max(k>0.85?9:5, T*Math.cos(ang)), hingeX=d.side>0?x+T:x, px=d.side>0?hingeX-wv:hingeX;
-    ctx.save();
-    ctx.fillStyle='rgba(10,6,4,0.75)'; ctx.fillRect(X(x),Y(y),W2(T),W2(h));                          // the dark doorway behind it
-    ctx.fillStyle='#3a2414'; ctx.fillRect(X(x-2),Y(y-4),W2(T+4),W2(5));                                 // the lintel
-    const shade=0.75+0.25*Math.cos(ang);
-    plank(px,y+2,wv,h-2,'rgb('+Math.round(122*shade)+','+Math.round(78*shade)+','+Math.round(44*shade)+')','rgba(40,22,10,0.55)');
-    ctx.strokeStyle='#2a160a'; ctx.lineWidth=Math.max(1,W2(2)); ctx.strokeRect(X(px),Y(y+2),W2(wv),W2(h-2));
-    if(wv>12){ ctx.fillStyle='#d8b060'; ctx.beginPath(); ctx.arc(X(d.side>0?px+5:px+wv-5),Y(y+h*0.55),Math.max(1.5,W2(2.6)),0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(255,210,140,0.55)'; ctx.fillRect(X(px+wv*0.25),Y(y+12),W2(wv*0.5),W2(16)); }
-    else if(k>0.5){ // edge-on leaf still shows a thin brass handle glint so "open" reads as a door, not empty air
-      ctx.fillStyle='#d8b060'; ctx.fillRect(X(d.side>0?px+2:px+wv-4),Y(y+h*0.52),W2(3),W2(8));
+    // Timber jamb. The opening behind an open leaf is the room itself.
+    ctx.fillStyle='#8a5a34'; ctx.fillRect(X(x-3),Y(y-6),W2(T+6),W2(3));
+    ctx.fillStyle='#6a3f24'; ctx.fillRect(X(x-3),Y(y-3),W2(T+6),W2(5));
+    ctx.fillStyle='#5c3820';
+    ctx.fillRect(X(x-4),Y(y),W2(6),W2(h));
+    ctx.fillRect(X(x+T-2),Y(y),W2(6),W2(h));
+    const n=wv>18?3:1;
+    for(let i=0;i<n;i++){
+      const bw=wv/n, bx=px+i*bw;
+      ctx.fillStyle=i%2?'#c4894e':'#b07840';
+      ctx.fillRect(X(bx),Y(y+2),W2(Math.max(1,bw)),W2(h-2));
+      ctx.fillStyle='rgba(255,220,170,0.32)';
+      ctx.fillRect(X(bx),Y(y+2),Math.max(1,W2(2)),W2(h-2));
+      if(i){ ctx.fillStyle='#6a3c1e'; ctx.fillRect(X(bx),Y(y+2),Math.max(1,W2(1.4)),W2(h-2)); }
     }
-    for(const yy of [y+14,y+h-16]){ ctx.fillStyle='#1c120a'; ctx.fillRect(X(d.side>0?hingeX-6:hingeX),Y(yy),W2(6),W2(4)); }
+    ctx.strokeStyle='#5a3418'; ctx.lineWidth=Math.max(1,W2(1.5));
+    ctx.strokeRect(X(px),Y(y+2),W2(wv),W2(h-2));
+    if(wv>12){
+      const hx=d.side>0?px+7:px+wv-7;
+      ctx.fillStyle='#e2c078'; ctx.beginPath(); ctx.arc(X(hx),Y(y+h*0.55),Math.max(1.5,W2(3)),0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#8a6230'; ctx.beginPath(); ctx.arc(X(hx),Y(y+h*0.55),Math.max(1,W2(1.2)),0,Math.PI*2); ctx.fill();
+    }else if(k>0.5){
+      ctx.fillStyle='#e2c078'; ctx.fillRect(X(d.side>0?px+2:px+wv-4),Y(y+h*0.52),W2(3),W2(8));
+    }
+    for(const yy of [y+16,y+h-20]){
+      const hx0=d.side>0?hingeX-7:hingeX+1;
+      ctx.fillStyle='#e2c078'; ctx.fillRect(X(hx0),Y(yy),W2(7),W2(5));
+      ctx.fillStyle='#8a6230'; ctx.fillRect(X(hx0+2),Y(yy+1),W2(2),W2(2));
+    }
     ctx.restore();
   }
   function drawTrap(t){
@@ -263,24 +296,23 @@
     const k=t.st==='shut'?0:t.st==='open'?1:Math.min(1,t.t/22), e=k<1?1-Math.pow(1-k,2):1;
     const down=t.dir==='down';
     ctx.save();
-    if(k>0){ const two=t.id==='attic'; ctx.fillStyle='rgba(6,4,2,0.85)'; ctx.fillRect(X(x0),Y(y-(two?T:0)),W2(w),W2(two?2*T:T)); }   // the hole (the attic's goes through the roof floor too)
     // two leaves: each turns on its outer hinge, the left one away down-left (or up-left), the right one down-right
     for(const s of [-1,1]){
       const hx=s<0?x0:x1, ang=e*Math.PI*0.5*(down?1:-1);
       ctx.save(); ctx.translate(X(hx),Y(y+(down?2:T-2))+sh); ctx.rotate(s<0?ang:-ang);
       // (Paulo, Nov 13: two leaves facing each other) each leaf stops 2 px short of the middle: a dark seam between them
       const lw=half-2, lx=s<0?0:-lw;
-      ctx.fillStyle=s<0?'#7a4e2c':'#845632'; ctx.fillRect(W2(lx),W2(-7),W2(lw),W2(14));
-      ctx.fillStyle='rgba(30,16,6,0.6)'; for(let q=10;q<lw;q+=16) ctx.fillRect(W2(lx+q),W2(-7),Math.max(1,W2(1.5)),W2(14));
-      ctx.fillStyle='#2a1a0c'; ctx.fillRect(W2(lx),W2(-7),W2(lw),Math.max(1,W2(2))); ctx.fillRect(W2(lx),W2(5),W2(lw),Math.max(1,W2(2)));
-      ctx.strokeStyle='#1a0e06'; ctx.lineWidth=Math.max(1,W2(2)); ctx.strokeRect(W2(lx),W2(-7),W2(lw),W2(14));
-      ctx.fillStyle='#3a3430'; ctx.fillRect(W2(s<0?0:-16),W2(-8),W2(16),W2(16));                                          // the hinge plate at its outer end
+      ctx.fillStyle=s<0?'#c4894e':'#b07840'; ctx.fillRect(W2(lx),W2(-7),W2(lw),W2(14));
+      ctx.fillStyle='rgba(255,220,170,0.28)'; ctx.fillRect(W2(lx),W2(-7),W2(lw),Math.max(1,W2(2)));
+      ctx.fillStyle='#6a3c1e'; for(let q=14;q<lw;q+=18) ctx.fillRect(W2(lx+q),W2(-7),Math.max(1,W2(1.4)),W2(14));
+      ctx.strokeStyle='#5a3418'; ctx.lineWidth=Math.max(1,W2(1.5)); ctx.strokeRect(W2(lx),W2(-7),W2(lw),W2(14));
+      ctx.fillStyle='#e2c078'; ctx.fillRect(W2(s<0?0:-16),W2(-8),W2(16),W2(16));                                          // a brass hinge, not a black port
       ctx.fillStyle='#8a8070'; ctx.beginPath(); ctx.arc(W2(s<0?5:-5),0,Math.max(1.5,W2(2.5)),0,Math.PI*2); ctx.fill();
       const rx=s<0?lw-9:-lw+9;                                                                                        // an iron ring handle by the seam
       ctx.strokeStyle='#c8a050'; ctx.lineWidth=Math.max(1,W2(2)); ctx.beginPath(); ctx.arc(W2(rx),W2(down?3:-3),Math.max(2,W2(4)),0,Math.PI*2); ctx.stroke();
       ctx.restore();
     }
-    if(k===0){ ctx.fillStyle='#0a0603'; ctx.fillRect(X(x0+half-2),Y(y+(down?-5:T-9)),W2(4),W2(14)); }                   // the seam where the two leaves meet
+    if(k===0){ ctx.fillStyle='#5a3418'; ctx.fillRect(X(x0+half-1),Y(y+(down?-5:T-9)),W2(2),W2(12)); }                   // the joint where the two leaves meet
     if(t.st==='shut'&&t.hits>0){ ctx.fillStyle='rgba(255,230,180,0.5)'; for(let i=0;i<t.hits;i++) ctx.fillRect(X(x0+half-12+i*10),Y(y+(down?-4:T)),W2(6),W2(3)); }   // cracks: how many hits so far
     ctx.restore();
   }

@@ -1550,7 +1550,7 @@ function _cadVignette(){
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const g=c.getContext('2d'), r=Math.hypot(W,H)*0.56;
   const gr=g.createRadialGradient(W/2,H*0.46,r*0.34,W/2,H*0.46,r);
-  gr.addColorStop(0,'rgba(8,6,16,0)'); gr.addColorStop(0.72,'rgba(8,6,16,0.10)'); gr.addColorStop(1,'rgba(6,4,12,0.72)');
+  gr.addColorStop(0,'rgba(8,6,16,0)'); gr.addColorStop(0.82,'rgba(8,6,16,0)'); gr.addColorStop(1,'rgba(6,4,12,0.22)');
   g.fillStyle=gr; g.fillRect(0,0,W,H);
   _cadVig=c; return c;
 }
