@@ -1310,7 +1310,7 @@
       // Settled on a ramp? Keep tumbling — don't leave a seed parked mid-slope.
       if(!k._fly){
         const sl0=knowlSlope(k,k.y+footOff);
-        if(sl0&&Math.abs(sl0.ang)>0.08){ k._fly=true; k._rest=0; k._flyT=0; k.vx+=(Math.sin(sl0.ang)*0.55); k.spin=(k.spin||0)+k.vx*0.1; }
+        if(sl0&&Math.abs(sl0.ang)>0.22){ k._fly=true; k._rest=0; k._flyT=0; k.vx+=(Math.sin(sl0.ang)*0.55); k.spin=(k.spin||0)+k.vx*0.1; }
         else continue;
       }
       const m=Math.max(1.2,k._mass||knowlMass(k));
@@ -1329,81 +1329,75 @@
       for(let s=0;s<steps;s++){
         const nx=k.x+k.vx/steps;
         if(knowlOutlineSolid(nx,k.y,k)){
-          k.vx=Math.abs(k.vx)>1.0?-k.vx*0.38:0;
-          k.spin=-(k.spin||0)*0.65+(k.vx||0)*0.08;
+          k.vx=Math.abs(k.vx)>1.2?-k.vx*0.25:0;
+          k.spin*=0.5;
         }else k.x=nx;
         const ny=k.y+k.vy/steps;
+        const wasIn=knowlOutlineSolid(k.x,k.y,k);
         if(knowlOutlineSolid(k.x,ny,k)){
-          if(ny>=k.y){
+          if(k.vy>=0){
             ground=true; hitV=Math.max(hitV,k.vy);
-            // Hard gem bounce — heavier mass = slightly softer rebound.
-            const bounce=Math.max(0.18, 0.42-m*0.04);
-            k.vy=(k.vy>1.8)?-k.vy*bounce:0;
-            k.vx*=0.86;
-            k.spin=(k.spin||0)*0.7+(k.vx||0)*0.12;
-          }else{
-            k.vy=Math.abs(k.vy)*0.28;
+            // A real drop gets one smaller bounce. A tap, or a shape already
+            // touching the floor, just stops — it must not kick itself back up.
+            if(!wasIn&&k.vy>2.6){ k.vy=-k.vy*0.2; k.vx*=0.75; k.spin*=0.55; }
+            else { k.vy=0; k.vx*=0.8; k.spin*=0.6; }
+          }else if(!wasIn){
+            k.vy=0;
           }
         }else k.y=ny;
       }
+      // Lift a grazing outline out of the floor by a few pixels. Never teleport
+      // it onto some other surface — that was the endless bounce.
+      if(knowlOutlineSolid(k.x,k.y,k)){
+        ground=true;
+        let n=0;
+        while(n<12&&knowlOutlineSolid(k.x,k.y,k)){ k.y-=1; n++; }
+        if(Math.abs(k.vy)<2.6) k.vy=0;
+      }
       if(ground){
-        if(k.kind==='seed'&&hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
-        else if(k.kind!=='seed'&&hitV>2.2&&!(k._landSfxF>0)){
+        if(k.kind==='seed'&&hitV>2.6&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
+        else if(k.kind!=='seed'&&hitV>2.8&&!(k._landSfxF>0)){
           k._landSfxF=10;
           try{ sfxAt(k,'object_land',Math.min(1,hitV/(6+m)*Math.sqrt(m/2.6))); }catch(e){}
         }
-        // Sit on the rotated outline, then tip toward the face that can hold it.
         const sup=knowlSupport(k);
-        const fy=typeof gridStandY==='function'?gridStandY(k.x+sup.ox,k.y+sup.drop,{maxUp:sup.drop+8,maxDrop:T}):null;
-        if(fy!=null) k.y=fy-sup.drop;
         const gem=hull0.type==='hex';
-        if(sup.flat){
-          if(sup.right<-1) k.spin=(k.spin||0)-0.05;
-          else if(sup.left>1) k.spin=(k.spin||0)+0.05;
-          else k.spin=(k.spin||0)*0.72;
-        }else if(gem){
-          const lean=Math.abs(sup.ox)<1.6?(k._lean||1):Math.sign(sup.ox);
-          if(Math.abs(k.spin||0)<0.16) k.spin=(k.spin||0)+lean*0.035;
-        }else if(seedTipDown(k.rot)){
-          if(Math.abs(k.spin||0)<0.14) k.spin=(k.spin||0)+(k._lean||1)*0.04;
-        }else if(Math.abs(sup.ox)>3){
-          k.spin=(k.spin||0)+Math.sign(sup.ox)*0.02;
-        }
-        const rad=gem?(hull0.hh*0.72):(hull0.r*1.35);
-        if(Math.abs(k.vx)>0.3) k.spin=(k.spin||0)+((k.vx/rad)-(k.spin||0))*0.2;
+        const quiet=Math.abs(k.vx)<0.35&&Math.abs(k.vy)<0.45&&Math.abs(k.spin||0)<0.05;
+        if(!quiet){
+          if(sup.flat){
+            if(sup.right<-1.5) k.spin=(k.spin||0)-0.03;
+            else if(sup.left>1.5) k.spin=(k.spin||0)+0.03;
+            else k.spin*=0.55;
+          }else if(gem&&Math.abs(k.spin||0)<0.12){
+            const lean=Math.abs(sup.ox)<1.6?(k._lean||1):Math.sign(sup.ox);
+            k.spin=(k.spin||0)+lean*0.02;
+          }else if(!gem&&seedTipDown(k.rot)&&Math.abs(k.spin||0)<0.1){
+            k.spin=(k.spin||0)+(k._lean||1)*0.025;
+          }
+          const rad=gem?(hull0.hh*0.72):(hull0.r*1.35);
+          if(Math.abs(k.vx)>0.45) k.spin=(k.spin||0)+((k.vx/rad)-(k.spin||0))*0.12;
+        }else k.spin*=0.4;
         const sl=knowlSlope(k,k.y+sup.drop);
-        if(sl){
-          k.vx+=(Math.sin(sl.ang)*0.7)/Math.max(1,m*0.55);
+        if(sl&&Math.abs(sl.ang)>0.22){
+          k.vx+=(Math.sin(sl.ang)*0.45)/Math.max(1,m*0.55);
           k._rest=0;
         }else{
-          k.vx*=0.9;
-          const settled=sup.flat||(!gem&&!seedTipDown(k.rot));
-          if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.35&&settled) k._rest=(k._rest||0)+1;
+          k.vx*=0.82;
+          if(quiet) k._rest=(k._rest||0)+1;
           else k._rest=0;
         }
       }else{
         k._rest=0;
-        k.spin=(k.spin||0)*0.988;
+        k.spin=(k.spin||0)*0.96;
       }
       if(k._glassF>0) k._glassF--;
       if(k._landSfxF>0) k._landSfxF--;
       k.rot=(k.rot||0)+(k.spin||0);
-      // A resting crystal keeps the face it landed on. A seed eases onto its belly, not its tip.
-      if(ground&&Math.abs(k.vx)<0.35){
-        if(hull0.type==='hex'){
-          if(knowlSupport(k).flat) k.spin*=0.5;
-        }else if(!seedTipDown(k.rot)){
-          const turns=Math.PI*2, target=turns*Math.round((k.rot||0)/turns);
-          if(Math.abs((k.rot||0)-target)<0.9){ k.rot+=(target-k.rot)*0.14; k.spin*=0.5; }
-        }
-      }
       knowlTouchesEnemy(k);
-      const stillRolling=!!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)>0.1;
-      if(!stillRolling&&((k._rest||0)>5||(k._flyT=(k._flyT||0)+1)>600)){
+      const rollSl=knowlSlope(k,k.y+footOff);
+      const stillRolling=!!(rollSl&&Math.abs(rollSl.ang)>0.22&&Math.abs(k.vx)>0.45);
+      if(!stillRolling&&((k._rest||0)>4||(k._flyT=(k._flyT||0)+1)>240)){
         k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0;
-        const sup=knowlSupport(k);
-        const fy=typeof gridStandY==='function'?gridStandY(k.x+sup.ox,k.y+sup.drop,{maxUp:8,maxDrop:T}):null;
-        if(fy!=null) k.y=fy-sup.drop;
         k.ox=k.x; k.oy=k.y; k.got=false;
       }else{ k.ox=k.x; k.oy=k.y; }
     }
