@@ -1477,11 +1477,36 @@
   function drawWater(){
     if(!F.ready) return;
     const {NX,NY,CS,BLK,EL}=F, b=F.bb;
-    const pool=new Path2D(), stream=new Path2D(), surf=[], live=[];
+    const live=[];
     let tMin=1e9, bMax=-1e9;
-    // Only build water geometry for rows actually on screen. The pool spans the
-    // whole stage; drawing off-screen rows made a huge Path2D every frame and
-    // stalled 1.3's shaft (frame-rate drop + laggy controls).
+    // Build 439 (Paulo): liquid must look smooth — no serrated pixel stairs.
+    // render.js keeps imageSmoothingEnabled=false for pixel art; water overrides for this pass.
+    const prevSmooth=ctx.imageSmoothingEnabled, prevQ=ctx.imageSmoothingQuality;
+    ctx.imageSmoothingEnabled=true;
+    if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
+    ctx.lineJoin='round'; ctx.lineCap='round';
+
+    // Per-column free-surface samples (world). Contiguous runs become one continuous fill
+    // under a smoothed polyline — never a staircase of independent cell quads.
+    const topL=[], topR=[], botL=[], botR=[], has=[];
+    const streamSegs=[]; // {cx,y0,y1,wd} soft falling sheets
+
+    // T628: slope lookup uses TILE indices (MV_GRID.tile), never fluid CS.
+    const tile=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:CS*2;
+    const rampY=(xx, nearY)=>{
+      if(typeof gridSlopeKind!=='function'||typeof gridSlopeY!=='function') return null;
+      const c=Math.floor(xx/tile);
+      for(const r of [Math.floor((nearY-1)/tile), Math.floor(nearY/tile), Math.floor((nearY+1)/tile), Math.floor((nearY-tile)/tile)]){
+        if(r<0) continue;
+        if(gridSlopeKind(c,r)){
+          const sy2=gridSlopeY(c,r,xx);
+          if(sy2!=null && Math.abs(sy2-nearY)<=tile+4) return sy2;
+        }
+      }
+      return null;
+    };
+
+    // Only build water geometry for rows actually on screen.
     const yTop=Math.max(b.y0,Math.floor((_rcamY-8)/CS)), yBot=Math.min(b.y1,Math.ceil((_rcamY+H+8)/CS));
     if(b.x1>=b.x0) for(let x=b.x0;x<=b.x1;x++){
       const X0=x*CS, X1=X0+CS;
@@ -1493,36 +1518,23 @@
         const j=y+1<NY?i+NX:-1, mj=j>=0?em(j):0;
         const sup=j>=0&&((BLK[j]&1)||mj>=0.9||(BLK[j]===2&&mj<0.02));
         const side=(x>0&&em(i-1)>0.5)||(x<NX-1&&em(i+1)>0.5);
-        // T628: slope lookup uses TILE indices (MV_GRID.tile), never fluid CS.
-        const T=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:CS*2;
-        const rampY=(xx, nearY)=>{
-          if(typeof gridSlopeKind!=='function'||typeof gridSlopeY!=='function') return null;
-          const c=Math.floor(xx/T);
-          for(const r of [Math.floor((nearY-1)/T), Math.floor(nearY/T), Math.floor((nearY+1)/T), Math.floor((nearY-T)/T)]){
-            if(r<0) continue;
-            if(gridSlopeKind(c,r)){
-              const sy2=gridSlopeY(c,r,xx);
-              if(sy2!=null && Math.abs(sy2-nearY)<=T+4) return sy2;
-            }
-          }
-          return null;
-        };
-        // Thin sheet / falling water sitting on a ramp: draw a diagonal ribbon, never a vertical rect
-        // (vertical rects + flat tops are the stair-step "zigzag" Paulo still sees).
         const midY=y*CS+CS*0.5;
         const sl0=rampY(X0+0.5, midY), sr0=rampY(X1-0.5, midY);
+        // Thin sheet on a ramp: sample into the continuous column buffers (not a lone quad).
         if(sl0!=null&&sr0!=null&&(!sup||m<0.95)){
           const thick=Math.max(2.5, Math.min(CS*0.95, (0.25+m*0.9)*CS));
           const tl=sl0-thick, tr=sr0-thick;
-          pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(sr0)); pool.lineTo(sx(X0),sy(sl0)); pool.closePath();
-          if(y===0||em(i-NX)<0.02) surf.push(X0,tl,X1,tr);
+          if(has[x]==null||tl<topL[x]){ topL[x]=tl; topR[x]=tr; botL[x]=sl0; botR[x]=sr0; has[x]=1; }
           if(tl<tMin) tMin=tl; if(Math.max(sl0,sr0)>bMax) bMax=Math.max(sl0,sr0);
           if(EL[i]) live.push(x,y);
           y++; continue;
         }
-        if(!sup&&m<0.9&&!side){                                 // falling water: a stream
+        if(!sup&&m<0.9&&!side){                                 // falling water: soft stream (no hard rect)
           const wd=CS*Math.min(1,0.3+m*1.2);
-          stream.rect(sx(X0+(CS-wd)/2),sy(y*CS),sw(wd),sw(CS)+1);
+          const cx=X0+CS*0.5, y0=y*CS, y1=(y+1)*CS;
+          const last=streamSegs.length?streamSegs[streamSegs.length-1]:null;
+          if(last&&Math.abs(last.cx-cx)<1&&Math.abs(last.y1-y0)<2){ last.y1=y1; last.wd=Math.max(last.wd,wd); }
+          else streamSegs.push({cx,y0,y1,wd});
           if(EL[i]) live.push(x,y);
           y++; continue;
         }
@@ -1538,29 +1550,88 @@
           if(R!=null) tr=(R+top)/2; else if(x<NX-1&&em(i+1)>=0&&em(i+1)<0.02&&y+1<NY&&em(i+1+NX)>=0.02) tr=(y+1)*CS;
         }
         const bot=(yb+1)*CS;
-        // Paulo: on a ramp the water bottom must follow the slope's diagonal,
-        // not a flat cell edge — flat bottoms made a serrated "ladder" of steps.
+        // Paulo: on a ramp the water bottom must follow the slope's diagonal.
         const blRaw=rampY(X0+0.5, bot-1), brRaw=rampY(X1-0.5, bot-1);
         const bl=blRaw!=null?blRaw:bot, br=brRaw!=null?brRaw:bot;
-        // Deep standing water whose floor is a ramp: surface also tracks the diagonal
-        // so the meniscus isn't a horizontal stair over the slope.
         if(blRaw!=null&&brRaw!=null&&free){
           const deep=Math.max(3, Math.min((yb-y+1)*CS*0.85, Math.min(1,m)*CS+(yb-y)*CS*0.5));
           tl=bl-deep; tr=br-deep;
         }
-        if(free) surf.push(X0,tl,X1,tr);
-        pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(br)); pool.lineTo(sx(X0),sy(bl)); pool.closePath();
-        if(top<tMin) tMin=Math.min(top,tl); if(bot>bMax) bMax=Math.max(bot,bl,br);
+        if(free||has[x]==null){
+          if(has[x]==null||tl<topL[x]){ topL[x]=tl; topR[x]=tr; botL[x]=bl; botR[x]=br; has[x]=free?1:2; }
+        }
+        if(Math.min(tl,tr)<tMin) tMin=Math.min(tl,tr); if(Math.max(bot,bl,br)>bMax) bMax=Math.max(bot,bl,br);
         for(let yy=y;yy<=yb;yy++) if(EL[yy*NX+x]) live.push(x,yy);
         y=yb+1;
       }
     }
+
+    // Smooth free-surface column tops (neighbor average, two passes) so shared edges match.
+    for(let pass=0;pass<2;pass++){
+      const nL=topL.slice(), nR=topR.slice();
+      for(let x=b.x0;x<=b.x1;x++){
+        if(has[x]==null) continue;
+        let tl=topL[x], tr=topR[x], wL=1, wR=1;
+        if(has[x-1]!=null){ tl+=topR[x-1]; wL++; }
+        if(has[x+1]!=null){ tr+=topL[x+1]; wR++; }
+        // Soften interior of each column toward its own mid + neighbors.
+        const mid=(topL[x]+topR[x])*0.5;
+        nL[x]=(tl+mid)/(wL+1); nR[x]=(tr+mid)/(wR+1);
+      }
+      for(let x=b.x0;x<=b.x1;x++) if(has[x]!=null){ topL[x]=nL[x]; topR[x]=nR[x]; }
+      // Weld shared edges so adjacent columns share one height (kills residual stairs).
+      for(let x=b.x0;x<b.x1;x++){
+        if(has[x]==null||has[x+1]==null) continue;
+        const mid=(topR[x]+topL[x+1])*0.5; topR[x]=mid; topL[x+1]=mid;
+      }
+    }
+
+    // Build one continuous Path2D per contiguous column run (quadratic surface).
+    const pool=new Path2D();
+    const surfRuns=[]; // each: [{x,y},...] world polyline of free surface
+    let runStart=null;
+    const flushRun=(xEnd)=>{
+      if(runStart==null) return;
+      const x0=runStart, x1=xEnd;
+      const pts=[];
+      pts.push({x:x0*CS, y:topL[x0]});
+      for(let x=x0;x<=x1;x++){
+        pts.push({x:(x+0.5)*CS, y:(topL[x]+topR[x])*0.5});
+        pts.push({x:(x+1)*CS, y:topR[x]});
+      }
+      // Surface path: quadratic through midpoints for a continuous liquid curve.
+      pool.moveTo(sx(pts[0].x), sy(pts[0].y));
+      if(pts.length===2) pool.lineTo(sx(pts[1].x), sy(pts[1].y));
+      else{
+        for(let k=1;k<pts.length-1;k++){
+          const c=pts[k], n=pts[k+1];
+          pool.quadraticCurveTo(sx(c.x),sy(c.y), sx((c.x+n.x)*0.5),sy((c.y+n.y)*0.5));
+        }
+        const last=pts[pts.length-1];
+        pool.lineTo(sx(last.x), sy(last.y));
+      }
+      // Close under bottom (also continuous, slope-aware).
+      pool.lineTo(sx((x1+1)*CS), sy(botR[x1]));
+      for(let x=x1;x>=x0;x--){
+        pool.lineTo(sx((x+0.5)*CS), sy((botL[x]+botR[x])*0.5));
+        pool.lineTo(sx(x*CS), sy(botL[x]));
+      }
+      pool.closePath();
+      if(has[x0]===1||has[x1]===1) surfRuns.push(pts);
+      runStart=null;
+    };
+    for(let x=b.x0;x<=b.x1;x++){
+      if(has[x]!=null){ if(runStart==null) runStart=x; }
+      else flushRun(x-1);
+    }
+    flushRun(b.x1);
+
     const elec=live.length>0;
     if(bMax>tMin){
       const g=ctx.createLinearGradient(0,sy(tMin),0,sy(Math.min(bMax,tMin+12*T)));
       // (build 409, Paulo) blood / ink washed into the water stains it: redder (black in Ink & Vinyl) the more there is
       const st=Math.min(0.75,B.waterStain||0), inkW=!!(window.MV_SPILL&&MV_SPILL.mode==='ink'), tc=inkW?[14,12,18]:[150,8,20];
-      const wc=(r,g2,b,a)=>'rgba('+Math.round(r+(tc[0]-r)*st)+','+Math.round(g2+(tc[1]-g2)*st)+','+Math.round(b+(tc[2]-b)*st)+','+Math.min(0.92,a+0.12*st).toFixed(3)+')';
+      const wc=(r,g2,b2,a)=>'rgba('+Math.round(r+(tc[0]-r)*st)+','+Math.round(g2+(tc[1]-g2)*st)+','+Math.round(b2+(tc[2]-b2)*st)+','+Math.min(0.92,a+0.12*st).toFixed(3)+')';
       g.addColorStop(0,elec?wc(150,215,240,0.5):wc(96,150,178,0.34)); g.addColorStop(0.35,elec?wc(80,140,210,0.62):wc(34,82,118,0.56)); g.addColorStop(1,elec?wc(40,80,170,0.8):wc(8,26,48,0.84));
       const ab=B.xBub;
       ctx.fillStyle=g;
@@ -1577,6 +1648,10 @@
         ctx.beginPath(); ctx.arc(sx(ab.x),sy(ab.y),sw(ab.r)*0.7,Math.PI*1.1,Math.PI*1.45); ctx.stroke();
         ctx.restore();
       }else ctx.fill(pool);
+      // Soft outline so the silhouette isn't a hard jagged cut against terrain.
+      ctx.strokeStyle=elec?'rgba(180,225,250,0.28)':'rgba(140,185,210,0.22)';
+      ctx.lineWidth=Math.max(1.5,sw(2.2)); ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.stroke(pool);
       ctx.restore();
       // ripples running out through the water
       if(B.wRings.length){ ctx.save(); ctx.clip(pool);
@@ -1607,25 +1682,55 @@
       }
       ctx.restore();
     }
-    // falling water - T529: the pool uses slopeClip() above, the stream didn't, so
-    // its per-cell rects painted over ramps as flat steps. Clip it the same way.
+    // Falling water: round-cap thick strokes + soft ellipses (T529 slopeClip kept).
     const sc2=slopeClip(); ctx.save(); if(sc2) ctx.clip(sc2,'evenodd');
-    ctx.fillStyle=elec?'rgba(170,220,250,0.6)':'rgba(120,165,190,0.42)'; ctx.fill(stream);
-    ctx.save(); ctx.clip(stream); ctx.strokeStyle='rgba(225,240,248,0.22)'; ctx.lineWidth=1; ctx.beginPath();   // fine streaks running down
-    for(let k=0;k<W;k+=5){ const o=((fr*11+k*29)%40); for(let yy=-40+o;yy<H;yy+=40){ ctx.moveTo(k+0.5,yy); ctx.lineTo(k+0.5,yy+14+(k%3)*4); } }
-    ctx.stroke(); ctx.restore(); ctx.restore();
-    // the surface: a bright line where the water meets the air
-    if(surf.length){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    for(const s of streamSegs){
+      const x=sx(s.cx), y0=sy(s.y0), y1=sy(s.y1), lw=Math.max(2,sw(s.wd));
+      ctx.strokeStyle=elec?'rgba(170,220,250,0.55)':'rgba(120,165,190,0.4)';
+      ctx.lineWidth=lw;
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke();
+      // Soft body so the stream isn't a hard capsule edge.
+      ctx.fillStyle=elec?'rgba(190,230,255,0.18)':'rgba(150,190,215,0.14)';
+      const mid=(y0+y1)*0.5, hh=Math.max(2,(y1-y0)*0.55), ww=lw*0.55;
+      ctx.beginPath(); ctx.ellipse(x,mid,ww,hh,0,0,Math.PI*2); ctx.fill();
+    }
+    // Fine streaks inside streams
+    if(streamSegs.length){
+      ctx.strokeStyle='rgba(225,240,248,0.22)'; ctx.lineWidth=1;
+      ctx.beginPath();
+      for(const s of streamSegs){
+        const x=sx(s.cx), y0=sy(s.y0), y1=sy(s.y1);
+        const o=((fr*11+(s.cx|0)*29)%18);
+        for(let yy=y0-8+o;yy<y1+8;yy+=18){ ctx.moveTo(x,yy); ctx.lineTo(x,yy+8); }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Continuous soft meniscus along each smoothed free-surface run.
+    if(surfRuns.length){
       ctx.lineJoin='round'; ctx.lineCap='round';
-      const line=(st,lw,dy)=>{ ctx.strokeStyle=st; ctx.lineWidth=lw; ctx.beginPath(); for(let k=0;k<surf.length;k+=4){ ctx.moveTo(sx(surf[k]),sy(surf[k+1])+dy); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])+dy); } ctx.stroke(); };
-      line('rgba(170,205,220,0.18)',Math.max(3,sw(5)),Math.max(2,sw(3)));        // the light just under the skin
-      line('rgba(232,244,250,0.55)',Math.max(1,sw(1.5)),0);                       // the thin bright meniscus
-      // Foam follows the surface segment (diagonal on ramps) — never a flat fillRect stair.
-      for(let k=0;k<surf.length;k+=4){
-        const sl=Math.abs(surf[k+3]-surf[k+1]); if(sl<=4) continue;
-        ctx.strokeStyle='rgba(235,242,246,'+Math.min(0.35,sl*0.025)+')';
-        ctx.lineWidth=Math.max(1,sw(1.5));
-        ctx.beginPath(); ctx.moveTo(sx(surf[k]),sy(surf[k+1])); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])); ctx.stroke();
+      const strokeRun=(pts, st, lw, dy)=>{
+        if(pts.length<2) return;
+        ctx.strokeStyle=st; ctx.lineWidth=lw; ctx.beginPath();
+        ctx.moveTo(sx(pts[0].x), sy(pts[0].y)+dy);
+        if(pts.length===2) ctx.lineTo(sx(pts[1].x), sy(pts[1].y)+dy);
+        else{
+          for(let k=1;k<pts.length-1;k++){
+            const c=pts[k], n=pts[k+1];
+            ctx.quadraticCurveTo(sx(c.x),sy(c.y)+dy, sx((c.x+n.x)*0.5),sy((c.y+n.y)*0.5)+dy);
+          }
+          const last=pts[pts.length-1];
+          ctx.lineTo(sx(last.x), sy(last.y)+dy);
+        }
+        ctx.stroke();
+      };
+      for(const pts of surfRuns){
+        strokeRun(pts,'rgba(170,205,220,0.2)',Math.max(3,sw(5)),Math.max(2,sw(3)));
+        strokeRun(pts,'rgba(232,244,250,0.58)',Math.max(1.2,sw(1.6)),0);
+        // Soft foam where the surface tilts (ramps) — continuous, not per-segment stairs.
+        let tilt=0; for(let k=1;k<pts.length;k++) tilt+=Math.abs(pts[k].y-pts[k-1].y);
+        if(tilt>6) strokeRun(pts,'rgba(235,242,246,'+Math.min(0.35,tilt*0.01)+')',Math.max(1,sw(1.5)),-Math.max(1,sw(1)));
       }
     }
     // lightning through live water
@@ -1722,6 +1827,9 @@
         ctx.restore();
       }
     }
+    // Restore pixel-art smoothing after the whole liquid pass.
+    ctx.imageSmoothingEnabled=prevSmooth;
+    if(prevQ!=null) ctx.imageSmoothingQuality=prevQ;
   }
   // the Isolator wraps MIND: a glossy orange rubber skin over the box and wheel
   const _origDrawChar=window.drawCharacter;
