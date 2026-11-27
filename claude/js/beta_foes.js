@@ -393,31 +393,51 @@
     const c={x:e.x+e.w/2, y:e.y+e.h/2}, R=e.w*0.56;
     for(let i=0;i<6;i++){
       const an=-Math.PI/2+i*Math.PI/3+(e.spin||0)+(e.ang||0), x=c.x+Math.cos(an)*R, y=c.y+Math.sin(an)*R-4;
-      F_PEL.push({x,y,vy:-1.2,vx:(Math.random()-0.5)*0.5,t:0,life:140,stage:0});
+      F_PEL.push({x,y,vy:-1.4,vx:(Math.random()-0.5)*0.35,t:0,stage:0,ph:Math.random()*6.3});
     }
   }
   function fPelTick(){
     for(let i=F_PEL.length-1;i>=0;i--){
       const b=F_PEL[i]; b.t++;
-      const wp=B.inWater&&B.inWater(b.x,b.y);
-      if(!wp&&b.stage===0){ b.stage=1; try{ if(typeof sfxAt==='function') sfxAt({x:b.x,y:b.y,w:0,h:0},'bubble_pop',1); else S('bubble_pop',1); }catch(er){ S('zap',1.8); } }                       // the bubble reaches the surface: it pops
-      if(b.stage===1&&p&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
-      if(b.stage===0){ b.vy=Math.min(b.vy+0.05,1.2); b.y+=b.vy; b.x+=b.vx; }
-      else { b.vy=0.14; b.y+=b.vy; if(b.t>b.life){ F_PEL.splice(i,1); } }                     // floats, then dies and falls
+      const wp=!!(B.inWater&&B.inWater(b.x,b.y));
+      const above=!!(B.inWater&&B.inWater(b.x,b.y-10));
+      const ceil=solid(b.x,b.y-8);
+      if(b.stage===0){
+        if(!wp||!above||ceil||b.t>360){
+          b.stage=1; b.floatT=96; b.vy=0;
+          try{ if(typeof sfxAt==='function') sfxAt({x:b.x,y:b.y,w:0,h:0},'bubble_pop',1); else S('bubble_pop',1); }catch(er){ S('zap',1.8); }
+          try{ if(B.boilAt) B.boilAt(b.x,b.y+4,0.4); }catch(er){}
+        }else{
+          b.vy=Math.max(-2.8,(b.vy||-1.4)-0.07);
+          b.y+=b.vy; b.x+=Math.sin(b.t*0.14+b.ph)*0.4;
+        }
+      }else if(b.stage===1){
+        b.y+=Math.sin(b.t*0.1+b.ph)*0.22;
+        if(p&&(b.t%16)===0&&Math.hypot(p.x+SW/2-b.x,p.y+FEET_OFF-b.y-14)<28&&!B.hasIsolator){ try{ applyPlayerHit(b.x,b.y-6,5); }catch(er){} }
+        if(--b.floatT<=0){ b.stage=2; b.vy=0.35; }
+      }else{
+        b.vy=Math.min(5.2,(b.vy||0)+0.22);
+        const ny=b.y+b.vy;
+        if(solid(b.x,ny+6)||b.t>520){ F_PEL.splice(i,1); continue; }
+        b.y=ny;
+      }
     }
+    if(F_PEL.length>48) F_PEL.splice(0,F_PEL.length-48);
   }
   function fPelDraw(){
     if(!F_PEL.length) return;
     ctx.save();
     for(const b of F_PEL){
-      const x=sx(b.x), y=sy(b.y), r=sw(9);
-      ctx.globalCompositeOperation='lighter';
-      ctx.fillStyle='rgba(200,240,255,0.5)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      ctx.globalCompositeOperation='source-over';
-      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=1.2; ctx.beginPath();
-      for(let k=0;k<3;k++){ const a=b.t*0.45+k*2.3; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.55,y+Math.sin(a)*r*0.55); }
+      const x=sx(b.x), y=sy(b.y), rising=b.stage===0, r=sw(rising?9:5);
+      if(rising){
+        ctx.globalCompositeOperation='lighter';
+        ctx.fillStyle='rgba(200,240,255,0.45)'; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+        ctx.globalCompositeOperation='source-over';
+        ctx.strokeStyle='rgba(220,245,255,0.85)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+      }
+      ctx.strokeStyle=b.stage===2?'rgba(255,246,160,0.9)':'rgba(255,255,255,0.9)'; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let k=0;k<3;k++){ const a=b.t*0.45+k*2.3; ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*r*0.7,y+Math.sin(a)*r*0.7); }
       ctx.stroke();
-      ctx.strokeStyle='rgba(150,225,255,0.3)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,sw(6),0,Math.PI*2); ctx.stroke();
     }
     ctx.restore();
   }

@@ -536,10 +536,11 @@ function playerHeadWorld(pl){
 function _playerChargeInfo(pl){
   const wallWC=pl.wallGrip>0?(90-pl.wallGrip):0;
   const wallC=pl.wallGrip>0?Math.min(1,wallWC/60):0;
-  const springC=Math.min(1,(pl.duckCharge||0)/60);
+  const skidC=Math.max(0,Math.min(1,pl._skidCharge||0));
+  const springC=Math.max(Math.min(1,(pl.duckCharge||0)/60), skidC);
   const sprinting=pl===p&&isSprintHeld()&&(pl.og||_playerOnGround(pl))&&_moveInputX()!==0;
   const runC=sprinting?(pl.runRamp||0):0;
-  const springReady=!!pl.duckBoostReady;
+  const springReady=!!pl.duckBoostReady||skidC>=0.98;
   const wallReady=!!pl._wallChargeReady;
   const chargeFrac=Math.max(springReady?1:springC,wallReady?1:wallC,runC);
   const ready=springReady||wallReady||(sprinting&&runC>=0.98);
