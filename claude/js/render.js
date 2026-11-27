@@ -3004,6 +3004,7 @@ function drawFX(){
   // is. drawWorldPass() already computes p._armPose / p2._armPose, and the caller
   // sets `p` (and `ITEM`) to the right player; the helpers read only that state.
   _fxItemStreams();
+  if(!_coopFXGuard&&window.MV_NET&&MV_NET.drawExtras){ try{ MV_NET.drawExtras(); }catch(e){} }
   // â”€â”€ LASER SHOTS â€” fast plasma bolts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _allShots=(p2&&p2.shots)?p.shots.concat(p2.shots):p.shots;
   const _laserList=_allShots.concat((typeof ESHOTS!=='undefined'?ESHOTS:[]).filter(s=>s&&s.type==='laser'));
@@ -3304,7 +3305,7 @@ function drawHookCable(){
     const _ap=p._armPose||computeConnectorArmPose(p);
     // the rope's drawn end: the RCA in MIND's hand, the clip on his disc (another item out),
     // or the plug on its way between them (beta_feel ropeClip animation)
-    const _clipQ=window.MV_BETA&&MV_BETA.ropeClipPoint?MV_BETA.ropeClipPoint():null;
+    const _clipQ=(!p._netPuppet&&window.MV_BETA&&MV_BETA.ropeClipPoint)?MV_BETA.ropeClipPoint():null;
     const _onBody=p.hook.st==='on'&&typeof _ropeInHand==='function'&&!_ropeInHand()&&typeof hookAttachWorld==='function';
     // plugged into the upper back: the pin points into the body, the cord leaves the boot
     let _plug=null, _wn;

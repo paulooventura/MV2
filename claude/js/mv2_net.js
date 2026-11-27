@@ -47,7 +47,7 @@
   var PUBLIC_URL='https://mindandventure.pauloventura.org/';
 
   var st={role:null, status:'offline', detail:'', code:'', linked:false, ping:0};
-  var toldTimeline=false, lastPhase='offline';
+  var toldTimeline=false, lastPhase='offline', remShots=[], remShotAt=0;
   var peer=null, conn=null, connTimer=null, hostTries=0;
   var statusCbs=[], pktCbs={};
   var buf=[], latest=null, hello=null, lastSend=0, lastEnemy=0, lastPing=0;
@@ -99,7 +99,7 @@
   function resetGame(){
     buf=[]; latest=null; hello=null; own=''; remEn={}; base=0; baseStage=null;
     myEpoch=0; lastStage=null; followUntil=0; followEpoch=-1;
-    toldTimeline=false; lastPhase='offline';
+    toldTimeline=false; lastPhase='offline'; remShots=[]; remShotAt=0;
   }
   function dropPuppet(){
     try{ if(typeof p2!=='undefined'&&p2&&p2._netPuppet) p2=null; }catch(e){}
@@ -264,6 +264,49 @@
     }
   }
 
+  function ownedEnemyShots(){
+    var out=[];
+    if(typeof ESHOTS==='undefined'||typeof ENEMS==='undefined'||!base) return out;
+    var m=me();
+    for(var i=0;i<ESHOTS.length&&out.length<10;i++){
+      var s=ESHOTS[i]; if(!s||s.owner!=='enemy'||!s.src) continue;
+      var idx=ENEMS.indexOf(s.src);
+      if(idx<0||idx>=base||ownerOf(idx)!==m) continue;
+      out.push([r1(s.x),r1(s.y),r1(s.vx),r1(s.vy),s.col||'#ff3355']);
+    }
+    return out;
+  }
+  function sc(n){ return (typeof sw==='function')?sw(n):n; }
+  function drawExtras(){
+    if(typeof ctx==='undefined'||typeof sx!=='function'||!st.linked) return;
+    var now=Date.now();
+    ctx.save();
+    if(remShots.length&&now-remShotAt<400){
+      for(var i=0;i<remShots.length;i++){
+        var s=remShots[i], x=sx(+s[0]||0), y=sy(+s[1]||0);
+        ctx.strokeStyle=s[4]||'#ff3355'; ctx.fillStyle=s[4]||'#ff3355'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-sc((+s[2]||0)*0.4), y-sc((+s[3]||0)*0.4)); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x,y,Math.max(2,sc(4)),0,Math.PI*2); ctx.fill();
+      }
+    }
+    var g=(typeof p2!=='undefined'&&p2&&p2._netGear)?p2._netGear:null;
+    if(g&&g.b){
+      var br=Math.max(4,sc(g.b[2]));
+      ctx.strokeStyle='rgba(235,250,255,0.9)'; ctx.lineWidth=Math.max(2,sc(3));
+      ctx.beginPath(); ctx.ellipse(sx(g.b[0]),sy(g.b[1]),br,br*1.15,0,0,Math.PI*2); ctx.stroke();
+    }
+    if(g&&g.c&&g.c[3]>0.05){
+      var R=Math.max(6,sc(g.c[2]||12)), cx=sx(g.c[0]), cy=sy(g.c[1]);
+      ctx.fillStyle='rgba(80,160,230,0.78)'; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(235,250,255,0.9)'; ctx.lineWidth=Math.max(1.5,sc(2)); ctx.stroke();
+    }
+    if(g&&g.w&&g.w[0]>8){
+      var wr=Math.max(4,sc(Math.sqrt(g.w[0]/Math.PI)));
+      ctx.fillStyle='rgba(110,190,245,0.75)'; ctx.beginPath(); ctx.arc(sx(g.w[1]),sy(g.w[2]),wr,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(235,250,255,0.9)'; ctx.lineWidth=Math.max(1.5,sc(2)); ctx.stroke();
+    }
+    ctx.restore();
+  }
   function heroSnap(actor){
     var b=B()||{};
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
@@ -279,9 +322,13 @@
       pk.sh=[];
       for(var si=0;si<actor.shots.length&&pk.sh.length<6;si++){
         var s=actor.shots[si]; if(!s) continue;
-        pk.sh.push([r1(s.x),r1(s.y),s.owner||'',s.charged?1:0,s.enhanced?1:0]);
+        pk.sh.push([r1(s.x),r1(s.y),r1(s.vx),r1(s.vy),s.owner||'',s.charged?1:0,s.enhanced?1:0]);
       }
     }
+    if(b.magWater&&b.magWater.area>8) pk.gw=[r1(b.magWater.area),r1(b.magWater.x),r1(b.magWater.y)];
+    if(b.magCore&&b.magCore.mass>0.05&&!b.magCore.free) pk.gc=[r1(b.magCore.x),r1(b.magCore.y),r1(b.magCore.r),r1(b.magCore.mass),r1(b.magCore.ang||0)];
+    if(b.xBub&&b.xBub.r>2) pk.gb=[r1(b.xBub.x),r1(b.xBub.y),r1(b.xBub.r)];
+    var es=ownedEnemyShots(); if(es.length) pk.es=es;
     if(actor&&!actor._netPuppet&&typeof ITEM==='number'){
       var ix=HERO_F.indexOf('item');
       if(ix>=0) pk.a[ix]=ITEM;
@@ -321,7 +368,9 @@
       actor.hook.rl=+b.rl||0; actor.hook._plugged=!!b.plg; actor.hook._path=null;
       actor.hook.pivots=(b.pv||[]).map(function(q){ return {x:+q[0]||0,y:+q[1]||0}; });
     }else if(actor.hook&&actor.hook.st&&actor.hook.st!=='idle'){ actor.hook.st='idle'; actor.hook.tgt=null; actor.hook.pivots=null; actor.hook._path=null; }
-    actor._netShots=(b.sh||[]).map(function(s){ return {x:+s[0]||0,y:+s[1]||0,owner:s[2]||'',charged:!!s[3],enhanced:!!s[4],vx:0,vy:0}; });
+    actor._netShots=(b.sh||[]).map(function(s){ return {x:+s[0]||0,y:+s[1]||0,vx:+s[2]||0,vy:+s[3]||0,owner:s[4]||'',charged:!!s[5],enhanced:!!s[6]}; });
+    actor._netGear={w:b.gw||null,c:b.gc||null,b:b.gb||null};
+    remShots=b.es||[]; remShotAt=b.es?Date.now():0;
   }
 
   // In the room = the wire is up. Entering = a stage is loading. In the timeline =
@@ -507,7 +556,7 @@
     host:host, join:join, disconnect:disconnect,
     status:status, role:function(){ return st.role; }, code:function(){ return st.code; },
     isActive:function(){ return st.linked; }, isLinked:function(){ return st.linked; },
-    inTimeline:inTimeline, phase:phase,
+    inTimeline:inTimeline, phase:phase, drawExtras:drawExtras,
     onStatus:onStatus, onPacket:onPacket, sendPacket:send,
     tick:tick, applyVisual:applyVisual,
     remote:function(){ return latest; }, hello:function(){ return hello; },
