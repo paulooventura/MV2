@@ -2,3 +2,5 @@
 // Replacements are local to this PC. Reset in the studio to clear a sound.
 window.MV_SFX_REPLACEMENTS = {
 };
+window.MV_SPRITE_REPLACEMENTS = {
+};
