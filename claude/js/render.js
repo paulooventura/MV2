@@ -540,6 +540,8 @@ function _hatXform(px,py,dir){ const m=_hatMotion(dir); ctx.translate(px,py-m.li
 // Paulo 2026-11-26 / Build 431: while he falls, the vinyl deck lifts off the subwoofer cabinet
 // (same falling test as the hat). Was ~5 px and hard to see — now a readable gap with a quick
 // pop, light tilt, gap dust, and a clunk settle. Still mounted on posts; not a free flyaway.
+// Paulo 2026-11-27: anatomy = bulb screwed into vinyl; vinyl (+ chrome orbs + arms) lift as ONE
+// assembly off the woofer. Head/shoulders must use the same lift+tilt, not stay on the cabinet.
 function _deckMotionFull(pl){
   if(!pl||pl.mirror||window._hatStill) return {lift:0,settle:0,rot:0,dust:0};
   if(pl._deckFr===fr) return {lift:pl._deckLift||0,settle:(pl._deckSettle||0)*2.4,rot:pl._deckRot||0,dust:pl._deckDust||0};
@@ -563,6 +565,20 @@ function _deckMotionFull(pl){
 }
 function _deckMotion(pl){
   return _deckMotionFull(pl).lift;
+}
+/** Screen-space point on the vinyl assembly (matches drawBody deck pivot at bodyTop+6). */
+function _deckFollowPoint(px,py,pivX,pivY,dm){
+  if(!dm) return {x:px,y:py};
+  const dk=Math.max(0,(dm.lift||0)-(dm.settle||0));
+  const rot=dm.rot||0;
+  if(dk<0.02&&Math.abs(rot)<0.0005) return {x:px,y:py};
+  let x=px-pivX, y=py-pivY;
+  if(Math.abs(rot)>0.0005){
+    const c=Math.cos(rot), s=Math.sin(rot);
+    const nx=x*c-y*s, ny=x*s+y*c;
+    x=nx; y=ny;
+  }
+  return {x:pivX+x, y:pivY+y-dk};
 }
 // GUARD (groove fix): hatTY is in hat units (×9 px). Clamp the brim so it always
 // sits on top of the bulb (never below its centre), whatever a groove/tilt value
@@ -1699,9 +1715,14 @@ function drawCharacter(){
   const _leftJab=p._punchHand==='L'&&p.pt>0;
   // Offbeat shoulder/arm sway: nudge only the SCREEN shoulder; world coords
   // (wall check + punch angle) stay untouched, and the rope arm's tip is not moved.
-  const _dmA=_deckMotionFull(p), _dkA=Math.max(0,_dmA.lift-_dmA.settle);
-  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
-  else drawGloveArm(glovShX+gArmX,shY+gArmY-_dkA,fc,glovShoulderWX,shoulderY,flicker);
+  // Arms leave the chrome orbs on the vinyl — follow the deck assembly (not the woofer).
+  const _dmA=_deckMotionFull(p), _deckPivY=bTopS+6;
+  const _armScr=_deckFollowPoint(glovShX+gArmX,shY+gArmY,wcx,_deckPivY,_dmA);
+  const _connScr=_deckFollowPoint(connShX,connShY,wcx,_deckPivY,_dmA);
+  const _elbScr=_deckFollowPoint(elbowX,elbowY,wcx,_deckPivY,_dmA);
+  const _tipScr=_deckFollowPoint(tipX,tipY,wcx,_deckPivY,_dmA);
+  if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(_armScr.x,_armScr.y,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
+  else drawGloveArm(_armScr.x,_armScr.y,fc,glovShoulderWX,shoulderY,flicker);
   if(flicker){ ctx.restore(); return; }
 
   const drawConnArm=()=>{
@@ -1713,6 +1734,7 @@ function drawCharacter(){
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;
+  const connShX=_connScr.x, connShY=_connScr.y, elbowX=_elbScr.x, elbowY=_elbScr.y, tipX=_tipScr.x, tipY=_tipScr.y;
   // Pixel-perfect rope anchor (Paulo). The raw pose.noseX/Y is the *physics* nose:
   // it misses the spring float, the body tilt, the idle-groove translate and the
   // jab lean that move the jack on screen. Mirror drawConnectorTip's transform
@@ -1797,9 +1819,22 @@ function drawCharacter(){
   // hat follow together (no clipping). Do NOT fold gHead/gHeadX into hatTY —
   // hatTY is in hat units (×9 px), so even gHead*0.5 would shove the brim through
   // the bulb. These are pixel-space offsets, kept in the drawHead args only.
+  // Paulo 2026-11-27: bulb is screwed into the vinyl — when the deck lifts off the
+  // subwoofer, the head rides that same assembly (lift + tilt). Tucked heads stay
+  // with the cabinet (they're inside the woofer shell).
   window._mindHeadDmg=Math.max(0,Math.min(1,1-(p.hp||0)/(p.maxHp||100)))+((typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0)?1:0);
-  const _dmH=_deckMotionFull(p), _dk=Math.max(0,_dmH.lift-_dmH.settle);
-  drawHead(wcx+gHeadX,sy(headCY+gHead)-_dk,p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  const _dmH=_deckMotionFull(p);
+  const _headRestX=wcx+gHeadX, _headRestY=sy(headCY+gHead);
+  const _headFollow=headTuckVis<0.55?_deckFollowPoint(_headRestX,_headRestY,wcx,bTopS+6,_dmH):{x:_headRestX,y:_headRestY};
+  const _drotH=(_dmH&&headTuckVis<0.55)?(_dmH.rot||0):0;
+  if(Math.abs(_drotH)>0.0005){
+    ctx.save();
+    ctx.translate(_headFollow.x,_headFollow.y); ctx.rotate(_drotH); ctx.translate(-_headFollow.x,-_headFollow.y);
+    drawHead(_headFollow.x,_headFollow.y,p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+    ctx.restore();
+  }else{
+    drawHead(_headFollow.x,_headFollow.y,p.pupilX,p.pupilY,headTuckVis,p.hero,peekAmt,chargeInfo,hatTX,hatTY,landHeadTuck,false);
+  }
   window._mindHeadDmg=0;
 
   // 4. BODY BOX â€” in front of glove arm + head
