@@ -802,6 +802,9 @@ function sfx(t){
     case'ropeBreak':o(150,60,.1,.16);nz(.08,.14);break;
     case'crank':o(180,140,.03,.06);break;
     case'ropeSlack':o(180,90,.1,.07);break;
+    // RCA reel ratchet fallback (chip / pre-posh): short ticks, not a smear
+    case'reel_in':o(3000,1800,.014,.12,0,'square'); nz(.01,.08,false,2.2); break;
+    case'reel_out':o(2300,1400,.016,.1,0,'square'); nz(.012,.07,false,1.8); break;
     case'click':o(980,980,.03,.06);break;
     case'chargeReady':o(392,392,.07,.11);o(523,523,.09,.1,.07);break;
     // Extra life / spare battery: a bright rising 1UP arpeggio, unmistakable

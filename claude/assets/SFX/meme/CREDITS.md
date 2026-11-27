@@ -20,7 +20,7 @@ They lazy-load, so the pack stays cheap. Override convention:
 | `pipe.wav` | 55,512 | hit, punch_hit | the metal-pipe-hit meme: a dropping metal tool clanging down |
 | `ow.wav` | 21,512 | hurt, player_hit | an actual "Ow!" voice cry when a hero takes damage |
 | `ding.wav` | 52,998 | knowl_pickup, crystal_pickup, knowl, item_clink, ping, extra_life, unlock | bright achievement bell for pickups and unlocks |
-| `click.wav` | 26,538 | grap_attach, hook_latch, click, swap, reel_in/out, confirm | crisp mechanical click for an item hooking on / swapping |
+| `click.wav` | 26,538 | grap_attach, hook_latch, click, swap, confirm | crisp mechanical click for an item hooking on / swapping (reel_in/out stay synth so the ratchet train stays dry) |
 | `blip.wav` | 24,774 | menu | short positive UI beep for menu navigation |
 | `laugh.wav` | 80,078 | enemy_alert, enemy_huh | cartoon monkey mocking laugh when a foe spots or loses MIND |
 | `trombone.wav` | 132,378 | shutdown, enemy_dead | the iconic sad trombone for death / permanent shutdown |

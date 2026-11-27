@@ -1053,7 +1053,11 @@
     return solidPx(x+m,y+m)||solidPx(x+T-m,y+m)||solidPx(x+m,y+T-m)||solidPx(x+T-m,y+T-m)||solidPx(x+T/2,y+T-m)||solidPx(x+T/2,y+m);
   }
   function throwCube(bw,vx,vy){
-    bw._fly=true; bw._carried=false; bw.vx=vx; bw.vy=vy; bw._rest=0; bw._tossT=14; bw.spin=vx*0.02; bw.rot=0;
+    bw._fly=true; bw._carried=false; bw.vx=vx; bw.vy=vy; bw._rest=0; bw._tossT=14; bw.rot=0;
+    // T638: spin = real angular impulse from the throw (mass-scaled), never a free float-spin
+    const m=Math.max(0.8,weightOf('cube',bw));
+    bw.spin=(vx||0)*(0.055/m)+(vy||0)*(-0.012/m);
+    if(Math.abs(bw.spin)<0.01) bw.spin=0;
     // Paulo (Oct 21): give the cell back when it leaves — a cube tugged out of its cell by the
     // MAG / XLR used to leave that cell solid (an invisible wall where it had been)
     if(bw.homeCol!=null&&bw.homeRow!=null) gridSmashCell(bw.homeCol,bw.homeRow);
@@ -1144,15 +1148,29 @@
       }
       separateFlyingCubes();
       if(bw._landSfxF>0) bw._landSfxF--;
-      bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.45:0.98);
+      // T638: tumble only from leftover angular momentum. Idle air (no linear speed) kills spin;
+      // mass damps harder. No perpetual float-spin.
+      const lin=Math.hypot(bw.vx||0,bw.vy||0);
+      const mass=weightOf('cube',bw);
+      bw.rot=(bw.rot||0)+(bw.spin||0);
+      let damp;
+      if(ground) damp=0.42;
+      else if(lin>2.2) damp=0.988;
+      else if(lin>0.7) damp=0.94;
+      else damp=0.78;                                          // hanging / hovering: spin dies fast
+      damp*=Math.max(0.72, Math.min(1, 2.4/Math.max(1.2,mass))); // heavier → settles sooner
+      bw.spin=(bw.spin||0)*damp;
+      if(Math.abs(bw.spin)<0.006||(lin<0.35&&!ground&&Math.abs(bw.spin)<0.04)) bw.spin=0;
       if(ground&&!bw._magStuck){
         const step=Math.PI/2;
         let d=(bw.rot||0); d-=step*Math.round(d/step);
         let w=bw._faceW||0;
         const prev=bw._d||0;
-        w+=-Math.sin(d*(Math.PI/step))*0.006;
-        if(Math.abs(bw.vx||0)>0.35) w+=Math.sign(bw.vx)*0.01;
-        w*=0.86;
+        // face settle toward flat; roll torque only while actually sliding
+        w+=-Math.sin(d*(Math.PI/step))*0.01;
+        if(Math.abs(bw.vx||0)>0.45) w+=Math.sign(bw.vx)*0.008;
+        else w*=0.7;
+        w*=0.82;
         if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3){
           bw.x+=Math.sign(prev)*T*0.35;
           if(!(bw._stumbleF>0)){
@@ -1161,6 +1179,7 @@
           }
         }
         bw.rot+=w; bw._faceW=w; bw._d=d;
+        if(Math.abs(bw.vx||0)<0.2&&Math.abs(d)<0.08){ bw.rot=Math.round((bw.rot||0)/step)*step; bw.spin=0; bw._faceW=0; }
       }
       if(bw._stumbleF>0) bw._stumbleF--;
       // a thrown cube hits by its momentum (weight × speed)

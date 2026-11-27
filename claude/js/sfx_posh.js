@@ -173,10 +173,10 @@
     // a TRS shot boiling water off: a hot sizzle and a few pops, then the steam breathing out
     water_boil(a){ hiss(a,{type:'highpass',f:2600,f1:5200,d:0.7,v:0.16,at:0.008,rate:0.9}); hiss(a,{type:'bandpass',f:1400,f1:700,q:0.8,d:1.3,v:0.07,at:0.15,rate:0.5,rev:0.3}); for(let k=0;k<6;k++) tone(a,{f:rnd(1800,3200),f1:rnd(500,900),d:0.03,v:0.05,dt:k*rnd(0.04,0.09),type:'square',hp:900}); },
     water_gush(a){ hiss(a,{type:'lowpass',f:2200,f1:500,d:2.4,v:0.22,at:0.05,rate:0.6,rev:0.35}); hiss(a,{f:900,q:0.7,d:2.0,v:0.12,at:0.1,rate:0.45,rev:0.3}); tone(a,{f:70,f1:45,d:1.2,v:0.14}); for(let k=0;k<10;k++) bell(a,{f:rnd(600,1400),dt:0.1+k*rnd(0.1,0.2),ratio:1.5,index:0.8,d:0.2,v:0.03,rev:0.4}); },
-    // one chain link. The short's clicks live around 2.4–3.2 kHz and die in a few dozen ms;
-    // the motor hum under them stays out. Reel-in is the brighter tick, reel-out a little rounder.
-    reel_in(a){ const f=rnd(2500,3200); tone(a,{f,f1:f*0.72,d:0.026,v:0.1,type:'triangle',bp:f,q:3.6,at:0.001,rev:0.03}); hiss(a,{type:'bandpass',f,q:2.8,d:0.014,v:0.07,at:0.001}); tone(a,{f:f*0.55,d:0.018,v:0.035,type:'sine',at:0.001}); },
-    reel_out(a){ const f=rnd(1900,2600); tone(a,{f,f1:f*0.78,d:0.032,v:0.09,type:'triangle',bp:f,q:2.8,at:0.001,rev:0.04}); hiss(a,{type:'bandpass',f:f*0.92,q:2.2,d:0.018,v:0.06,at:0.001}); },
+    // RCA reel ratchet (Paulo 2026-11-27): discrete click-click-click, not a muddy loop.
+    // Short dry ticks (~12–18 ms); reel-in brighter/higher, reel-out a hair rounder.
+    reel_in(a){ const f=rnd(2700,3400); tone(a,{f,f1:f*0.55,d:0.014,v:0.14,type:'square',bp:f,q:5.5,at:0.0005}); hiss(a,{type:'bandpass',f:f*1.05,q:4.2,d:0.01,v:0.09,at:0.0004}); tone(a,{f:f*0.42,d:0.01,v:0.04,type:'triangle',at:0.0005}); },
+    reel_out(a){ const f=rnd(2000,2650); tone(a,{f,f1:f*0.62,d:0.017,v:0.12,type:'square',bp:f,q:4.4,at:0.0005}); hiss(a,{type:'bandpass',f:f*0.95,q:3.2,d:0.012,v:0.08,at:0.0004}); tone(a,{f:f*0.38,d:0.012,v:0.035,type:'sine',at:0.0005}); },
     hook_latch_mag(a){ tone(a,{f:95,f1:60,d:0.12,v:0.24}); bell(a,{f:620,ratio:1.41,index:2.5,d:0.25,v:0.08,rev:0.25}); tone(a,{f:110,d:0.4,v:0.05,vib:30,vibd:8,at:0.03}); },
     hook_latch(a){ R.hook_latch_mag(a);  bell(a,{f:1150,ratio:3.7,index:3,d:0.22,v:0.09,rev:0.25}); hiss(a,{type:'highpass',f:3000,d:0.04,v:0.08}); tone(a,{f:160,f1:90,d:0.08,v:0.1}); },
     hook_miss(a){ hiss(a,{f:2400,f1:500,q:1.5,d:0.22,v:0.07}); },
@@ -438,8 +438,8 @@
         hurt:_ow, player_hit:_ow,
         // pickup → ding
         knowl_pickup:_ding, crystal_pickup:_ding, knowl:_ding, item_clink:_ding, ping:_ding, extra_life:_ding, unlock:_ding,
-        // item attach / latch → click
-        grap_attach:_click, hook_latch:_click, click:_click, swap:_click, reel_in:_click, reel_out:_click, confirm:_click,
+        // item attach / latch → click (reel stays on crisp synth — click.wav muddies the ratchet train)
+        grap_attach:_click, hook_latch:_click, click:_click, swap:_click, confirm:_click,
         // menu → blip
         menu:_blip,
         // enemy mock → mocking laugh
@@ -474,7 +474,10 @@
     try{ const d=window.MV_SFX.debug; d.last=t; d.source=ov?'pack':'original'; d.pack=pack; d.calls++; }catch(e){}
     const a=ctx(); if(!a) return;
     if(a.state!=='running') try{ a.resume(); }catch(e){}
-    const now=a.currentTime; if(lastAt[t]&&now-lastAt[t]<0.025) return; lastAt[t]=now;   // no machine-gunning
+    const now=a.currentTime;
+    // reel ratchet needs ~12–20 ms spacing; other SFX keep the 25 ms anti-machine-gun gate
+    const gate=(t==='reel_in'||t==='reel_out')?0.012:0.025;
+    if(lastAt[t]&&now-lastAt[t]<gate) return; lastAt[t]=now;
     const p=typeof arguments[1]==='number'?arguments[1]:1;
     try{ r(a,p); }catch(e){ return orig.apply(this,arguments); }
     try{ window.MV_SFX.debug.rendered++; }catch(e){}

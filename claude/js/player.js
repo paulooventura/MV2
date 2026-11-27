@@ -1527,9 +1527,17 @@ function updateHook(){
         }
       }
     }else{ h._upWas=false; h._dnWas=false; h._slackHold=0; }
-    h._reel=h.rl<rl0-0.01?-1:h.rl>rl0+0.01?1:0;
-    h._reelPhase=(h._reelPhase||0)+(h.rl-rl0);
-    if(h._reel){ h._reelT=(h._reelT||0)+1; const every=h._reel<0?4:6; if(h._reelT%every===1) sfx(h._reel<0?'reel_in':'reel_out'); } else h._reelT=0;
+    // RCA reel click train (T637): one crisp tick per tooth of cord wound; rate tracks |Δrl|.
+    const dRl=h.rl-rl0;
+    h._reel=dRl<-0.01?-1:dRl>0.01?1:0;
+    h._reelPhase=(h._reelPhase||0)+dRl;
+    if(h._reel){
+      h._reelT=(h._reelT||0)+1;
+      h._reelAcc=(h._reelAcc||0)+Math.abs(dRl);
+      // reel-in denser (~3.2 px/click), reel-out a touch looser — fast wind = rapid click-click-click
+      const tooth=h._reel<0?3.2:4.2;
+      if(h._reelAcc>=tooth){ h._reelAcc-=tooth; try{ sfx(h._reel<0?'reel_in':'reel_out'); }catch(e){} }
+    }else{ h._reelT=0; h._reelAcc=0; }
     const _pump=isLf()||isRt();
     // Left/right pumps along the arc, the way a web swing takes a kick — not a sideways shove
     // against a stiff line.

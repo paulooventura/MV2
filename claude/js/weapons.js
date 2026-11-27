@@ -588,20 +588,22 @@ function _updateRigidBox(box, solids, opts){
     }
     box._tipUrge=Math.max(0,(box._tipUrge||0)-0.08);
   }else{
+    // T638: airborne — tumble from angular momentum only; kill idle float-spin when nearly still
     box.vx=(box.vx||0)*0.996;
+    const lin=Math.hypot(box.vx||0,box.vy||0);
+    box.rot+=(box.spin||0);
     if(_boxShape(box)==='circle'){
-      box.rot+=(box.spin||0);
-      box.spin=(box.spin||0)*0.985;
+      box.spin=(box.spin||0)*(lin>1.4?0.985:lin>0.5?0.93:0.8);
     }else{
-      box.rot+=(box.spin||0);
       const lean=_boxLean(box.rot);
       if(Math.abs(lean)>BOX_FACE*0.46){
         box.rot=_snapBoxFace(box.rot+Math.sign(lean)*0.02);
         box.spin=(box.spin||0)*0.28;
       }else{
-        box.spin=(box.spin||0)*0.96;
+        box.spin=(box.spin||0)*(lin>2?0.985:lin>0.6?0.92:0.78);
       }
     }
+    if(Math.abs(box.spin||0)<0.006||(lin<0.35&&Math.abs(box.spin||0)<0.045)) box.spin=0;
   }
   return {dx:box.x-prevX, dy:box.y-prevY};
 }
