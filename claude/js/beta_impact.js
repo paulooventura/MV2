@@ -82,6 +82,7 @@
     B.shake=Math.max(B.shake||0,charged?6:2.5);
     S(charged?'punch_hit_heavy':'punch_hit');
     if(kind==='wall') S('punch_wall');
+    // smashable omni/blocks get grit dust; push/pull keyblocks stay clean (Paulo P0: no crumbs)
     if(kind==='wall'||kind==='block') dust(x,y,charged?6:3,2,'190,175,160');
   };
   // every swing: a whoosh (main.js plays 'punch' / the loaded swing) — and a smear while the arm is out

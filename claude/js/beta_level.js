@@ -1102,13 +1102,21 @@
         else bw.x=nx;
         const ny=bw.y+bw.vy/steps;
         if(boxHits(bw.x,ny)){
-          if(bw.vy>0) ground=true;
+          if(bw.vy>0){
+            ground=true;
+            const hitV=bw.vy, m=weightOf('cube',bw);
+            if(hitV>2.2&&!(bw._landSfxF>0)){
+              bw._landSfxF=10;
+              try{ sfxAt(bw,'object_land',Math.min(1,hitV/(6+m*0.35)*Math.sqrt(m/3))); }catch(e){}
+            }
+          }
           if(!(bw.vy>0&&flyHitResting(bw,bw.x,ny,'y'))){
             bw.vy=(bw.vy>3)?-bw.vy*0.25:0; if(!(bw._tossT>0)) bw.vx*=0.78;
           }
         }else bw.y=ny;
       }
       separateFlyingCubes();
+      if(bw._landSfxF>0) bw._landSfxF--;
       bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*(ground?0.45:0.98);
       if(ground&&!bw._magStuck){
         const step=Math.PI/2;
@@ -1118,9 +1126,16 @@
         w+=-Math.sin(d*(Math.PI/step))*0.006;
         if(Math.abs(bw.vx||0)>0.35) w+=Math.sign(bw.vx)*0.01;
         w*=0.86;
-        if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3) bw.x+=Math.sign(prev)*T*0.35;
+        if(prev*d<0&&Math.abs(prev)>step*0.3&&Math.abs(d)>step*0.3){
+          bw.x+=Math.sign(prev)*T*0.35;
+          if(!(bw._stumbleF>0)){
+            bw._stumbleF=14;
+            try{ sfxAt(bw,'object_stumble',Math.min(1,0.35+Math.abs(bw.vx||0)*0.12)); }catch(e){}
+          }
+        }
         bw.rot+=w; bw._faceW=w; bw._d=d;
       }
+      if(bw._stumbleF>0) bw._stumbleF--;
       // a thrown cube hits by its momentum (weight × speed)
       const sp=Math.hypot(bw.vx,bw.vy), mom=sp*weightOf('cube',bw);
       if(sp>4) for(const e of ENEMS){
@@ -1204,7 +1219,12 @@
       if(knowlOutlineSolid(k.x,ny,k)&&ny>=k.y){
         const _hitV=k.vy;   // capture before it is reversed (dump line 87: glass sound when seeds hit the floor)
         if(k.kind==='seed'&&_hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
+        else if(k.kind!=='seed'&&_hitV>2.2&&!(k._landSfxF>0)){
+          k._landSfxF=10;
+          try{ sfxAt(k,'object_land',Math.min(1,_hitV/(7+m)*Math.sqrt(m/0.8))); }catch(e){}
+        }
         if(k._glassF>0) k._glassF--;
+        if(k._landSfxF>0) k._landSfxF--;
         k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
       }
       else if(knowlOutlineSolid(k.x,ny,k)&&ny<k.y){ k.vy=Math.abs(k.vy)*0.3; }

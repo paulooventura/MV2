@@ -253,6 +253,8 @@ function _bwallMovedFromHome(bw){ if(bw.homeX==null||bw.homeY==null) return fals
 const _OMNI_SHARD_COLS=['#1a0428','#2a0840','#3d0a5c','#4a148c','#6a1b9a','#7b1fa2','#4a0e6a'];
 const _LASER_SHARD_COLS=['#7a5a08','#d8a820','#ffe27a','#b08010','#2a1e02','#ffd040','#d8a820'];
 function spawnDebris(bw,count){
+  // T611/P0 (Paulo 2026-11-27): push/pull are not destroyable — never spawn omni crumbs on them
+  if(!bw||bw.only==='push'||bw.only==='pull') return;
   if(!bw.debris) bw.debris=[];
   for(let i=0;i<count;i++){
     // chunky crumbs: they fly, bounce, roll, pile up and fade (Paulo: a cooler, more physical break)
@@ -492,6 +494,7 @@ function _startBoxTumble(box, dir){
   box._tumbleY0=box.y;
   box._tumbleFrom=_snapBoxFace(box.rot);
   box.og=false;
+  try{ if(typeof sfxAt==='function') sfxAt(box,'object_stumble',0.5); }catch(e){}
 }
 
 function _stepBoxTumble(box){
@@ -509,6 +512,7 @@ function _stepBoxTumble(box){
     box.spin=0;
     box.vx=(box.vx||0)*0.84;
     box.y=box._tumbleY0||box.y;
+    try{ if(typeof sfxAt==='function') sfxAt(box,'object_land',0.4); }catch(e){}
   }
 }
 
@@ -1584,7 +1588,8 @@ function updateCoopPlayer2(){
       if(bw.hp<=0)continue;
       if(_boxHitsRect(bw,{x:fistCX-fistR,y:fistCY-fistR,w:fistR*2,h:fistR*2})){
         _damageBwall(bw,'punch',{shakeX:(p2.fc?1:-1)*4,shakeY:-2,vx:bw.movable?(p2.fc?6:-6):0,vy:bw.movable?-2:0});
-        spawnDebris(bw,8); hitAny=true;
+        if(bw.only!=='push'&&bw.only!=='pull') spawnDebris(bw,8);
+        hitAny=true;
       }
     }
     // Nov 18 (Paulo): mirror of P1's horseplay — a punch that connects with your

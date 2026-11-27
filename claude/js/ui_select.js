@@ -15,7 +15,7 @@
 (function(){
   'use strict';
   const IMG={}, FEATHER={};
-  for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=253'; IMG[k]=im; }
+  for(const k of ['mind','venture']){ const im=new Image(); im.src='assets/ui/hero-'+k+'.png?v=433'; IMG[k]=im; }
   const HERO={
     mind:{name:'MIND', col:'#8B5FCF', deep:'#3a1466', glow:'91,42,140', role:'THE BIG BROTHER', tag:'STEADY HANDS  ·  BIG IDEAS'},
     venture:{name:'VENTURE', col:'#D9472B', deep:'#5a1010', glow:'217,71,43', role:'THE LITTLE BROTHER', tag:'NO BRAKES  ·  ALL NERVE'},

@@ -294,6 +294,25 @@
     grap_attach(a){ R.hook_latch(a); },
     swap(a){ tone(a,{f:N(76),d:0.08,v:0.06,type:'triangle'}); tone(a,{f:N(83),dt:0.06,d:0.12,v:0.06,type:'triangle',rev:0.3}); },
     tumble(a){ tone(a,{f:150,f1:70,d:0.16,v:0.14}); hiss(a,{type:'lowpass',f:700,d:0.1,v:0.08}); },
+    // T617 (Paulo, Nov 27): objects falling / landing — dense thud scaled by impact (0..~1.3).
+    // Distinct from omniblock_chip (hit/crunch) and shatter (destroy).
+    object_land(a,p){
+      const k=Math.max(0.15,Math.min(1.35,typeof p==='number'?p:0.55));
+      tone(a,{f:68+k*22,f1:26,d:0.11+k*0.16,v:0.15+k*0.24,at:0.002});                 // body thud
+      tone(a,{f:150+k*50,f1:50,d:0.06+k*0.07,v:0.07+k*0.1,type:'triangle',lp:900});    // mid knock
+      hiss(a,{type:'lowpass',f:980-k*220,f1:110,d:0.07+k*0.1,v:0.07+k*0.14,at:0.001}); // grit settle
+      if(k>0.5) tone(a,{f:36,f1:20,d:0.16+k*0.12,v:0.09+k*0.1});                        // heavy sub
+      if(k>0.32) hiss(a,{f:rnd(420,880),q:1.4,dt:0.015,d:0.035,v:0.035+k*0.05});
+    },
+    // Objects tumbling / tipping / scraping while they stumble around.
+    object_stumble(a,p){
+      const k=Math.max(0.15,Math.min(1.2,typeof p==='number'?p:0.5));
+      tone(a,{f:rnd(105,145),f1:55,d:0.07+k*0.07,v:0.1+k*0.12,at:0.002});
+      tone(a,{f:rnd(210,310),d:0.045,v:0.045+k*0.05,type:'triangle',dt:0.018,hp:180});
+      hiss(a,{type:'lowpass',f:1500,f1:280,d:0.09+k*0.07,v:0.06+k*0.09,rate:0.55});
+      if(k>0.38) tone(a,{f:rnd(75,115),d:0.055,v:0.07+k*0.05,dt:0.045});               // second bump
+      if(k>0.55) hiss(a,{f:rnd(600,1200),q:2,dt:0.06,d:0.03,v:0.04});
+    },
     rope_throw(a){ hiss(a,{f:700,f1:2600,q:1.6,d:0.2,v:0.08}); },
     menu(a){ tone(a,{f:N(81),d:0.06,v:0.05,type:'triangle'}); },
     sfx_menu(a){ tone(a,{f:N(84),d:0.07,v:0.055,type:'triangle'}); bell(a,{f:N(91),ratio:2,index:1,d:0.16,v:0.035,rev:0.25}); },

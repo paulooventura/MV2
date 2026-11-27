@@ -827,6 +827,14 @@ function sfx(t){
       nz(.03,.08,false,0.28);
       o(100,42,.14,.2,0,'sine');o(230,90,.06,.1,0,'triangle');o(880,420,.08,.05,0.02,'triangle');
       break;
+    case'object_land':{
+      const k=typeof arguments[1]==='number'?Math.max(0.15,Math.min(1,arguments[1])):0.45;
+      nz(.04+k*.06,.12,false,0.4+k*0.3);
+      o(110-k*40,40,.1+k*.1,.16+k*.1,0,'sine'); o(200-k*50,70,.06,.08,0,'triangle');
+      break;}
+    case'object_stumble':
+      nz(.03,.08,false,0.25); o(150,80,.06,.1,0,'triangle'); o(80,40,.05,.08,0.03,'sine');
+      break;
     case'omniblock_shatter':
       nz(.18,.28,false,0.38);nz(.12,.18,true,0.22,0.04);
       o(420,90,.14,.16,0,'square');o(180,48,.16,.14,0.03,'triangle');

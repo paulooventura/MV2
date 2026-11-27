@@ -106,7 +106,7 @@
     if(it.vy>0&&solid(it.x,ny+10)){
       let y=ny; for(let k=0;k<24&&solid(it.x,y+10);k++) y-=1;
       it.y=y;
-      if(it.vy>2.5){ it.vy*=-CR.BOUNCE; S('item_clink'); it.vr*=0.6; }
+      if(it.vy>2.5){ const hitV=it.vy; it.vy*=-CR.BOUNCE; S('object_land',Math.min(1,hitV/8)); it.vr*=0.6; }
       else{ it.vy=0; it.og=true; }
       it.vx*=CR.FRIC; it.vr=it.vx*0.06;
       if(Math.abs(it.vx)<0.05) it.vx=0;

@@ -580,23 +580,24 @@ function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty;
-  // Paulo (Oct 22, the key art): a red baseball cap worn backwards — the bill points behind him
+  // Paulo (May 2026 + Nov 27 playtest): BLACK backwards baseball cap — never red
+  // (too close to Diddy Kong). Body stays red; the hat stays black.
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
   ctx.save(); _hatXform(cx+tx,by,dir<0?-1:1);
-  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
   // the bill, behind
   ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-10),by-3); ctx.lineTo(X(-29),by+1); ctx.lineTo(X(-28),by+3.5); ctx.lineTo(X(-9),by+1); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#b01828'; ctx.beginPath(); ctx.moveTo(X(-10),by-2.2); ctx.lineTo(X(-27.5),by+1.2); ctx.lineTo(X(-26.8),by+2.6); ctx.lineTo(X(-9.5),by+0.2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#1a1a1e'; ctx.beginPath(); ctx.moveTo(X(-10),by-2.2); ctx.lineTo(X(-27.5),by+1.2); ctx.lineTo(X(-26.8),by+2.6); ctx.lineTo(X(-9.5),by+0.2); ctx.closePath(); ctx.fill();
   // the crown (a dome)
   ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-16),by+1); ctx.quadraticCurveTo(X(-15),by-17,X(0),by-17); ctx.quadraticCurveTo(X(15),by-17,X(16),by+1); ctx.closePath(); ctx.fill();
-  const g=ctx.createLinearGradient(X(-12),by-15,X(12),by); g.addColorStop(0,'#ff4a52'); g.addColorStop(0.55,'#d01e2e'); g.addColorStop(1,'#7a0a16');
+  const g=ctx.createLinearGradient(X(-12),by-15,X(12),by); g.addColorStop(0,'#2a2a30'); g.addColorStop(0.55,'#121216'); g.addColorStop(1,'#050506');
   ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(X(-14.5),by); ctx.quadraticCurveTo(X(-13.5),by-15.5,X(0),by-15.5); ctx.quadraticCurveTo(X(13.5),by-15.5,X(14.5),by); ctx.closePath(); ctx.fill();
   // panel seams, the button, the strap opening at the front (the cap's back) with its snaps
-  ctx.strokeStyle='rgba(60,0,8,0.6)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(-6),by-8,X(-6),by); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(6),by-8,X(6),by); ctx.stroke();
-  ctx.fillStyle='#ff6a72'; ctx.fillRect(X(0)-1.5,by-17,3,2);
-  ctx.fillStyle='#14060a'; ctx.beginPath(); ctx.moveTo(X(5),by); ctx.quadraticCurveTo(X(9),by-7,X(13.5),by-5); ctx.lineTo(X(14),by); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#e0e0e8'; for(const u of [6.5,9,11.5]) ctx.fillRect(X(u)-0.5,by-1.2,1,1);
-  ctx.fillStyle='rgba(255,200,200,0.45)'; ctx.fillRect(X(-9),by-12,dir*6,1.2);
+  ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(-6),by-8,X(-6),by); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(6),by-8,X(6),by); ctx.stroke();
+  ctx.fillStyle='#3a3a42'; ctx.fillRect(X(0)-1.5,by-17,3,2);
+  ctx.fillStyle='#0a0a0c'; ctx.beginPath(); ctx.moveTo(X(5),by); ctx.quadraticCurveTo(X(9),by-7,X(13.5),by-5); ctx.lineTo(X(14),by); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#c8c8d0'; for(const u of [6.5,9,11.5]) ctx.fillRect(X(u)-0.5,by-1.2,1,1);
+  ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(X(-9),by-12,dir*6,1.2);
   ctx.restore();
 }
 
@@ -1184,7 +1185,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
           if(_cx>bw.x-6&&_cx<bw.x+bw.w+6&&_feet>=bw.y-12&&_feet<=bw.y+16){ _stood=bw; break; }
         }
         if(_stood){
-          p._hitDone=true;_hit=true;_hitKind='block';
+          p._hitDone=true;_hit=true;_hitKind=(_stood.only==='push'||_stood.only==='pull')?'keyblock':'block';
           if(_stood.only==='laser'&&typeof _shockFromBlock==='function'){
             _hitKind='zap'; _shockFromBlock(_stood,_charged?'punchLoaded':'punch',Math.PI/2);
             p._pRecoil=12;
@@ -1247,6 +1248,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
             _hitKind='zap'; _shockFromBlock(bw,_charged?'punchLoaded':'punch',punchAngle);
             p._pRecoil=12; break;
           }
+          // push/pull: solid clang only — never the smash/dust path that reads as crumbs
+          if(bw.only==='push'||bw.only==='pull') _hitKind='keyblock';
           // Paulo: a loaded punch smashes the whole omni block and cracks the ones around it
           if(_charged&&typeof _isRedBwall==='function'&&_isRedBwall(bw)&&!bw.only){
             const cx0=bw.x+bw.w/2, cy0=bw.y+bw.h/2;

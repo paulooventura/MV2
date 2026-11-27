@@ -14,7 +14,7 @@
     ['glow','Purple aura & punch trail','assets/previews/heroes-crop.png',''],
   ];
   P['char:venture']=[
-    ['cap','The red cap','assets/ui/hero-venture.png','0% 0%'],
+    ['cap','The black backwards cap','assets/ui/hero-venture.png','0% 0%'],
     ['eye','The single lens eye','assets/ui/hero-venture.png','22% 10%'],
     ['torso','Speaker-box body','assets/ui/hero-venture.png','40% 45%'],
     ['arm-left','Red coil arm','assets/ui/hero-venture.png','8% 55%'],

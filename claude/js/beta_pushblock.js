@@ -123,7 +123,13 @@
       } else bw.x=nx;
       const ny=bw.y+bw.vy/steps;
       if(hitsAt(bw.x,ny)){
-        if(bw.vy>0){ ground=true; if(bw.vy>4){ S(bw,'omniblock_chip'); bw._sq=0.18; bw._sqV=0; bw._sqAx='y'; } }
+        if(bw.vy>0){
+          ground=true;
+          if(bw.vy>3.2){
+            const k=Math.min(1,bw.vy/10);
+            S(bw,'object_land',k); bw._sq=0.18; bw._sqV=0; bw._sqAx='y';
+          }
+        }
         bw.vy=bw.vy>4?-bw.vy*0.2:0;
       } else bw.y=ny;
     }
@@ -134,12 +140,14 @@
       if(!blocked(fc,fr)){
         const dir=blocked(Math.floor((bw.x+2)/T),fr)?1:-1;
         bw.vx+=dir*0.45; bw.spin=(bw.spin||0)+dir*0.05; ground=false;
+        if(!(bw._stumbleF>0)){ bw._stumbleF=16; S(bw,'object_stumble',0.45); }
       } else {
         const q=Math.PI/2, tgt=Math.round((bw.rot||0)/q)*q;
         bw.rot=(bw.rot||0)+(tgt-(bw.rot||0))*0.35; bw.spin=(bw.spin||0)*0.4;
         if(Math.abs(bw.vx)>1&&bw._pbT%3===0) PFXS.push({x:bw.x+T/2-Math.sign(bw.vx)*T/2,y:bw.y+T-2,vx:-Math.sign(bw.vx)*Math.random(),vy:-Math.random()*0.8,life:12,maxLife:12,r:1.5+Math.random()*1.5,col:'#b8a080'});
       }
     }
+    if(bw._stumbleF>0) bw._stumbleF--;
     if(!ground){ bw.rot=(bw.rot||0)+(bw.spin||0); bw.spin=(bw.spin||0)*0.985; }
     // MIND stops a block sliding into him and takes a share of the shove
     if(typeof gridPlayerBody==='function'&&Math.abs(bw.vx)>0.3){
