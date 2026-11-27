@@ -906,6 +906,8 @@ function update(){
   if(typeof _driveMenusFromPads==='function') _driveMenusFromPads();
   if(_gameState==='game'&&Kj['Escape']&&typeof _togglePause==='function') _togglePause();
   fr++;
+  if(_gameState==='off'){ if(typeof _offT==='number') _offT++; clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
+  if(_gameState==='quit'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
   if(_gameState!=='game'){ clkj(); Object.keys(Kj2).forEach(k=>delete Kj2[k]); return; }
   if(window.MV_BETA&&MV_BETA.loading){ clkj(); return; }               // no game ticks on a stale world while a stage loads
   if(_paused){
@@ -1698,6 +1700,8 @@ function _drawCoopPlayerScreenFX(){
 }
 function draw(){
   ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setLineDash([]); ctx.clearRect(0,0,W,H);
+  if(_gameState==='quit'){ if(typeof drawQuit==='function') drawQuit(); return; }
+  if(_gameState==='off'){ if(typeof drawOff==='function') drawOff(); return; }
   if(_gameState==='title'){drawTitle();return;}
   if(_gameState==='tutorial'){drawTutorialChamber();return;}
   if(_gameState==='levels'){drawLevelSelect();return;}

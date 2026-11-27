@@ -29,6 +29,68 @@
 let _gameState='title';
 let _paused=false;
 let _pauseIdx=0, _pauseIdx2=0, _optFromPause=false, _optBackFr=-99, _optRow2=0, _optFollow=0;
+// Title Esc → SHUT DOWN? (Build 428). _quitIdx 0=NO · 1=YES. Off screen is the CRT fade if the host won't close.
+let _quitIdx=0, _offT=0;
+function _openQuitConfirm(){ _gameState='quit'; _quitIdx=0; try{ sfx('menu'); }catch(e){} }
+function _hostQuit(){
+  // Desktop wrappers first — actually leave the process when the host allows it.
+  try{ if(typeof nw!=='undefined'&&nw.App&&typeof nw.App.quit==='function'){ nw.App.quit(); return 'nw'; } }catch(e){}
+  try{ if(window.electronAPI&&typeof window.electronAPI.quit==='function'){ window.electronAPI.quit(); return 'electronAPI'; } }catch(e){}
+  try{ if(window.api&&typeof window.api.quit==='function'){ window.api.quit(); return 'api'; } }catch(e){}
+  try{
+    if(typeof require==='function'){
+      const er=require('electron');
+      if(er&&er.ipcRenderer){ er.ipcRenderer.send('app-quit'); return 'ipc'; }
+      if(er&&er.remote&&er.remote.app){ er.remote.app.quit(); return 'remote'; }
+    }
+  }catch(e){}
+  try{ if(location.protocol==='app:'){ window.close(); return 'app'; } }catch(e){}
+  // Browser / itch HTML5: best-effort close (only works for script-opened windows).
+  try{ window.close(); return 'close'; }catch(e){}
+  return null;
+}
+function _powerOff(){
+  try{ if(typeof _stopAllBgm==='function') _stopAllBgm(); }catch(e){}
+  try{ if(typeof _stopBGM==='function'){ _stopBGM('title'); _stopBGM('game'); _stopBGM('story'); } }catch(e){}
+  _hostQuit();
+  // If the tab/window is still here (browser blocked close), show the CRT off plate.
+  _gameState='off'; _offT=0;
+}
+function _powerOn(){ _gameState='title'; _titleT=0; _offT=0; try{ if(typeof _ensureTitleMusic==='function') _ensureTitleMusic(); }catch(e){} }
+function _quitInput(ev){
+  if(!ev) return;
+  if(ev.back){ _gameState='title'; return; }
+  if(ev.up||ev.down||ev.left||ev.right){ _quitIdx=1-_quitIdx; try{ sfx('menu'); }catch(e){} }
+  if(ev.confirm){ if(_quitIdx===1) _powerOff(); else _gameState='title'; }
+}
+function drawQuit(){
+  try{ drawTitle(); }catch(e){ ctx.fillStyle='#020804'; ctx.fillRect(0,0,W,H); }
+  ctx.fillStyle='rgba(4,2,10,0.62)'; ctx.fillRect(0,0,W,H);
+  const items=['NO','YES'], L=typeof uiLayout==='function'?uiLayout():{panelW:Math.min(420,W-40)};
+  const pw=Math.min(L.panelW||360,420), ph=160, px=(W-pw)/2, py=Math.round(H*0.42);
+  if(typeof uiPanel==='function') uiPanel(px,py,pw,ph,{r:16});
+  else { ctx.fillStyle='#1a1428'; ctx.fillRect(px,py,pw,ph); }
+  drawTextC('SHUT DOWN?',W/2,py+18,'#ffe39a',3);
+  items.forEach((lab,i)=>{
+    const sel=i===_quitIdx, y=py+64+i*36;
+    if(sel&&typeof uiPanel==='function') uiPanel(px+28,y-10,pw-56,30,{sel:true,r:10,flat:true});
+    if(sel&&typeof uiCursor==='function') uiCursor(px+48,y+6,8);
+    drawTextC(lab,W/2,y,sel?'#d8ffc0':'#8a8098',3);
+  });
+}
+function drawOff(){
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  const k=Math.min(1,_offT/24);
+  if(k<1){
+    const lineH=Math.max(2,Math.round((1-k*1.6)*H)), lineW=k<0.6?W:Math.max(4,Math.round(W*(1-(k-0.6)/0.4)));
+    ctx.fillStyle='#e8f0ff'; ctx.globalAlpha=1-k*0.6;
+    ctx.fillRect((W-lineW)/2,(H-Math.max(2,lineH))/2,lineW,Math.max(2,lineH)); ctx.globalAlpha=1;
+  }
+  if(_offT>60&&fr%60<40){
+    const tip=(window.MV_INPUT&&MV_INPUT.dev==='kb')?'PRESS ENTER TO POWER ON':'PRESS START TO POWER ON';
+    drawTextC(tip,W/2,H-60,'#3a2f55',2);
+  }
+}
 function _pauseItems(){
   const items=['RESUME','OPTIONS'];
   // (Paulo, Nov 4, build 358: no LEAVE A NOTE / UNSTICK ME in the pause menu)
@@ -66,8 +128,17 @@ function _driveMenusFromPads(){
   const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
   const ok=!!Kj['Space'], back=!!Kj['Escape'];
   if(!(up||dn||lf||rt||ok||back)) return;
+  if(_gameState==='quit'){
+    _quitInput({up,down:dn,left:lf,right:rt,confirm:ok,back});
+    return;
+  }
+  if(_gameState==='off'){
+    if(ok||back) _powerOn();
+    return;
+  }
   if(_gameState==='title'){
     _ensureTitleMusic();
+    if(back){ _openQuitConfirm(); return; }          // Esc / pad B / Start-as-back: shut down?
     if(up) _titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;
     if(dn) _titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;
     if(ok) _titleMenuActivate();
@@ -788,10 +859,21 @@ document.addEventListener('keydown',e=>{
     MV_TEST_INPUT({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',left:e.code==='ArrowLeft',right:e.code==='ArrowRight'||e.code==='KeyD',confirm:e.code==='Enter'||e.code==='Space'||e.code==='KeyA',back:e.code==='Escape'||e.code==='Backspace'||e.code==='KeyF'});
     e.preventDefault();return;
   }
+  if(_gameState==='quit'){
+    _quitInput({up:e.code==='ArrowUp'||e.code==='KeyW',down:e.code==='ArrowDown'||e.code==='KeyS',
+      left:e.code==='ArrowLeft'||e.code==='KeyA',right:e.code==='ArrowRight'||e.code==='KeyD',
+      confirm:e.code==='Enter'||e.code==='Space',back:e.code==='Escape'||e.code==='Backspace'});
+    e.preventDefault(); return;
+  }
+  if(_gameState==='off'){
+    if(e.code==='Enter'||e.code==='Space'||e.code==='Escape'){ _powerOn(); e.preventDefault(); }
+    return;
+  }
   if(_gameState==='title'){
     if(_titleSlideInput()){ e.preventDefault(); return; }  // first key fades the still back, no menu action
     _titleT=0;
     _ensureTitleMusic();
+    if(e.code==='Escape'||e.code==='Backspace'){ _openQuitConfirm(); e.preventDefault(); return; }
     if(e.code==='ArrowUp'||e.code==='KeyW'){_titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;e.preventDefault();return;}
     if(e.code==='ArrowDown'||e.code==='KeyS'){_titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;e.preventDefault();return;}
     if(e.code==='Enter'||e.code==='Space'){_titleMenuActivate();e.preventDefault();return;}
