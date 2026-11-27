@@ -24,7 +24,7 @@
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
 <script src="js/mv_palette.js?v=413"></script>
-<script>window.MV_BUILD='428';
+<script>window.MV_BUILD='429';
 /* T425 (Paulo, Nov 11): every boot starts the same way; a filter picked in Options lasts for that session.
    Paulo, Nov 26: that start is the standard look again (Ink & Vinyl is unlocked in play, see console16.js) */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
@@ -89,20 +89,21 @@ button{background:#1C1A19;color:#EFE6D2;border:1px solid #8C8580;padding:8px 14p
 #battleHud .bh-hp{color:#fff;text-shadow:0 1px 4px #000;}
 #battleHud .bh-rival{margin-top:12px;text-align:center;font-size:clamp(28px,6vw,44px);font-weight:800;color:#fc8;text-shadow:0 2px 6px #000;}
 #gameWrap{position:relative;display:inline-block;max-width:100%;}
-/* The picture fills the monitor. The buffer matches the window, so a 100%
-   canvas shows every pixel and nothing is cropped off the edges. */
+/* Full-viewport shell; #gameWrap is letterboxed by core.js to the design aspect
+   so scenes/characters never get cropped off the player's screen. */
 html.mv-fit,html.mv-fit body{
   width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
   margin:0;padding:0;gap:0;
 }
 html.mv-fit body{position:fixed;inset:0;background:#1E1B27;}
 html.mv-fit #gameWrap{
-  position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
+  /* Sized/positioned by core.js _fitPhoneFrame to the largest 4:3 box that fits. */
+  position:fixed;z-index:1;max-width:none;
   display:block;background:#1E1B27;
 }
 html.mv-fit canvas{
   position:absolute;inset:0;width:100%;height:100%;
-  max-width:none;max-height:none;border:none;object-fit:fill;
+  max-width:none;max-height:none;border:none;object-fit:contain;
 }
 /* Delivered game (Oct 2026): no debug readouts; SNES-style controls strip; the
    on-screen pad only on touch screens. */
@@ -310,7 +311,7 @@ window.onerror=function(msg,src,line,col,err){
 };
 </script>
 <script src="js/save.js?v=278"></script>
-<script src="js/core.js?v=419"></script>
+<script src="js/core.js?v=429"></script>
 <script src="js/sfx-replacements.js?v=1"></script>
 <script src="js/audio.js?v=417"></script>
 <script src="js/sound16.js?v=384"></script>
@@ -319,11 +320,11 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/enemies.js?v=403"></script>
 <script src="js/collision_grid.js?v=412"></script>
   <script src="js/physics.js?v=419"></script>
-  <script src="js/player.js?v=420"></script>
+  <script src="js/player.js?v=429"></script>
 <script src="js/controls_setup.js?v=1"></script>
 <script src="js/beta_touch.js?v=345"></script>
   <script src="js/weapons.js?v=406"></script>
-<script src="js/ui.js?v=428"></script>
+<script src="js/ui.js?v=429"></script>
 <script src="js/ui_select.js?v=419"></script>
 <!-- MV2 online co-op -->
 <script src="js/vendor/peerjs.min.js?v=419"></script>

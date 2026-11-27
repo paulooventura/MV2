@@ -252,21 +252,25 @@ function _gpStick(g,s){
 }
 /** Screen/menu handling shared by both players' pads. */
 function _padMenuInput(st,pressed,rose,ay){
+  // Stick edges + D-pad (12–15): one step per push, same as keyboard. Select
+  // already had both; title/options/quit/pause only saw the D-pad before.
+  // Manual keeps its own turn path below so pages don't advance twice.
+  const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
+  const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
+  const feedKj=_gameState!=='partysetup'&&_gameState!=='manual'&&(
+    _gameState!=='game'||(typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen)
+  );
+  if(feedKj){
+    if(dY<0){ Kj['ArrowUp']=true; Kj['KeyW']=true; }
+    if(dY>0){ Kj['ArrowDown']=true; Kj['KeyS']=true; }
+    if(dX<0){ Kj['ArrowLeft']=true; Kj['KeyA']=true; }
+    if(dX>0){ Kj['ArrowRight']=true; Kj['KeyD']=true; }
+  }
   if(_gameState==='title'){
     const ok=rose(0)||rose(9);                          // A or START confirms
     if(!_titleMusicPlaying&&ok) _onInteract();
-    else if(_titleMusicPlaying){
-      if(rose(12)) _titleMenuIdx=(_titleMenuIdx+_titleMenuItems().length-1)%_titleMenuItems().length;
-      if(rose(13)) _titleMenuIdx=(_titleMenuIdx+1)%_titleMenuItems().length;
-      if(ok) _titleMenuActivate();
-    }
+    // nav + activate once music is up: Kj Space / WASD via _driveMenusFromPads
   }else if((_gameState==='story'||_gameState==='select')&&(rose(0)||rose(9))) startGame();
-  if(_gameState==='options'){
-    _optionsInput({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:false,swapHeld:pressed(1),punch:rose(3)});
-  }
-  if(_gameState==='testmode'&&window.MV_TEST_INPUT){
-    MV_TEST_INPUT({up:rose(12),down:rose(13),left:rose(14),right:rose(15),confirm:rose(0),back:rose(3)||rose(1)});
-  }
   if(_gameState==='manual'&&window.MV_MANUAL){
     const sx=st.ax<-0.55?-1:st.ax>0.55?1:0;
     if(rose(14)||(sx<0&&!(GP.manX<0))) MV_MANUAL.turn(-1);
@@ -275,28 +279,22 @@ function _padMenuInput(st,pressed,rose,ay){
     if(rose(0)) MV_MANUAL.turn(1);
     if(rose(3)||rose(9)||rose(8)) MV_MANUAL.close();
   }
-  if(_gameState==='select'){
-    // d-pad, or the stick pushed past half (one step per push) — Paulo, Oct 22
-    const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
-    const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
-    if((dX||dY)&&!(window.MV_SELECT_NAV&&MV_SELECT_NAV(dX,dY))){
-      if(dX<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+MV_MODE_N-1)%MV_MODE_N; else _heroChoice='mind'; }
-      if(dX>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; }
-    }
-  }
-  // MENU (☰, next to X) or VIEW pauses / resumes; in the pause menu the
-  // d-pad or stick moves the cursor, A picks, B resumes
+  // MENU / VIEW pause; Xbox Y (button 3) = Back in menus (Esc), punch only in play
   if(_gameState!=='partysetup'){
     if((rose(9)||rose(8))&&_gameState==='game') Kj['Escape']=true;
-    if(rose(3)) Kj['KeyF']=true;   // Y is punch in play, and Back on the options screen and the manual
-    if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;
-    if(_gameState==='game'&&((typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen))){
-      const sy=ay<-0.5?-1:ay>0.5?1:0;
-      if(rose(12)||(sy<0&&GP.prevSy>=0)) Kj['ArrowUp']=true;
-      if(rose(13)||(sy>0&&GP.prevSy<=0)) Kj['ArrowDown']=true;
-      GP.prevSy=sy;
+    const inMenu=_gameState!=='game'||(typeof _paused!=='undefined'&&_paused)||(window.MV_BETA&&MV_BETA.contScreen);
+    if(rose(3)){
+      if(inMenu){
+        // Title → SHUT DOWN?; pause → resume; options/select/manual → back one level
+        Kj['Escape']=true;
+        Kj['KeyF']=true;   // options / pause / manual already treat punch-key as back
+      }else{
+        Kj['KeyF']=true;   // in-game: legacy KeyF punch edge (binds.punch still via set1)
+      }
     }
+    if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;
   }
+  GP.prevSy=ay<-0.5?-1:ay>0.5?1:0;
 }
 // Active pad → P1 (K/Kj): the classic mapping, now reached only when GP.owner===1.
 function _readPad1(g){

@@ -125,8 +125,10 @@ function _closeMap(){
   _gameState='game';
 }
 function _driveMenusFromPads(){
-  const up=!!Kj['KeyW'], dn=!!Kj['KeyS'], lf=!!Kj['KeyA'], rt=!!Kj['KeyD'];
-  const ok=!!Kj['Space'], back=!!Kj['Escape'];
+  // Pad stick + D-pad land in both Arrow* and WASD (player.js); keyboard uses either.
+  const up=!!Kj['KeyW']||!!Kj['ArrowUp'], dn=!!Kj['KeyS']||!!Kj['ArrowDown'];
+  const lf=!!Kj['KeyA']||!!Kj['ArrowLeft'], rt=!!Kj['KeyD']||!!Kj['ArrowRight'];
+  const ok=!!Kj['Space']||!!Kj['Enter'], back=!!Kj['Escape'];
   if(!(up||dn||lf||rt||ok||back)) return;
   if(_gameState==='quit'){
     _quitInput({up,down:dn,left:lf,right:rt,confirm:ok,back});
