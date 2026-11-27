@@ -46,6 +46,9 @@
   // Paulo, Nov 26 (build 415): the game starts on the standard look; Ink & Vinyl is found in play
   // (ride the 1.3 lift up to the 33rd floor). Unlock kept in localStorage 'mv2.ink'='1'.
   // T601 / T602 (Paulo, Nov 27): cycle/set must NOT offer ink/gore until unlocked — never default-on.
+  // DO NOT UNDO (build 417 once listed Ink in Filters for everyone; 430/431 put the lock back).
+  // Paulo's decision, Nov 26: start on the standard theme "so the player can find the Ink & Vinyl theme
+  // through gameplay". Ink stays out of Filters until it is unlocked (33rd floor or the secret code).
   // PLAY uses root index.html — keep its MV_BUILD + ?v= in sync with build.txt or the lock never ships.
   const inkUnlocked=()=>{ try{ return localStorage.getItem('mv2.ink')==='1'; }catch(e){ return false; } };
   const allowed=m=>{
