@@ -584,12 +584,22 @@ function _deckFollowPoint(px,py,pivX,pivY,dm){
 // sits on top of the bulb (never below its centre), whatever a groove/tilt value
 // tries to do. Normal head bob needs 0 here — the head already carries the hat.
 function _hatBrimTY(R,hatTY){ return Math.max(-12,Math.min(Math.floor(R*0.5)-3,Math.round((hatTY||0)*9))); }
+function _actorHatStyle(pl){
+  // Online identity (T639): hatStyle gaucho|cap overrides the hero default.
+  const pl0=pl||(typeof p!=='undefined'?p:null);
+  const hs=pl0&&(pl0.hatStyle||pl0._netHat);
+  if(hs==='gaucho'||hs==='cap') return hs;
+  return (pl0&&pl0.hero==='venture')?'cap':'gaucho';
+}
 function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const tx=Math.round((hatTX||0)*12);
   const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty, dir=window._hatDirOverride||_hatDir();
+  const pl=typeof p!=='undefined'?p:null;
+  const crayon=pl&&pl._netColor;
+  const cols=(crayon&&window.MV_IDENTITY&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
   ctx.save(); _hatXform(cx+tx,hatBrimY,dir<0?-1:1);
-  drawLogoHat(cx+tx,hatBrimY,80,dir,{crownH:15});   // the key art's wide flat brim
+  drawLogoHat(cx+tx,hatBrimY,80,dir,Object.assign({crownH:15}, cols||{}));   // the key art's wide flat brim; crayon resonates when set
   ctx.restore();
 }
 function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
@@ -597,20 +607,25 @@ function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty;
   // Paulo (May 2026 + Nov 27 playtest): BLACK backwards baseball cap — never red
-  // (too close to Diddy Kong). Body stays red; the hat stays black.
+  // (too close to Diddy Kong). Body stays red; the hat stays black — unless a
+  // crayon identity soft-tints the crown (online seats 3–5).
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
+  const pl=typeof p!=='undefined'?p:null;
+  const crayon=pl&&pl._netColor;
+  const cols=(crayon&&window.MV_IDENTITY&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
+  const crown0=cols?cols.col:'#000', crown1=cols?cols.inner:'#1a1a1e', crown2=cols?cols.hi:'#2a2a30';
   ctx.save(); _hatXform(cx+tx,by,dir<0?-1:1);
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
   // the bill, behind
-  ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-10),by-3); ctx.lineTo(X(-29),by+1); ctx.lineTo(X(-28),by+3.5); ctx.lineTo(X(-9),by+1); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#1a1a1e'; ctx.beginPath(); ctx.moveTo(X(-10),by-2.2); ctx.lineTo(X(-27.5),by+1.2); ctx.lineTo(X(-26.8),by+2.6); ctx.lineTo(X(-9.5),by+0.2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=crown0; ctx.beginPath(); ctx.moveTo(X(-10),by-3); ctx.lineTo(X(-29),by+1); ctx.lineTo(X(-28),by+3.5); ctx.lineTo(X(-9),by+1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=crown1; ctx.beginPath(); ctx.moveTo(X(-10),by-2.2); ctx.lineTo(X(-27.5),by+1.2); ctx.lineTo(X(-26.8),by+2.6); ctx.lineTo(X(-9.5),by+0.2); ctx.closePath(); ctx.fill();
   // the crown (a dome)
-  ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(X(-16),by+1); ctx.quadraticCurveTo(X(-15),by-17,X(0),by-17); ctx.quadraticCurveTo(X(15),by-17,X(16),by+1); ctx.closePath(); ctx.fill();
-  const g=ctx.createLinearGradient(X(-12),by-15,X(12),by); g.addColorStop(0,'#2a2a30'); g.addColorStop(0.55,'#121216'); g.addColorStop(1,'#050506');
+  ctx.fillStyle=crown0; ctx.beginPath(); ctx.moveTo(X(-16),by+1); ctx.quadraticCurveTo(X(-15),by-17,X(0),by-17); ctx.quadraticCurveTo(X(15),by-17,X(16),by+1); ctx.closePath(); ctx.fill();
+  const g=ctx.createLinearGradient(X(-12),by-15,X(12),by); g.addColorStop(0,crown2); g.addColorStop(0.55,crown1); g.addColorStop(1,crown0);
   ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(X(-14.5),by); ctx.quadraticCurveTo(X(-13.5),by-15.5,X(0),by-15.5); ctx.quadraticCurveTo(X(13.5),by-15.5,X(14.5),by); ctx.closePath(); ctx.fill();
   // panel seams, the button, the strap opening at the front (the cap's back) with its snaps
   ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(-6),by-8,X(-6),by); ctx.moveTo(X(0),by-15.5); ctx.quadraticCurveTo(X(6),by-8,X(6),by); ctx.stroke();
-  ctx.fillStyle='#3a3a42'; ctx.fillRect(X(0)-1.5,by-17,3,2);
+  ctx.fillStyle=cols?cols.hi:'#3a3a42'; ctx.fillRect(X(0)-1.5,by-17,3,2);
   ctx.fillStyle='#0a0a0c'; ctx.beginPath(); ctx.moveTo(X(5),by); ctx.quadraticCurveTo(X(9),by-7,X(13.5),by-5); ctx.lineTo(X(14),by); ctx.closePath(); ctx.fill();
   ctx.fillStyle='#c8c8d0'; for(const u of [6.5,9,11.5]) ctx.fillRect(X(u)-0.5,by-1.2,1,1);
   ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(X(-9),by-12,dir*6,1.2);
@@ -763,7 +778,8 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   if(hostile&&window._mirrorHat){ window._hatStill=true; try{ _drawMindWideHat(cx,drawY,R,0,0); } finally{ window._hatStill=false; } }   // the mirror enemy wears MIND's own hat
   if(!hostile){
     const htx=unifiedHat?0:hatTX, hty=unifiedHat?0:hatTY;
-    if(hero==='venture') _drawVentureCap(cx,drawY,R,htx,hty);
+    const style=_actorHatStyle(typeof p!=='undefined'?p:null);
+    if(style==='cap') _drawVentureCap(cx,drawY,R,htx,hty);
     else _drawMindWideHat(cx,drawY,R,htx,hty);
   }
 }
@@ -1843,6 +1859,10 @@ function drawCharacter(){
   // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
   drawConnArm();
   ctx.restore();
+  // Online crayon wash for the local rider (seats 3–5 / identity tint).
+  if(p&&p._netColor&&window.MV_IDENTITY&&MV_IDENTITY.tintActorAabb){
+    try{ MV_IDENTITY.tintActorAabb(p, 12); }catch(e){}
+  }
 }
 function drawCharacterFor(pl){
   const oldP=p;
@@ -1852,10 +1872,17 @@ function drawCharacterFor(pl){
   // AI companions / beta siblings set ITEM themselves around their calls, so
   // leave their global untouched.
   const useP2Item=!!(pl&&typeof p2!=='undefined'&&pl===p2&&!pl._aiCompanion&&typeof pl.item==='number');
+  const useOwnItem=!!(pl&&pl._netPuppet&&typeof pl.item==='number');
   const oldItem=ITEM;
   p=pl;
-  if(useP2Item) ITEM=pl.item;
-  try{drawCharacter();}finally{p=oldP;ITEM=oldItem;}
+  if(useP2Item||useOwnItem) ITEM=pl.item;
+  try{
+    drawCharacter();
+    // Online crayon wash over the just-drawn hero + held jack (T639).
+    if(pl&&pl._netColor&&window.MV_IDENTITY&&MV_IDENTITY.tintActorAabb){
+      try{ MV_IDENTITY.tintActorAabb(pl, 12); }catch(e){}
+    }
+  }finally{p=oldP;ITEM=oldItem;}
 }
 
 /* â”€â”€ Draw world â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

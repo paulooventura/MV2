@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-ab="a">
 <head>
 <meta charset="utf-8">
@@ -8,23 +8,23 @@
 <meta name="apple-mobile-web-app-title" content="Mind & Venture">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1E1B27">
-<meta name="description" content="Mind & Venture â€” a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
+<meta name="description" content="Mind & Venture Ã¢â‚¬â€ a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
 <link rel="canonical" href="https://paulooventura.github.io/MV2/">
 <meta property="og:title" content="Mind & Venture">
-<meta property="og:description" content="Play Mind & Venture in your browser â€” a sentient studio monitor on a wheel, exploring Awdjoo Town.">
+<meta property="og:description" content="Play Mind & Venture in your browser Ã¢â‚¬â€ a sentient studio monitor on a wheel, exploring Awdjoo Town.">
 <meta property="og:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
 <meta property="og:url" content="https://paulooventura.github.io/MV2/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mind & Venture">
-<meta name="twitter:description" content="Play in your browser â€” platformer by Paulo Ventura.">
+<meta name="twitter:description" content="Play in your browser Ã¢â‚¬â€ platformer by Paulo Ventura.">
 <meta name="twitter:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script src="js/mv_palette.js?v=442"></script>
-<script>window.MV_BUILD='442';
+<script src="js/mv_palette.js?v=443"></script>
+<script>window.MV_BUILD='443';
 /* T425 + T602: Unfiltered boot; Ink and Vinyl / Gore locked until secret code or +/-33. */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
@@ -41,12 +41,12 @@ try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setIte
   });
 })();
 </script>
-<script src="js/phone.js?v=442"></script>
+<script src="js/phone.js?v=443"></script>
 <script>
 if(location.protocol==='file:'){
   document.addEventListener('DOMContentLoaded',function(){
     var v=document.getElementById('mvVer');
-    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// â€” close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
+    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// Ã¢â‚¬â€ close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
   });
 }
 </script>
@@ -115,7 +115,7 @@ html.mv-fit canvas{
 #touchHud{display:none!important;}
 /* Xbox face buttons on the phone pad: Y top (yellow), X left (blue), B right (red), A bottom (green) */
 
-/* Phone landscape play â€” full viewport canvas, overlay pads, portrait rotate */
+/* Phone landscape play Ã¢â‚¬â€ full viewport canvas, overlay pads, portrait rotate */
 html.phone-play,html.phone-play body{
   width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
   padding:0;gap:0;touch-action:none;-webkit-user-select:none;user-select:none;
@@ -242,7 +242,7 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture Â· Awdjoo Â· build 138</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture Ã‚Â· Awdjoo Ã‚Â· build 138</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -262,13 +262,13 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
     <div class="d-plus" aria-hidden="true"></div>
     <div class="d-diags" aria-hidden="true"><span class="nw"></span><span class="ne"></span><span class="sw"></span><span class="se"></span></div>
     <div></div>
-    <button id="bU" type="button" aria-label="Up"><span class="desk">Wâ†‘</span><span class="ph">â†‘</span></button>
+    <button id="bU" type="button" aria-label="Up"><span class="desk">WÃ¢â€ â€˜</span><span class="ph">Ã¢â€ â€˜</span></button>
     <div></div>
-    <button id="bL" type="button" aria-label="Left"><span class="desk">Aâ†</span><span class="ph">â†</span></button>
+    <button id="bL" type="button" aria-label="Left"><span class="desk">AÃ¢â€ Â</span><span class="ph">Ã¢â€ Â</span></button>
     <div class="d-hub" aria-hidden="true"></div>
-    <button id="bR" type="button" aria-label="Right"><span class="desk">Dâ†’</span><span class="ph">â†’</span></button>
+    <button id="bR" type="button" aria-label="Right"><span class="desk">DÃ¢â€ â€™</span><span class="ph">Ã¢â€ â€™</span></button>
     <div></div>
-    <button id="bDn" type="button" aria-label="Down"><span class="desk">Sâ†“</span><span class="ph">â†“</span></button>
+    <button id="bDn" type="button" aria-label="Down"><span class="desk">SÃ¢â€ â€œ</span><span class="ph">Ã¢â€ â€œ</span></button>
     <div></div>
   </div>
   <div class="acts" id="padRight">
@@ -277,18 +277,18 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
     <button id="bSp" type="button" aria-label="A: jump"><span class="desk">A</span><span class="ph">A</span></button>
     <button id="bE" type="button" aria-label="B: item select"><span class="desk">B</span><span class="ph">B</span></button>
   </div>
-  <button id="bPause" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="Pause"><span class="desk">PAUSE</span><span class="ph">â˜°</span></button>
+  <button id="bPause" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="Pause"><span class="desk">PAUSE</span><span class="ph">Ã¢ËœÂ°</span></button>
   <div class="devrow">
-    <button id="bRst" type="button" aria-label="Restart the stage">â†º</button>
+    <button id="bRst" type="button" aria-label="Restart the stage">Ã¢â€ Âº</button>
   </div>
 </div>
 <div id="helpLine" class="mv-controls" aria-label="Controls">
-  <span><kbd>â†â†’â†‘â†“</kbd>/<kbd>WASD</kbd> move Â· aim</span>
+  <span><kbd>Ã¢â€ ÂÃ¢â€ â€™Ã¢â€ â€˜Ã¢â€ â€œ</kbd>/<kbd>WASD</kbd> move Ã‚Â· aim</span>
   <span><i class="pa">A</i><kbd>Space</kbd> jump</span>
   <span><i class="pb">B</i><kbd>E</kbd> item select</span>
-  <span><i class="px">X</i><kbd>Q</kbd> run Â· use item</span>
+  <span><i class="px">X</i><kbd>Q</kbd> run Ã‚Â· use item</span>
   <span><i class="py">Y</i><kbd>F</kbd> punch</span>
-  <span><kbd>S</kbd> duck</span><span><kbd>Esc</kbd> / â˜° Menu button: pause (resume Â· options Â· exit)</span><span><kbd>Tab</kbd> restart stage</span>
+  <span><kbd>S</kbd> duck</span><span><kbd>Esc</kbd> / Ã¢ËœÂ° Menu button: pause (resume Ã‚Â· options Ã‚Â· exit)</span><span><kbd>Tab</kbd> restart stage</span>
 </div>
 <div id="rotateHint">
   <div class="rh-glyph" aria-hidden="true"></div>
@@ -309,80 +309,81 @@ window.onerror=function(msg,src,line,col,err){
   return false;
 };
 </script>
-<script src="js/save.js?v=442"></script>
-<script src="js/core.js?v=442"></script>
-<script src="js/sfx-replacements.js?v=442"></script>
-<script src="js/audio.js?v=442"></script>
-<script src="js/sound16.js?v=442"></script>
-<script src="js/sfx_posh.js?v=442"></script>
-<script src="js/soundlab.js?v=442"></script>
-<script src="js/enemies.js?v=442"></script>
-<script src="js/collision_grid.js?v=442"></script>
-  <script src="js/physics.js?v=442"></script>
-  <script src="js/player.js?v=442"></script>
-<script src="js/controls_setup.js?v=442"></script>
-<script src="js/beta_touch.js?v=442"></script>
-  <script src="js/weapons.js?v=442"></script>
-<script src="js/ui.js?v=442"></script>
-<script src="js/ui_select.js?v=442"></script>
+<script src="js/save.js?v=443"></script>
+<script src="js/core.js?v=443"></script>
+<script src="js/sfx-replacements.js?v=443"></script>
+<script src="js/audio.js?v=443"></script>
+<script src="js/sound16.js?v=443"></script>
+<script src="js/sfx_posh.js?v=443"></script>
+<script src="js/soundlab.js?v=443"></script>
+<script src="js/enemies.js?v=443"></script>
+<script src="js/collision_grid.js?v=443"></script>
+  <script src="js/physics.js?v=443"></script>
+  <script src="js/player.js?v=443"></script>
+<script src="js/controls_setup.js?v=443"></script>
+<script src="js/beta_touch.js?v=443"></script>
+  <script src="js/weapons.js?v=443"></script>
+<script src="js/ui.js?v=443"></script>
+<script src="js/ui_select.js?v=443"></script>
 <!-- MV2 online co-op -->
-<script src="js/vendor/peerjs.min.js?v=442"></script>
-<script src="js/vendor/qrcode.js?v=442"></script>
-<script src="js/mv2_net.js?v=442"></script>
-<script src="js/mv2_voice.js?v=442"></script>
-<script src="js/mv2_net_ui.js?v=442"></script>
-<script src="js/mv2_save_share.js?v=442"></script>
-<script src="js/mv2_brother_ask.js?v=442"></script>
-  <script src="js/render.js?v=442"></script>
-<script src="js/editor.js?v=442"></script>
-<script src="js/map_edit.js?v=442"></script>
-<script src="js/spawn_fix.js?v=442"></script>
-<script src="js/awdjoo_level.js?v=442"></script>
-<script src="js/healthwatch.js?v=442"></script>
-<script src="js/awdjoo_map.js?v=442"></script>
-<script src="js/main.js?v=442"></script>
-<script src="js/crt_room.js?v=442"></script>
-<script src="js/item_lab.js?v=442"></script>
-<script src="js/physics_lab.js?v=442"></script>
-<script src="js/selftest.js?v=442"></script>
-<script src="js/ldtk_loader.js?v=442"></script>
+<script src="js/vendor/peerjs.min.js?v=443"></script>
+<script src="js/vendor/qrcode.js?v=443"></script>
+<script src="js/mv2_identity.js?v=443"></script>
+<script src="js/mv2_net.js?v=443"></script>
+<script src="js/mv2_voice.js?v=443"></script>
+<script src="js/mv2_net_ui.js?v=443"></script>
+<script src="js/mv2_save_share.js?v=443"></script>
+<script src="js/mv2_brother_ask.js?v=443"></script>
+  <script src="js/render.js?v=443"></script>
+<script src="js/editor.js?v=443"></script>
+<script src="js/map_edit.js?v=443"></script>
+<script src="js/spawn_fix.js?v=443"></script>
+<script src="js/awdjoo_level.js?v=443"></script>
+<script src="js/healthwatch.js?v=443"></script>
+<script src="js/awdjoo_map.js?v=443"></script>
+<script src="js/main.js?v=443"></script>
+<script src="js/crt_room.js?v=443"></script>
+<script src="js/item_lab.js?v=443"></script>
+<script src="js/physics_lab.js?v=443"></script>
+<script src="js/selftest.js?v=443"></script>
+<script src="js/ldtk_loader.js?v=443"></script>
 <script>window.MV_STORY_STAGES=1;</script>
-<script src="js/beta_audio.js?v=442"></script>
-<script src="js/beta_spatial.js?v=442"></script>
-<script src="js/beta_engine.js?v=442"></script>
-<script src="js/beta_air.js?v=442"></script>
-<script src="js/beta_ambience.js?v=442"></script>
-<script src="js/beta_decor.js?v=442"></script>
-<script src="js/beta_sky.js?v=442"></script>
-<script src="js/beta_level.js?v=442"></script>
-<script src="js/beta_feel.js?v=442"></script>
-<script src="js/beta_water.js?v=442"></script>
-<script src="js/beta_weather.js?v=442"></script>
-<script src="js/beta_envdepth.js?v=442"></script>
-<script src="js/beta_enemies.js?v=442"></script>
-<script src="js/beta_impact.js?v=442"></script>
-<script src="js/beta_gore.js?v=442"></script>
-<script src="js/gore_metal.js?v=442"></script>
-<script src="js/beta_crates.js?v=442"></script>
-<script src="js/beta_mirror.js?v=442"></script>
-<script src="js/beta_sibling.js?v=442"></script>
-<script src="js/beta_foes.js?v=442"></script>
-<script src="js/beta_city.js?v=442"></script>
-<script src="js/beta_map.js?v=442"></script>
-<script src="js/beta_music.js?v=442"></script>
-<script src="js/beta_knife.js?v=442"></script>
-<script src="js/beta_pushblock.js?v=442"></script>
-<script src="js/beta_items.js?v=442"></script>
-<script src="js/beta_enemy_f.js?v=442"></script>
-<script src="js/console16.js?v=442"></script>
-<script src="js/beta_splash.js?v=442"></script>
-<script src="js/ui_manual.js?v=442"></script>
-<script src="js/beta_story.js?v=442"></script>
+<script src="js/beta_audio.js?v=443"></script>
+<script src="js/beta_spatial.js?v=443"></script>
+<script src="js/beta_engine.js?v=443"></script>
+<script src="js/beta_air.js?v=443"></script>
+<script src="js/beta_ambience.js?v=443"></script>
+<script src="js/beta_decor.js?v=443"></script>
+<script src="js/beta_sky.js?v=443"></script>
+<script src="js/beta_level.js?v=443"></script>
+<script src="js/beta_feel.js?v=443"></script>
+<script src="js/beta_water.js?v=443"></script>
+<script src="js/beta_weather.js?v=443"></script>
+<script src="js/beta_envdepth.js?v=443"></script>
+<script src="js/beta_enemies.js?v=443"></script>
+<script src="js/beta_impact.js?v=443"></script>
+<script src="js/beta_gore.js?v=443"></script>
+<script src="js/gore_metal.js?v=443"></script>
+<script src="js/beta_crates.js?v=443"></script>
+<script src="js/beta_mirror.js?v=443"></script>
+<script src="js/beta_sibling.js?v=443"></script>
+<script src="js/beta_foes.js?v=443"></script>
+<script src="js/beta_city.js?v=443"></script>
+<script src="js/beta_map.js?v=443"></script>
+<script src="js/beta_music.js?v=443"></script>
+<script src="js/beta_knife.js?v=443"></script>
+<script src="js/beta_pushblock.js?v=443"></script>
+<script src="js/beta_items.js?v=443"></script>
+<script src="js/beta_enemy_f.js?v=443"></script>
+<script src="js/console16.js?v=443"></script>
+<script src="js/beta_splash.js?v=443"></script>
+<script src="js/ui_manual.js?v=443"></script>
+<script src="js/beta_story.js?v=443"></script>
 <!-- beta_telemetry.js off (Paulo, Nov 12: no telemetry, only the save slots, which stay on the player's machine) -->
-<script src="js/ink_vinyl.js?v=442"></script>
-<script src="js/beta_lift.js?v=442"></script>
-<script src="js/beta_doors.js?v=442"></script>
-<script src="js/playtest_note.js?v=442"></script>
+<script src="js/ink_vinyl.js?v=443"></script>
+<script src="js/beta_lift.js?v=443"></script>
+<script src="js/beta_doors.js?v=443"></script>
+<script src="js/playtest_note.js?v=443"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){

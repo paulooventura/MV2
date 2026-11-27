@@ -1118,6 +1118,8 @@ function draw(){
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  try{ const ex=(window.MV_NET&&MV_NET.extras)?MV_NET.extras():[]; for(let i=0;i<ex.length;i++){ if(ex[i]) try{drawCharacterFor(ex[i]);}catch(err){console.error('net extra draw',err);} } }catch(e){}
+  if(window.MV_NET&&MV_NET.drawExtras) try{ MV_NET.drawExtras(); }catch(e){}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow(); drawDamageOverlay(); drawItemTutorial(); drawHUD(); drawAtmosphere();
   if(p2){ctx.fillStyle=C.BLACK;ctx.fillRect(0,56,220,22);drawText((p2._aiCompanion?'ALLY':'P2')+' HP '+Math.round(p2.hp||0)+'/'+PLAYER_MAX_HP,8,60,C.PINK,2);}

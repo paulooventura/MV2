@@ -24,7 +24,7 @@
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#C9A24A'},
     {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
     {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
-    {id:3, name:'2P ONLINE', sub:'PLAY WITH A FRIEND', icon:'net', col:'#7ad8ff'},
+    {id:3, name:'ONLINE', sub:'UP TO 5 RIDERS', icon:'net', col:'#C9A24A'},
   ];
   const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
   const EYE={mind:{u:0.50,v:0.31}, venture:{u:0.50,v:0.28}};
@@ -363,7 +363,7 @@
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     const coopSub='P1 — '+HERO[_heroChoice].name+'   ·   P2 — '+HERO[_heroChoice==='mind'?'venture':'mind'].name;
-    title('CHOOSE YOUR LEAD', ((window.MV_NET&&MV_NET.isActive())||_playModeIdx===3)?'A FRIEND PLAYS THE OTHER BROTHER ONLINE':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    title('CHOOSE YOUR LEAD', ((window.MV_NET&&MV_NET.isActive())||_playModeIdx===3)?'ONLINE: SEATS 1–2 ARE MIND & VENTURE · SEATS 3–5 PICK CRAYON, NAME & HAT':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
     // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
     // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
     // qualities panel fills the middle between them.
@@ -397,7 +397,7 @@
     {k:0,label:'SOLO',col:'#C9A24A'},
     {k:1,label:'WITH',col:'#ffb86a'},
     {k:2,label:'CO-OP',col:'#7ad8ff'},
-    {k:3,label:'ONLINE',col:'#9ad4ff'},   // Paulo, Nov 26: online lives on this row too (mv2_net_ui.js host / join)
+    {k:3,label:'ONLINE',col:'#C9A24A'},   // Paulo, Nov 27: up to 5 riders (mv2_net_ui.js host / join)
   ];
   const onlineLinked=()=>!!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked());
   function openOnline(){ if(window.MV_NET_UI) MV_NET_UI.open(); else if(typeof uiShowToast==='function') uiShowToast('ONLINE PLAY DID NOT LOAD'); }

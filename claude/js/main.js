@@ -1519,6 +1519,12 @@ function drawWorldPass(){
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  // Online seats 3–5 puppets (T639) — drawn after p2.
+  try{
+    const ex=(window.MV_NET&&MV_NET.extras)?MV_NET.extras():[];
+    for(let i=0;i<ex.length;i++){ if(ex[i]) try{drawCharacterFor(ex[i]);}catch(err){console.error('net extra draw',err);} }
+  }catch(e){}
+  if(window.MV_NET&&MV_NET.drawExtras) try{ MV_NET.drawExtras(); }catch(e){}
   if(window.MV_VOICE&&MV_VOICE.draw) try{ MV_VOICE.draw(); }catch(e){}
   if(window.MV_BETA&&MV_BETA.drawItemChip) try{ MV_BETA.drawItemChip(); }catch(e){}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
@@ -1779,6 +1785,11 @@ function draw(){
   drawFX(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
   try{drawCharacter();}catch(err){console.error('player draw',err);}
   if(p2){try{drawCharacterFor(p2);}catch(err){console.error('p2 draw',err);}}
+  try{
+    const ex=(window.MV_NET&&MV_NET.extras)?MV_NET.extras():[];
+    for(let i=0;i<ex.length;i++){ if(ex[i]) try{drawCharacterFor(ex[i]);}catch(err){console.error('net extra draw',err);} }
+  }catch(e){}
+  if(window.MV_NET&&MV_NET.drawExtras) try{ MV_NET.drawExtras(); }catch(e){}
   if(window.MV_VOICE&&MV_VOICE.draw) try{ MV_VOICE.draw(); }catch(e){}
   if(window.MV_BETA&&MV_BETA.drawItemChip) try{ MV_BETA.drawItemChip(); }catch(e){}
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);

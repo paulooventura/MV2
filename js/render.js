@@ -410,7 +410,8 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
   ctx.fillStyle='#6a7280';ctx.fillRect(cx-13,baseY+6,26,2.5);
   if(!hostile){
     const htx=unifiedHat?0:hatTX, hty=unifiedHat?0:hatTY;
-    if(hero==='venture') _drawVentureCap(cx,drawY,R,htx,hty);
+    const hs=(typeof p!=='undefined'&&p&&(p.hatStyle||p._netHat))||(hero==='venture'?'cap':'gaucho');
+    if(hs==='cap') _drawVentureCap(cx,drawY,R,htx,hty);
     else _drawMindWideHat(cx,drawY,R,htx,hty);
   }
 }
@@ -957,7 +958,10 @@ function drawCharacter(){
 function drawCharacterFor(pl){
   const oldP=p;
   p=pl;
-  try{drawCharacter();}finally{p=oldP;}
+  try{
+    drawCharacter();
+    if(pl&&pl._netColor&&window.MV_IDENTITY&&MV_IDENTITY.tintActorAabb){ try{ MV_IDENTITY.tintActorAabb(pl,12); }catch(e){} }
+  }finally{p=oldP;}
 }
 
 /* â”€â”€ Draw world â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
