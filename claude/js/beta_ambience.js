@@ -254,9 +254,9 @@
       const home=roomsOf(B,'home')[0], cur=window.MV_BETA_AUDIO&&MV_BETA_AUDIO.current&&MV_BETA_AUDIO.current();
       const onStage=B.stageId==='1.1'&&home&&(cur==='stage'||cur==='stage2')&&!B.popup&&!B.results;
       let lp=20000, g=1, pan=0;
-      const coop=typeof _coopPair==='function'&&!!_coopPair(), hp=coop||!!(OPT&&OPT.headphones);
+      const coop=typeof _coopPair==='function'&&!!_coopPair(), hp=!!(OPT&&OPT.headphones);
       if(hp&&(cur==='stage'||cur==='stage2'||cur==='stage3')&&!B.popup&&!B.results){
-        // Headphones (locked on in co-op): the music comes from the character, not the gramophone.
+        // Headphones: the music comes from the brothers, not the gramophone.
         // Co-op has one music bus: pan follows P1, or the midpoint of both players unless the other's music is muted.
         let x=0.5;
         try{ const cw=camViewW(), sxOf=q=>Math.max(0,Math.min(1,(q.x+SW/2-camX)/cw));

@@ -28,7 +28,7 @@
 // ── UI state ──────────────────────────────────────────────────
 let _gameState='title';
 let _paused=false;
-let _pauseIdx=0, _optFromPause=false, _optBackFr=-99;
+let _pauseIdx=0, _pauseIdx2=0, _optFromPause=false, _optBackFr=-99, _optRow2=0, _optFollow=0;
 function _pauseItems(){
   const items=['RESUME','OPTIONS'];
   // (Paulo, Nov 4, build 358: no LEAVE A NOTE / UNSTICK ME in the pause menu)
@@ -40,11 +40,9 @@ function _togglePause(){
   if(typeof _mapEdActive!=='undefined'&&_mapEdActive) return;
   if(_paused&&typeof fr!=='undefined'&&fr-_optBackFr<=2) return;   // the B / ESC that closed Options stays in the pause menu
   _paused=!_paused;
-  if(_paused){ _pauseIdx=0;
-    try{ if(typeof _gameAudioEl!=='undefined'&&_gameAudioEl) _gameAudioEl.pause(); }catch(e){}
-  }else if(typeof _playBGM==='function'){
-    _playBGM('game',OPT.musicVol);
-  }
+  // The stage song keeps its place. Pause only muffles it (sound16). Restarting
+  // here used to stop the track and begin it again.
+  if(_paused){ _pauseIdx=0; _pauseIdx2=0; }
 }
 // ── World map screen (beta_map.js) ──────────────────────────────
 // Read-only display. The map module reports itself on window.MV_MAP; when it
@@ -89,7 +87,8 @@ function _driveMenusFromPads(){
   }
   if(_gameState==='options'){
     const swapHeld=_optSwapHeld||!!K['KeyE'];
-    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape'],swapHeld,punch:!!Kj['KeyF']});
+    _optionsInput({up,down:dn,left:lf,right:rt,confirm:ok,back:!!Kj['Escape'],swapHeld,punch:!!Kj['KeyF'],who:1});
+    if(_optInCoop()) _optionsInput(Object.assign(_takeMenu2(),{who:2}));
     return;
   }
   if(_gameState==='testmode'&&window.MV_TEST_INPUT){
@@ -458,32 +457,77 @@ function _titleMenuActivate(){
 // ── Pause menu: RESUME · OPTIONS · EXIT ───────────────────────
 // Opened with START (the ☰ Menu button next to X) or ESC. Up/down (d-pad,
 // stick, W/S, arrows) moves, A / Space / Enter picks, B or START resumes.
+function _takeMenu2(){
+  const m=window._mvMenu2||{};
+  const j=typeof _bindJ2==='function';
+  const o={
+    up:!!m.up||(j&&_bindJ2('up')),
+    down:!!m.down||(j&&_bindJ2('down')),
+    left:!!m.left||(j&&_bindJ2('left')),
+    right:!!m.right||(j&&_bindJ2('right')),
+    confirm:!!m.ok||(j&&(_bindJ2('jump')||_bindJ2('use'))),
+    back:!!m.back,
+    punch:!!m.punch||!!m.start||(j&&_bindJ2('punch')),
+    swapHeld:!!m.swap||(typeof _bindDown2==='function'&&_bindDown2('swap'))
+  };
+  if(window._mvMenu2){ const sy=window._mvMenu2._sy, sx=window._mvMenu2._sx; window._mvMenu2={_sy:sy,_sx:sx}; }
+  return o;
+}
+function _pausePick(it){
+  try{ sfx('confirm'); }catch(e){}
+  if(it==='RESUME') _togglePause();
+  else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _optRow2=0; _optFollow=0; _gameState='options'; }
+  else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
+  else if(it==='EXIT'){
+    _paused=false;
+    if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
+    else { try{ if(typeof _stopBGM==='function') _stopBGM('game'); }catch(e){} _gameState='title'; if(typeof _titleT!=='undefined'){ _titleT=0; if(typeof _slideFade!=='undefined') _slideFade=0; } }
+  }
+}
 function _pauseInput(){
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(); return; }
   const items=_pauseItems();
   if(Kj['ArrowUp']||Kj['KeyW']){ _pauseIdx=(_pauseIdx+items.length-1)%items.length; try{ sfx('menu'); }catch(e){} }
   if(Kj['ArrowDown']||Kj['KeyS']){ _pauseIdx=(_pauseIdx+1)%items.length; try{ sfx('menu'); }catch(e){} }
-  // Paulo: Punch (Y on the pad / the punch key) acts as an exit button on the
-  // pause menu — pressing it resumes the game immediately.
+  // Punch (Y on the pad / the punch key) resumes immediately.
   if(Kj['KeyF']){ try{ delete Kj['KeyF']; }catch(e){} _togglePause(); return; }
   if(Kj['KeyE']&&!K['KeyE_kb']){ _togglePause(); return; }          // pad B: back to the game
-  if(Kj['Space']||Kj['Enter']||Kj['NumpadEnter']){
-    const it=items[_pauseIdx];
-    try{ sfx('confirm'); }catch(e){}
-    if(it==='RESUME') _togglePause();
-    else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _gameState='options'; }
-    else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
-    else if(it==='EXIT'){
-      _paused=false;
-      if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
-      else { try{ if(typeof _stopBGM==='function') _stopBGM('game'); }catch(e){} _gameState='title'; if(typeof _titleT!=='undefined'){ _titleT=0; if(typeof _slideFade!=='undefined') _slideFade=0; } }
-    }
+  if(Kj['Space']||Kj['Enter']){
+    _pausePick(items[_pauseIdx]);
+    if(!_paused||_gameState!=='game') return;
   }
+  if(!_optInCoop()){ _takeMenu2(); return; }
+  const q=_takeMenu2();
+  if(q.up){ _pauseIdx2=(_pauseIdx2+items.length-1)%items.length; try{ sfx('menu'); }catch(e){} }
+  if(q.down){ _pauseIdx2=(_pauseIdx2+1)%items.length; try{ sfx('menu'); }catch(e){} }
+  if(q.punch||q.back){ _togglePause(); return; }
+  if(q.confirm) _pausePick(items[_pauseIdx2]);
+}
+function _drawPauseColumn(px,py,pw,ph,items,idx,tag,col){
+  uiPanel(px,py,pw,ph,{r:16});
+  uiLogo(tag,px+pw/2,py+12,34,{sweep:150});
+  const rowH=48;
+  let y=py+72;
+  items.forEach((it,i)=>{
+    const sel=i===idx;
+    if(sel){ uiPanel(px+16,y-10,pw-32,rowH-8,{sel:true,r:10,flat:true}); uiCursor(px+28,y+8,8); }
+    drawTextC(it,px+pw/2,y,sel?col:'#c8b8ff',3);
+    y+=rowH;
+  });
 }
 function drawPauseMenu(){
   ctx.fillStyle='rgba(30,27,39,0.68)'; ctx.fillRect(0,0,W,H);
   const items=_pauseItems();
-  const pw=Math.min(460, uiLayout().panelW), rowH=52, ph=136+items.length*rowH, px=W/2-pw/2, py=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph/2));
+  const rowH=52, ph=136+items.length*rowH, py=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph/2));
+  if(_optInCoop()){
+    const gap=28, pw=Math.min(400,(W-gap*3)/2), ph2=120+items.length*48;
+    const py2=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph2/2));
+    _drawPauseColumn((W-gap)/2-pw,py2,pw,ph2,items,_pauseIdx,'P1','#ffe39a');
+    _drawPauseColumn((W+gap)/2,py2,pw,ph2,items,_pauseIdx2,'P2','#ffb0c8');
+    drawTextC('BOTH OF YOU CAN MOVE THIS',W/2,py2+ph2+6,'#d8ffc8',2);
+    return;
+  }
+  const pw=Math.min(460, uiLayout().panelW), px=W/2-pw/2;
   uiPanel(px,py,pw,ph,{r:20});
   uiLogo('PAUSED',W/2,py+16,46,{sweep:150});
   let y=py+86;
@@ -538,37 +582,42 @@ function _optRepeat(){
 }
 function _optionsInput(ev){
   if(_gameState!=='options') return false;
-  if(window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
+  const who=ev&&ev.who===2?2:1;
+  if(who===1&&window.MV_SIGNAL&&MV_SIGNAL.blocking()){ MV_SIGNAL.pad(ev); return true; }
   try{ if(OPT.musicMode!=='ost'){ OPT.musicMode='ost'; _saveOpts(); if(typeof _switchMusicMode==='function') _switchMusicMode(); } }catch(e){}
   const held=!!ev.swapHeld;
-  if(_goreWasHeld&&!held) _goreStep=0;
-  _goreWasHeld=held;
-  if(_optRebinding){ if(ev.back){_optRebinding=null;return true;} return true; }
+  if(who===1){ if(_goreWasHeld&&!held) _goreStep=0; _goreWasHeld=held; }
+  if(_optRebinding){
+    if(_optRebinding.p!==who) return true;
+    if(ev.back||ev.punch){_optRebinding=null;return true;}
+    return true;
+  }
   const n=_optRowCount();
+  let row=who===2?_optRow2:_optRow;
+  const setRow=v=>{ row=(v+n)%n; if(who===2) _optRow2=row; else _optRow=row; _optFollow=row; };
   if(ev.back||ev.punch){ if(_optFromPause){ _optFromPause=false; _gameState='game'; _optBackFr=(typeof fr!=='undefined'?fr:0); try{ delete Kj['Escape']; }catch(e){} } else _gameState='title'; return true; }
-  if(held&&_optRow===OPT_FILTER_ROW){
+  if(held&&row===OPT_FILTER_ROW){
     if(ev.up) _goreFeed('up');
     else if(ev.down) _goreFeed('down');
     else if(ev.left) _goreFeed('left');
     else if(ev.right) _goreFeed('right');
     return true;
   }
-  if(ev.up){_optRow=(_optRow+n-1)%n;return true;}
-  if(ev.down){_optRow=(_optRow+1)%n;return true;}
+  if(ev.up){ setRow(row-1); return true; }
+  if(ev.down){ setRow(row+1); return true; }
   const dec=!!ev.left&&!ev.right, inc=!!ev.right&&!ev.left;
-  if(_optRow<=2&&(dec||inc)){ _optNudgeBar(_optRow, inc); return true; }
-  if(_optRow===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
-  if(_optRow===OPT_SFX_ROW&&(dec||inc||ev.confirm)){ if(window.MV_SFX) MV_SFX.cyclePack(dec?-1:1); return true; }
-  if(_optHasSpill()&&_optRow===OPT_SPILL_ROW&&(dec||inc||ev.confirm)){ MV_SPILL.cycle(dec?-1:1); return true; }
-  if(_optRow===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
-  if(_optRow===_optHpRow()&&(dec||inc||ev.confirm)){ if(!_optInCoop()){ OPT.headphones=!OPT.headphones; _saveOpts(); } return true; }
-  if(_optRow===_optMuteRow()&&(dec||inc||ev.confirm)){ OPT.mutePartner=!OPT.mutePartner; _saveOpts(); return true; }
-  if(_optRow===_optCtrlRow()&&(dec||inc||ev.confirm)){ MV_CONTROLS.open(); return true; }
-  if(_optRow===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
-  if(_optRow===_optOstRow()&&ev.confirm){ _openOst(); return true; }
-  if(_optRow>=_optB0()&&_optRow<_optOstRow()&&ev.confirm){
-    // Which player's set, and which action — P2 gets its own rebindable set.
-    _optRebinding={p:_optRow<_optB1()?1:2, a:BIND_ORDER[(_optRow-_optB0())%BIND_ORDER.length]};
+  if(row<=2&&(dec||inc)){ _optNudgeBar(row, inc); return true; }
+  if(row===OPT_FILTER_ROW&&(dec||inc||ev.confirm)){ if(window.MV_CONSOLE) MV_CONSOLE.cycle(dec?-1:1); return true; }
+  if(row===OPT_SFX_ROW&&(dec||inc||ev.confirm)){ if(window.MV_SFX) MV_SFX.cyclePack(dec?-1:1); return true; }
+  if(_optHasSpill()&&row===OPT_SPILL_ROW&&(dec||inc||ev.confirm)){ MV_SPILL.cycle(dec?-1:1); return true; }
+  if(row===_optTvRow()&&(dec||inc||ev.confirm)){ if(window.MV_TV) MV_TV.toggle(); return true; }
+  if(row===_optHpRow()&&(dec||inc||ev.confirm)){ OPT.headphones=!OPT.headphones; _saveOpts(); return true; }
+  if(row===_optMuteRow()&&(dec||inc||ev.confirm)){ OPT.mutePartner=!OPT.mutePartner; _saveOpts(); return true; }
+  if(row===_optCtrlRow()&&(dec||inc||ev.confirm)){ MV_CONTROLS.open(); return true; }
+  if(row===_optManualRow()&&ev.confirm){ if(window.MV_MANUAL) MV_MANUAL.open(); return true; }
+  if(row===_optOstRow()&&ev.confirm){ _openOst(); return true; }
+  if(row>=_optB0()&&row<_optOstRow()&&ev.confirm){
+    _optRebinding={p:row<_optB1()?1:2, a:BIND_ORDER[(row-_optB0())%BIND_ORDER.length]};
     return true;
   }
   return true;
@@ -1014,7 +1063,7 @@ function drawOptions(){
     {label:'SFX PACK',val:_sfxPackName()},
     ...(_optHasSpill()?[{label:'BLOOD/INK SPILL',val:MV_SPILL.mode.toUpperCase()}]:[]),
     {label:'CRT TV',val:window.MV_TV?(MV_TV.on?'ON':'OFF'):'-'},
-    {label:'HEADPHONES',val:_optInCoop()?'ON (CO-OP)':(OPT.headphones?'ON':'OFF')},
+    {label:'HEADPHONES',val:OPT.headphones?'ON':'OFF'},
     {label:"MUTE P2'S MUSIC",val:OPT.mutePartner?'ON':'OFF'}];
   if(_optHasCtrl()) rows.push({label:'CONTROLS',val:_optCtrlVal(),rule:'PLAYERS'});
   BIND_ORDER.forEach((a,i)=>rows.push({label:BIND_LABELS[a].toUpperCase(),val:_bindList(a,1),rule:i===0?'PLAYER 1 — WASD / KEYBOARD':null}));
@@ -1023,7 +1072,8 @@ function drawOptions(){
   rows.push({label:'MANUAL & CREDITS',sep:true,val:''});
   const stacked=L.phone||rows.some(r=>textW(r.label,scl)+textW(String(r.val),scl)+96>panelW-48);
   const rowH=stacked?78:52, VIS=6;
-  const start=rows.length<=VIS?0:Math.max(0,Math.min(_optRow-2, rows.length-VIS));
+  const focus=_optInCoop()?_optFollow:_optRow;
+  const start=rows.length<=VIS?0:Math.max(0,Math.min(focus-2, rows.length-VIS));
   const show=Math.min(VIS, rows.length);
   let gapSum=0; for(let vi=0;vi<show;vi++){ const rr=rows[start+vi]; if(rr.rule||rr.sep) gapSum+=36; }
   const panelH=86+show*rowH+gapSum+56;
@@ -1033,14 +1083,15 @@ function drawOptions(){
   if(start>0) drawTextC('^',W/2,panelY+52,'#d8ffc8',2);
   let y=panelY+70;
   for(let vi=0;vi<show;vi++){
-    const i=start+vi, r=rows[i], sel=i===_optRow;
+    const i=start+vi, r=rows[i], sel=i===_optRow, sel2=_optInCoop()&&i===_optRow2;
     if(r.rule||r.sep){
       y+=28;
       ctx.fillStyle='rgba(255,227,154,0.85)'; ctx.fillRect(panelX+24,y-16,panelW-48,2);
       if(r.rule) drawText(r.rule,panelX+28,y-28,'#ffe39a',2);
     }
-    if(sel){ uiPanel(panelX+16,y-8,panelW-32,rowH-8,{sel:true,r:10,flat:true}); uiCursor(panelX+28,y+8,9); }
-    const col=sel?'#ffffff':'#d8ffc8', valCol=sel?'#ffe39a':'#d8ffc8';
+    if(sel||sel2){ uiPanel(panelX+16,y-8,panelW-32,rowH-8,{sel:true,r:10,flat:true}); if(sel) uiCursor(panelX+28,y+8,9); }
+    if(sel2) drawText('P2',panelX+panelW-36,y,'#ffb0c8',2);
+    const col=(sel||sel2)?'#ffffff':'#d8ffc8', valCol=sel?'#ffe39a':sel2?'#ffb0c8':'#d8ffc8';
     if(stacked){
       drawText(r.label,panelX+48,y,col,scl);
       if(r.bar!=null){ uiBar(panelX+48,y+32,panelW-160,14,r.bar,'#6a8cff','#c58cff',10); drawTextR(r.val,panelX+panelW-28,y+30,valCol,scl); }

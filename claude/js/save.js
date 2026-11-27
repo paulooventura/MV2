@@ -16,7 +16,7 @@ const DEFAULT_OPTS={
   musicVol:0.75,
   sfxVol:1.0,
   engineVol:0.8,
-  headphones:false,   // music plays from the character; locked ON in co-op
+  headphones:false,   // music stays with the brothers; off, it stays in the world
   mutePartner:false,  // co-op: mute the other player's music
   musicMode:'ost', // 'ost' (assets/new music wav) | 'psg' (chiptune fallback)
   sfxPack:'original', // dump line 81: 'original' (the SFX we made) | 'meme' (funny meme pack filter)

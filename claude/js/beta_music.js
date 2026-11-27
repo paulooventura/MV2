@@ -170,6 +170,20 @@
     }
     return n;
   }
+  function phones(){ return !!(typeof OPT!=='undefined'&&OPT&&OPT.headphones); }
+  // Headphones: the song stays full and clear, and sits between the brothers'
+  // ears. It does not thin out with distance the way a speaker in the room does.
+  function headHear(){
+    let x=0.5;
+    try{
+      const cw=camViewW(), sxOf=q=>Math.max(0,Math.min(1,(q.x+SW/2-camX)/cw));
+      x=sxOf(p);
+      const pair=typeof _coopPair==='function'&&_coopPair();
+      if(pair&&p2&&!(OPT&&OPT.mutePartner)) x=(x+sxOf(p2))/2;
+      if(pair&&typeof _coopSplitWanted==='function'&&_coopSplitWanted()) x=(OPT&&OPT.mutePartner)?0.25:0.5;
+    }catch(e){}
+    return {gain:1, pan:Math.max(-0.94,Math.min(0.94,(x-0.5)*2)), lp:20000};
+  }
   function hear(at){
     const ox=p.x+SW/2, oy=p.y+FEET_OFF-50, dx=at.x-ox, dy=at.y-oy, d=Math.hypot(dx,dy);
     const near=Math.max(0,1-d/1500);
@@ -216,13 +230,13 @@
         A().play('calm',{restart:true});
         handed=true; lastTrack='calm'; brake=null;
       }
-      if(want.at&&A().place){ if(placed&&placed!=='calm'&&A().unplace) A().unplace(placed); placed='calm'; A().place('calm', hear(want.at)); }
+      if(want.at&&A().place){ if(placed&&placed!=='calm'&&A().unplace) A().unplace(placed); placed='calm'; A().place('calm', phones()?headHear():hear(want.at)); }
       return;
     }
     if(handed||brake){ handed=false; brake=null; if(A().vinylClear) A().vinylClear(); }
     B.music=want.track;
     if(A().current()!==want.track){ A().play(want.track,{restart:want.track!==lastTrack}); lastTrack=want.track; }
-    if(want.at){ if(placed&&placed!==want.track&&A().unplace) A().unplace(placed); placed=want.track; A().place(want.track,hear(want.at)); }
+    if(want.at){ if(placed&&placed!==want.track&&A().unplace) A().unplace(placed); placed=want.track; A().place(want.track,phones()?headHear():hear(want.at)); }
   }
 
   // ── the boss falls: the scene freezes, the camera closes in on MIND, the glory song ──

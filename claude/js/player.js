@@ -350,6 +350,21 @@ function _readPad1(g){
   }else _padMenuInput(st,pressed,rose,ay);
   GP_BTN.forEach(i=>s.prev[i]=pressed(i));
 }
+// P2's own menu edges while both brothers are in pause / options together.
+function _fillPadMenu2(st,pressed,rose,ay){
+  const s=window._mvMenu2||(window._mvMenu2={});
+  const sy=ay<-0.5?-1:ay>0.5?1:0, sx=(st.sx||0)<0?-1:(st.sx||0)>0?1:0;
+  if(rose(12)||(sy<0&&!(s._sy<0))) s.up=true;
+  if(rose(13)||(sy>0&&!(s._sy>0))) s.down=true;
+  if(rose(14)||(sx<0&&!(s._sx<0))) s.left=true;
+  if(rose(15)||(sx>0&&!(s._sx>0))) s.right=true;
+  s._sy=sy; s._sx=sx;
+  if(rose(0)) s.ok=true;
+  if(rose(3)) s.punch=true;
+  if(rose(1)) s.back=true;
+  if(pressed(1)) s.swap=true;
+  if(rose(9)||rose(8)) s.start=true;
+}
 // Active pad → P2 (K2/Kj2, read by weapons.js updateCoopPlayer2). Writes into
 // whatever codes P2 has bound (OPT.binds2), so rebinds work on the pad too.
 function _readPad2(g){
@@ -363,7 +378,9 @@ function _readPad2(g){
   set('right',pressed(15)||st.sx>0);
   set('up',   pressed(12)||st.sy<0);
   set('down', pressed(13)||st.sy>0);
-  set('jump', jump, rose(0)||rose(12)||st.edges.up);       // A = jump (held for variable height)
+  // In the shared pause / options, stick-up must only move P2's cursor.
+  const menu2=typeof _optInCoop==='function'&&_optInCoop()&&(_gameState==='options'||(_gameState==='game'&&typeof _paused!=='undefined'&&_paused));
+  set('jump', jump, menu2?rose(0):(rose(0)||rose(12)||st.edges.up));       // A = jump (held for variable height)
   set('use',  false,rose(2));                              // X = item SELECT (cycle)
   set('swap', pressed(1),rose(1));                         // B = USE item (hold for XLR / MEG)
   set('punch',false,rose(3));                              // Y = punch
@@ -379,6 +396,8 @@ function _readPad2(g){
       else if(typeof _partyConfirm==='function') _partyConfirm();
     }
     if(rose(1)||rose(3)) _gameState='title';
+  }else if(typeof _optInCoop==='function'&&_optInCoop()&&(_gameState==='options'||(_gameState==='game'&&typeof _paused!=='undefined'&&_paused))){
+    _fillPadMenu2(st,pressed,rose,st.ay);
   }else _padMenuInput(st,pressed,rose,st.ay);
   GP_BTN.forEach(i=>s.prev[i]=pressed(i));
 }
