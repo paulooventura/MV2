@@ -1019,7 +1019,24 @@
   function solidPx(x,y){
     const c=Math.floor(x/T), r=Math.floor(y/T);
     if(c<0||r<0||c>=MV_GRID.cols||r>=MV_GRID.rows) return true;
-    return gridSolid(c,r)||gridIsSlope(c,r)||crateAt(c,r);
+    if(gridSolid(c,r)) return true;
+    // T628: slope cells are only solid *under* the diagonal (same as crates/foes).
+    // Treating the whole cell as rock parked seeds in mid-air on ramps.
+    if(typeof gridIsSlope==='function'&&gridIsSlope(c,r)){
+      const sy=typeof gridSlopeY==='function'?gridSlopeY(c,r,x):null;
+      return sy!=null&&y>=sy;
+    }
+    return !!crateAt(c,r);
+  }
+  // Slope surface under a knowl (radians + stand Y), or null off-ramp.
+  function knowlSlope(k,footY){
+    if(typeof gridStandY!=='function') return null;
+    const hw=6, yl=gridStandY(k.x-hw,footY,{maxUp:T,maxDrop:T}), yr=gridStandY(k.x+hw,footY,{maxUp:T,maxDrop:T});
+    if(yl==null||yr==null) return null;
+    const ang=Math.atan2(yr-yl,hw*2);
+    if(Math.abs(ang)<0.05) return null;
+    const yc=gridStandY(k.x,footY,{maxUp:T,maxDrop:T});
+    return {ang, y:yc!=null?yc:(yl+yr)*0.5};
   }
   function boxHits(x,y){
     const m=2;
@@ -1207,15 +1224,26 @@
   }
   function knowlFlyTick(){
     for(const k of KDROP){
-      if(k._anchored){ k.x=k.ox; k.y=k.oy; k.vx=0; k.vy=0; k._fly=false; continue; }
-      if(!k._fly) continue;
+      if(k._anchored){ k.x=k.ox; k.y=k.oy; k.vx=0; k.vy=0; k._fly=false; k.rot=0; k.spin=0; continue; }
+      if(k._carried||k.got) continue;
+      const hull0=k._hull||knowlHull(k);
+      const foot0=hull0.type==='hex'?14:12;
+      // Settled on a ramp? Keep tumbling — don't leave a seed parked mid-slope.
+      if(!k._fly){
+        const sl0=knowlSlope(k,k.y+foot0);
+        if(sl0&&Math.abs(sl0.ang)>0.08){ k._fly=true; k._rest=0; k._flyT=0; k.vx+=(Math.sin(sl0.ang)*0.4); }
+        else continue;
+      }
       const m=Math.max(0.35,k._mass||knowlMass(k));
+      const hull=hull0;
+      const footOff=foot0;
       // heavier gems fall a touch faster / resist shove; light seeds float longer
       const grav=GRAV*(0.55+0.35*Math.min(1.4,m));
-      k.vy=Math.min(k.vy+grav,10+m*1.2); k.vx*=0.99;
+      k.vy=Math.min(k.vy+grav,10+m*1.2); k.vx*=0.995;
       if(B.inWater&&B.inWater(k.x,k.y)){ k.vx*=0.92; if(k.kind==='seed'){ k.vy=Math.max(k.vy-GRAV*1.6,-2.4); k._rest=0; } else k.vy=Math.min(k.vy-GRAV*0.6,1.6); }
-      const nx=k.x+k.vx; if(knowlOutlineSolid(nx,k.y,k)){ k.vx*=-0.4; } else k.x=nx;
+      const nx=k.x+k.vx; if(knowlOutlineSolid(nx,k.y,k)){ k.vx*=-0.4; k.spin=-(k.spin||0)*0.5; } else k.x=nx;
       const ny=k.y+k.vy;
+      let ground=false;
       if(knowlOutlineSolid(k.x,ny,k)&&ny>=k.y){
         const _hitV=k.vy;   // capture before it is reversed (dump line 87: glass sound when seeds hit the floor)
         if(k.kind==='seed'&&_hitV>2&&!(k._glassF>0)){ k._glassF=8; try{ window.MV_KNOWL_GLASS&&window.MV_KNOWL_GLASS(); }catch(e){} }
@@ -1225,16 +1253,37 @@
         }
         if(k._glassF>0) k._glassF--;
         if(k._landSfxF>0) k._landSfxF--;
-        k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.8; if(Math.abs(k.vx)<0.2&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
+        ground=true;
+        k.vy=k.vy>2?-k.vy*0.35:0; k.vx*=0.86;
+        // Snap onto the real surface (flat or ramp) so we never rest floating in a slope cell.
+        const foot=k.y+footOff;
+        const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:footOff+4,maxDrop:T}):null;
+        if(fy!=null) k.y=fy-footOff;
+        const sl=knowlSlope(k,k.y+footOff);
+        if(sl){
+          // T628: tumble / roll downhill like other solid physics objects.
+          k.vx+=(Math.sin(sl.ang)*0.55)/Math.max(0.5,m);
+          k.spin=(k.spin||0)+k.vx*0.08;
+          k._rest=0;
+        }else if(Math.abs(k.vx)<0.18&&Math.abs(k.vy)<0.3) k._rest=(k._rest||0)+1;
+        else k._rest=0;
       }
       else if(knowlOutlineSolid(k.x,ny,k)&&ny<k.y){ k.vy=Math.abs(k.vy)*0.3; }
       else { k.y=ny; k._rest=0; }
+      // Air tumble from angular momentum; damp hard once settled on flat ground.
+      k.spin=(k.spin||0)*(ground?0.92:0.985);
+      k.rot=(k.rot||0)+(k.spin||0);
+      if(ground&&!knowlSlope(k,k.y+footOff)){
+        k.rot+=(0-(k.rot||0))*0.12;
+        if(Math.abs(k.rot)<0.04) k.rot=0;
+      }
       knowlTouchesEnemy(k);
-      if((k._rest||0)>6||(k._flyT=(k._flyT||0)+1)>600){
-        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0;
-        const foot=k.y+((k._hull||knowlHull(k)).type==='hex'?14:12);
+      const stillRolling=!!knowlSlope(k,k.y+footOff)&&Math.abs(k.vx)>0.12;
+      if(!stillRolling&&((k._rest||0)>6||(k._flyT=(k._flyT||0)+1)>600)){
+        k._fly=false; k._rest=0; k._flyT=0; k.vx=k.vy=0; k.px=k.py=0; k.spin=0;
+        const foot=k.y+footOff;
         const fy=typeof gridStandY==='function'?gridStandY(k.x,foot,{maxUp:8,maxDrop:T}):null;
-        if(fy!=null) k.y=fy-((k.kind==='seed')?15:12);
+        if(fy!=null) k.y=fy-footOff;
         k.ox=k.x; k.oy=k.y; k.got=false;
       }else{ k.ox=k.x; k.oy=k.y; }
     }
@@ -1920,21 +1969,43 @@
     const pct=total?got/total*100:0;
     return 2*(1+0.005*pct);
   }
-  // ── Seeds: picked up by the whole body (they sit on the floor, below MIND's core)
+  // T628: once detached, seeds AND crystals collect when the player's core OR wheel touches them.
+  function knowlTouchesPlayer(k, who){
+    if(!who||!k) return false;
+    const hx=k.x, hy=k.y, hr=12;
+    const core=typeof playerCoreHB==='function'?playerCoreHB(who):null;
+    if(core&&ov(core.x-4,core.y-2,core.w+8,core.h+4,hx-hr,hy-hr,hr*2,hr*2)) return true;
+    const w=typeof playerWheelCol==='function'?playerWheelCol(who):null;
+    if(w){ const dx=hx-w.cx, dy=hy-w.cy, rr=w.r+hr; if(dx*dx+dy*dy<=rr*rr) return true; }
+    return false;
+  }
+  function collectDetachedKnowl(k, who){
+    if(!k||k.got||k._anchored||k._carried) return false;
+    k.got=true; k._fly=false; k.vx=k.vy=0; k.spin=0; kColl++;
+    if(who&&who===p&&typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
+    else if(who&&typeof healAnyPlayerFromKnowl==='function') healAnyPlayerFromKnowl(who);
+    const crys=k.kind==='crystal'||k.kind==='echo';
+    try{
+      if(crys) sfx('crystal_pickup', typeof _knowlPickPitch==='function'?_knowlPickPitch(k):1);
+      else sfx('knowl_seed', seedPitch());
+    }catch(e){}
+    if(!crys&&KDROP.every(o=>o.kind!=='seed'||o.got)){ B.seedsAllT=120; setTimeout(()=>{ try{ sfx('seeds_all'); }catch(e){} },380); }
+    if(crys&&k.kind==='crystal'&&KDROP.every(o=>o.kind!=='crystal'||o.got)) setTimeout(()=>{ try{ sfx('crystals_all'); }catch(e){} },420);
+    for(let pi=0;pi<12;pi++){
+      const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*3;
+      PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.8,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*3,col:crys?'#88ffcc':'#66ffaa'});
+    }
+    if(kColl===kTotal){ goalOpen=true; try{ sfx('unlock'); }catch(e){} }
+    return true;
+  }
   function seedPickups(){
     if(!p) return;
-    const core=playerCoreHB(p), feet=p.y+FEET_OFF;
     for(const k of KDROP){
-      if(k.got||k.kind!=='seed') continue;
-      if(!ov(core.x-6,core.y,core.w+12,feet-core.y,k.x-11,k.y-11,22,22)) continue;
-      k.got=true; kColl++;
-      if(typeof healPlayerFromKnowl==='function') healPlayerFromKnowl();
-      try{ sfx('knowl_seed', seedPitch()); }catch(e){}
-      if(KDROP.every(o=>o.kind!=='seed'||o.got)){ B.seedsAllT=120; setTimeout(()=>{ try{ sfx('seeds_all'); }catch(e){} },380); }   // the whole set
-      for(let pi=0;pi<12;pi++){
-        const ang=Math.random()*Math.PI*2, sp=1.2+Math.random()*3;
-        PFXS.push({x:k.x,y:k.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.8,life:18+Math.random()*10|0,maxLife:28,r:2+Math.random()*3,col:'#66ffaa'});
-      }
+      if(k.got||k._anchored||k._carried) continue;
+      let who=null;
+      if(knowlTouchesPlayer(k,p)) who=p;
+      else if(p2&&knowlTouchesPlayer(k,p2)) who=p2;
+      if(who) collectDetachedKnowl(k, who);
     }
   }
 

@@ -1276,15 +1276,30 @@ function _knowlPickPitch(k){
 function updateKnowls(){
   for(const k of KDROP){
     if(k.got) continue;
-    k.px=(k.px||0); k.py=(k.py||0);
-    k.px+=(k.vx||0); k.py+=(k.vy||0);
-    k.vx=(k.vx||0)*0.82; k.vy=(k.vy||0)*0.82;
-    k.px*=0.9; k.py*=0.9;
-    if(k.ox!=null){k.x=k.ox+k.px;k.y=k.oy+k.py;}
-    k.bob=(k.bob||0)+0.02;
-    const _pCoreK=playerCoreHB(p);
-    const p1Gets=ov(_pCoreK.x-6,_pCoreK.y,_pCoreK.w+12,_pCoreK.h,k.x-8,k.y-8,16,16);
-    const p2Gets=!!(p2&&(()=>{const h2=playerCoreHB(p2);return ov(h2.x-6,h2.y,h2.w+12,h2.h,k.x-8,k.y-8,16,16);})());
+    // T628: detached/flying knowls are owned by beta_level.knowlFlyTick — don't
+    // damp their vx or rewrite x/y from the old bob offset (that parked them mid-air).
+    const physicsOwned=!!(k._fly||(k._moved&&!k._anchored));
+    if(!physicsOwned){
+      k.px=(k.px||0); k.py=(k.py||0);
+      k.px+=(k.vx||0); k.py+=(k.vy||0);
+      k.vx=(k.vx||0)*0.82; k.vy=(k.vy||0)*0.82;
+      k.px*=0.9; k.py*=0.9;
+      if(k.ox!=null){k.x=k.ox+k.px;k.y=k.oy+k.py;}
+      k.bob=(k.bob||0)+0.02;
+    }
+    // Anchored spawn knowls stay put until punch/push/pull. Collect only after detach,
+    // and only when the core OR the wheel touches (beta seedPickups also covers this).
+    if(k._anchored||k._carried) continue;
+    if(window.MV_BETA&&MV_BETA.on) continue;   // beta owns detach collect via seedPickups
+    const touch=(who)=>{
+      if(!who) return false;
+      const core=playerCoreHB(who);
+      if(ov(core.x-4,core.y-2,core.w+8,core.h+4,k.x-10,k.y-10,20,20)) return true;
+      const w=typeof playerWheelCol==='function'?playerWheelCol(who):null;
+      if(w){ const dx=k.x-w.cx, dy=k.y-w.cy, rr=w.r+10; return dx*dx+dy*dy<=rr*rr; }
+      return false;
+    };
+    const p1Gets=touch(p), p2Gets=!!(p2&&touch(p2));
     if(p1Gets||p2Gets){
       k.got=true; kColl++;
       if(_awdjooTutorial) _stageScore+=250;

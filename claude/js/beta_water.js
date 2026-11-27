@@ -1129,7 +1129,8 @@
         const nx=x+dir; if(nx<0||nx>=NX) continue;
         let j=y*NX+nx; if(BLK[j]&1){ if(y+1<NY&&!(BLK[j+NX]&1)) j+=NX; else continue; }
         else if(y+1<NY&&!(BLK[j+NX]&1)&&M[j+NX]<0.9) j+=NX;                 // down and along: it sheets down
-        const room=Math.max(0,1-M[j]), t=Math.min(M[i]*0.35,room,0.2); if(t<=0) continue;
+        // T628: drain a bit harder so sheets keep flowing downhill instead of stair-pooling.
+        const room=Math.max(0,1-M[j]), t=Math.min(M[i]*0.55,room,0.35); if(t<=0) continue;
         M[i]-=t; M[j]+=t;
       }
     }
@@ -1492,6 +1493,33 @@
         const j=y+1<NY?i+NX:-1, mj=j>=0?em(j):0;
         const sup=j>=0&&((BLK[j]&1)||mj>=0.9||(BLK[j]===2&&mj<0.02));
         const side=(x>0&&em(i-1)>0.5)||(x<NX-1&&em(i+1)>0.5);
+        // T628: slope lookup uses TILE indices (MV_GRID.tile), never fluid CS.
+        const T=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:CS*2;
+        const rampY=(xx, nearY)=>{
+          if(typeof gridSlopeKind!=='function'||typeof gridSlopeY!=='function') return null;
+          const c=Math.floor(xx/T);
+          for(const r of [Math.floor((nearY-1)/T), Math.floor(nearY/T), Math.floor((nearY+1)/T), Math.floor((nearY-T)/T)]){
+            if(r<0) continue;
+            if(gridSlopeKind(c,r)){
+              const sy2=gridSlopeY(c,r,xx);
+              if(sy2!=null && Math.abs(sy2-nearY)<=T+4) return sy2;
+            }
+          }
+          return null;
+        };
+        // Thin sheet / falling water sitting on a ramp: draw a diagonal ribbon, never a vertical rect
+        // (vertical rects + flat tops are the stair-step "zigzag" Paulo still sees).
+        const midY=y*CS+CS*0.5;
+        const sl0=rampY(X0+0.5, midY), sr0=rampY(X1-0.5, midY);
+        if(sl0!=null&&sr0!=null&&(!sup||m<0.95)){
+          const thick=Math.max(2.5, Math.min(CS*0.95, (0.25+m*0.9)*CS));
+          const tl=sl0-thick, tr=sr0-thick;
+          pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(sr0)); pool.lineTo(sx(X0),sy(sl0)); pool.closePath();
+          if(y===0||em(i-NX)<0.02) surf.push(X0,tl,X1,tr);
+          if(tl<tMin) tMin=tl; if(Math.max(sl0,sr0)>bMax) bMax=Math.max(sl0,sr0);
+          if(EL[i]) live.push(x,y);
+          y++; continue;
+        }
         if(!sup&&m<0.9&&!side){                                 // falling water: a stream
           const wd=CS*Math.min(1,0.3+m*1.2);
           stream.rect(sx(X0+(CS-wd)/2),sy(y*CS),sw(wd),sw(CS)+1);
@@ -1508,29 +1536,21 @@
           const L=runTop(x-1,y), R=runTop(x+1,y);
           if(L!=null) tl=(L+top)/2; else if(x>0&&em(i-1)>=0&&em(i-1)<0.02&&y+1<NY&&em(i-1+NX)>=0.02) tl=(y+1)*CS;
           if(R!=null) tr=(R+top)/2; else if(x<NX-1&&em(i+1)>=0&&em(i+1)<0.02&&y+1<NY&&em(i+1+NX)>=0.02) tr=(y+1)*CS;
-          surf.push(X0,tl,X1,tr);
         }
         const bot=(yb+1)*CS;
         // Paulo: on a ramp the water bottom must follow the slope's diagonal,
         // not a flat cell edge — flat bottoms made a serrated "ladder" of steps.
-        // gridSlopeY/gridSlopeKind take TILE indices + a world-x (collision_grid.js),
-        // but the fluid grid CS is HALF a tile — so we must divide by MV_GRID.tile
-        // here, not CS, or the lookup almost never hits a slope and stays flat.
-        const T=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:CS*2;
-        const rampBot=(xx)=>{
-          const c=Math.floor(xx/T);
-          // try the tile row containing the water bottom and the one above/below
-          for(const r of [Math.floor((bot-1)/T), Math.floor(bot/T), Math.floor((bot+1)/T)]){
-            if(typeof gridSlopeKind==='function'&&gridSlopeKind(c,r)&&typeof gridSlopeY==='function'){
-              const sy2=gridSlopeY(c,r,xx);
-              if(sy2!=null && Math.abs(sy2-bot)<=T+2) return sy2;   // only a nearby ramp edge
-            }
-          }
-          return bot;
-        };
-        const bl=rampBot(X0+0.5), br=rampBot(X1-0.5);
+        const blRaw=rampY(X0+0.5, bot-1), brRaw=rampY(X1-0.5, bot-1);
+        const bl=blRaw!=null?blRaw:bot, br=brRaw!=null?brRaw:bot;
+        // Deep standing water whose floor is a ramp: surface also tracks the diagonal
+        // so the meniscus isn't a horizontal stair over the slope.
+        if(blRaw!=null&&brRaw!=null&&free){
+          const deep=Math.max(3, Math.min((yb-y+1)*CS*0.85, Math.min(1,m)*CS+(yb-y)*CS*0.5));
+          tl=bl-deep; tr=br-deep;
+        }
+        if(free) surf.push(X0,tl,X1,tr);
         pool.moveTo(sx(X0),sy(tl)); pool.lineTo(sx(X1),sy(tr)); pool.lineTo(sx(X1),sy(br)); pool.lineTo(sx(X0),sy(bl)); pool.closePath();
-        if(top<tMin) tMin=top; if(bot>bMax) bMax=bot;
+        if(top<tMin) tMin=Math.min(top,tl); if(bot>bMax) bMax=Math.max(bot,bl,br);
         for(let yy=y;yy<=yb;yy++) if(EL[yy*NX+x]) live.push(x,yy);
         y=yb+1;
       }
@@ -1600,7 +1620,13 @@
       const line=(st,lw,dy)=>{ ctx.strokeStyle=st; ctx.lineWidth=lw; ctx.beginPath(); for(let k=0;k<surf.length;k+=4){ ctx.moveTo(sx(surf[k]),sy(surf[k+1])+dy); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])+dy); } ctx.stroke(); };
       line('rgba(170,205,220,0.18)',Math.max(3,sw(5)),Math.max(2,sw(3)));        // the light just under the skin
       line('rgba(232,244,250,0.55)',Math.max(1,sw(1.5)),0);                       // the thin bright meniscus
-      for(let k=0;k<surf.length;k+=4){ const sl=Math.abs(surf[k+3]-surf[k+1]); if(sl>4){ ctx.fillStyle='rgba(235,242,246,'+Math.min(0.35,sl*0.025)+')'; ctx.fillRect(sx(surf[k]),Math.min(sy(surf[k+1]),sy(surf[k+3]))-1,sw(CS),Math.max(1,sw(1.5))); } }   // a little foam where it churns
+      // Foam follows the surface segment (diagonal on ramps) — never a flat fillRect stair.
+      for(let k=0;k<surf.length;k+=4){
+        const sl=Math.abs(surf[k+3]-surf[k+1]); if(sl<=4) continue;
+        ctx.strokeStyle='rgba(235,242,246,'+Math.min(0.35,sl*0.025)+')';
+        ctx.lineWidth=Math.max(1,sw(1.5));
+        ctx.beginPath(); ctx.moveTo(sx(surf[k]),sy(surf[k+1])); ctx.lineTo(sx(surf[k+2]),sy(surf[k+3])); ctx.stroke();
+      }
     }
     // lightning through live water
     if(elec){

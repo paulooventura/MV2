@@ -865,15 +865,21 @@
     const x=k.x, y=k.y, ph=(k.bob||0)*3+fr*0.06;
     if(!inView(x-60,y-140,120,160)) return;
     const pulse=0.75+0.25*Math.sin(ph);
-    // beam of light so seeds can be spotted from afar
-    const gg=ctx.createLinearGradient(0,Y(y-150),0,Y(y));
-    gg.addColorStop(0,'rgba(120,255,200,0)'); gg.addColorStop(1,'rgba(120,255,200,'+(0.22*pulse)+')');
-    ctx.fillStyle=gg; ctx.fillRect(X(x-7),Y(y-150),S(14),S(150));
+    const tumble=!!(k._fly||Math.abs(k.spin||0)>0.02||Math.abs(k.rot||0)>0.05);
+    // beam of light so seeds can be spotted from afar (skip while tumbling — reads as stuck float)
+    if(!tumble){
+      const gg=ctx.createLinearGradient(0,Y(y-150),0,Y(y));
+      gg.addColorStop(0,'rgba(120,255,200,0)'); gg.addColorStop(1,'rgba(120,255,200,'+(0.22*pulse)+')');
+      ctx.fillStyle=gg; ctx.fillRect(X(x-7),Y(y-150),S(14),S(150));
+    }
     glow(x,y,46,0.45*pulse,'rgba(110,255,200,');
     if(restsMoved(k,y+14)){ ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(X(x),Y(y+14),S(10),S(2.5),0,0,Math.PI*2); ctx.fill(); }
+    ctx.save();
+    if(tumble){ ctx.translate(X(x),Y(y)); ctx.rotate(k.rot||0); ctx.translate(-X(x),-Y(y)); }
     teardrop(x,y+4,8,'#7dffcf','#13684e');
     ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.ellipse(X(x-2.5),Y(y-2),S(1.8),S(3.2),-0.4,0,Math.PI*2); ctx.fill();
-    for(let i=0;i<3;i++){                                // sparkles orbiting
+    ctx.restore();
+    if(!tumble) for(let i=0;i<3;i++){                                // sparkles orbiting
       const a=fr*0.05+i*2.09+(k.bob||0), r=16+3*Math.sin(fr*0.1+i);
       const sxp=x+Math.cos(a)*r, syp=y-2+Math.sin(a)*r*0.5, s=1.5+Math.sin(fr*0.2+i)*1;
       ctx.fillStyle='rgba(220,255,240,0.95)'; ctx.fillRect(X(sxp-s),Y(syp),S(s*2+1),S(1)); ctx.fillRect(X(sxp),Y(syp-s),S(1),S(s*2+1));
@@ -917,6 +923,7 @@
     const x=k.x, cy=k.y-10;
     if(!inView(x-60,cy-60,120,110)) return;
     const hw=S(13), hh=S(24), X0=X(x), Y0=Y(cy);
+    const tumble=!!(k._fly||Math.abs(k.spin||0)>0.02||Math.abs(k.rot||0)>0.05);
     glow(x,cy,echo?60:54,0.34+0.08*Math.sin(fr*0.05),echo?'rgba(255,140,220,':'rgba(90,255,170,');
     if(restsMoved(k,k.y+13)){ ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(X0,Y(k.y+13),S(12),S(2.5),0,0,Math.PI*2); ctx.fill(); }
     const O=[[0,-hh],[hw,-hh/2],[hw,hh/2],[0,hh],[-hw,hh/2],[-hw,-hh/2]];           // the outline
@@ -924,6 +931,7 @@
     const base=echo?320:145;
     const path=P=>{ ctx.beginPath(); ctx.moveTo(X0+P[0][0],Y0+P[0][1]); for(let i=1;i<P.length;i++) ctx.lineTo(X0+P[i][0],Y0+P[i][1]); ctx.closePath(); };
     ctx.save();
+    if(tumble){ ctx.translate(X0,Y0); ctx.rotate(k.rot||0); ctx.translate(-X0,-Y0); }
     // facets: each one a slightly different shade, all partly see-through
     const light=[78,64,46,36,50,70];
     for(let i=0;i<6;i++){
