@@ -66,7 +66,7 @@
 
   // The house NPC is the "other brother" when you play solo. In 2-player co-op
   // P2 IS that brother — no second copy in the house (Paulo).
-  function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _playerCount!=='undefined'&&_playerCount===2); }
+  function active2(){ return B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _playerCount!=='undefined'&&_playerCount===2)&&!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked()); }
   function active(){ return on&&labOk()&&B.on&&B.level&&typeof p!=='undefined'&&p&&_gameState==='game'&&!B.trans&&!B.results&&!(typeof _paused!=='undefined'&&_paused); }
   function spawn(){
     S=mkP(); S._aiCompanion=true; S._betaSib=true;

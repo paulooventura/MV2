@@ -396,6 +396,8 @@ function _titleMenuItems(){
     // picked from the character-select screen's BROTHER row instead.
     // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
+    // Paulo (Nov 26): saves travel between devices with no account (mv2_save_share.js: code + QR, text code, file)
+    ...(window.MV_SAVE_SHARE?[{label:'MOVE SAVES', activate:()=>MV_SAVE_SHARE.open()}]:[]),
     // Post-game reward (Paulo 2026-11-20): the Sound Lab only appears once the story is finished.
     ...(window.MV_SOUNDLAB_UNLOCKED&&window.MV_SOUNDLAB_UNLOCKED()
       ? [{label:'SOUND LAB', activate:()=>{ location.href='sound-lab.html'; }}] : []),

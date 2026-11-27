@@ -363,7 +363,7 @@
     if(one){ drawPhoneHeroes(); sparkTick(); return; }
     const sib=!!(window.MV_SIBLING&&MV_SIBLING.on);
     const coopSub='P1 — '+HERO[_heroChoice].name+'   ·   P2 — '+HERO[_heroChoice==='mind'?'venture':'mind'].name;
-    title('CHOOSE YOUR LEAD', (window.MV_NET&&MV_NET.isActive())?'YOUR FRIEND PLAYS THE OTHER BROTHER':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
+    title('CHOOSE YOUR LEAD', ((window.MV_NET&&MV_NET.isActive())||_playModeIdx===3)?'A FRIEND PLAYS THE OTHER BROTHER ONLINE':_playerCount===2?coopSub:(sib?'YOUR BROTHER RIDES WITH YOU':'YOUR BROTHER WAITS AT HOME'));
     // Paulo (Oct 27, T199): each brother's qualities across the screen. The lead's card stays big on
     // his own side (MIND left, VENTURE right: push right = VENTURE), the other shrinks, and the
     // qualities panel fills the middle between them.
