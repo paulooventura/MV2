@@ -58,7 +58,7 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 <header>
   <h1><span class="seal">絵</span>MV2 · ART BOARD</h1>
   <a href="mv2-hub.html">← hub</a><a href="sfx-studio.html">SFX studio</a><a href="mask-studio.html">Mask studio</a><a href="work-queue.html">Work queue</a>
-  <div class="tabs"><button data-tab="sprite" class="on">Sprites</button><button data-tab="kit">Level kit sheet</button></div>
+  <div class="tabs"><button data-tab="sprite" class="on">Sprites</button><button data-tab="tiles">Tilesets</button><button data-tab="kit">Level kit sheet</button></div>
 </header>
 
 <main id="v-sprite">
@@ -68,6 +68,59 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
   </section>
   <section>
     <div class="panel" id="detail"><div class="note">Pick a picture on the left. Sprite sheets show their frames; you can replace any picture with your own image, edit it pixel by pixel, or attach a reference and ask for a new version.</div></div>
+  </section>
+</main>
+
+<main id="v-tiles" class="hidden" style="grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)">
+  <section>
+    <div class="panel">
+      <div class="row" style="margin-top:0"><select id="tsSets" style="font:inherit;font-size:12px;max-width:100%"></select>
+        <label>Tile <input type="number" id="tsTw" min="4" max="64"> × <input type="number" id="tsTh" min="4" max="64"></label>
+        <label>Zoom <input type="range" id="tsZoom" min="1" max="12"></label><label><input type="checkbox" id="tsNums" checked> numbers</label>
+        <button class="btn" id="tsAB">Compare with original</button></div>
+      <div class="sub" id="tsSelInfo" style="margin-top:6px"></div>
+      <div class="stage" style="max-height:46vh"><canvas id="tsSheet" style="cursor:crosshair"></canvas></div>
+      <div class="pal" id="tsPal"></div><div class="sub" id="tsPalInfo"></div>
+      <div class="note">Click a colour to paint with it. <b>Shift+click</b> a colour to swap it everywhere in the sheet (re-colours the whole tileset at once).</div>
+    </div>
+    <div class="panel" style="margin-top:10px">
+      <b>See it in place</b>
+      <div class="row"><label><input type="radio" name="tsView" value="map" checked> real Awdjoo map</label><label><input type="radio" name="tsView" value="room"> test room</label>
+        <label>Zoom <input type="range" id="tsCtxZoom" min="1" max="4" value="1"></label><label><input type="checkbox" id="tsLive" checked> redraw while painting</label></div>
+      <div class="sub" id="tsCtxInfo"></div>
+      <div class="stage" style="max-height:48vh"><canvas id="tsCtx"></canvas></div>
+    </div>
+  </section>
+  <section>
+    <div class="panel">
+      <b>Edit the selected tile</b>
+      <div class="row"><label><input type="radio" name="tsTool" value="pen" checked> pen</label><label><input type="radio" name="tsTool" value="erase"> eraser</label>
+        <label><input type="radio" name="tsTool" value="fill"> fill</label><label><input type="radio" name="tsTool" value="pick"> picker</label>
+        <input type="color" id="tsCol" value="#7b4bd6"><button class="btn" id="tsUndo">Undo</button></div>
+      <div class="row" style="align-items:flex-start">
+        <div class="stage" style="margin-top:0;max-height:none"><canvas id="tsTile" style="cursor:crosshair;touch-action:none"></canvas></div>
+        <div><div class="sub">Tiled 3×3 (seams show here)</div><div class="stage" style="margin-top:4px;max-height:none"><canvas id="tsSeam"></canvas></div></div>
+      </div>
+      <div class="sub" id="tsSeamInfo"></div>
+      <div class="row"><button class="btn" id="tsOp_flipH">Flip ↔</button><button class="btn" id="tsOp_flipV">Flip ↕</button><button class="btn" id="tsOp_rot">Rotate 90°</button><button class="btn" id="tsOp_orig">Restore this tile</button></div>
+    </div>
+    <div class="panel" style="margin-top:10px">
+      <b>Enhance the whole sheet</b>
+      <div class="note">Each step can be undone (Ctrl+Z); "Compare with original" flips back and forth.</div>
+      <div class="row"><label>Hue <input type="range" id="fxHue" min="-180" max="180" value="0"></label><label>Saturation <input type="range" id="fxSat" min="0" max="200" value="100"></label></div>
+      <div class="row"><label>Light <input type="range" id="fxLight" min="60" max="140" value="100"></label><label>Contrast <input type="range" id="fxCon" min="50" max="160" value="100"></label><button class="btn" id="fx_color">Apply colour</button></div>
+      <div class="row"><label>Bevel light <input type="range" id="fxBevel" min="5" max="45" value="18"></label><button class="btn" id="fx_bevel">Add bevel (light from top-left)</button></div>
+      <div class="row"><label>Outline <input type="color" id="fxOutCol" value="#1c1917"></label><button class="btn" id="fx_outline">Add 1-px outline</button></div>
+      <div class="row"><label>Colours per channel <input type="number" id="fxLevels" value="6" min="2" max="16"></label><button class="btn" id="fx_posterize">Posterize (cleaner palette)</button></div>
+      <div class="row"><label>Grain <input type="range" id="fxGrain" min="4" max="40" value="14"></label><button class="btn" id="fx_texture">Add texture</button></div>
+      <div class="row"><button class="btn" id="fx_epx">Save a sharp 2× version (Scale2x)</button></div>
+    </div>
+    <div class="panel" style="margin-top:10px">
+      <div class="row" style="margin-top:0"><button class="btn hot" id="tsUse">Use in game</button><button class="btn warn" id="tsReset">Put original back</button>
+        <button class="btn" id="tsSave">Save PNG</button><button class="btn" id="tsReload">Start over</button></div>
+      <div class="msg" id="tsMsg"></div>
+    </div>
+    <div class="panel" style="margin-top:10px"><b>Ask for an enhanced tileset</b><div class="note">Describe the look you want and attach references (a mood, another game's tiles, a photo). It becomes a mission in the Work Queue.</div><div id="tsAsk"></div></div>
   </section>
 </main>
 
@@ -83,6 +136,8 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 </main>
 
 <script src="js/board-notes.js?v=1"></script>
+<script src="js/awdjoo_map.js"></script>
+<script src="js/art-tiles.js?v=1"></script>
 <script>
 (function(){
 'use strict';
@@ -271,8 +326,9 @@ $('kitDraw').onclick=kit;
 $('kitSave').onclick=()=>$('kit').toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mv2-level-kit.png'; a.click(); });
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(o=>o.classList.toggle('on',o===b));
-  $('v-sprite').classList.toggle('hidden',b.dataset.tab!=='sprite'); $('v-kit').classList.toggle('hidden',b.dataset.tab!=='kit');
+  ['sprite','tiles','kit'].forEach(t=>$('v-'+t).classList.toggle('hidden',b.dataset.tab!==t));
   if(b.dataset.tab==='kit') kit();
+  if(b.dataset.tab==='tiles'&&!window._tilesOn&&window.MV_ArtTiles){ window._tilesOn=true; MV_ArtTiles.init(); }
 });
 
 load();
