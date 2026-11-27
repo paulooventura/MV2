@@ -3272,7 +3272,7 @@ function _coopDrawP2FX(){
   _coopFXGuard=true;
   const oldP=p, oldItem=ITEM;
   const oldShots=p2.shots, oldES=(typeof ESHOTS!=='undefined'?ESHOTS:null), oldTF=(typeof TRS_FLAMES!=='undefined'?TRS_FLAMES:null);
-  p2.shots=[];
+  p2.shots=(p2._netPuppet&&p2._netShots)?p2._netShots:[];
   if(typeof ESHOTS!=='undefined') ESHOTS=[];
   if(typeof TRS_FLAMES!=='undefined') TRS_FLAMES=[];
   p=p2;
@@ -3347,7 +3347,7 @@ function drawHookCable(){
       const tt=(typeof MV_GRID!=='undefined'&&MV_GRID.tile)?MV_GRID.tile:32;
       if(typeof _armSolid==='function'){
         const seen=new Set();
-        for(const q of wpts){
+        for(const q of path){
           const c0=Math.floor(q.x/tt)-1, r0=Math.floor(q.y/tt)-1;
           for(let cc=c0;cc<=c0+2;cc++) for(let rr=r0;rr<=r0+2;rr++){
             const k=cc+','+rr; if(seen.has(k)) continue; seen.add(k);

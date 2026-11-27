@@ -269,7 +269,19 @@
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
             st:b.stageId||null, se:myEpoch, ld:loading()?1:0, gs:gs(), cm:(b.carryMask|0)};
     var hk=actor.hook;
-    if(hk&&hk.st&&hk.st!=='idle') pk.hk=[hk.st,r1(hk.ex),r1(hk.ey),r1(hk.ax),r1(hk.ay)];
+    if(hk&&hk.st&&hk.st!=='idle'){
+      pk.hk=[hk.st,r1(hk.ex),r1(hk.ey),r1(hk.ax),r1(hk.ay)];
+      pk.rl=r1(hk.rl||0);
+      if(hk._plugged) pk.plg=1;
+      if(hk.pivots&&hk.pivots.length) pk.pv=hk.pivots.slice(0,8).map(function(q){ return [r1(q.x),r1(q.y)]; });
+    }
+    if(actor.shots&&actor.shots.length){
+      pk.sh=[];
+      for(var si=0;si<actor.shots.length&&pk.sh.length<6;si++){
+        var s=actor.shots[si]; if(!s) continue;
+        pk.sh.push([r1(s.x),r1(s.y),s.owner||'',s.charged?1:0,s.enhanced?1:0]);
+      }
+    }
     if(actor&&!actor._netPuppet&&typeof ITEM==='number'){
       var ix=HERO_F.indexOf('item');
       if(ix>=0) pk.a[ix]=ITEM;
@@ -306,7 +318,10 @@
     if(b.hk){
       actor.hook=actor.hook||{};
       actor.hook.st=b.hk[0]; actor.hook.ex=b.hk[1]; actor.hook.ey=b.hk[2]; actor.hook.ax=b.hk[3]; actor.hook.ay=b.hk[4];
-    }else if(actor.hook&&actor.hook.st&&actor.hook.st!=='idle'){ actor.hook.st='idle'; actor.hook.tgt=null; }
+      actor.hook.rl=+b.rl||0; actor.hook._plugged=!!b.plg; actor.hook._path=null;
+      actor.hook.pivots=(b.pv||[]).map(function(q){ return {x:+q[0]||0,y:+q[1]||0}; });
+    }else if(actor.hook&&actor.hook.st&&actor.hook.st!=='idle'){ actor.hook.st='idle'; actor.hook.tgt=null; actor.hook.pivots=null; actor.hook._path=null; }
+    actor._netShots=(b.sh||[]).map(function(s){ return {x:+s[0]||0,y:+s[1]||0,owner:s[2]||'',charged:!!s[3],enhanced:!!s[4],vx:0,vy:0}; });
   }
 
   // In the room = the wire is up. Entering = a stage is loading. In the timeline =

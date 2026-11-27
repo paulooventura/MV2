@@ -616,11 +616,9 @@
     if(!treeImg) buildTree();
     const bx=d.x+T/2, by=d.y;                           // anchor = middle of the floor cell's top edge
     if(!inView(bx-TREE.W/2,by-TREE.H-60,TREE.W,TREE.H+80)) return;
-    const cb=treeChamber(window.MV_BETA,d);
-    // Everything the tree casts is clipped to the open chamber: neither the
-    // halo, the canopy itself nor its motes can cross the solid floor line.
+    // The full canopy stands in front of the blocks. A chamber clip was cutting
+    // the crown on the tile edges, so the tree read as a stump.
     ctx.save();
-    ctx.beginPath(); ctx.rect(X(cb.x),Y(cb.y),S(cb.w),S(cb.h)); ctx.clip();
     // soft ambient wash — the cached canopy carries its own light now
     glow(bx,by-TREE.CY+60,420,0.15,'rgba(140,255,210,');
     ctx.drawImage(treeImg, X(bx-TREE.W/2), Y(by-TREE.H), S(TREE.W), S(TREE.H));
@@ -1389,7 +1387,6 @@
     }
     for(const rm of B.rooms) if(inView(rm.x,rm.y,rm.w,rm.h)){ if(rm.style==='home') familyHome(rm); else laituHome(rm); }
     for(const d of B.decor){ if(d.kind==='town'){ bgTown(d); townTraffic(d); } else if(d.kind==='house') bgHouse(d); else if(d.kind==='building') building(d); else if(d.kind==='houseInside') houseInside(d); else if(d.kind==='porch') porch(d); }
-    for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
     // Paulo, Nov 13: "that chimney on top of our house looks like it's floating". It goes down to the roof under it now
     // (the deeper of its two edges, so the stepped roof never shows a gap under one side)
     for(const d of B.decor) if(d.kind==='chimney'){
@@ -1426,10 +1423,11 @@
         else { rect(c*T,r*T,T,6,P.grass); rect(c*T,r*T+5,T,2,P.grassD); flowers(c,r); }
       }
     }
-    // the tree's roots must cross the dirt, so draw them now — after the
-    // ground tiles, before entities (the canopy/trunk were drawn earlier)
-    for(const d of B.decor) if(d.kind==='tree') treeRoots(d);
     edges(B,cells,r0,r1,c0,c1);
+    // After the block rims, so those pixels cannot slice the crown.
+    // Roots last, so they still read in the dirt under the trunk.
+    for(const d of B.decor) if(d.kind==='tree') knowlTree(d);
+    for(const d of B.decor) if(d.kind==='tree') treeRoots(d);
     if(window.MV_CITY) MV_CITY.over(B);
     techWindows(B); suburbStroll(B);                   // T571: facade lights / neighbours, over the tiles but behind the cast
     if(window.MV_DOORS&&MV_DOORS.over) try{ MV_DOORS.over(B); }catch(e){}   // 1.1: doors, trap doors, the attic, the tree's glow (beta_doors.js)
