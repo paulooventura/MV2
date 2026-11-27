@@ -34,15 +34,56 @@
   const rectOf=c=>({x:c.cx-CR.W/2, y:c.bottom-CR.H, w:CR.W, h:CR.H});
   B.crateList=list;
 
+  // Loose jacks on a broken crate (Build 427: always TWO so co-op can share).
+  function looseList(b){
+    if(!b||!b.broken) return [];
+    if(b.items&&b.items.length) return b.items;
+    return b.item?[b.item]:[];
+  }
+  function firstLoose(b){
+    for(const it of looseList(b)) if(it&&!it.taken&&!(it.noPick>0)) return it;
+    return null;
+  }
   // where the loose item can be picked up (null while it's still boxed)
   B.crateRect=function(o){
     if(!B.on) return null;
-    const b=o&&o._box;
-    if(!b||!b.broken||!b.item) return null;
-    const it=b.item; if(it.noPick>0) return null;                // just knocked loose: it flies first
+    const it=firstLoose(o&&o._box); if(!it) return null;
     return {x:it.x-18, y:it.y-14, w:36, h:28};
   };
+  B.crateLoose=function(o){ return looseList(o&&o._box).filter(it=>it&&!it.taken); };
   B.crateLocked=o=>B.on&&!(o&&o._box&&o._box.broken);
+  function netCrate(o,b){
+    try{
+      if(!window.MV_NET||!MV_NET.emitWorld||MV_NET._applyingWorld) return;
+      const its=looseList(b).map(it=>({x:it.x,y:it.y,vx:it.vx,vy:it.vy,taken:!!it.taken,noPick:it.noPick|0}));
+      MV_NET.emitWorld({kind:'crate', cell:o._cell||null, item:o.item, hp:b.hp|0, broken:!!b.broken,
+        dual:!!o.dual, items:its});
+    }catch(e){}
+  }
+  B.netApplyCrate=function(pk){
+    if(!pk||typeof ITEM_DROPS==='undefined') return;
+    let d=null;
+    if(pk.cell) d=ITEM_DROPS.find(q=>q&&q._cell===pk.cell);
+    if(!d&&pk.item!=null) d=ITEM_DROPS.find(q=>q&&!q.got&&q.item===pk.item&&!(q._box&&q._box.broken&&looseList(q._box).every(it=>it&&it.taken)));
+    if(!d) return;
+    const b=box({o:d, idx:d.item, enh:!!d.enhanced, cx:d.x+d.w/2, bottom:d.y+d.h});
+    b.hp=pk.hp|0; b.broken=!!pk.broken; d.dual=!!pk.dual; if(pk.dual) d.coopDrop=true;
+    if(pk.items&&pk.items.length){
+      b.items=pk.items.map(it=>({x:+it.x||0,y:+it.y||0,vx:+it.vx||0,vy:+it.vy||0,rot:0,vr:0,og:false,noPick:it.noPick|0,taken:!!it.taken}));
+      b.item=b.items.find(it=>it&&!it.taken)||b.items[0]||null;
+    }
+    if(b.broken&&B.crateCells&&d._cell) B.crateCells.delete(d._cell);
+  };
+  B.netApplyCrateTake=function(pk){
+    if(!pk||typeof ITEM_DROPS==='undefined') return;
+    let d=pk.cell?ITEM_DROPS.find(q=>q&&q._cell===pk.cell):null;
+    if(!d) return;
+    const b=d._box; if(!b) return;
+    const its=looseList(b);
+    const it=its[pk.i|0]||its.find(q=>q&&!q.taken);
+    if(it) it.taken=true;
+    if(its.every(q=>!q||q.taken)) d.got=true;
+  };
 
   // ── the world the loose item bounces around in ──────────────────
   function solid(x,y){
@@ -104,27 +145,46 @@
 
   // ── damage ──────────────────────────────────────────────────────
   // amount: hit points taken off; ang/force: the direction and strength of the hit
+  function makeLoose(c,ang,force,side){
+    const over=force, sx=side||0;
+    return {x:c.cx+sx*16, y:c.bottom-CR.H/2, vx:Math.cos(ang)*over*0.75+sx*1.6,
+      vy:-3-Math.max(0,-Math.sin(ang))*over*0.6-over*0.15,
+      rot:0, vr:(Math.cos(ang)>=0?1:-1)*0.12*(1+over/5), og:false, noPick:32, taken:false};
+  }
   function damage(c,amount,ang,force,kind){
     const b=box(c);
-    if(b.broken){                                   // it's the loose item that got hit
-      const it=b.item; if(!it) return;
-      it.noPick=Math.max(it.noPick||0,18);
-      it.vx+=Math.cos(ang)*force; it.vy+=Math.sin(ang)*force-2.5-force*0.25; it.vr+=(Math.cos(ang)>=0?1:-1)*0.25*force/5; it.og=false;
-      S('item_clink'); return;
+    if(b.broken){                                   // a loose jack got hit — knock every untaken one a bit
+      let hit=false;
+      for(const it of looseList(b)){
+        if(!it||it.taken) continue;
+        it.noPick=Math.max(it.noPick||0,18);
+        it.vx+=Math.cos(ang)*force; it.vy+=Math.sin(ang)*force-2.5-force*0.25; it.vr+=(Math.cos(ang)>=0?1:-1)*0.25*force/5; it.og=false;
+        hit=true;
+      }
+      if(hit){ S('item_clink'); netCrate(c.o,b); }
+      return;
     }
     b.hp=Math.max(0,b.hp-amount); b.glow=14; b.shake=Math.min(8,3+amount/12);
     const R=rectOf(c);
     splinter(c.cx,R.y+R.h/2,3+Math.round(amount/12),0.7,ang);
-    if(b.hp>0){ S('wood_hit'); return; }
-    // broken: the box falls apart and the item pops out — the harder the hit, the farther
+    if(b.hp>0){ S('wood_hit'); netCrate(c.o,b); return; }
+    // broken: TWO jacks pop out (Paulo 2026-11-27: standard so both co-op players can grab one).
+    // Isolator (idx 4) stays a single ring — it respawns on its own timer.
     b.broken=true;
     splinter(c.cx,R.y+R.h/2,26,1.15,ang);
     S('wood_break'); S('ping');
     if(B.shake!=null) B.shake=Math.max(B.shake||0,4);
-    const over=force;                                    // the strength of the breaking hit
-    b.item={x:c.cx, y:c.bottom-CR.H/2, vx:Math.cos(ang)*over*0.75, vy:-3-Math.max(0,-Math.sin(ang))*over*0.6-over*0.15,
-            rot:0, vr:(Math.cos(ang)>=0?1:-1)*0.12*(1+over/5), og:false, noPick:32};
-    if(B.crateCells&&c.o._cell) B.crateCells.delete(c.o._cell);   // it no longer holds up a cube
+    const over=force, dual=c.idx>=0&&c.idx<=3;
+    if(dual){
+      b.items=[makeLoose(c,ang,over,-1), makeLoose(c,ang,over,1)];
+      b.item=b.items[0];
+      c.o.dual=true; c.o.coopDrop=true;               // second copy stays pickable after unlock
+    }else{
+      b.items=[makeLoose(c,ang,over,0)];
+      b.item=b.items[0];
+    }
+    if(B.crateCells&&c.o._cell) B.crateCells.delete(c.o._cell);
+    netCrate(c.o,b);
   }
   B.damageCrate=damage;
 
@@ -133,14 +193,13 @@
     if(!on()) return false;
     for(const c of list()){
       const b=box(c);
-      let hx,hy,hw,hh;
+      let hx,hy,hw,hh, real;
+      const live=firstLoose(b);
       // a straight punch is at shoulder height: let it reach down onto a low box / an item on the floor
-      if(b.broken&&b.item){ hx=b.item.x-20; hy=b.item.y-50; hw=40; hh=64; }
-      else{ const R=rectOf(c); hx=R.x; hy=R.y-34; hw=R.w; hh=R.h+34; }
+      if(b.broken&&live){ hx=live.x-20; hy=live.y-50; hw=40; hh=64; real={x:live.x-18,y:live.y-14,w:36,h:28}; }
+      else{ const R=rectOf(c); hx=R.x; hy=R.y-34; hw=R.w; hh=R.h+34; real=R; }
       if(!(wx+wr>hx&&wx-wr<hx+hw&&wy+wr>hy&&wy-wr<hy+hh)) continue;
       // Paulo (Oct 21): never through a wall — the line from the shoulder must reach the REAL box
-      // (not the generous punch area), so a crate walled in by blocks can't be hit until they're gone
-      const real=b.broken&&b.item?{x:b.item.x-18,y:b.item.y-14,w:36,h:28}:rectOf(c);
       const tx=Math.max(real.x,Math.min(real.x+real.w,wx)), ty=Math.max(real.y,Math.min(real.y+real.h,wy));
       if(typeof _punchReach==='function'&&shX!=null&&!_punchReach(shX,shY,tx,ty,real)) continue;
       damage(c, charged?CR.PUNCH_LOADED:CR.PUNCH, ang, charged?CR.KNOCK_LOADED:CR.KNOCK, 'punch');
@@ -164,12 +223,16 @@
     return it.buried>90;
   }
   function giveBack(c,b){
-    b.item={x:c.cx, y:c.bottom-CR.H/2, vx:0, vy:-2, rot:0, vr:0.05, og:false, noPick:20};
+    // restore any lost (fallen) untaken jacks as a fresh dual pair
+    b.items=[makeLoose(c,0,2,-1), makeLoose(c,0,2,1)];
+    b.items.forEach(it=>{ it.vy=-2; it.noPick=20; });
+    b.item=b.items[0];
     b.glow=14;
     splinter(c.cx,c.bottom-CR.H/2,8,0.6);
     S('ping');
     B.lostJacks=(B.lostJacks|0)+1;
     if(typeof uiShowToast==='function') uiShowToast((NAMES[c.idx]||'ITEM')+' LOST - BACK AT ITS CRATE');
+    netCrate(c.o,b);
   }
   B.crateGiveBack=function(o){ const c=list().find(q=>q.o===o); if(c&&c.o._box&&c.o._box.broken) giveBack(c,c.o._box); };
 
@@ -181,7 +244,15 @@
       const b=c.o._box; if(!b) continue;
       if(b.shake>0) b.shake*=0.75;
       if(b.glow>0) b.glow--;
-      if(b.broken&&b.item){ itemTick(b.item); if(lost(b.item)) giveBack(c,b); }
+      if(b.broken){
+        let anyLost=false;
+        for(const it of looseList(b)){
+          if(!it||it.taken) continue;
+          itemTick(it);
+          if(lost(it)) anyLost=true;
+        }
+        if(anyLost) giveBack(c,b);
+      }
     }
     // a picked-up item / a regrown isolator crate starts over as a fresh box
     const iso=B.isoPickup; if(iso&&iso.got) iso._box=null;
@@ -247,17 +318,18 @@
   }
   // the loose item: the jack itself (or the Isolator ring), glowing so it reads as a pickup
   const NAMES=['TRS','RCA','XLR','MEG','ISOLATOR'];
-  function drawItem(c){
-    const it=box(c).item; if(!it) return;
+  function drawOneLoose(c,it){
+    if(!it||it.taken) return;
     const D=window.MV_BETA_DECOR;
     // T491 (Paulo, Nov 11): the loose item is the same size as the jack on MIND's arm (it was drawn at
     // 70%), with a steady glow (no pulsing) and no name under it: the item itself says what it is
     if(D&&D.glow) D.glow(it.x,it.y,40,0.32,c.idx===4?'rgba(255,150,60,':c.enh?'rgba(80,255,150,':'rgba(255,230,160,');
-    ctx.save(); ctx.translate(sx(it.x),sy(it.y)); ctx.rotate(it.rot);
+    ctx.save(); ctx.translate(sx(it.x),sy(it.y)); ctx.rotate(it.rot||0);
     if(c.idx===4){ if(D&&D.isolatorIcon) D.isolatorIcon(0,0,0.8*sw(10)/10); }
     else{ const k=sw(10)/10; ctx.scale(k,k); if(typeof drawConnectorTip==='function') drawConnectorTip(c.idx===3?-14:-16,0,0,0,c.idx,c.enh); }
     ctx.restore();
   }
+  function drawItem(c){ for(const it of looseList(box(c))) drawOneLoose(c,it); }
   B.drawCrate=function(o){
     const c=list().find(q=>q.o===o); if(!c) return;
     if(box(c).broken) drawItem(c); else drawPallet(c);

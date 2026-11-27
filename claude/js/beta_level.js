@@ -357,10 +357,13 @@
           _mapRopePickup={x, y, w:T, h:T, got:false};
           B.crateCells.add(g.c+','+g.r); break;
         case 'Item': {
+          // Always spawn stage item crates — including online co-op (Build 427).
+          // carryMask unlocks the jack in-hand; the world crate still appears so a
+          // friend can break it for a dual drop.
           const idx=ITEM_IDX[F(e,'item')];
           if(idx!=null&&typeof _spawnItemDrop==='function'){
             _spawnItemDrop(idx, cx, y);
-            const d=ITEM_DROPS[ITEM_DROPS.length-1]; if(d){ d._cell=g.c+','+g.r; d.bob=0; }
+            const d=ITEM_DROPS[ITEM_DROPS.length-1]; if(d){ d._cell=g.c+','+g.r; d.bob=0; d._netSpawn=1; }
           }
           B.crateCells.add(g.c+','+g.r);
           break;
@@ -1061,8 +1064,15 @@
   function rescueTick(){
     for(const k of KDROP){ if(!k||k.got||k._carried||!(k._fly||k._moved)) continue;   // only ones that have been moved (the level's own rest where they're placed)
       const s=freeSpot(k.x,k.y,(x,y)=>solidPx(x,y)); /* its centre in rock (a resting seed may touch the floor) */ if(s){ k.x=k.ox=s.x; k.y=k.oy=s.y; k._fly=true; k.vx=0; k.vy=0; k._rest=0; k._resc=(k._resc|0)+1; B.rescued=(B.rescued|0)+1; } }
-    if(typeof ITEM_DROPS!=='undefined') for(const d of ITEM_DROPS){ if(!d||d.got) continue; const it=d._box&&d._box.item; if(!it) continue;
-      const s=freeSpot(it.x,it.y,(x,y)=>solidPx(x,y)||solidPx(x,y-10)); if(s){ it.x=s.x; it.y=s.y; it.vx=0; it.vy=0; it.og=false; d.x=s.x-16; d.y=s.y-16; B.rescued=(B.rescued|0)+1; } }
+    if(typeof ITEM_DROPS!=='undefined') for(const d of ITEM_DROPS){
+      if(!d||d.got) continue;
+      const its=(B.crateLoose?B.crateLoose(d):(d._box&&d._box.item?[d._box.item]:[]));
+      for(const it of its){
+        if(!it||it.taken) continue;
+        const s=freeSpot(it.x,it.y,(x,y)=>solidPx(x,y)||solidPx(x,y-10));
+        if(s){ it.x=s.x; it.y=s.y; it.vx=0; it.vy=0; it.og=false; d.x=s.x-16; d.y=s.y-16; B.rescued=(B.rescued|0)+1; }
+      }
+    }
   }
   function knowlFlyTick(){
     for(const k of KDROP){
@@ -1761,22 +1771,52 @@
   }
 
   // ── Item crates sit on the floor too: MIND's wheel touching one is enough.
-  function cratePickups(){
-    if(!p||_shutdownTimer>0) return;
-    const core=playerCoreHB(p), feet=p.y+FEET_OFF;
+  // Build 427: broken crates hold TWO loose jacks; each player can claim one (dual/coopDrop).
+  function claimCrateJack(d, it, who){
+    if(!d||!it||it.taken) return false;
+    const online=!!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked());
+    const localTwo=typeof _playerCount!=='undefined'&&_playerCount===2&&p2&&!p2._aiCompanion;
+    const spare=!!(d.dual||d.coopDrop||d.enhanced||online||localTwo);
+    const unlocked=_itemUnlocked(d.item);
+    if(unlocked&&!spare&&!d._knocked) return false;
+    it.taken=true;
+    const left=(B.crateLoose?B.crateLoose(d):[]).filter(q=>q&&!q.taken);
+    if(!left.length) d.got=true;
+    B._itemWho=who||p;
+    if(who&&typeof p2!=='undefined'&&who===p2&&!p2._aiCompanion){
+      if(!unlocked) _grantPlayerItem(d.item);
+      else { p2.item=d.item; p2.itemStamina=100; try{ sfx('knowl_pickup'); }catch(e){} }
+    }else{
+      if(!unlocked) _collectItemDrop(d);
+      else { ITEM=d.item; if(p) p.itemStamina=100; try{ sfx('knowl_pickup'); }catch(e){} }
+    }
+    if(d._knocked){ if(typeof _itemTutorial!=='undefined') _itemTutorial=null; }
+    for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
+      PFXS.push({x:it.x,y:it.y,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,life:14+Math.random()*10|0,maxLife:24,r:2+Math.random()*2,col:'#e8b070'}); }
+    try{
+      if(window.MV_NET&&MV_NET.emitWorld&&!MV_NET._applyingWorld){
+        const its=d._box&&d._box.items?d._box.items:[]; const i=its.indexOf(it);
+        MV_NET.emitWorld({kind:'crateTake', cell:d._cell||null, item:d.item, i:i<0?0:i});
+      }
+    }catch(e){}
+    return true;
+  }
+  function tryCrateTouch(who){
+    if(!who||_shutdownTimer>0) return;
+    const core=playerCoreHB(who), feet=who.y+FEET_OFF;
     const bx=core.x-4, by=core.y, bw=core.w+8, bh=feet+6-core.y;
     for(const d of ITEM_DROPS){
       if(d.got) continue;
-      const R=B.crateRect?B.crateRect(d):d; if(!R||!ov(bx,by,bw,bh,R.x,R.y,R.w,R.h)) continue;   // boxed: break it open first
-      if(_itemUnlocked(d.item)&&!d.enhanced) continue;
-      if(_collectItemDrop(d)){
-        B._itemWho=p;
-        d.got=true;
-        if(d._knocked){ if(typeof _itemTutorial!=='undefined') _itemTutorial=null; try{ sfx('knowl_pickup'); }catch(e){} }   // got his own jack back (no tutorial again)
-        for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*3;
-          PFXS.push({x:d.x+d.w*0.5,y:d.y+d.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.6,life:14+Math.random()*10|0,maxLife:24,r:2+Math.random()*2,col:'#e8b070'}); }
+      const loose=B.crateLoose?B.crateLoose(d):(d._box&&d._box.item&&!d._box.item.taken?[d._box.item]:[]);
+      if(!loose.length) continue;                                          // still boxed
+      for(const it of loose){
+        if((it.noPick|0)>0) continue;
+        const R={x:it.x-18,y:it.y-14,w:36,h:28};
+        if(!ov(bx,by,bw,bh,R.x,R.y,R.w,R.h)) continue;
+        if(claimCrateJack(d,it,who)) return;
       }
     }
+    if(who!==p) return;
     const r=_mapRopePickup;
     const rR=r&&B.crateRect?B.crateRect(r):r;
     if(r&&rR&&!r.got&&!_ropePickupAnim&&!_itemUnlocked(1)&&ov(bx,by,bw,bh,rR.x,rR.y,rR.w,rR.h)){
@@ -1785,6 +1825,10 @@
       for(let pi=0;pi<14;pi++){ const ang=Math.random()*Math.PI*2, sp=2+Math.random()*4;
         PFXS.push({x:r.x+r.w*0.5,y:r.y+r.h*0.5,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-2,life:20+Math.random()*12|0,maxLife:32,r:2.5+Math.random()*3,col:'#ff8866'}); }
     }
+  }
+  function cratePickups(){
+    tryCrateTouch(p);
+    if(typeof _playerCount!=='undefined'&&_playerCount===2&&p2&&!p2._aiCompanion) tryCrateTouch(p2);
   }
 
   // ── Fireworks in the sky once every crystal and every seed is in ──

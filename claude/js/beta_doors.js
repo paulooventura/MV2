@@ -106,6 +106,37 @@
     for(const dx of [-16,0,16]) for(let y=top;y>top-200;y-=2){ if(gridWorldSolid(cx+dx,y)){ gap=Math.min(gap,top-y); break; } }
     return gap;
   };
+  function netDoor(d){
+    try{ if(window.MV_NET&&MV_NET.emitWorld&&!MV_NET._applyingWorld) MV_NET.emitWorld({kind:'door', id:d.id, st:d.st, t:d.t|0, side:d.side|0}); }catch(e){}
+  }
+  function netTrap(t){
+    try{ if(window.MV_NET&&MV_NET.emitWorld&&!MV_NET._applyingWorld) MV_NET.emitWorld({kind:'trap', id:t.id, st:t.st, t:t.t|0, hits:t.hits|0}); }catch(e){}
+  }
+  S.netApplyDoor=function(pk){
+    if(!pk||!S.doors) return;
+    const d=S.doors.find(q=>q.id===pk.id); if(!d) return;
+    const prev=d.st; d.st=pk.st||d.st; d.t=pk.t|0; if(pk.side!=null) d.side=pk.side|0;
+    if(d.st==='open'||d.st==='smashed'||(d.st==='opening'&&d.t>=8)){
+      for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR);
+    }else if(d.st==='shut'||(d.st==='closing'&&d.t>=14)){
+      for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID);
+    }
+    if(prev!==d.st&&(d.st==='opening'||d.st==='smashed')){ try{ thud(1); }catch(e){} }
+  };
+  S.netApplyTrap=function(pk){
+    if(!pk||!S.traps) return;
+    const t=S.traps.find(q=>q.id===pk.id); if(!t) return;
+    t.st=pk.st||t.st; t.t=pk.t|0; t.hits=pk.hits|0;
+    if(t.st==='open'||(t.st==='opening'&&t.t>=4)){
+      for(let c=t.c0;c<=t.c1;c++){ gridSet(c,t.r,MV_GRID_AIR); if(t.id==='attic') gridSet(c,t.r-1,MV_GRID_AIR); }
+    }
+  };
+  S.netSnap=function(){
+    return {
+      doors:(S.doors||[]).map(d=>({id:d.id,st:d.st,t:d.t|0,side:d.side|0})),
+      traps:(S.traps||[]).map(t=>({id:t.id,st:t.st,t:t.t|0,hits:t.hits|0}))
+    };
+  };
   // ── punches (render.js asks here when a fist lands) ──
   S.fist=function(wx,wy,wr,charged){
     if(!on()) return false;
@@ -114,7 +145,7 @@
       // Paulo: punch an OPEN door to swing it shut again. debounced so the same
       // punch can't immediately reopen it, and it won't shut while MIND is in it.
       if(d.st==='open'&&inRect){ d.st='closing'; d.t=0; thud(0.9); creak(0.5);
-        dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,8,'#8a6a44'); B.doorsClosed=(B.doorsClosed|0)+1; return true; }
+        dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,8,'#8a6a44'); B.doorsClosed=(B.doorsClosed|0)+1; netDoor(d); return true; }
       if(d.st!=='shut'||d.t<12||!inRect) continue;      // debounce after a close
       {
         // T528: a running loaded punch SMASHES the door instead of swinging it.
@@ -124,13 +155,13 @@
         if(d.st==='smashed'){ try{ sfx('omniblock_break'); }catch(e){}
           dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,26,'#8a6a44'); B.shake=Math.max(B.shake||0,12); B.doorsSmashed=(B.doorsSmashed|0)+1;
         }else{ thud(1); creak(0.55); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,10); B.shake=Math.max(B.shake||0,4); }
-        B.doorsOpened=(B.doorsOpened|0)+1; return true; } }
+        B.doorsOpened=(B.doorsOpened|0)+1; netDoor(d); return true; } }
     for(const t of S.traps){ if(t.st!=='shut') continue;
       const x0=t.c0*T, x1=(t.c1+1)*T, y0=t.r*T, y1=(t.r+1)*T;
       if(wx>x0-wr&&wx<x1+wr&&wy>y0-wr-18&&wy<y1+wr+18){
         t.hits+=charged?3:1; t.shake=10; thud(t.hits>=3?1.3:1); dust((x0+x1)/2,t.dir==='down'?y0:y1,6);
         if(t.hits>=3){ t.st='opening'; t.t=0; creak(0.35); B.shake=Math.max(B.shake||0,7); B.trapsOpened=(B.trapsOpened|0)+1; dust((x0+x1)/2,(y0+y1)/2,18,'#6a5038'); }
-        return true; } }
+        netTrap(t); return true; } }
     // (Paulo, Nov 13) the crates break to a punch at chest height (two hits; one, loaded), their planks fly and
     // what was in them tumbles out onto the floor; the life crate's 1UP pops out of it
     for(const k of S.crates){ if(k.broken||!S.found) continue;
@@ -150,23 +181,23 @@
     if(!on()){ if(S.lv&&!B.on) S.lv=null; return; }
     if(S.lv!==B.level){ S.lv=B.level; build(); apply(); }
     for(const d of S.doors){
-      if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); } }
+      if(d.st==='opening'){ d.t++; if(d.t===8) for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); if(d.t>=26){ d.st='open'; thud(0.8); netDoor(d); } }
       else if(d.st==='smashed'){ d.t++; if(d.t===2){ for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_AIR); dust(d.c*T+T/2,(d.r0+d.r1+1)*T/2,18,'#8a6a44'); }
-        if(d.t>=10){ d.st='open'; thud(1.2); } }
+        if(d.t>=10){ d.st='open'; thud(1.2); netDoor(d); } }
       else if(d.st==='closing'){
         d.t++;
         const b=body();
         const blocked=b&&d.c*T<b.x1&&(d.c+1)*T>b.x0&&d.r0*T<b.y1&&(d.r1+1)*T>b.y0;
         if(d.t>=14&&!blocked){                          // wait until MIND has stepped out of the way
           for(let r=d.r0;r<=d.r1;r++) gridSet(d.c,r,MV_GRID_SOLID);
-          d.st='shut'; d.t=0; thud(1.1);
+          d.st='shut'; d.t=0; thud(1.1); netDoor(d);
         }
       }
       else if(d.st==='shut') d.t++;                      // debounce clock since the last close
     }
     for(const t of S.traps){
       if(t.shake>0) t.shake--;
-      if(t.st==='opening'){ t.t++; if(t.t===4) for(let c=t.c0;c<=t.c1;c++){ gridSet(c,t.r,MV_GRID_AIR); if(t.id==='attic') gridSet(c,t.r-1,MV_GRID_AIR); } if(t.t>=22){ t.st='open'; thud(0.7); } } }
+      if(t.st==='opening'){ t.t++; if(t.t===4) for(let c=t.c0;c<=t.c1;c++){ gridSet(c,t.r,MV_GRID_AIR); if(t.id==='attic') gridSet(c,t.r-1,MV_GRID_AIR); } if(t.t>=22){ t.st='open'; thud(0.7); netTrap(t); } } }
     for(const k of S.crates) if(k.shake>0) k.shake--;
     for(const j of S.junk||[]){ if(j.rest) continue; j.vy+=0.35; j.x+=j.vx; j.y+=j.vy; j.rot+=j.vr; j.vx*=0.98;
       if(j.y>=j.floor-3){ j.y=j.floor-3; if(Math.abs(j.vy)>1.5){ j.vy*=-0.35; j.vx*=0.6; j.vr*=0.5; } else { j.vy=0; j.vx*=0.7; if(Math.abs(j.vx)<0.1){ j.rest=true; j.rot=Math.round(j.rot/(Math.PI/2))*(Math.PI/2); } } } }

@@ -233,6 +233,8 @@
         break;
       case 'e': onEnemies(pk); break;
       case 'hit': onHit(pk); break;
+      case 'w': onWorld(pk); break;
+      case 'wreq': sendWorldSnap(); break;
     }
     fire(pk.t,pk);
   }
@@ -398,6 +400,8 @@
     if(p==='timeline'){
       if(!toldTimeline){ toldTimeline=true; toast('IN THE SAME STAGE'); }
       setStatus('connected','In the same stage.');
+      // heal door/crate desync the moment both land in the stage
+      try{ send({t:'wreq'}); if(st.role==='host') sendWorldSnap(); }catch(e){}
     }else if(p==='entering'){
       setStatus('connected', st.role==='host'?'Your friend is entering the stage.':'Entering the stage.');
     }else if(p==='room'){
@@ -525,6 +529,51 @@
     };
   }
 
+  // ---- shared world (doors / crates / traps) — Build 427 ---------------------
+  // Heroes + enemies were already streamed; stage props were local-only, so one
+  // player opening Laitu's door or breaking a crate left the friend stuck on a
+  // solid wall / closed box. Events go reliable; a periodic snap heals drift.
+  var lastWorldSnap=0, WORLD_SNAP_MS=700, applyingWorld=false;
+  function emitWorld(ev){
+    if(!st.linked||!inGame()||!ev||applyingWorld) return false;
+    ev.t='w'; ev.st=stageId();
+    return send(ev);
+  }
+  function onWorld(pk){
+    if(!inGame()||!pk||pk.st!==stageId()) return;
+    applyingWorld=true;
+    try{
+      if(window.MV_NET) window.MV_NET._applyingWorld=true;
+      if(pk.kind==='door'&&window.MV_DOORS&&MV_DOORS.netApplyDoor) MV_DOORS.netApplyDoor(pk);
+      else if(pk.kind==='trap'&&window.MV_DOORS&&MV_DOORS.netApplyTrap) MV_DOORS.netApplyTrap(pk);
+      else if(pk.kind==='crate'&&window.MV_BETA&&MV_BETA.netApplyCrate) MV_BETA.netApplyCrate(pk);
+      else if(pk.kind==='crateTake'&&window.MV_BETA&&MV_BETA.netApplyCrateTake) MV_BETA.netApplyCrateTake(pk);
+      else if(pk.kind==='snap'){
+        if(pk.doors&&window.MV_DOORS&&MV_DOORS.netApplyDoor) for(var i=0;i<pk.doors.length;i++) MV_DOORS.netApplyDoor(pk.doors[i]);
+        if(pk.traps&&window.MV_DOORS&&MV_DOORS.netApplyTrap) for(var j=0;j<pk.traps.length;j++) MV_DOORS.netApplyTrap(pk.traps[j]);
+        if(pk.crates&&window.MV_BETA&&MV_BETA.netApplyCrate) for(var k=0;k<pk.crates.length;k++) MV_BETA.netApplyCrate(pk.crates[k]);
+      }
+    }catch(e){ console.warn('net world',e); }
+    finally{ applyingWorld=false; if(window.MV_NET) window.MV_NET._applyingWorld=false; }
+  }
+  function packCrateSnap(){
+    var out=[];
+    if(typeof ITEM_DROPS==='undefined') return out;
+    for(var i=0;i<ITEM_DROPS.length&&out.length<24;i++){
+      var d=ITEM_DROPS[i]; if(!d||!d._box) continue;
+      var b=d._box, its=(b.items&&b.items.length)?b.items:(b.item?[b.item]:[]);
+      out.push({kind:'crate', cell:d._cell||null, item:d.item, hp:b.hp|0, broken:!!b.broken, dual:!!d.dual,
+        items:its.map(function(it){ return {x:r1(it.x),y:r1(it.y),vx:r1(it.vx),vy:r1(it.vy),taken:!!it.taken,noPick:it.noPick|0}; })});
+    }
+    return out;
+  }
+  function sendWorldSnap(){
+    if(!st.linked||!inGame()||loading()) return;
+    var snap={t:'w', kind:'snap', st:stageId(), crates:packCrateSnap()};
+    if(window.MV_DOORS&&MV_DOORS.netSnap){ var ds=MV_DOORS.netSnap(); snap.doors=ds.doors; snap.traps=ds.traps; }
+    send(snap);
+  }
+
   // ---- per-frame hooks (main.js) ----------------------------------------------
   function tick(pl){
     if(!st.linked) return;
@@ -538,6 +587,7 @@
     if(q) applyHero(q);
     if(now-lastSend>=SEND_MS){ lastSend=now; sendState(heroSnap(pl)); }
     if(now-lastEnemy>=ENEMY_MS&&!loading()){ lastEnemy=now; computeOwners(); sendEnemies(); }
+    if(now-lastWorldSnap>=WORLD_SNAP_MS&&!loading()&&inTimeline()){ lastWorldSnap=now; if(st.role==='host') sendWorldSnap(); }
     applyEnemies();
   }
   function applyVisual(){
@@ -563,6 +613,7 @@
     inTimeline:inTimeline, phase:phase, drawExtras:drawExtras,
     onStatus:onStatus, onPacket:onPacket, sendPacket:send,
     tick:tick, applyVisual:applyVisual,
+    emitWorld:emitWorld, _applyingWorld:false,
     remote:function(){ return latest; }, hello:function(){ return hello; },
     peer:function(){ return peer; },
     remoteId:function(){ return conn?conn.peer:null; },
