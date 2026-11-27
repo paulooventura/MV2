@@ -1,5 +1,5 @@
 /* ============================================================
-   mv2_net.js — MV2 online co-op netcode, v3 (Build 443 / T639).
+   mv2_net.js — MV2 online co-op netcode, v3 (Build 444 / T640).
 
    Cap: MAX 5 peers on one room (host + 4 guests). Star topology:
    guests connect to the host; the host relays state. Seats 0–1 are
@@ -8,6 +8,8 @@
 
    Transport: PeerJS WebRTC (claude/js/vendor/peerjs.min.js, MIT).
    Saves stay local. Names are session nicknames only.
+   Build 444: solo host never looks broken on a failed guest ICE attempt;
+   guest retries once; STUN+TURN always set; clearer LAN/code fallback copy.
 
    Who simulates what (unchanged spirit):
    - each player simulates their OWN hero and streams it at ~20 Hz
@@ -31,12 +33,18 @@
   var ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
   var CODE_LEN=4;
   var SEND_MS=50, ENEMY_MS=80, RENDER_DELAY_MS=90, BUF_MAX=24, PING_MS=2000;
-  var CONNECT_TIMEOUT_MS=15000, OWN_SWAP_PX=160;
+  var CONNECT_TIMEOUT_MS=20000, OWN_SWAP_PX=160;
   var PUBLIC_URL='https://mindandventure.pauloventura.org/';
+  // PeerJS cloud defaults — always attach so a blank CFG.iceServers cannot strip TURN.
+  var DEFAULT_ICE=[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:['turn:eu-0.turn.peerjs.com:3478','turn:us-0.turn.peerjs.com:3478'],username:'peerjs',credential:'peerjsp'}
+  ];
 
   var st={role:null, status:'offline', detail:'', code:'', linked:false, ping:0};
   var toldTimeline=false, lastPhase='offline', remShots=[], remShotAt=0;
-  var peer=null, conns=[], connTimer=null, hostTries=0;
+  var peer=null, conns=[], connTimer=null, hostTries=0, joinTries=0;
   var statusCbs=[], pktCbs={};
   var mySeat=0, myIdPack=null, roster={};
   var remotes={}; // seat -> {buf, latest, hello, peerId}
@@ -79,7 +87,8 @@
   function peerOpts(){
     var o={debug:0};
     ['host','port','path','secure','key'].forEach(function(k){ if(CFG[k]!=null) o[k]=CFG[k]; });
-    if(CFG.iceServers) o.config={iceServers:CFG.iceServers};
+    var ice=(CFG.iceServers&&CFG.iceServers.length)?CFG.iceServers:DEFAULT_ICE;
+    o.config={iceServers:ice, sdpSemantics:'unified-plan'};
     return o;
   }
   function normCode(c){
@@ -161,7 +170,7 @@
     try{ sendAll({t:'bye', seat:mySeat}); }catch(e){}
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
-    peer=null; st.role=null; st.code=''; hostTries=0; mySeat=0; roster={};
+    peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={};
     setStatus('offline','');
   }
   function errText(e){
@@ -169,8 +178,25 @@
     if(t==='peer-unavailable') return 'No room with that code. Check the letters with your friend.';
     if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed') return 'Cannot reach the room server. Check your internet.';
     if(t==='browser-incompatible') return 'This browser cannot play online (no WebRTC).';
-    if(t==='webrtc') return 'Direct link failed. A strict network or firewall may be blocking it.';
+    if(t==='webrtc') return 'Direct link blocked on this network. Try same Wi‑Fi, or type the 4-letter room code.';
     return (e&&e.message)||String(e||'unknown error');
+  }
+  function hostWaitingCopy(){
+    return 'Waiting for friends — share the code, QR, or link. Same Wi‑Fi is most reliable.';
+  }
+  function guestTimeoutCopy(){
+    return 'Could not reach the host. Check the code, try same Wi‑Fi, or ask them to host again.';
+  }
+  function dropFailedConn(c){
+    if(connTimer){ clearTimeout(connTimer); connTimer=null; }
+    var ix=conns.indexOf(c);
+    if(ix>=0) conns.splice(ix,1);
+    var leftSeat=c&&c._mvSeat;
+    if(leftSeat!=null){
+      delete roster[String(leftSeat)];
+      delete remotes[leftSeat];
+    }
+    try{ if(c) c.close(); }catch(e){}
   }
 
   function buffered(){
@@ -192,7 +218,8 @@
     sendAll(pk, from);
   }
 
-  function wireConn(c){
+  function wireConn(c, opts){
+    opts=opts||{};
     if(st.role==='host'&&openConns().length>=MAX_PEERS-1){
       try{ c.on('open',function(){ try{ c.send({t:'full', max:MAX_PEERS}); }catch(e){} setTimeout(function(){ try{ c.close(); }catch(e){} },400); }); }catch(e){}
       return;
@@ -201,12 +228,31 @@
     conns.push(c);
     if(connTimer){ clearTimeout(connTimer); connTimer=null; }
     connTimer=setTimeout(function(){
-      if(conns.indexOf(c)>=0&&!c.open){ setStatus('error','Direct link timed out. A strict network or firewall may be blocking it.'); try{ c.close(); }catch(e){} }
+      if(conns.indexOf(c)<0||c.open) return;
+      // Never leave a half-open DataConnection hanging — PeerJS often skips 'close' if ICE never finished.
+      dropFailedConn(c);
+      if(st.role==='host'){
+        st.linked=openConns().length>0;
+        broadcastRoster();
+        // Solo host stays healthy: room is open; one failed guest ICE is not a broken lobby.
+        setStatus(openConns().length?'connected':'hosting',
+          openConns().length
+            ?('In the room · '+peerCount()+'/'+MAX_PEERS+'.')
+            :('A friend could not reach this room (network). Room '+(st.code||'')+' is still open — have them type the code, or try same Wi‑Fi.'));
+        return;
+      }
+      if(opts.allowRetry&&typeof opts.onRetry==='function'){
+        setStatus('joining','Link timed out — trying once more…');
+        opts.onRetry();
+        return;
+      }
+      st.linked=false;
+      setStatus('error', guestTimeoutCopy());
     },CONNECT_TIMEOUT_MS);
     c.on('open',function(){
       if(conns.indexOf(c)<0) return;
       if(connTimer){ clearTimeout(connTimer); connTimer=null; }
-      st.linked=true; lastPhase='room';
+      st.linked=true; lastPhase='room'; joinTries=0;
       refreshMyPack();
       if(st.role==='host'){
         var seat=nextSeat();
@@ -231,22 +277,32 @@
         delete roster[String(leftSeat)];
         delete remotes[leftSeat];
       }
-      var was=st.linked;
-      st.linked=openConns().length>0||st.role==='host';
+      var wasLinked=st.linked;
+      // Host keeps the room open with zero guests; linked only when a friend is actually in.
       if(st.role==='host'){
+        st.linked=openConns().length>0;
         broadcastRoster();
         setStatus(openConns().length?'connected':'hosting',
           openConns().length
             ?('In the room · '+peerCount()+'/'+MAX_PEERS+'.')
-            :(was?'A friend left. Room '+st.code+' is still open.':'Waiting for friends…'));
-        if(was&&!openConns().length){ dropPuppets(); toast('A FRIEND LEFT'); }
+            :(wasLinked?'A friend left. Room '+st.code+' is still open.':hostWaitingCopy()));
+        if(wasLinked&&!openConns().length){ dropPuppets(); toast('A FRIEND LEFT'); }
       }else{
         closeAllConns();
-        setStatus('closed', was?'The host left the room.':'Could not connect.');
-        if(was) toast('THE HOST LEFT');
+        setStatus('closed', wasLinked?'The host left the room.':guestTimeoutCopy());
+        if(wasLinked) toast('THE HOST LEFT');
       }
     });
-    c.on('error',function(e){ if(conns.indexOf(c)>=0) setStatus('error',errText(e)); });
+    c.on('error',function(e){
+      if(conns.indexOf(c)<0) return;
+      if(st.role==='host'&&!c.open){
+        // Inbound ICE noise: keep hosting, do not paint the lobby as broken.
+        setStatus(openConns().filter(function(x){ return x!==c&&x.open; }).length?'connected':'hosting',
+          errText(e)+' Room '+(st.code||'')+' is still open.');
+        return;
+      }
+      setStatus('error',errText(e));
+    });
   }
 
   function broadcastRoster(){
@@ -262,7 +318,7 @@
 
   function host(){
     disconnect();
-    st.role='host'; mySeat=0;
+    st.role='host'; mySeat=0; joinTries=0;
     refreshMyPack();
     upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0}));
     return new Promise(function(res,rej){
@@ -272,7 +328,7 @@
         if(!pr){ st.role=null; return rej(new Error(st.detail)); }
         peer=pr; st.code=code;
         setStatus('opening','Opening room…');
-        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; setStatus('hosting','Waiting for friends (up to '+(MAX_PEERS-1)+')…'); res({code:code}); });
+        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; setStatus('hosting',hostWaitingCopy()); res({code:code}); });
         pr.on('connection',function(c){ if(peer===pr) wireConn(c); });
         pr.on('call',function(call){ fire('call',call); });
         pr.on('disconnected',function(){ if(peer===pr&&!pr.destroyed){ try{ pr.reconnect(); }catch(e){} } });
@@ -292,17 +348,27 @@
     var c=normCode(code);
     if(c.length!==CODE_LEN) return Promise.reject(new Error('Room codes have '+CODE_LEN+' letters.'));
     disconnect();
-    st.role='joiner'; st.code=c; mySeat=-1;
+    st.role='joiner'; st.code=c; mySeat=-1; joinTries=0;
     refreshMyPack();
     return new Promise(function(res,rej){
       var pr=makePeer(null);
       if(!pr){ st.role=null; return rej(new Error(st.detail)); }
       peer=pr;
       setStatus('joining','Looking for room '+c+'…');
+      var startData=function(allowRetry){
+        if(peer!==pr||pr.destroyed) return;
+        var dc=pr.connect(PREFIX+c,{reliable:true,serialization:'json',metadata:{v:3}});
+        wireConn(dc,{
+          allowRetry:!!allowRetry,
+          onRetry:function(){
+            if(joinTries++>=1){ setStatus('error',guestTimeoutCopy()); return; }
+            startData(false);
+          }
+        });
+      };
       pr.on('open',function(){
         if(peer!==pr) return;
-        var dc=pr.connect(PREFIX+c,{reliable:true,serialization:'json',metadata:{v:3}});
-        wireConn(dc);
+        startData(true);
         res({code:c});
       });
       pr.on('call',function(call){ fire('call',call); });

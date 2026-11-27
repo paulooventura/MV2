@@ -1,14 +1,20 @@
 /* ============================================================
    mv2_net_ui.js — ONLINE screens (Jackbox-style room codes).
 
-   Build 443 / T639: up to 5 players. Host / join → roster.
+   Build 444 / T640: up to 5 players. Host / join → roster.
    Seats 1–2 = Mind & Venture. Seats 3–5 = crayon + session name + hat.
    Names are nicknames only (Warm Shadow — never force a real name).
+   Chrome follows Monika mv2 dialect (washi / sumi / gold leaf) — same
+   play type (MV Pixel) as title/menus; no CRT terminal scanlines.
    ============================================================ */
 (function(){
   'use strict';
   if(!window.MV_NET) return;
   var NET=window.MV_NET, ID=window.MV_IDENTITY||null, VOICE=function(){ return window.MV_VOICE||null; };
+  var P=(window.MV_PALETTE&&window.MV_PALETTE.hex)||{};
+  var WASHI=P.washi||'#EFE6D2', AGED=P.washi_aged||'#E6CFAB', SUMI=P.sumi||'#1C1A19';
+  var GOLD=P.gold||'#C9A24A', MICA=P.mica||'#B9B3A8', USU=P.usuzumi||'#8C8580';
+  var NIGHT=P.violet_black||'#1E1B27', SEAL=P.vermilion||'#D9472B', MURA=P.murasaki||'#5B2A8C';
   var panel=null, el={}, view='menu', onDone=null, chip=null;
   var draft={name:'', color:'prussian', hat:'gaucho'};
 
@@ -17,46 +23,61 @@
     var s=document.createElement('style');
     s.id='mvNetCss';
     s.textContent=
-      '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:#EFE6D2;'+
-        'background:#1E1B27;background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);'+
+      '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:'+WASHI+';'+
+        'background:radial-gradient(ellipse at 50% 20%,'+MURA+'55 0%, '+NIGHT+' 42%, '+SUMI+' 100%);'+
         'font:18px/1.35 "MV Pixel",ui-monospace,Consolas,monospace;align-items:center;justify-content:center;padding:16px;}'+
-      '#mvNetPanel .box{width:min(680px,94vw);max-height:92vh;overflow:auto;text-align:center;'+
-        'background:linear-gradient(#1E1B27,#1C1A19);border:2px solid #C9A24A;border-radius:0;'+
-        'box-shadow:5px 6px 0 rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.7);padding:22px 18px 16px;}'+
-      '#mvNetPanel h2{margin:0 0 6px;font-size:28px;font-weight:400;color:#C9A24A;letter-spacing:.16em;}'+
-      '#mvNetPanel .sub{color:#B9B3A8;font-size:16px;margin:0 0 14px;}'+
+      '#mvNetPanel .box{width:min(680px,94vw);max-height:92vh;overflow:auto;text-align:center;position:relative;'+
+        'background:linear-gradient(165deg,'+AGED+' 0%, '+WASHI+' 38%, '+AGED+' 100%);color:'+SUMI+';'+
+        'border:3px solid '+GOLD+';border-radius:0;'+
+        'box-shadow:6px 8px 0 rgba(0,0,0,.45), inset 0 0 0 1px '+SUMI+', inset 0 0 0 4px '+AGED+';'+
+        'padding:26px 20px 18px;}'+
+      '#mvNetPanel .box:before{content:"";display:block;height:6px;margin:-26px -20px 16px;'+
+        'background:linear-gradient(90deg,'+SEAL+' 0 18%, '+GOLD+' 18% 82%, '+SEAL+' 82% 100%);}'+
+      '#mvNetPanel h2{margin:0 0 6px;font-size:28px;font-weight:400;color:'+SUMI+';letter-spacing:.16em;}'+
+      '#mvNetPanel .sub{color:'+USU+';font-size:16px;margin:0 0 14px;}'+
       '#mvNetPanel .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0;}'+
       '#mvNetPanel button{font:inherit;letter-spacing:.08em;min-height:44px;padding:8px 16px;border-radius:0;'+
-        'background:#1C1A19;color:#EFE6D2;border:2px solid #8C8580;cursor:pointer;}'+
-      '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;}'+
-      '#mvNetPanel button.on{background:#38281a;border-color:#C9A24A;color:#E6CFAB;}'+
-      '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:#C9A24A;box-shadow:inset 0 0 0 1px #C9A24A;}'+
+        'background:'+SUMI+';color:'+WASHI+';border:2px solid '+USU+';cursor:pointer;}'+
+      '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;border-color:'+GOLD+';}'+
+      '#mvNetPanel button.on{background:'+MURA+';border-color:'+GOLD+';color:'+AGED+';}'+
+      '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:'+GOLD+';box-shadow:inset 0 0 0 1px '+GOLD+';}'+
       '#mvNetPanel button:disabled{opacity:.4;cursor:default;}'+
-      '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:#C9A24A;margin:6px 0 2px;padding-left:.28em;}'+
-      '#mvNetPanel .link{color:#E6CFAB;font-size:14px;word-break:break-all;user-select:all;}'+
+      '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:'+GOLD+';'+
+        'margin:6px 0 2px;padding-left:.28em;text-shadow:2px 2px 0 '+SUMI+';}'+
+      '#mvNetPanel .link{color:'+MURA+';font-size:14px;word-break:break-all;user-select:all;}'+
       '#mvNetPanel canvas#mvNetQr{position:static!important;display:inline-block;width:148px!important;height:148px!important;max-width:40vw;max-height:40vw;'+
-        'background:#EFE6D2;border:2px solid #8C8580;border-radius:0;padding:6px;margin-top:8px;image-rendering:pixelated;transform:none!important;}'+
+        'background:'+WASHI+';border:3px solid '+GOLD+';border-radius:0;padding:6px;margin-top:8px;'+
+        'box-shadow:3px 3px 0 '+SUMI+';image-rendering:pixelated;transform:none!important;}'+
       '#mvNetCode{font:clamp(36px,9vw,64px) "MV Pixel",ui-monospace,Consolas,monospace;width:5.4em;text-align:center;letter-spacing:.28em;'+
-        'padding:4px 0 4px .28em;text-transform:uppercase;background:#1C1A19;color:#C9A24A;border:2px solid #C9A24A;border-radius:0;}'+
-      '#mvNetStatus{margin:14px auto 0;max-width:540px;padding:8px 10px;border-left:3px solid #C9A24A;background:#14121c;color:#EFE6D2;font-size:16px;text-align:left;}'+
-      '#mvNetPanel .voice{margin-top:16px;padding-top:12px;border-top:1px solid #8C8580;}'+
-      '#mvNetPanel .tiny{color:#8C8580;font-size:14px;margin-top:8px;}'+
-      '#mvNetPanel .roster{display:flex;flex-direction:column;gap:6px;margin:10px auto;max-width:420px;text-align:left;}'+
-      '#mvNetPanel .seat{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid #8C8580;background:#14121c;}'+
-      '#mvNetPanel .swatch{width:18px;height:18px;border:1px solid #EFE6D2;flex:0 0 auto;}'+
-      '#mvNetPanel .idbox{margin:12px auto 0;max-width:480px;padding:12px;border:1px solid #8C8580;background:#14121c;text-align:left;}'+
-      '#mvNetPanel .idbox label{display:block;font-size:14px;color:#B9B3A8;margin:8px 0 4px;}'+
+        'padding:4px 0 4px .28em;text-transform:uppercase;background:'+SUMI+';color:'+GOLD+';border:3px solid '+GOLD+';border-radius:0;}'+
+      '#mvNetStatus{margin:14px auto 0;max-width:540px;padding:10px 12px;border:2px solid '+GOLD+';'+
+        'border-left:6px solid '+GOLD+';background:rgba(28,26,25,.06);color:'+SUMI+';font-size:16px;text-align:left;}'+
+      '#mvNetStatus.warn{border-left-color:'+SEAL+';color:'+SEAL+';}'+
+      '#mvNetPanel .voice{margin-top:16px;padding-top:12px;border-top:2px solid '+GOLD+';}'+
+      '#mvNetPanel .tiny{color:'+USU+';font-size:14px;margin-top:8px;}'+
+      '#mvNetPanel .roster{display:flex;flex-direction:column;gap:8px;margin:10px auto;max-width:420px;text-align:left;}'+
+      '#mvNetPanel .seat{display:flex;align-items:center;gap:12px;padding:8px 10px;'+
+        'border:2px solid '+SUMI+';background:linear-gradient(90deg,'+WASHI+', '+AGED+');'+
+        'box-shadow:3px 3px 0 rgba(28,26,25,.25);}'+
+      '#mvNetPanel .swatch{width:22px;height:28px;flex:0 0 auto;border:2px solid '+SUMI+';'+
+        'border-radius:2px 2px 10px 10px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18), 1px 1px 0 '+GOLD+';'+
+        'transform:rotate(-6deg);}'+
+      '#mvNetPanel .idbox{margin:12px auto 0;max-width:480px;padding:12px;border:2px solid '+SUMI+';'+
+        'background:linear-gradient(180deg,'+WASHI+', '+AGED+');text-align:left;box-shadow:3px 3px 0 rgba(28,26,25,.2);}'+
+      '#mvNetPanel .idbox label{display:block;font-size:14px;color:'+USU+';margin:8px 0 4px;}'+
       '#mvNetNick{width:100%;box-sizing:border-box;font:18px "MV Pixel",ui-monospace,Consolas,monospace;'+
-        'padding:8px 10px;background:#1C1A19;color:#EFE6D2;border:2px solid #8C8580;}'+
+        'padding:8px 10px;background:'+WASHI+';color:'+SUMI+';border:2px solid '+SUMI+';}'+
       '#mvNetColors,#mvNetHats{display:flex;flex-wrap:wrap;gap:8px;}'+
       '#mvNetColors button,#mvNetHats button{min-width:0;min-height:40px;padding:6px 10px;}'+
-      '#mvNetColors button .dot{display:inline-block;width:12px;height:12px;margin-right:6px;border:1px solid #EFE6D2;vertical-align:middle;}'+
+      '#mvNetColors button .dot{display:inline-block;width:14px;height:18px;margin-right:6px;'+
+        'border:2px solid '+SUMI+';border-radius:2px 2px 8px 8px;vertical-align:middle;transform:rotate(-8deg);}'+
       '#mvNetChip{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:10px;z-index:9000;display:none;'+
-        'font:16px "MV Pixel",ui-monospace,Consolas,monospace;color:#EFE6D2;background:#1C1A19;border:2px solid #C9A24A;'+
-        'border-radius:0;padding:4px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;}'+
-      '#mvNetChip .mic{display:inline-block;width:8px;height:8px;border-radius:0;background:#8C8580;margin-left:6px;vertical-align:middle;}'+
-      '#mvNetChip .mic.live{background:#C9A24A;}'+
-      '#mvNetChip .mic.hear{background:#E6CFAB;}';
+        'font:16px "MV Pixel",ui-monospace,Consolas,monospace;color:'+SUMI+';background:'+AGED+';border:2px solid '+GOLD+';'+
+        'border-radius:0;padding:4px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;'+
+        'box-shadow:3px 3px 0 '+SUMI+';}'+
+      '#mvNetChip .mic{display:inline-block;width:8px;height:8px;border-radius:0;background:'+USU+';margin-left:6px;vertical-align:middle;}'+
+      '#mvNetChip .mic.live{background:'+GOLD+';}'+
+      '#mvNetChip .mic.hear{background:'+MURA+';}';
     document.head.appendChild(s);
   }
 
@@ -75,7 +96,7 @@
     panel.innerHTML=
       '<div class="box">'+
         '<h2>ONLINE</h2>'+
-        '<p class="sub">Up to 5 riders on one room. Seats 1–2 are Mind &amp; Venture. Seats 3–5 pick a crayon colour, a session name and a hat. No account — nicknames stay on this device for this session.</p>'+
+        '<p class="sub">Up to 5 riders on one room. Seats 1–2 are Mind &amp; Venture. Seats 3–5 pick a crayon colour, a session name and a hat. No account — nicknames stay on this device for this session. Same Wi‑Fi is the surest path; the 4-letter code always works as a fallback.</p>'+
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
@@ -127,7 +148,7 @@
           '<button type="button" id="mvNetDone" disabled>PICK YOUR HERO</button>'+
           '<button type="button" id="mvNetBack">BACK</button>'+
         '</div>'+
-        '<div class="tiny">Online uses a direct player-to-player link; friends\' games can see your internet address, like any P2P game.</div>'+
+        '<div class="tiny">Direct player-to-player link (like any P2P game). If a join stalls, type the room code — the host room stays open.</div>'+
       '</div>';
     document.body.appendChild(panel);
     ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats'].forEach(function(k){
@@ -208,13 +229,13 @@
     if(!list.length){ into.innerHTML='<div class="tiny">Waiting…</div>'; return; }
     into.innerHTML=list.map(function(r){
       var seat=(r.seat|0)+1;
-      var kind=seat<=2?(seat===1?'MIND':'VENTURE'):'GUEST';
-      var col=ID?ID.crayonById(r.col||r.color).hex:'#C9A24A';
+      var kind=seat<=2?(seat===1?'MIND':'VENTURE'):'CRAYON';
+      var col=ID?ID.crayonById(r.col||r.color).hex:(GOLD||'#C9A24A');
       var nm=r.nm||r.name||('SEAT '+seat);
       var hat=r.hat||'—';
-      return '<div class="seat"><span class="swatch" style="background:'+col+'"></span>'+
+      return '<div class="seat"><span class="swatch" style="background:'+col+'" title="crayon"></span>'+
         '<div><b>SEAT '+seat+' · '+kind+'</b><br>'+nm+' · hat '+hat+'</div></div>';
-    }).join('')+'<div class="tiny">'+list.length+' / '+max+'</div>';
+    }).join('')+'<div class="tiny">'+list.length+' / '+max+' riders</div>';
   }
 
   function setView(v){
@@ -247,13 +268,13 @@
   }
   function qr(text){
     var cv=el.Qr; if(!cv) return;
-    var g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+    var g=cv.getContext('2d'); g.fillStyle=WASHI; g.fillRect(0,0,cv.width,cv.height);
     cv.style.display=text?'':'none';
     if(!text||typeof window.qrcode!=='function') return;
     try{
       var q=window.qrcode(0,'M'); q.addData(text); q.make();
       var n=q.getModuleCount(), sz=Math.floor(cv.width/(n+2)), off=Math.floor((cv.width-sz*n)/2);
-      g.fillStyle='#000';
+      g.fillStyle=SUMI;
       for(var r=0;r<n;r++) for(var c=0;c<n;c++) if(q.isDark(r,c)) g.fillRect(off+c*sz,off+r*sz,sz,sz);
     }catch(e){ cv.style.display='none'; }
   }
@@ -268,7 +289,12 @@
         :'In the room. Waiting for the host to start.';
       if(s.linked&&s.ping) txt+='  ·  ping '+s.ping+' ms';
       if(view!=='menu'||s.status!=='offline') el.Status.textContent=txt;
-      el.Status.style.color=s.linked?'#C9A24A':(/error|closed/.test(s.status)?'#d85868':'#EFE6D2');
+      // Host "friend could not reach" stays gold (room healthy). Hard join failure = seal red.
+      var hardErr=/error|closed/.test(s.status)&&(s.role!=='host'||!s.code);
+      var softHost=s.role==='host'&&s.status==='hosting'&&/could not reach|still open/i.test(txt);
+      el.Status.className=hardErr?'warn':'';
+      el.Status.style.color=s.linked?SUMI:(hardErr?SEAL:(softHost?SUMI:SUMI));
+      el.Status.style.borderLeftColor=hardErr?SEAL:(s.linked||s.status==='hosting'?GOLD:USU);
       el.Done.disabled=!(s.linked&&s.role==='host');
       if(el.Count) el.Count.textContent=(s.peers||(s.linked?2:1))+' / '+max+' in the room';
       renderRoster(el.Roster); renderRoster(el.RosterJ);

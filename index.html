@@ -24,25 +24,34 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
-<script src="js/mv_palette.js?v=443"></script>
-<script>window.MV_BUILD='443';
+<script src="js/mv_palette.js?v=444"></script>
+<script>window.MV_BUILD='444';
 /* T425 + T602: Unfiltered boot; Ink and Vinyl / Gore locked until secret code or +/-33. */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
 (function(){
   if(location.protocol==='file:') return;
   var here=String(window.MV_BUILD||'');
+  function reloadForBuild(b){
+    b=String(b||'').trim();
+    if(!b||b===here) return;
+    // Never bounce backward (stale SW) — that was killing ONLINE joins mid-handshake.
+    if(!(Number(b)>Number(here||0))) return;
+    try{
+      var u=new URL(location.href);
+      u.searchParams.set('b',b);
+      location.replace(u.pathname+u.search+u.hash);
+    }catch(e){ location.replace(location.pathname+'?b='+b); }
+  }
   fetch(new URL('build.txt', location.href), {cache:'no-store'}).then(function(r){ if(!r.ok) throw 0; return r.text(); }).then(function(t){
-    var live=(t||'').trim();
-    if(live&&live!==here) location.replace(location.pathname+'?b='+live);
+    reloadForBuild(t);
   }).catch(function(){});
   if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(ev){
-    var b=ev.data&&ev.data.build;
-    if(b&&String(b)!==here) location.replace(location.pathname+'?b='+b);
+    reloadForBuild(ev.data&&ev.data.build);
   });
 })();
 </script>
-<script src="js/phone.js?v=443"></script>
+<script src="js/phone.js?v=444"></script>
 <script>
 if(location.protocol==='file:'){
   document.addEventListener('DOMContentLoaded',function(){
@@ -310,81 +319,81 @@ window.onerror=function(msg,src,line,col,err){
   return false;
 };
 </script>
-<script src="js/save.js?v=443"></script>
-<script src="js/core.js?v=443"></script>
-<script src="js/sfx-replacements.js?v=443"></script>
-<script src="js/audio.js?v=443"></script>
-<script src="js/sound16.js?v=443"></script>
-<script src="js/sfx_posh.js?v=443"></script>
-<script src="js/soundlab.js?v=443"></script>
-<script src="js/enemies.js?v=443"></script>
-<script src="js/collision_grid.js?v=443"></script>
-  <script src="js/physics.js?v=443"></script>
-  <script src="js/player.js?v=443"></script>
-<script src="js/controls_setup.js?v=443"></script>
-<script src="js/beta_touch.js?v=443"></script>
-  <script src="js/weapons.js?v=443"></script>
-<script src="js/ui.js?v=443"></script>
-<script src="js/ui_select.js?v=443"></script>
+<script src="js/save.js?v=444"></script>
+<script src="js/core.js?v=444"></script>
+<script src="js/sfx-replacements.js?v=444"></script>
+<script src="js/audio.js?v=444"></script>
+<script src="js/sound16.js?v=444"></script>
+<script src="js/sfx_posh.js?v=444"></script>
+<script src="js/soundlab.js?v=444"></script>
+<script src="js/enemies.js?v=444"></script>
+<script src="js/collision_grid.js?v=444"></script>
+  <script src="js/physics.js?v=444"></script>
+  <script src="js/player.js?v=444"></script>
+<script src="js/controls_setup.js?v=444"></script>
+<script src="js/beta_touch.js?v=444"></script>
+  <script src="js/weapons.js?v=444"></script>
+<script src="js/ui.js?v=444"></script>
+<script src="js/ui_select.js?v=444"></script>
 <!-- MV2 online co-op -->
-<script src="js/vendor/peerjs.min.js?v=443"></script>
-<script src="js/vendor/qrcode.js?v=443"></script>
-<script src="js/mv2_identity.js?v=443"></script>
-<script src="js/mv2_net.js?v=443"></script>
-<script src="js/mv2_voice.js?v=443"></script>
-<script src="js/mv2_net_ui.js?v=443"></script>
-<script src="js/mv2_save_share.js?v=443"></script>
-<script src="js/mv2_brother_ask.js?v=443"></script>
-  <script src="js/render.js?v=443"></script>
-<script src="js/editor.js?v=443"></script>
-<script src="js/map_edit.js?v=443"></script>
-<script src="js/spawn_fix.js?v=443"></script>
-<script src="js/awdjoo_level.js?v=443"></script>
-<script src="js/healthwatch.js?v=443"></script>
-<script src="js/awdjoo_map.js?v=443"></script>
-<script src="js/main.js?v=443"></script>
-<script src="js/crt_room.js?v=443"></script>
-<script src="js/item_lab.js?v=443"></script>
-<script src="js/physics_lab.js?v=443"></script>
-<script src="js/selftest.js?v=443"></script>
-<script src="js/ldtk_loader.js?v=443"></script>
+<script src="js/vendor/peerjs.min.js?v=444"></script>
+<script src="js/vendor/qrcode.js?v=444"></script>
+<script src="js/mv2_identity.js?v=444"></script>
+<script src="js/mv2_net.js?v=444"></script>
+<script src="js/mv2_voice.js?v=444"></script>
+<script src="js/mv2_net_ui.js?v=444"></script>
+<script src="js/mv2_save_share.js?v=444"></script>
+<script src="js/mv2_brother_ask.js?v=444"></script>
+  <script src="js/render.js?v=444"></script>
+<script src="js/editor.js?v=444"></script>
+<script src="js/map_edit.js?v=444"></script>
+<script src="js/spawn_fix.js?v=444"></script>
+<script src="js/awdjoo_level.js?v=444"></script>
+<script src="js/healthwatch.js?v=444"></script>
+<script src="js/awdjoo_map.js?v=444"></script>
+<script src="js/main.js?v=444"></script>
+<script src="js/crt_room.js?v=444"></script>
+<script src="js/item_lab.js?v=444"></script>
+<script src="js/physics_lab.js?v=444"></script>
+<script src="js/selftest.js?v=444"></script>
+<script src="js/ldtk_loader.js?v=444"></script>
 <script>window.MV_STORY_STAGES=1;</script>
-<script src="js/beta_audio.js?v=443"></script>
-<script src="js/beta_spatial.js?v=443"></script>
-<script src="js/beta_engine.js?v=443"></script>
-<script src="js/beta_air.js?v=443"></script>
-<script src="js/beta_ambience.js?v=443"></script>
-<script src="js/beta_decor.js?v=443"></script>
-<script src="js/beta_sky.js?v=443"></script>
-<script src="js/beta_level.js?v=443"></script>
-<script src="js/beta_feel.js?v=443"></script>
-<script src="js/beta_water.js?v=443"></script>
-<script src="js/beta_weather.js?v=443"></script>
-<script src="js/beta_envdepth.js?v=443"></script>
-<script src="js/beta_enemies.js?v=443"></script>
-<script src="js/beta_impact.js?v=443"></script>
-<script src="js/beta_gore.js?v=443"></script>
-<script src="js/gore_metal.js?v=443"></script>
-<script src="js/beta_crates.js?v=443"></script>
-<script src="js/beta_mirror.js?v=443"></script>
-<script src="js/beta_sibling.js?v=443"></script>
-<script src="js/beta_foes.js?v=443"></script>
-<script src="js/beta_city.js?v=443"></script>
-<script src="js/beta_map.js?v=443"></script>
-<script src="js/beta_music.js?v=443"></script>
-<script src="js/beta_knife.js?v=443"></script>
-<script src="js/beta_pushblock.js?v=443"></script>
-<script src="js/beta_items.js?v=443"></script>
-<script src="js/beta_enemy_f.js?v=443"></script>
-<script src="js/console16.js?v=443"></script>
-<script src="js/beta_splash.js?v=443"></script>
-<script src="js/ui_manual.js?v=443"></script>
-<script src="js/beta_story.js?v=443"></script>
+<script src="js/beta_audio.js?v=444"></script>
+<script src="js/beta_spatial.js?v=444"></script>
+<script src="js/beta_engine.js?v=444"></script>
+<script src="js/beta_air.js?v=444"></script>
+<script src="js/beta_ambience.js?v=444"></script>
+<script src="js/beta_decor.js?v=444"></script>
+<script src="js/beta_sky.js?v=444"></script>
+<script src="js/beta_level.js?v=444"></script>
+<script src="js/beta_feel.js?v=444"></script>
+<script src="js/beta_water.js?v=444"></script>
+<script src="js/beta_weather.js?v=444"></script>
+<script src="js/beta_envdepth.js?v=444"></script>
+<script src="js/beta_enemies.js?v=444"></script>
+<script src="js/beta_impact.js?v=444"></script>
+<script src="js/beta_gore.js?v=444"></script>
+<script src="js/gore_metal.js?v=444"></script>
+<script src="js/beta_crates.js?v=444"></script>
+<script src="js/beta_mirror.js?v=444"></script>
+<script src="js/beta_sibling.js?v=444"></script>
+<script src="js/beta_foes.js?v=444"></script>
+<script src="js/beta_city.js?v=444"></script>
+<script src="js/beta_map.js?v=444"></script>
+<script src="js/beta_music.js?v=444"></script>
+<script src="js/beta_knife.js?v=444"></script>
+<script src="js/beta_pushblock.js?v=444"></script>
+<script src="js/beta_items.js?v=444"></script>
+<script src="js/beta_enemy_f.js?v=444"></script>
+<script src="js/console16.js?v=444"></script>
+<script src="js/beta_splash.js?v=444"></script>
+<script src="js/ui_manual.js?v=444"></script>
+<script src="js/beta_story.js?v=444"></script>
 <!-- beta_telemetry.js off (Paulo, Nov 12: no telemetry, only the save slots, which stay on the player's machine) -->
-<script src="js/ink_vinyl.js?v=443"></script>
-<script src="js/beta_lift.js?v=443"></script>
-<script src="js/beta_doors.js?v=443"></script>
-<script src="js/playtest_note.js?v=443"></script>
+<script src="js/ink_vinyl.js?v=444"></script>
+<script src="js/beta_lift.js?v=444"></script>
+<script src="js/beta_doors.js?v=444"></script>
+<script src="js/playtest_note.js?v=444"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
