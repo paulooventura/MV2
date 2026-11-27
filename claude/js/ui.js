@@ -204,22 +204,31 @@ let _zoneCardT=0;
 let _levelSelIdx=0, _pendingZone=0;
 let _optRow=0, _optRebinding=null, _optSwapHeld=false, _goreStep=0, _goreWasHeld=false;
 const GORE_SEQ=['down','left','down','right','down','up'];
-// Paulo, Nov 18: the code unlocks the BLOOD/INK SPILL option for good (OFF / BLOOD / INK, any filter)
+// Paulo, Nov 18: Options secret code unlocks GORE + BLOOD/INK SPILL for good.
+// T601 (Paulo, Nov 27): secret code also unlocks Ink & Vinyl. Spill row stays hidden until unlock.
+// Level path stays split: +33 → Ink & Vinyl only; -33 → GORE + spill only.
 window.MV_SPILL={ get mode(){ try{ if(localStorage.getItem('mv2.gore')!=='1') return 'off'; return localStorage.getItem('mv2.spill')||'off'; }catch(e){ return 'off'; } },
   set(m){ try{ localStorage.setItem('mv2.spill',m); }catch(e){} },
   cycle(dir){ const L=['off','blood','ink'], i=Math.max(0,L.indexOf(this.mode)); this.set(L[(i+(dir<0?2:1))%3]); } };
 function _goreUnlocked(){ try{ return localStorage.getItem('mv2.gore')==='1'; }catch(e){ return false; } }
-function _goreUnlock(){
+function _goreUnlock(opts){
+  const all=!!(opts&&opts.all);   // Options secret code: both filters + spill
+  const was=_goreUnlocked();
+  let inkWas=false; try{ inkWas=localStorage.getItem('mv2.ink')==='1'; }catch(e){}
   try{ localStorage.setItem('mv2.gore','1'); }catch(e){}
+  if(all){ try{ localStorage.setItem('mv2.ink','1'); }catch(e){} }
   _goreStep=0;
   window._goreFlash=18;
-  uiShowToast('BLOOD / INK SPILL UNLOCKED');
+  if(all){ if(!was||!inkWas) uiShowToast('FILTERS + BLOOD / INK SPILL UNLOCKED'); }
+  else if(!was) uiShowToast('GORE + BLOOD / INK SPILL UNLOCKED');
   try{ sfx('confirm'); }catch(e){}
   MV_SPILL.set('blood');
 }
+function _inkFilterUnlocked(){ try{ return localStorage.getItem('mv2.ink')==='1'; }catch(e){ return false; } }
 function _goreFeed(dir){
-  if(_goreUnlocked()) return;
-  if(dir===GORE_SEQ[_goreStep]){ _goreStep++; if(_goreStep>=GORE_SEQ.length) _goreUnlock(); }
+  // Secret code still runs if only one filter is earned (e.g. +33 ink without gore)
+  if(_goreUnlocked()&&_inkFilterUnlocked()) return;
+  if(dir===GORE_SEQ[_goreStep]){ _goreStep++; if(_goreStep>=GORE_SEQ.length) _goreUnlock({all:true}); }
   else _goreStep=dir===GORE_SEQ[0]?1:0;
 }
 function _filterName(){

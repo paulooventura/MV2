@@ -26,7 +26,8 @@
 //  switching filters never turns it on or off — that's its own button/control.
 //
 //  Mode: Options menu (FILTER). Storage key stays mv2.console.
-//  GORE is hidden until the options code unlocks it (mv2.gore).
+//  GORE / Ink & Vinyl stay hidden until unlock (secret Options code, or ±33 on the 1.3 lift).
+//  Unlock keys: mv2.gore='1', mv2.ink='1'. Standard boot is always POSH (off).
 // ============================================================
 (function(){
   'use strict';
@@ -43,13 +44,28 @@
   // ?console= still wins (labs, QA). Selftest stays clean.
   // Paulo, Nov 26 (build 415): the game starts on the standard look; Ink & Vinyl is found in play
   // (ride the 1.3 lift up to the 33rd floor). Unlock kept in localStorage 'mv2.ink'='1'.
+  // T601 (Paulo, Nov 27): cycle/set must NOT offer ink/gore until unlocked — never default-on via localStorage.
   const inkUnlocked=()=>{ try{ return localStorage.getItem('mv2.ink')==='1'; }catch(e){ return false; } };
+  const allowed=m=>{
+    if(MODES[m]||m==='off') return true;
+    if(m==='ink') return inkUnlocked();
+    if(m==='gore') return goreOn();
+    return false;
+  };
+  const cycleList=()=>{
+    const L=['off','snes','md'];
+    if(inkUnlocked()) L.push('ink');
+    if(goreOn()) L.push('gore');
+    return L;
+  };
   let mode=(()=>{
     if(/[?&](selftest|ci=)/.test(location.search||'')) return 'off';
+    // labs / QA may force any mode via ?console= without earning the unlock
     if(qs&&(MODES[qs]||plain(qs)||qs==='gore')) return qs;
     try{
       const v=localStorage.getItem('mv2.console');
-      if(v&&(MODES[v]||plain(v)||v==='gore')) return v;
+      // earned unlock only — a leftover 'ink'/'gore' from older builds never boots locked filters on
+      if(v&&allowed(v)) return v;
     }catch(e){}
     return 'off';   // standard look (was 'ink' since T580)
   })();
@@ -58,12 +74,23 @@
     get mode(){ return mode; },
     get name(){ return MODES[mode]?MODES[mode].name:mode==='ink'?'INK & VINYL':mode==='gore'?'GORE':'POSH'; },
     inkUnlocked,
+    goreUnlocked:goreOn,
     unlockInk(){ if(inkUnlocked()) return false; try{ localStorage.setItem('mv2.ink','1'); }catch(e){}
       try{ uiShowToast('INK & VINYL UNLOCKED'); }catch(e){} try{ sfx('confirm'); }catch(e){} syncUi(); return true; },
-    set(m){ if(!(MODES[m]||plain(m))||m===mode) return; mode=m;
+    set(m){
+      if(!(MODES[m]||plain(m))||m===mode) return;
+      // Options cycle / normal set: locked filters stay locked. Lift unlocks first, then set.
+      // ?console= boot is the only path that starts locked-mode without unlock (labs).
+      if((m==='ink'||m==='gore')&&!allowed(m)) return;
+      mode=m;
       try{ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(m); }catch(e){}   // T547: GORE = -33, I&V = +33
-      try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue(); },
-    cycle(dir){ const L=['off','snes','md','ink','gore']; const i=Math.max(0,L.indexOf(mode)); api.set(L[(i+(dir<0?L.length-1:1))%L.length]); },
+      try{ localStorage.setItem('mv2.console',m); }catch(e){} listeners.forEach(f=>{ try{ f(m); }catch(e){} }); intro(); syncUi(); syncHue();
+    },
+    cycle(dir){
+      const L=cycleList();
+      let i=L.indexOf(mode); if(i<0) i=0;
+      api.set(L[(i+(dir<0?L.length-1:1))%L.length]);
+    },
     on(f){ listeners.push(f); },
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES

@@ -458,11 +458,13 @@
   };
   function fullFilter(m){
     const C=window.MV_CONSOLE; if(!C||typeof C.set!=='function'||C.mode===m) return;
-    // GORE is a secret filter: reaching it 33 floors down unlocks it, as the code on the FILTER row does
-    if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){ _goreUnlock(); return; }
-    // Ink & Vinyl is found here (Paulo, Nov 26): the 33rd floor unlocks it for good, then switches to it
+    // T601: unlock first, then set — set() refuses locked ink/gore.
+    // +33 → Ink & Vinyl; -33 → GORE (+ spill). Same unlock keys as the Options secret code.
     let unlocked=false;
-    if(m==='ink'&&typeof C.unlockInk==='function') unlocked=C.unlockInk();
+    if(m==='gore'&&typeof _goreUnlocked==='function'&&!_goreUnlocked()&&typeof _goreUnlock==='function'){
+      _goreUnlock(); unlocked=true;
+    }
+    if(m==='ink'&&typeof C.unlockInk==='function') unlocked=C.unlockInk()||unlocked;
     if(!S.forced) S.baseMode=C.mode;
     S.settingFromFilter=true;
     try{ C.set(m); } finally{ S.settingFromFilter=false; }
