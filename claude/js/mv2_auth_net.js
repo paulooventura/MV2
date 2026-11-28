@@ -13,18 +13,23 @@
 (function(){
   'use strict';
   var NET=window.MV_NET;
-  if(!NET||!/[?&]authv4=1/.test(location.search||'')) return;
+  if(!NET||/[?&]authv4=0/.test(location.search||'')) return;
 
   var ACTS=['up','down','left','right','jump','use','swap','punch','sprint'];
   var P2KEYS=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Numpad0','NumpadEnter','Numpad2','Numpad3','Sprint_gp2'];
+  // Raw key fallback matches the game's own movement path (arrows work in solo).
+  var RAW=[['KeyW','ArrowUp'],['KeyS','ArrowDown'],['KeyA','ArrowLeft'],['KeyD','ArrowRight'],
+           ['Space'],['KeyE'],['KeyQ'],['KeyF'],['ShiftLeft','ShiftRight']];
   var inputs={}; var lastInput=0, lastSnap=0, seq=0, active=false;
-  var lastSnapObj=null;
+  var lastSnapObj=null, lastStage=null, spaced=false;
+  var pendingTap=0, tapUntil=0;
 
   function maskOf(){
     var m=0,t=0;
     for(var i=0;i<ACTS.length;i++){
       var a=ACTS[i],d=false,j=false;
       try{ d=(typeof _bindDown==='function'&&_bindDown(a))||(typeof _bindDown2==='function'&&_bindDown2(a)); }catch(e){}
+      try{ for(var k=0;k<RAW[i].length;k++) if(typeof K!=='undefined'&&K[RAW[i][k]]) d=true; }catch(e){}
       try{ j=(typeof _bindJ==='function'&&_bindJ(a))||(typeof _bindJ2==='function'&&_bindJ2(a)); }catch(e){}
       if(d) m|=1<<i;
       if(j) t|=1<<i;
@@ -36,7 +41,12 @@
     var m=inp.m|0, prev=inp.prev|0, tap=inp.tap|0;
     for(var i=0;i<ACTS.length;i++){
       var bit=1<<i, on=!!(m&bit), was=!!(prev&bit), key=P2KEYS[i];
-      if(on){ if(typeof K2!=='undefined') K2[key]=true; if((!was||(tap&bit))&&typeof Kj2!=='undefined') Kj2[key]=true; }
+      if(on){
+        if(typeof K2!=='undefined') K2[key]=true;
+        if((!was||(tap&bit))&&typeof Kj2!=='undefined') Kj2[key]=true;
+        if(i===7&&(!was||(tap&bit))&&typeof p2!=='undefined'&&p2)
+          p2._authPunchCount=(p2._authPunchCount||0)+1;
+      }
       else if(was&&typeof K2!=='undefined') K2[key]=false;
     }
     if(m&(1<<8)){ if(typeof K2!=='undefined') K2['Sprint_gp2']=true; }
@@ -125,6 +135,13 @@
     if(!NET.isActive()){ if(realTick) return realTick.apply(NET,arguments); return; }
     setupHost();
     if(NET.role()==='host'){
+      // Give the two riders room at the start of each stage.
+      var stage=(window.MV_BETA&&MV_BETA.stageId)||'';
+      if(stage!==lastStage){ lastStage=stage; spaced=false; }
+      if(!spaced&&p1&&pp2){
+        if(Math.abs(pp2.x-p1.x)<60){ pp2.x=p1.x+120; pp2.y=p1.y; pp2.vx=0; pp2.vy=0; pp2.og=true; }
+        spaced=true;
+      }
       var now=Date.now();
       if(now-lastSnap>=50){
         lastSnap=now;
@@ -132,15 +149,27 @@
           p1:pack(p1),p2:pack(pp2),w:world()};
         try{ NET.sendPacket(pkt); }catch(e){}
       }
-      // Host still sends its normal pose so the existing roster/UI works.
-      if(realTick) try{ realTick.apply(NET,arguments); }catch(e){}
+      // Do NOT run v3's tick on the host: its syncPuppets() replaces the
+      // authoritative P2 with the guest's pose every frame. A plain ping keeps
+      // the link measured without touching world state.
+      if(now-(NET.__authPingAt||0)>2000){
+        NET.__authPingAt=now;
+        try{ NET.sendPacket({t:'ping',c:now}); }catch(e){}
+      }
     }else{
       var now2=Date.now();
       if(now2-lastInput>=33){
         lastInput=now2;
         var s=maskOf();
+        // Latch quick taps so a press between two samples is never lost.
+        var nowTap=Date.now();
+        if(s.t){ pendingTap|=s.t; tapUntil=nowTap+150; }
+        else if(nowTap>tapUntil){ pendingTap=0; }
+        s.t|=pendingTap;
         try{ NET.sendPacket({t:'authin',seat:NET.seat(),m:s.m,tap:s.t,seq:++seq}); }catch(e){}
       }
+      // Keep v3's stage-follow, ping, roster and voice loops alive.
+      if(realTick) try{ realTick.apply(NET,arguments); }catch(e){}
       // Re-apply the latest authoritative state every frame.
       if(lastSnapObj){
         var seat=NET.seat();
@@ -152,7 +181,9 @@
     }
   };
   NET.applyVisual=function(){
-    if(!NET.isActive()||NET.role()==='host'){ if(realVisual) return realVisual.apply(NET,arguments); return; }
+    if(!NET.isActive()){ if(realVisual) return realVisual.apply(NET,arguments); return; }
+    // The host's P2 is input-driven; applying guest poses to it would fight.
+    if(NET.role()==='host') return;
     // Let the original code create/update the remote puppet first, then lay
     // the authoritative snapshot over both actors.
     if(realVisual) try{ realVisual.apply(NET,arguments); }catch(e){}
@@ -167,7 +198,8 @@
 
   window.MV_AUTH_NET={
     active:function(){ return active; },
-    status:function(){ return {role:NET.role(),seat:NET.seat(),inputs:Object.keys(inputs).length,lastSeq:seq,snap:!!lastSnapObj}; }
+    status:function(){ return {role:NET.role(),seat:NET.seat(),inputs:Object.keys(inputs).length,
+      lastSeq:seq,snap:!!lastSnapObj,w:lastSnapObj?lastSnapObj.w:null}; }
   };
   active=true;
 })();

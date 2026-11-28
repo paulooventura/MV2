@@ -37,7 +37,7 @@ try {
     pg.on('pageerror', e => console.log(n + ' PAGEERR', e.message));
     pg.on('console', m => { if (m.type() === 'error' || m.text().startsWith('TRACE')) console.log(n + ' console.error', m.text().slice(0, 200)); });
   }
-  await A.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await A.goto(`http://127.0.0.1:${PORT}/index.html?authv4=0`, { waitUntil: 'domcontentloaded' });
   ok('host boots to title', await until(A, () => typeof _gameState !== 'undefined' && _gameState === 'title' && !!window.MV_NET && !!window.MV_NET_UI, null, 60000));
 
   // Host: title -> mode select -> 2P ONLINE -> HOST A ROOM
@@ -51,7 +51,7 @@ try {
   if (SHOTS) await A.screenshot({ path: 'test-results/online-host-code.png' });
 
   // Joiner: open the link, press JOIN
-  await Bp.goto(`http://127.0.0.1:${PORT}/index.html?join=${code}`, { waitUntil: 'domcontentloaded' });
+  await Bp.goto(`http://127.0.0.1:${PORT}/index.html?authv4=0&join=${code}`, { waitUntil: 'domcontentloaded' });
   ok('join link opens the join screen with the code', await until(Bp, c => window.MV_NET_UI && MV_NET_UI.isOpen() && MV_NET_UI.view() === 'join' && document.getElementById('mvNetCode').value === c, code, 60000),
     await Bp.evaluate(() => ({ gs: typeof _gameState !== 'undefined' ? _gameState : null, ui: !!window.MV_NET_UI, open: window.MV_NET_UI && MV_NET_UI.isOpen(), view: window.MV_NET_UI && MV_NET_UI.view(), code: (document.getElementById('mvNetCode') || {}).value })));
   if (process.argv.includes('--trace')) await Bp.evaluate(() => { const d = MV_NET.disconnect; MV_NET.disconnect = function () { console.log('TRACE disconnect ' + new Error().stack.split(String.fromCharCode(10)).slice(1, 5).join(' | ')); return d.apply(this, arguments); }; const j = MV_NET.join; MV_NET.join = function (c) { console.log('TRACE join ' + c); return j.apply(this, arguments); }; });
