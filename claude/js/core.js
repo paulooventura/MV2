@@ -9,7 +9,7 @@ const cv = document.getElementById('c');
 if (!cv || typeof cv.getContext !== 'function') {
   throw new Error('Canvas #c missing — open index.html from the Mind and Venture folder (double-click PLAY.bat or index.html)');
 }
-const ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');
 // Design height is 768. The picture fills the device: width follows the
 // screen so a phone has no side bars and nothing is stretched. Selftest/CI
@@ -38,7 +38,10 @@ function _fitPhoneFrame(){
     const dpr=Math.min(2,window.devicePixelRatio||1);
     const aspect=avail.iw/Math.max(1,avail.ih);
     const maxH=Math.min(1536,Math.round(avail.ih*dpr));
-    const s=Math.max(0.5, Math.min(maxH/MV_DESIGN_H, 2));
+    // Phones and tablets stay near the design size. A 2× buffer on an iPad
+    // is the same picture stretched in CSS, and it drops the frame rate.
+    let s=Math.max(0.5, Math.min(maxH/MV_DESIGN_H, 2));
+    if(window._phonePlay) s=Math.min(s, 1.15);
     nh=Math.max(480, Math.round(MV_DESIGN_H*s));
     nw=Math.round(nh*aspect);
     nw=Math.max(320, Math.min(2560, nw));

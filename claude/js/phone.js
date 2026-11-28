@@ -44,6 +44,17 @@
 
   let entered = false;
   window._phoneEnterPlay = function () {
+    // Every control touch is a user gesture. iOS only lets sound start
+    // inside one, and the stage song begins later, after the level loads.
+    try { if (typeof _unlockAudio === 'function') _unlockAudio(); } catch (e) {}
+    try {
+      var BA = window.MV_BETA_AUDIO;
+      if (BA && BA.current && BA.els) {
+        var name = BA.current();
+        var a = name && BA.els[name];
+        if (a && a.paused) { var pr = a.play(); if (pr && pr.catch) pr.catch(function () {}); }
+      }
+    } catch (e) {}
     if (entered || !window._phonePlay) return;
     entered = true;
     try {

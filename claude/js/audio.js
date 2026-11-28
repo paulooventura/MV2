@@ -240,10 +240,29 @@ function _preloadMp3Tracks(){
   if(!_storyMusicPath) _loadBgmElement('story',_pickStoryMusic());   // the storyline theme
   if(!_gameMusicPath)  _loadBgmElement('game', _pickGameMusic(_storyMusicPath));
 }
+let _bgmPrimed=false;
+function _primeBgmEls(){
+  if(_bgmPrimed) return;
+  const els=[_openingAudioEl,_storyAudioEl,_gameAudioEl];
+  if(!els.some(Boolean)) return;
+  _bgmPrimed=true;
+  els.forEach((el)=>{
+    if(!el) return;
+    try{
+      const p=el.play();
+      if(p&&p.then) p.then(()=>{
+        const live=(el===_gameAudioEl&&_activeBgmType==='game')||(el===_storyAudioEl&&_activeBgmType==='story')||(el===_openingAudioEl&&(_activeBgmType==='title'||_activeBgmType==='splash'));
+        if(live) return;
+        try{ el.pause(); el.currentTime=0; }catch(e){}
+      }).catch(()=>{});
+    }catch(e){}
+  });
+}
 function _unlockAudio(){
   if(_audioUnlocked){
     const ac=_ensureAC();
     if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
+    _primeBgmEls();
     return;
   }
   _audioUnlocked=true;
@@ -253,6 +272,7 @@ function _unlockAudio(){
   }catch(e){}
   _preloadMp3Tracks();
   _preloadSfxSamples();
+  _primeBgmEls();
   try{sfx('ping');}catch(e){}
 }
 
@@ -401,7 +421,7 @@ function _kickBgmSoon(){
   _bgmKickTimer=setTimeout(()=>{
     _bgmKickTimer=0;
     const gs=typeof _gameState!=='undefined'?_gameState:'';
-    if(gs!=='title'&&gs!=='splash') return;
+    if(gs!=='title'&&gs!=='splash'&&gs!=='game'&&gs!=='story'&&gs!=='select') return;
     const ac=_bgmAC;
     if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
     const type=_activeBgmType;
@@ -559,13 +579,23 @@ function _hookFilterMusic(){
 }
 _hookFilterMusic();
 
+// Paulo, Nov 27 (build 454): "the sound and music ... never get cut off". Hiding the window (minimise,
+// another tab) used to stop the music and, on the way back, call _playBGM() with the last MENU song
+// type: in a stage that stopped the stage theme (T522's stopAll) and started the title / story song
+// from 0:00. Now the very elements that were playing (menu songs and the stage player's tracks,
+// the 1.2 blend and the lift bed too) are paused where they are and resumed from that spot.
+let _bgmHeldEls=[], _bgmHeldProc=null;
+function _allMusicEls(){
+  const L=[_openingAudioEl,_storyAudioEl,_gameAudioEl,_mp3Pool.title,_mp3Pool.story,_mp3Pool.game];
+  try{ const A=window.MV_BETA_AUDIO; if(A&&A.els) for(const k in A.els) L.push(A.els[k]); }catch(e){}
+  return L.filter((el,i)=>el&&L.indexOf(el)===i);
+}
 function _holdBgmHidden(){
   if(_bgmHeldHidden) return;
   _bgmHeldHidden=true;
-  [_openingAudioEl,_storyAudioEl,_gameAudioEl].forEach((el)=>{
-    if(!el) return;
-    try{ if(!el.paused) el.pause(); }catch(e){}
-  });
+  _bgmHeldEls=_allMusicEls().filter(el=>!el.paused);
+  _bgmHeldEls.forEach((el)=>{ try{ el.pause(); }catch(e){} });
+  _bgmHeldProc=(_titleSrc||_gameSrc)?_activeBgmType:null;
   if(_titleSrc){try{_titleSrc.stop();}catch(e){} _titleSrc=null;}
   if(_gameSrc){try{_gameSrc.stop();}catch(e){} _gameSrc=null;}
   if(_bgmAC&&_bgmAC.state==='running') _bgmAC.suspend().catch(()=>{});
@@ -575,6 +605,11 @@ function _releaseBgmVisible(){
   _bgmHeldHidden=false;
   if(_bgmAC&&_bgmAC.state==='suspended') _bgmAC.resume().catch(()=>{});
   if(!_audioUnlocked||!_activeBgmType) return;
+  const held=_bgmHeldEls, proc=_bgmHeldProc; _bgmHeldEls=[]; _bgmHeldProc=null;
+  held.forEach((el)=>{ try{ const pr=el.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){} });   // pick up exactly where they were
+  if(held.length&&!proc) return;
+  // nothing was playing (a song was asked for while hidden): start it now, the stage's own theme in a stage
+  if(!proc){ try{ const B=window.MV_BETA; if(B&&B.on&&_gameState==='game'&&window.MV_BETA_AUDIO&&B.music){ MV_BETA_AUDIO.play(B.music); return; } }catch(e){} }
   const mv=Math.max(0,Math.min(1,OPT.musicVol==null?0.75:OPT.musicVol));
   const vol=_activeBgmType==='story'?mv*0.55:_activeBgmType==='game'?mv*0.75:mv;
   _playBGM(_activeBgmType,vol);

@@ -127,32 +127,40 @@
     if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
     return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
   }
+  var _rc=null, _rcCtx=null;
   function recolorDraw(pl, drawFn){
     if(!spriteTakesColor(pl)||typeof ctx==='undefined'||typeof sx!=='function'){ drawFn(); return; }
     var w=typeof SW!=='undefined'?SW:64, feet=typeof FEET_OFF!=='undefined'?FEET_OFF:88;
     var lx=sx(pl.x)-48, ty=sy(pl.y-36)-12, rx=sx(pl.x+w)+48, by=sy(pl.y+feet)+14;
-    var m=ctx.getTransform?ctx.getTransform():{a:1,b:0,c:0,d:1,e:0,f:0};
+    var main=ctx;
+    var m=main.getTransform?main.getTransform():{a:1,b:0,c:0,d:1,e:0,f:0};
     function dx(x,y){ return m.a*x+m.c*y+m.e; }
     function dy(x,y){ return m.b*x+m.d*y+m.f; }
     var xs=[dx(lx,ty),dx(rx,ty),dx(lx,by),dx(rx,by)];
     var ys=[dy(lx,ty),dy(rx,ty),dy(lx,by),dy(rx,by)];
     var x0=Math.max(0, Math.floor(Math.min(xs[0],xs[1],xs[2],xs[3])));
     var y0=Math.max(0, Math.floor(Math.min(ys[0],ys[1],ys[2],ys[3])));
-    var x1=Math.min(ctx.canvas.width, Math.ceil(Math.max(xs[0],xs[1],xs[2],xs[3])));
-    var y1=Math.min(ctx.canvas.height, Math.ceil(Math.max(ys[0],ys[1],ys[2],ys[3])));
+    var x1=Math.min(main.canvas.width, Math.ceil(Math.max(xs[0],xs[1],xs[2],xs[3])));
+    var y1=Math.min(main.canvas.height, Math.ceil(Math.max(ys[0],ys[1],ys[2],ys[3])));
     var ww=x1-x0, hh=y1-y0;
     if(ww<8||hh<8||ww>520||hh>520){ drawFn(); return; }
-    var before;
-    try{ before=ctx.getImageData(x0,y0,ww,hh); }catch(e){ drawFn(); return; }
-    drawFn();
+    // Paint the sprite on a small canvas. Reading the main picture back
+    // every frame stalls the phone GPU and the frame rate falls over.
+    if(!_rc){ _rc=document.createElement('canvas'); _rcCtx=_rc.getContext('2d',{willReadFrequently:true}); }
+    if(!_rcCtx){ drawFn(); return; }
+    _rc.width=ww; _rc.height=hh;
+    _rcCtx.setTransform(m.a,m.b,m.c,m.d,m.e-x0,m.f-y0);
+    _rcCtx.imageSmoothingEnabled=true;
+    ctx=_rcCtx;
+    try{ drawFn(); }
+    finally{ ctx=main; }
     var after;
-    try{ after=ctx.getImageData(x0,y0,ww,hh); }catch(e){ return; }
-    var b=before.data, a=after.data, t=parseHex(pl._netColor);
+    try{ after=_rcCtx.getImageData(0,0,ww,hh); }catch(e){ main.save(); main.setTransform(1,0,0,1,0,0); main.drawImage(_rc,x0,y0); main.restore(); return; }
+    var a=after.data, t=parseHex(pl._netColor);
     var id=pl._netColorId;
     var tl=Math.max(28, 0.299*t[0]+0.587*t[1]+0.114*t[2]);
     for(var i=0;i<a.length;i+=4){
       if(a[i+3]<12) continue;
-      if(b[i]===a[i]&&b[i+1]===a[i+1]&&b[i+2]===a[i+2]&&b[i+3]===a[i+3]) continue;
       var r=a[i], g=a[i+1], bl=a[i+2];
       var max=r>g?(r>bl?r:bl):(g>bl?g:bl), min=r<g?(r<bl?r:bl):(g<bl?g:bl);
       var sat=max<1?0:(max-min)/max;
@@ -175,7 +183,12 @@
       a[i+1]=ng<0?0:ng>255?255:ng|0;
       a[i+2]=nb<0?0:nb>255?255:nb|0;
     }
-    try{ ctx.putImageData(after,x0,y0); }catch(e){}
+    try{ _rcCtx.putImageData(after,0,0); }catch(e){}
+    main.save();
+    main.setTransform(1,0,0,1,0,0);
+    main.imageSmoothingEnabled=false;
+    main.drawImage(_rc,x0,y0);
+    main.restore();
   }
 
   // Nameplate above a hero (session nick only).

@@ -190,6 +190,7 @@
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
     peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={};
+    hostOpen=false; reviving=false;
     setStatus('offline','');
   }
   function errText(e){
@@ -267,7 +268,7 @@
       }
       st.linked=false;
       setStatus('error', guestTimeoutCopy());
-    },CONNECT_TIMEOUT_MS);
+    },(opts.timeout||CONNECT_TIMEOUT_MS));
     c.on('open',function(){
       if(conns.indexOf(c)<0) return;
       if(connTimer){ clearTimeout(connTimer); connTimer=null; }
@@ -320,6 +321,7 @@
           errText(e)+' Room '+(st.code||'')+' is still open.');
         return;
       }
+      if(st.role==='joiner'&&!st.linked) return;
       setStatus('error',errText(e));
     });
   }
@@ -335,9 +337,44 @@
     catch(e){ setStatus('error',errText(e)); return null; }
   }
 
+  var hostOpen=false, hostWatch=0, reviving=false;
+  function peerUp(pr){ return !!(pr&&!pr.destroyed&&pr.open&&!pr.disconnected); }
+  function reviveHost(code){
+    if(reviving||st.role!=='host'||st.code!==code||!hostOpen) return;
+    if(peerUp(peer)) return;
+    if(hostTries++>8){ hostTries=0; setStatus('hosting','Room '+code+' is on this screen. If a friend still cannot join, tap HOST again.'); return; }
+    reviving=true;
+    try{ if(peer) peer.destroy(); }catch(e){}
+    var pr=makePeer(PREFIX+code);
+    if(!pr){ reviving=false; setStatus('error','Room dropped. Tap HOST again.'); return; }
+    peer=pr;
+    pr.on('open',function(){
+      if(peer!==pr) return;
+      reviving=false; hostTries=0;
+      setStatus(openConns().length?'connected':'hosting', openConns().length?('In the room · '+peerCount()+'/'+MAX_PEERS+'.'):hostWaitingCopy());
+    });
+    pr.on('connection',function(c){ if(peer===pr) wireConn(c); });
+    pr.on('call',function(call){ fire('call',call); });
+    pr.on('disconnected',function(){
+      if(peer!==pr||pr.destroyed) return;
+      setTimeout(function(){ if(peer!==pr||pr.destroyed){ reviving=false; return; } try{ pr.reconnect(); }catch(e){ reviving=false; reviveHost(code); } }, 500);
+    });
+    pr.on('error',function(e){
+      if(peer!==pr) return;
+      reviving=false;
+      var ty=e&&e.type;
+      if(ty==='peer-unavailable') return;
+      if(ty==='unavailable-id'||ty==='network'||ty==='server-error'||ty==='socket-error'||ty==='socket-closed'){
+        setStatus('hosting','Reconnecting room '+code+'…');
+        setTimeout(function(){ reviveHost(code); }, 900);
+        return;
+      }
+      setStatus('error',errText(e));
+    });
+  }
   function host(){
     disconnect();
-    st.role='host'; mySeat=0; joinTries=0;
+    st.role='host'; mySeat=0; joinTries=0; hostOpen=false;
     refreshMyPack();
     upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0}));
     return new Promise(function(res,rej){
@@ -347,21 +384,35 @@
         if(!pr){ st.role=null; return rej(new Error(st.detail)); }
         peer=pr; st.code=code;
         setStatus('opening','Opening room…');
-        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; setStatus('hosting',hostWaitingCopy()); res({code:code}); });
+        var marked=false;
+        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; hostOpen=true; setStatus('hosting',hostWaitingCopy()); if(!marked){ marked=true; res({code:code}); } });
         pr.on('connection',function(c){ if(peer===pr) wireConn(c); });
         pr.on('call',function(call){ fire('call',call); });
-        pr.on('disconnected',function(){ if(peer===pr&&!pr.destroyed){ try{ pr.reconnect(); }catch(e){} } });
+        pr.on('disconnected',function(){
+          if(peer!==pr||pr.destroyed) return;
+          setTimeout(function(){ if(peer!==pr||pr.destroyed) return; try{ pr.reconnect(); }catch(e){ if(hostOpen) reviveHost(st.code); } }, 500);
+        });
         pr.on('error',function(e){
           if(peer!==pr) return;
-          if(e&&e.type==='unavailable-id'&&hostTries++<6){ try{ pr.destroy(); }catch(_e){} peer=null; tryOne(); return; }
+          if(e&&e.type==='unavailable-id'&&!hostOpen&&hostTries++<6){ try{ pr.destroy(); }catch(_e){} peer=null; tryOne(); return; }
           if(e&&e.type==='peer-unavailable') return;
+          if(hostOpen&&e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error'||e.type==='socket-closed')){
+            setStatus('hosting','Reconnecting room '+st.code+'…');
+            setTimeout(function(){ reviveHost(st.code); }, 600);
+            return;
+          }
           setStatus('error',errText(e));
-          if(!st.linked){ st.role=null; rej(e); }
+          if(!hostOpen&&!st.linked){ st.role=null; rej(e); }
         });
       };
       tryOne();
     });
   }
+  if(!hostWatch) hostWatch=setInterval(function(){
+    if(st.role!=='host'||!hostOpen||!st.code) return;
+    if(peerUp(peer)) return;
+    reviveHost(st.code);
+  }, 4000);
 
   function join(code){
     var c=normCode(code);
@@ -373,29 +424,58 @@
       var pr=makePeer(null);
       if(!pr){ st.role=null; return rej(new Error(st.detail)); }
       peer=pr;
-      setStatus('joining','Looking for room '+c+'…');
-      var startData=function(allowRetry){
-        if(peer!==pr||pr.destroyed) return;
+      var settled=false, tries=0, wait=null, MAX_TRIES=6;
+      function giveUp(e){
+        if(settled||st.linked) return;
+        settled=true;
+        setStatus('error', (e&&errText(e))||guestTimeoutCopy());
+        rej(e||new Error(guestTimeoutCopy()));
+      }
+      function startData(){
+        if(peer!==pr||pr.destroyed||st.linked) return;
         var dc=pr.connect(PREFIX+c,{reliable:true,serialization:'json',metadata:{v:3}});
         wireConn(dc,{
-          allowRetry:!!allowRetry,
-          onRetry:function(){
-            if(joinTries++>=1){ setStatus('error',guestTimeoutCopy()); return; }
-            startData(false);
-          }
+          timeout:8000,
+          allowRetry:true,
+          onRetry:function(){ schedule(guestTimeoutCopy()); }
         });
-      };
+      }
+      function schedule(why){
+        if(settled||st.linked||peer!==pr) return;
+        if(tries>=MAX_TRIES){ giveUp(new Error(why||guestTimeoutCopy())); return; }
+        if(wait) return;
+        tries++;
+        setStatus('joining', tries<=1?('Looking for room '+c+'…'):('Still looking for room '+c+' ('+tries+'/'+MAX_TRIES+')…'));
+        wait=setTimeout(function(){
+          wait=null;
+          if(settled||st.linked||peer!==pr||pr.destroyed) return;
+          if(!pr.open){ try{ pr.reconnect(); }catch(e){} }
+          else startData();
+        }, tries<=1?40:1000);
+      }
+      setStatus('joining','Looking for room '+c+'…');
       pr.on('open',function(){
         if(peer!==pr) return;
-        startData(true);
-        res({code:c});
+        startData();
+        if(!settled){ settled=true; res({code:c}); }
       });
       pr.on('call',function(call){ fire('call',call); });
-      pr.on('disconnected',function(){ if(peer===pr&&!pr.destroyed){ try{ pr.reconnect(); }catch(e){} } });
+      pr.on('disconnected',function(){
+        if(peer!==pr||pr.destroyed) return;
+        setTimeout(function(){ if(peer===pr&&!pr.destroyed){ try{ pr.reconnect(); }catch(e){} } }, 400);
+      });
       pr.on('error',function(e){
         if(peer!==pr) return;
-        setStatus('error',errText(e));
-        if(!st.linked){ rej(e); }
+        var ty=e&&e.type;
+        // The room broker often says "no such room" for a second after the
+        // host opens, and again if the host's phone slept. Keep trying.
+        if(!st.linked&&(ty==='peer-unavailable'||ty==='network'||ty==='server-error'||ty==='socket-error'||ty==='webrtc'||ty==='disconnected')){
+          if(settled) settled=false;
+          schedule(errText(e));
+          return;
+        }
+        if(!st.linked) giveUp(e);
+        else setStatus('error',errText(e));
       });
     });
   }

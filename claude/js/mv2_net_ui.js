@@ -487,7 +487,12 @@
       if(!ready&&Date.now()-t0<20000) return;
       clearInterval(wait);
       show(null); setView('join'); el.Code.value=code;
-      startJoin(code);
+      // A phone that opens the link has not tapped yet. Starting the
+      // connection before that tap is what fails on iOS.
+      var touch=false;
+      try{ touch=!!window._phonePlay||/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); }catch(e){}
+      if(touch){ el.Status.textContent='Tap JOIN to enter room '+code+'.'; }
+      else startJoin(code);
       try{ el.Go.focus(); }catch(e){}
       padFocus(focusables().indexOf(el.Go));
     },300);
