@@ -1795,6 +1795,7 @@ function draw(){
   for(const e of ENEMS) if(e.mind) drawMindEnemy(e);
   drawRopePickupAnim(); drawTmjForeground(); drawFgLampGlow();
   drawSparks();
+  if(window.MV_SHAPES&&MV_SHAPES.show) try{ MV_SHAPES.drawDebug(); }catch(e){}   // Shift+H: the live hit shapes (hitshapes.js)
   } finally {
     _worldZoomEnd();
     if(sharedCam){camZoom=zoomWas;camX=camXWas;camY=camYWas;}

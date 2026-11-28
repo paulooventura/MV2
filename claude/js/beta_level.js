@@ -1419,7 +1419,7 @@
   function knowlTouchesEnemy(k){
     for(const e of ENEMS){
       if(!e._betaEnemy||(e._knowlCd||0)>0) continue;
-      if(!ov(k.x-KR,k.y-KR,KR*2,KR*2,e.x,e.y,e.w,e.h)) continue;
+      if(window.MV_SHAPES?!MV_SHAPES.hitCircle(MV_SHAPES.of(e),k.x,k.y,KR):!ov(k.x-KR,k.y-KR,KR*2,KR*2,e.x,e.y,e.w,e.h)) continue;   // hitshapes.js: the foe's outline
       energize(e,'knowl'); e._knowlCd=90;
       if(k._fly){ k.vx*=-0.5; k.vy=-2.5; }
     }
@@ -2087,6 +2087,7 @@
   function knowlTouchesPlayer(k, who){
     if(!who||!k) return false;
     const hx=k.x, hy=k.y, hr=12;
+    if(window.MV_SHAPES) return MV_SHAPES.heroHitByCircle(who,hx,hy,hr);   // hitshapes.js: wheel, body, head or a hand
     const core=typeof playerCoreHB==='function'?playerCoreHB(who):null;
     if(core&&ov(core.x-4,core.y-2,core.w+8,core.h+4,hx-hr,hy-hr,hr*2,hr*2)) return true;
     const w=typeof playerWheelCol==='function'?playerWheelCol(who):null;
@@ -2165,7 +2166,7 @@
       for(const it of loose){
         if((it.noPick|0)>0) continue;
         const R={x:it.x-18,y:it.y-14,w:36,h:28};
-        if(!ov(bx,by,bw,bh,R.x,R.y,R.w,R.h)) continue;
+        if(window.MV_SHAPES?!MV_SHAPES.heroHitByRect(who,R.x,R.y,R.w,R.h):!ov(bx,by,bw,bh,R.x,R.y,R.w,R.h)) continue;   // hitshapes.js
         if(claimCrateJack(d,it,who)) return;
       }
     }

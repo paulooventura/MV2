@@ -4,6 +4,7 @@ window.MV_SFX_REPLACEMENTS = {
 };
 window.MV_SPRITE_REPLACEMENTS = {
 };
+window.MV_HITSHAPES = {};
 window.MV_HITBOXES = {};
 window.MV_TILE_SKINS = {
 };

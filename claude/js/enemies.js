@@ -492,6 +492,8 @@ function _checkPlayerEnemyBodyDamage(pl){
   if(!pl||_shutdownTimer>0) return;
   for(const e of ENEMS){
     if(!e.alive||e.mind) continue;
+    // hitshapes.js: the foe's outline against MIND's wheel, body, head and hands
+    if(window.MV_SHAPES){ if(MV_SHAPES.heroTouchesFoe(pl,e)) applyPlayerHitFromEnemy(e); continue; }
     const ph=playerCoreHB(pl);
     const eh=_enemyItemHB(e);
     if(ov(ph.x,ph.y,ph.w,ph.h,eh.x,eh.y,eh.w,eh.h)){
@@ -1161,7 +1163,7 @@ function _updateMindEnemy(e){
       const glovShY=e.y+FEET_OFF-STAND_H-WHEEL_R+10+BODY_H*0.22;
       const fistWX=glovShX+Math.cos(punchAngle)*armLen;
       const fistWY=glovShY+Math.sin(punchAngle)*armLen;
-      const h=playerCoreHB(p);
+      const h=playerCoreHB(p); h._hero=p;                 // hitshapes.js: the fist meets MIND's parts
       const fistW=28,fistH=28;
       if(_shutdownTimer<=0&&_fistHitsHB(fistWX-fistW*0.5,fistWY-fistH*0.5,fistW,fistH,h)){
         e._hitDone=true;

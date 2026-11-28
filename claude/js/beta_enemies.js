@@ -309,13 +309,13 @@
       if(circle&&f.cold) continue;
       if((f.hitCd||0)>0){ f.hitCd--; continue; }
       const h=playerCoreHB(p);
-      if(!f.dud&&_shutdownTimer<=0&&ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
+      if(!f.dud&&_shutdownTimer<=0&&(window.MV_SHAPES?MV_SHAPES.heroHitByCircle(p,f.x,f.y,5):ov(f.x-5,f.y-5,10,10,h.x,h.y,h.w,p.y+FEET_OFF-h.y))){   // hitshapes.js
         applyPlayerHit((p.x+SW/2-f.x)*0.15,-3.2,12);
         if(circle) f.hitCd=18; else { B.frags.splice(i,1); continue; }
       }
       for(const e of ENEMS){
         if(e===f.owner||!e.alive||!e._betaEnemy) continue;
-        if(ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){
+        if(window.MV_SHAPES?MV_SHAPES.hitCircle(MV_SHAPES.of(e),f.x,f.y,5):ov(f.x-5,f.y-5,10,10,e.x,e.y,e.w,e.h)){
           _damageEnemy(e,14,f.x,f.y,0.5);
           if(circle) f.hitCd=18; else B.frags.splice(i,1);
           break;
@@ -381,7 +381,7 @@
         r.x+=r.vx; r.y+=r.vy;
         if(r.kind==='mind'){
           const h=playerCoreHB(p);
-          if(ov(r.x-6,r.y-6,12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ r.st='hold'; r.len=Math.hypot(p.x+SW/2-c.x,p.y+FEET_OFF*0.6-c.y); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} continue; }
+          if(window.MV_SHAPES?MV_SHAPES.heroHitByCircle(p,r.x,r.y,6):ov(r.x-6,r.y-6,12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){ r.st='hold'; r.len=Math.hypot(p.x+SW/2-c.x,p.y+FEET_OFF*0.6-c.y); try{ if(window.MV_BETA_AUDIO) MV_BETA_AUDIO.twang(true); }catch(_e){} continue; }
           if(solidAt(r.x,r.y)||r.t>40){ B.ropes.splice(i,1); continue; }
         }else{                                                  // climbing / travelling: rope to a ledge or a ceiling
           if(r.kind==='travel'&&solidAt(r.x,r.y)&&Math.hypot(r.x-r.tx,r.y-r.ty)>=12){
@@ -782,11 +782,11 @@
     // landing on MIND or another enemy hurts them (the square's thing)
     if(e.vy>3){
       const h=playerCoreHB(p);
-      if(_shutdownTimer<=0&&ov(e.x+6,ny+e.h-12,e.w-12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y)){
+      if(_shutdownTimer<=0&&(window.MV_SHAPES?MV_SHAPES.dropHits(e,ny,p):ov(e.x+6,ny+e.h-12,e.w-12,12,h.x,h.y,h.w,p.y+FEET_OFF-h.y))){   // hitshapes.js: its outline lands on his parts
         const m=B.weightOf?B.weightOf('enemy',e):6, massK=Math.max(0.35,Math.min(2.2,Math.sqrt(m/8)));
         applyPlayerHit((p.x+SW/2-(e.x+e.w/2))*0.08,2,Math.max(1,Math.round((8+e.vy*1.1)*massK))); e.vy=-3;
       }
-      for(const o of ENEMS){ if(o===e||!o.alive||!o._betaEnemy) continue; if(ov(e.x+6,ny+e.h-12,e.w-12,12,o.x,o.y,o.w,o.h)){
+      for(const o of ENEMS){ if(o===e||!o.alive||!o._betaEnemy) continue; if(window.MV_SHAPES?MV_SHAPES.dropHits(e,ny,o):ov(e.x+6,ny+e.h-12,e.w-12,12,o.x,o.y,o.w,o.h)){
         const m=B.weightOf?B.weightOf('enemy',e):6, massK=Math.max(0.35,Math.min(2.2,Math.sqrt(m/8)));
         _damageEnemy(o,Math.max(1,Math.round((10+e.vy*1.4)*massK)),e.x+e.w/2,e.y+e.h,0.6); e.vy=-3;
       } }

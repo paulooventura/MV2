@@ -59,6 +59,13 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 .hbWrap{position:relative;display:inline-block;line-height:0}
 .hb{position:absolute;border:2px solid #3cff8a;background:rgba(60,255,138,.12);box-shadow:0 0 0 1px rgba(0,0,0,.6);pointer-events:none}
 .hb.edit{pointer-events:auto;cursor:nwse-resize;border-style:dashed}
+.hb.faint{border-width:1px;border-style:dotted;background:none;opacity:.55}
+.hsSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.hsLegend{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:10.5px;margin-top:3px}.hsLegend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:-1px}
+#hsEd{position:fixed;inset:0;background:rgba(20,14,10,.72);z-index:50;display:grid;place-items:center}
+#hsEd .box{background:#fff9ee;border:2px solid var(--sumi);padding:12px;max-width:min(96vw,760px);max-height:96vh;overflow:auto}
+#hsEd svg{display:block;background:#1a1624;touch-action:none;max-width:100%;height:auto}
+#hsEd .hd{cursor:grab}#hsEd .hd:hover{stroke:#fff}
 .hbRow{font-size:11px;margin-top:4px}.hbRow input{width:52px;font:inherit;font-size:11px}
 .catCard .nm{font-weight:bold;font-size:13px;margin-top:4px}.catCard .meta{font-size:10.5px;color:var(--mica);line-height:1.4}.catCard code{font-size:9.5px}
 </style>
@@ -84,7 +91,7 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
   <section class="panel">
     <div class="row" style="margin-top:0"><div class="tabs" id="catStages" style="margin-left:0"></div>
       <select id="catFilter" style="font:inherit;font-size:12px"><option value="all">Everything</option><option value="hero">Characters</option><option value="foe">Foes</option><option value="object">Objects &amp; pickups</option></select>
-      <label style="font-size:12px"><input type="checkbox" id="catBoxes" checked> show collision boxes</label>
+      <label style="font-size:12px"><input type="checkbox" id="catBoxes" checked> show hit shapes</label>
       <button class="btn" id="catRecap">Recapture from the game</button></div>
     <div class="sub" id="catInfo" style="margin-top:6px"></div>
     <div class="cols" style="margin-top:8px;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">

@@ -1147,6 +1147,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     const exs=sx(GR.ex), eys=sy(GR.ey), hxs=sx(GR.hx), hys=sy(GR.hy);
     drawCoil(sxp,syp,Math.atan2(eys-syp,exs-sxp),Math.hypot(exs-sxp,eys-syp),armCol1,armCol2,armShine);
     drawCoil(exs,eys,Math.atan2(hys-eys,hxs-exs),Math.hypot(hxs-exs,hys-eys),armCol1,armCol2,armShine);
+    _hsRec(hxs,hys);
     drawFist(hxs,hys,hxs>=sxp,false,0,false,0);
     return;
   }
@@ -1164,6 +1165,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     const s2=Math.max(1,Math.round(seg2Len/SMS_SCALE));
     if(!hidden && seg2Len > 2)
       drawCoil(ex, ey, facing?0:Math.PI, s2, armCol1, armCol2, armShine);
+    _hsRec(ex + fwdDir*s2, ey);
     if(!hidden) drawFist(ex + fwdDir*s2, ey, facing, charging, chargeFrac, false, 0);
 
   } else {
@@ -1361,6 +1363,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       if(!p._hitDone && typeof p2!=='undefined' && p2 && p2!==p && !p2._aiCompanion &&
          typeof _playerCount!=='undefined' && _playerCount===2){
         const bh=typeof playerCoreHB==='function'?playerCoreHB(p2):{x:p2.x+6,y:p2.y+18,w:52,h:42};
+        bh._hero=p2;                                       // hitshapes.js tests the brother's parts, not his box
         if(bh.w>0&&bh.h>0){
           const bw=26,bhgt=26;
           if(_fistHitsHB(_wx-bw*0.5,_wy-bhgt*0.5,bw,bhgt,bh)&&_punchReach(shWX,shWY,_wx,_wy,bh)){
@@ -1384,11 +1387,14 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       // Paulo (Oct 20): a punch that lands should look and sound like it (beta_impact.js)
       if(_hit&&typeof _punchConnect==='function') try{ _punchConnect(_wx,_wy,punchAngle,_charged,_hitKind); }catch(e){}
     }
+    _hsRec(gx, gy);
     if(!hidden) drawFist(gx, gy, facing, false, 0, true, snapFrac);
   }
 }
 
 /* -- Boxing glove fist â€” rounded vector glove -- */
+// hitshapes.js: the glove hand's hit circle sits where this frame drew the glove (window._hsSlot names the hand)
+function _hsRec(x,y){ if(window.MV_SHAPES) MV_SHAPES.rec(p, window._hsSlot||'glove', x, y); }
 function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   p.fistSX=gx; p.fistSY=gy;
   const isVenture=p.hero==='venture';
@@ -1627,6 +1633,7 @@ function groovePose(gc,groove,gore,mode,ink){
   return _poseOut;
 }
 function drawCharacter(){
+  if(window.MV_SHAPES) MV_SHAPES.base();   // hit shapes: undo the world zoom, keep the rope tilt / lean / groove
   // Co-op: BOTH players are drawn in BOTH viewports. The old _splitHide filter
   // hid the other player per half, so each screen only showed its own character.
   // The split camera (main.js) already clips whoever is off-camera; when the two
@@ -1735,6 +1742,7 @@ function drawCharacter(){
   const _dmA=_deckMotionFull(p), _deckPivY=bTopS+6;
   const _armScr=_deckFollowPoint(glovShX+gArmX,shY+gArmY,wcx,_deckPivY,_dmA);
   const _connScr=_deckFollowPoint(connShX,connShY,wcx,_deckPivY,_dmA);
+  if(window.MV_SHAPES){ MV_SHAPES.rec(p,'wheel',wcx,wcy+gWheel); MV_SHAPES.rec(p,'body',wcx,bTopS); }   // hit shapes follow the drawn wheel and cabinet
   const _elbScr=_deckFollowPoint(elbowX,elbowY,wcx,_deckPivY,_dmA);
   const _tipScr=_deckFollowPoint(tipX,tipY,wcx,_deckPivY,_dmA);
   if(_leftJab){ const _pt0=p.pt; p.pt=0; try{ drawGloveArm(_armScr.x,_armScr.y,fc,glovShoulderWX,shoulderY,flicker); } finally{ p.pt=_pt0; } }
@@ -1795,7 +1803,8 @@ function drawCharacter(){
   };
   // (build 356) empty hands: this is the left glove. The left jab punches from this shoulder
   // toward the aim, with the same hit logic as the right glove.
-  if(_leftJab&&held<0&&!_plugging){ const fwd=fc?1:-1; window._jabExtra=Math.max(0,(glovShoulderWX-pose.connShX)*fwd); try{ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); } finally{ window._jabExtra=0; } return; }
+  if(_leftJab&&held<0&&!_plugging){ const fwd=fc?1:-1; window._jabExtra=Math.max(0,(glovShoulderWX-pose.connShX)*fwd); window._hsSlot='plug'; try{ drawGloveArm(connShX,connShY,fc,pose.connShX,pose.connShY-floatY,false); } finally{ window._jabExtra=0; window._hsSlot=null; } return; }
+  if(window.MV_SHAPES) MV_SHAPES.rec(p,'plug',tipX,tipY);   // the plug hand: the jack's grip, or the left glove
   if(useElbow){
     drawCoil(connShX,connShY,armA0,Math.hypot(elbowX-connShX,elbowY-connShY),_armDark,_armMain,_armGlow,coilFlow);
     if(p.hook&&p.hook.st==='on'&&held===1&&!p.hook._plugged) drawSpringCoil(elbowX,elbowY,armA1,Math.hypot(tipX-elbowX,tipY-elbowY),_armDark,_armMain);
@@ -1843,6 +1852,7 @@ function drawCharacter(){
   const _headRestX=wcx+gHeadX, _headRestY=sy(headCY+gHead);
   const _headFollow=headTuckVis<0.55?_deckFollowPoint(_headRestX,_headRestY,wcx,bTopS+6,_dmH):{x:_headRestX,y:_headRestY};
   const _drotH=(_dmH&&headTuckVis<0.55)?(_dmH.rot||0):0;
+  if(window.MV_SHAPES) MV_SHAPES.rec(p,'head',_headFollow.x,_headFollow.y,{r:headR,rot:_drotH});
   if(Math.abs(_drotH)>0.0005){
     ctx.save();
     ctx.translate(_headFollow.x,_headFollow.y); ctx.rotate(_drotH); ctx.translate(-_headFollow.x,-_headFollow.y);

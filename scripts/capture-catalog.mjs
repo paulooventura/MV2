@@ -30,6 +30,8 @@ for (const st of STAGES) {
   await page.waitForTimeout(2500);   // stage art (tiles, sky) finishes loading
   const res = await page.evaluate((st) => {
     _loopAccT = -1e15;   // stop the game loop: nothing moves while we draw
+    try { window._coopSharedCamera = () => null; window._coopPair = () => false; } catch (e) {}   // one camera, ours: no brother-midpoint view
+    window.MV_HITSHAPES = {};   // record each entity's own outline; the Art Board lays Paulo's edits over it
     const B = MV_BETA, G = MV_GRID, T = G.tile, cvs = document.getElementById('c');
     const R = { id: st, cols: G.cols, rows: G.rows, tile: T, items: [], build: window.MV_BUILD };
     // ---- what is in the stage ----
@@ -38,7 +40,7 @@ for (const st of STAGES) {
     // the heroes' body box is the shared SW x SH (physics.js), anchored at p.x, p.y
     heroes.forEach((h, i) => list.push({ kind: 'hero', name: (h.hero || 'mind') + (i ? ' (brother / P2)' : ' (P1)'), x: h.x, y: h.y, w: SW, h: SH, ref: h }));
     const seenFoe = {}, foeCount = {};
-    for (const e of ENEMS) { const k = e.type || 'foe'; foeCount[k] = (foeCount[k] || 0) + 1; if (!seenFoe[k]) { seenFoe[k] = 1; list.push({ kind: 'foe', name: k, x: e.x, y: e.y, w: e.w, h: e.h, hp: e.mhp || e.hp, rank: e.rank }); } }
+    for (const e of ENEMS) { const k = e.type || 'foe'; foeCount[k] = (foeCount[k] || 0) + 1; if (!seenFoe[k]) { seenFoe[k] = 1; list.push({ kind: 'foe', name: k, x: e.x, y: e.y, w: e.w, h: e.h, hp: e.mhp || e.hp, rank: e.rank, ref: e }); } }
     const seenBw = {}, bwCount = {};
     for (const w of BWALLS) { const k = (w.label || 'block') + (w.col ? ' · ' + w.col : ''); bwCount[k] = (bwCount[k] || 0) + 1; if (!seenBw[k]) { seenBw[k] = 1; list.push({ kind: 'object', name: k, x: w.x, y: w.y, w: w.w, h: w.h, hp: w.maxHp }); } }
     if (B.shells && B.shells.length) { const s = B.shells[0]; list.push({ kind: 'object', name: 'knowl shell', x: s.x - 16, y: s.y - 16, w: 32, h: 32, count: B.shells.length }); }
@@ -54,16 +56,19 @@ for (const st of STAGES) {
       c.getContext('2d').drawImage(cvs, x0, y0, w, h, 0, 0, c.width, c.height);
       // where the collision box sits inside this cut-out (cut-out pixels)
       const box = [sx(o.x) - x0, sy(o.y) - y0, sw(o.w), sw(o.h)].map(v => Math.round(v));
-      return { img: c.toDataURL('image/png'), box };
+      // the hit shape (hitshapes.js): foes as box-relative outlines + their spin, heroes as parts in body-box px
+      let shape = null;
+      try { if (window.MV_SHAPES && o.ref) { shape = MV_SHAPES.def(o.ref); if (shape) shape.k = sw(o.w) / o.w; } } catch (e) {}
+      return { img: c.toDataURL('image/png'), box, shape };
     };
     for (const o of list) {
       if (o.kind === 'hero' && o.ref === p) {   // both looks of the lead: Mind and Venture
         const was = p.hero;
-        for (const hero of ['mind', 'venture']) { p.hero = hero; const s = shot(o); R.items.push({ kind: 'hero', name: hero, img: s.img, box: s.box, w: Math.round(o.w), h: Math.round(o.h) }); }
+        for (const hero of ['mind', 'venture']) { p.hero = hero; const s = shot(o); R.items.push({ kind: 'hero', name: hero, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h) }); }
         p.hero = was; continue;
       }
       const s = shot(o);
-      R.items.push({ kind: o.kind, name: o.name, img: s.img, box: s.box, w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
+      R.items.push({ kind: o.kind, name: o.name, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
         count: o.kind === 'foe' ? foeCount[o.name] : o.kind === 'object' ? (bwCount[o.name] || o.count || 1) : 1, at: [Math.round(o.x / T), Math.round(o.y / T)] });
     }
     // ---- the collision map, with everything marked ----

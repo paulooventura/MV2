@@ -93,6 +93,8 @@
   const centre=()=>({x:p.x+SW/2, y:p.y+FEET_OFF-STAND_H*0.5});
   function clearLine(x0,y0,x1,y1){ const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/12); for(let i=1;i<n;i++){ if(solid(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n)) return false; } return true; }
   function rayEnd(x,y,ux,uy,max){ for(let d=6;d<=max;d+=6){ if(solid(x+ux*d,y+uy*d)) return d; } return max; }
+  // hitshapes.js: a beam is a fat line against MIND's wheel, body, head and hands (half-width = old reach - his ~20 px radius)
+  function segHit(x0,y0,x1,y1,thr){ if(window.MV_SHAPES&&p) return MV_SHAPES.heroHitBySeg(p,x0,y0,x1,y1,Math.max(3,thr-20)); const P=centre(); return segDist(P.x,P.y,x0,y0,x1,y1)<thr; }
   function segDist(px,py,x0,y0,x1,y1){ const dx=x1-x0, dy=y1-y0, L=dx*dx+dy*dy||1; const t=Math.max(0,Math.min(1,((px-x0)*dx+(py-y0)*dy)/L)); return Math.hypot(px-x0-dx*t,py-y0-dy*t); }
   let hitCd=0;
   function hurtMind(kx,ky,dmg){
@@ -257,8 +259,8 @@
       b.kink=bendEyeBeam(e,c,b.ux,b.uy,L,true);
       if(e._blown) return;
       const hit=b.kink
-        ? (segDist(P.x,P.y,c.x,c.y,b.kink.x,b.kink.y)<26||segDist(P.x,P.y,b.kink.x,b.kink.y,b.kink.x+b.kink.ux*b.kink.len,b.kink.y+b.kink.uy*b.kink.len)<26)
-        : segDist(P.x,P.y,c.x,c.y,c.x+b.ux*L,c.y+b.uy*L)<26;
+        ? (segHit(c.x,c.y,b.kink.x,b.kink.y,26)||segHit(b.kink.x,b.kink.y,b.kink.x+b.kink.ux*b.kink.len,b.kink.y+b.kink.uy*b.kink.len,26))
+        : segHit(c.x,c.y,c.x+b.ux*L,c.y+b.uy*L,26);
       if(hit){
         const barely=Math.max(1,(p.maxHp||100)-4);
         const kx=b.kink?b.kink.ux:b.ux, ky=b.kink?b.kink.uy:b.uy;
@@ -678,7 +680,7 @@
     if(e.awake) e.rot+=hard?0.035:ph===2?0.016:0.01;                   // asleep in the bowl it lies still on a face
     if(!e.awake){ e.beams=null; return; }
     // contact
-    if(d<70) hm(Math.sign(dx)*8,-6,16);
+    if(window.MV_SHAPES?MV_SHAPES.heroTouchesFoe(p,e):d<70) hm(Math.sign(dx)*8,-6,16);   // hitshapes.js: the heptagon's outline on his parts
     // the attack cycle
     e.stT++;
     const PATS=ph===1?['volley']:ph===2?['volley','corona']:['volley','corona','eyebeam'];
@@ -689,14 +691,14 @@
       const ux=e._eb.ux, uy=e._eb.uy, L=rayEnd(c.x,c.y,ux,uy,1100);
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
       if(e.stT===tel){ S('laser',0.35); S('zap',0.5); B.shake=Math.max(B.shake||0,7); }
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34){ if(!beamTurned(e,c.x,c.y,ux,uy,L,75)) hm(ux*8,-5,75); }
+      if(!e.beams.tel&&segHit(c.x,c.y,c.x+ux*L,c.y+uy*L,34)){ if(!beamTurned(e,c.x,c.y,ux,uy,L,75)) hm(ux*8,-5,75); }
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }
     else if(e.st==='corona'){                                      // a corona of 7 beams: telegraphed, then it fires and turns
       const tel=hard?34:46, fire=hard?70:55;
       e.beams={tel:e.stT<tel, k:e.stT<tel?e.stT/tel:1-(e.stT-tel)/fire, list:[]};
       for(let i=0;i<NODES;i++){ const n=nodePos(e,i), ux=Math.cos(n.a), uy=Math.sin(n.a); const L=rayEnd(n.x,n.y,ux,uy,900); e.beams.list.push({x:n.x,y:n.y,ux,uy,L});
-        if(!e.beams.tel&&segDist(P.x,P.y,n.x,n.y,n.x+ux*L,n.y+uy*L)<22){ if(!beamTurned(e,n.x,n.y,ux,uy,L,33)) hm(ux*6,-4,33); } }
+        if(!e.beams.tel&&segHit(n.x,n.y,n.x+ux*L,n.y+uy*L,22)){ if(!beamTurned(e,n.x,n.y,ux,uy,L,33)) hm(ux*6,-4,33); } }
       if(e.stT===tel){ S('laser',0.5); B.shake=Math.max(B.shake||0,4); }
       if(e.stT>=tel+fire){ e.st='gap'; e.stT=0; e.beams=null; }
     }else if(e.st==='volley'){                                     // the nodes fire bolts at him, one after another
@@ -708,7 +710,7 @@
       const a=Math.PI*0.15+Math.PI*0.7*(e.stT/120)*(e.sweepDir||1);
       const ux=Math.cos(Math.PI/2+(e.sweepDir||1)*(-Math.PI*0.45+Math.PI*0.9*e.stT/120)), uy=Math.abs(Math.sin(Math.PI/2+(-Math.PI*0.45+Math.PI*0.9*e.stT/120)));
       const L=rayEnd(c.x,c.y,ux,uy,900); e.beams={tel:e.stT<30, k:e.stT<30?e.stT/30:1, list:[{x:c.x,y:c.y,ux,uy,L,big:true}]};
-      if(!e.beams.tel&&segDist(P.x,P.y,c.x,c.y,c.x+ux*L,c.y+uy*L)<34){ if(!beamTurned(e,c.x,c.y,ux,uy,L,33)) hm(ux*7,-5,33); }
+      if(!e.beams.tel&&segHit(c.x,c.y,c.x+ux*L,c.y+uy*L,34)){ if(!beamTurned(e,c.x,c.y,ux,uy,L,33)) hm(ux*7,-5,33); }
       if(e.stT>=120){ e.st='gap'; e.stT=0; e.beams=null; e.sweepDir=-(e.sweepDir||1); }
     }
   }
@@ -734,7 +736,7 @@
         burst(b.x,b.y,4,['#ffc0c0','#ff6060'],2);
         continue;
       }
-      if(Math.hypot(b.x-P.x,b.y-P.y)<26){
+      if(window.MV_SHAPES?MV_SHAPES.heroHitByCircle(p,b.x,b.y,6):Math.hypot(b.x-P.x,b.y-P.y)<26){   // hitshapes.js
         try{ window._mvExactDmg=true; hurtMind(b.vx*0.8,-3,12); } finally{ window._mvExactDmg=false; }
         e.bolts.splice(i,1);
       }
