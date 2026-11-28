@@ -4,11 +4,19 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let CAT=null, stage=0, filter='all', HB={}, HS={};
+let CAT=null, stage=0, filter='all', HB={}, HS={}, HW={};
+const keyOf=it=>it.key||it.name;   // objects save under obj_… keys, foes and heroes under their type
+// what a weight changes in the game, per family (Paulo 2026-11-27: "establish the weight on each object")
+const WNOTE={cube:'push speed, how far a punch, shot or blast throws it, how much of the MAG\'s grip it takes, float or sink in water, and how hard it lands on what is under it (stack crushing).',
+  foe:'how far punches, shots and blasts knock it, how hard the MAG and XLR move it, how hard it lands on you, float or sink.',
+  hero:'how far blocks and foes knock him, how hard he hits what he rams, his bounce and the MAG\'s pull on him.',
+  knowl:'its tumble and bounce, the MAG\'s carry load, and it sinks in water.',
+  jack:'how far a punch knocks a loose jack once its box is broken open.'};
+function wFamily(it){ const k=it.weight&&it.weight.key; if(!k) return null; if(it.kind==='hero') return 'hero'; if(it.kind==='foe') return 'foe'; if(k==='seed'||k==='crystal') return 'knowl'; if(k==='jack') return 'jack'; return 'cube'; }
 // ── hit shapes (hitshapes.js): every foe's outline and each hero's five parts, drawn over the cut-out and editable ──
 const PART_COL={wheel:'#ffd84a', body:'#5affc8', head:'#b48cff', glove:'#ff6a8a', plug:'#58b4ff'};
 const PART_NAME={wheel:'wheel', body:'body (speaker)', head:'head (bulb, record, hat)', glove:'glove hand', plug:'plug hand'};
-const FOE_COL='#ff4a5a';
+const FOE_COL='#ff4a5a', OBJ_COL='#ffd84a';
 const NS='http://www.w3.org/2000/svg';
 function svgEl(tag,attr){ const e=document.createElementNS(NS,tag); for(const k in attr) e.setAttribute(k,attr[k]); return e; }
 // foe outline definition (box fractions about the box centre, spun about pv) <-> cut-out px
@@ -16,8 +24,8 @@ function foePose(it){ const sh=it.shape, [bx,by,bw,bh]=it.box, k=sh.k||1, pv=sh.
   return {w:bw,h:bh,pv,rot:sh.rot||0,px:bx+bw/2+pv[0]*bw,py:by+bh/2-(sh.lift||0)*k+pv[1]*bh}; }
 function foeT(P,lx,ly){ const c=Math.cos(P.rot), s=Math.sin(P.rot), ux=(lx-P.pv[0])*P.w, uy=(ly-P.pv[1])*P.h; return [P.px+ux*c-uy*s, P.py+ux*s+uy*c]; }
 function foeInv(P,X,Y){ const c=Math.cos(P.rot), s=Math.sin(P.rot), ux=X-P.px, uy=Y-P.py; return [+(((ux*c+uy*s)/P.w)+P.pv[0]).toFixed(4), +(((-ux*s+uy*c)/P.h)+P.pv[1]).toFixed(4)]; }
-function foeDef(it){ const ov=HS[it.name]; return JSON.parse(JSON.stringify(ov&&ov.parts?{parts:ov.parts}:{parts:it.shape.parts})); }
-function heroOv(it){ const ov=HS[it.name]||{}, o={}; for(const k in PART_COL) o[k]=Object.assign({dx:0,dy:0,s:1},ov[k]||{}); return o; }
+function foeDef(it){ const ov=HS[keyOf(it)]; return JSON.parse(JSON.stringify(ov&&ov.parts?{parts:ov.parts}:{parts:it.shape.parts})); }
+function heroOv(it){ const ov=HS[keyOf(it)]||{}, o={}; for(const k in PART_COL) o[k]=Object.assign({dx:0,dy:0,s:1},ov[k]||{}); return o; }
 // the shape in cut-out px: [{k:'c',x,y,r,id}|{k:'p',v,id}, ...]
 function shapePx(it,def){
   const sh=it.shape; if(!sh) return null;
@@ -31,7 +39,7 @@ function shapePx(it,def){
     return {k:'p',v:q.v.map(a=>foeT(P,a[0],a[1])),id:q.id||('part'+i)}; });
 }
 function drawShapes(svg,parts,hero,sw){
-  for(const q of parts){ const col=hero?(PART_COL[q.id]||'#fff'):FOE_COL;
+  for(const q of parts){ const col=hero?(PART_COL[q.id]||'#fff'):(hero===0?OBJ_COL:FOE_COL);
     const a={fill:col,'fill-opacity':.16,stroke:col,'stroke-width':sw||1.4,'vector-effect':'non-scaling-stroke'};
     svg.appendChild(q.k==='c'?svgEl('circle',Object.assign({cx:q.x,cy:q.y,r:q.r},a)):svgEl('polygon',Object.assign({points:q.v.map(p=>p.join(',')).join(' ')},a))); }
 }
@@ -40,7 +48,8 @@ function hsLegend(it){
   if(it.shape.hero) return '<div class="hsLegend">'+it.shape.parts.map(q=>'<span><i style="background:'+PART_COL[q.id]+'"></i>'+PART_NAME[q.id]+'</span>').join('')+'</div>';
   const p=foeDef(it).parts, nC=p.filter(q=>q.k==='c').length, poly=p.filter(q=>q.k==='p');
   const txt=poly.map(q=>q.v.length===3?'triangle':q.v.length===4?'4-point outline':q.v.length+'-point outline').concat(nC?[nC===1?'circle':nC+' circles']:[]).join(' + ');
-  return '<div class="hsLegend"><span><i style="background:'+FOE_COL+'"></i>'+txt+'</span></div>';
+  return '<div class="hsLegend"><span><i style="background:'+(it.shape.obj?OBJ_COL:FOE_COL)+'"></i>'+txt+'</span></div>'+
+    (it.grid?'<div class="sub">Moves against walls and floors on its tile box; this shape is what punches, shots and touches meet.</div>':it.fixed?'<div class="sub">Fixed in place: this shape is what punches, shots and touches meet.</div>':'');
 }
 // the editor: the cut-out big; drag points, circle centres and rims (foes), or whole parts and their size knob (heroes)
 function openEditor(it,img,onSaved){
@@ -65,7 +74,7 @@ function openEditor(it,img,onSaved){
   function paint(){
     svg.innerHTML=''; svg.appendChild(svgEl('image',{href:img.src,x:0,y:0,width:nw,height:nh,style:'image-rendering:pixelated'}));
     const [bx,by,bw,bh]=it.box; svg.appendChild(svgEl('rect',{x:bx,y:by,width:bw,height:bh,fill:'none',stroke:'#3cff8a','stroke-dasharray':'3 3','stroke-width':1,'vector-effect':'non-scaling-stroke',opacity:.6}));
-    const parts=shapePx(it,def); drawShapes(svg,parts,hero,2);
+    const parts=shapePx(it,def); drawShapes(svg,parts,it.shape.obj?0:hero,2);
     if(hero){
       const k=it.shape.k||1, fd=it.shape.fd||1;
       parts.forEach(q=>{ const o=def[q.id];
@@ -100,14 +109,14 @@ function openEditor(it,img,onSaved){
       if(a==='add'){ const i=sel[1], j=(i+1)%v.length; v.splice(i+1,0,[+((v[i][0]+v[j][0])/2).toFixed(4),+((v[i][1]+v[j][1])/2).toFixed(4)]); sel=[sel[0],i+1]; }
       else if(v.length>3){ v.splice(sel[1],1); sel=null; } else { msg.className='msg err'; msg.textContent='An outline needs at least 3 points.'; }
       return paint(); }
-    if(a==='orig') return post({type:it.name,reset:true}).then(j=>{ if(!j.ok) throw new Error(j.error); HS=j.hitshapes; def=hero?heroOv(it):foeDef(it); paint(); msg.className='msg ok'; msg.textContent='Back to the outline the game draws.'; onSaved(); }).catch(fail);
-    if(a==='save') return post({type:it.name,shape:hero?def:{parts:def.parts}}).then(j=>{ if(!j.ok) throw new Error(j.error); HS=j.hitshapes; msg.className='msg ok'; msg.textContent='Saved. Every '+nice(it.name)+' now hits with this shape (reload the game to feel it).'; onSaved(); }).catch(fail);
+    if(a==='orig') return post({type:keyOf(it),reset:true}).then(j=>{ if(!j.ok) throw new Error(j.error); HS=j.hitshapes; def=hero?heroOv(it):foeDef(it); paint(); msg.className='msg ok'; msg.textContent='Back to the outline the game draws.'; onSaved(); }).catch(fail);
+    if(a==='save') return post({type:keyOf(it),shape:hero?def:{parts:def.parts}}).then(j=>{ if(!j.ok) throw new Error(j.error); HS=j.hitshapes; msg.className='msg ok'; msg.textContent='Saved. Every '+nice(it.name)+' now hits with this shape (reload the game to feel it).'; onSaved(); }).catch(fail);
   };
 }
 
 const KIND={hero:'Characters',foe:'Foes',object:'Objects & pickups'};
 const NAMES={b_circle:'Circle foe',b_tri:'Triangle foe',b_square:'Square foe',square:'Square (wheel rider)',b_cube:'Cube (glass)',b_eye:'Eye foe',b_boss:'Heptagon boss',
-  savePt:'Save point',knifePickup:'Knife pickup',isoPickup:'Isolator pickup',gate:'Stage gate',laitu:'Laitu','knowl shell':'Knowl shell',mind:'MIND',venture:'VENTURE'};
+  savePt:'Save point',knifePickup:'Knife pickup',isoPickup:'Isolator (in its item box)',gate:'Stage gate','item box':'Item box (jack crate)',door:'Door',  'trap door':'Trap door','knowl seed':'Knowl seed','knowl crystal':'Knowl crystal',laitu:'Laitu','knowl shell':'Knowl shell',mind:'MIND',venture:'VENTURE'};
 function nice(n){ return NAMES[n]||n.replace(/\s*·\s*#[0-9a-f]{6}$/i,'').replace(/^BLOCK$/,'Block (plain)').replace(/^PUSH$/,'Push block').replace(/^PULL$/,'Pull block').replace(/^LASER$/,'Laser block'); }
 function blank(img){ // a cut-out with almost no variation = the thing was not on screen at capture time
   try{ const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d'); x.drawImage(img,0,0,16,16); const d=x.getImageData(0,0,16,16).data; let mn=765,mx=0;
@@ -135,13 +144,19 @@ function render(){
       const meta=[it.count>1?it.count+' in this stage':'1 in this stage', it.w&&it.h?it.w+'×'+it.h+' px':'', it.hp?'HP '+it.hp:'', it.at?'at tile '+it.at.join(', '):''].filter(Boolean).join(' · ');
       const editable=it.kind==='foe'&&/^b_[a-z]+$/.test(it.name), ov=HB[it.name];
       card.innerHTML='<div class="catImg"><div class="hbWrap"></div></div><div class="nm">'+nice(it.name)+'</div><div class="meta">'+meta+'<br><code>'+it.name+'</code></div>'+
-        (it.shape?'<div class="hbRow"><b>Hit shape</b> '+(it.shape.hero?'· 5 parts':'· its outline')+' <button class="btn hsEdit">Edit shape</button>'+(HS[it.name]?' <span class="sub">(edited)</span>':'')+hsLegend(it)+'</div>':'')+
+        (it.shape?'<div class="hbRow"><b>Hit shape</b> '+(it.shape.hero?'· 5 parts':'· its outline')+' <button class="btn hsEdit">Edit shape</button>'+(HS[keyOf(it)]?' <span class="sub">(edited)</span>':'')+hsLegend(it)+'</div>':'')+
+        (it.weight?'<div class="hbRow"><b>Weight</b> <input type="number" class="wIn" min="0.1" max="200" step="0.1"> <button class="btn wSave">Save</button>'+(HW[it.weight.key]?' <button class="btn wReset">Original</button> <span class="sub">(edited)</span>':'')+' <span class="sub">units (an omni block is 3, MIND is 9.5) · <code>'+it.weight.key+'</code></span><div class="sub">Changes '+WNOTE[wFamily(it)]+'</div><div class="msg wMsg"></div></div>':
+         (it.fixed?'<div class="hbRow"><b>Weight</b> <span class="sub">none: it does not move, so nothing reads one</span></div>':''))+
         '<div class="hbRow">'+(it.shape?'Body box (walls and floors) ':'Collision box ')+(editable?'<input type="number" class="hbW" min="8" max="400"> × <input type="number" class="hbH" min="8" max="400"> px <button class="btn hbSave">Save</button>'+(ov?' <button class="btn hbReset">Original</button>':''):'<b>'+it.w+'×'+it.h+'</b> px <span class="sub">(view only'+(it.kind==='hero'?': the heroes share one body box, changing it changes how they move':': blocks sit on the tile grid')+')</span>')+'</div><div class="msg hbMsg"></div>';
       const hw=card.querySelector('.hbWrap'); hw.appendChild(im);
       const box=document.createElement('div'); box.className='hb'+(editable?' edit':'')+(it.shape?' faint':''); hw.appendChild(box);
       let svg=null;
       const paintShape=()=>{ if(!it.shape||!im.naturalWidth) return; if(svg) svg.remove(); svg=svgEl('svg',{class:'hsSvg hb',viewBox:'0 0 '+im.naturalWidth+' '+im.naturalHeight,preserveAspectRatio:'none'});
-        drawShapes(svg,shapePx(it),!!it.shape.hero,1.4); svg.style.display=$('catBoxes').checked?'':'none'; hw.appendChild(svg); };
+        drawShapes(svg,shapePx(it),it.shape.obj?0:!!it.shape.hero,1.4); svg.style.display=$('catBoxes').checked?'':'none'; hw.appendChild(svg); };
+      if(it.weight){ const wi=card.querySelector('.wIn'), wm=card.querySelector('.wMsg'), k=it.weight.key; wi.value=HW[k]?HW[k].w:it.weight.w;
+        const wpost=b=>fetch('/api/weight',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+        card.querySelector('.wSave').onclick=()=>wpost({key:k,w:+wi.value}).then(j=>{ if(!j.ok) throw new Error(j.error); HW=j.weights; wm.className='msg ok'; wm.textContent='Every '+k+' now weighs '+(+wi.value)+' (reload the game to feel it).'; }).catch(e=>{ wm.className='msg err'; wm.textContent='Not saved: '+e.message; });
+        const wr=card.querySelector('.wReset'); if(wr) wr.onclick=()=>wpost({key:k,reset:true}).then(j=>{ HW=j.weights; wi.value=it.weight.w; wm.className='msg ok'; wm.textContent='Back to the game\'s own weight.'; }); }
       if(it.shape){ const eb=card.querySelector('.hsEdit'); if(eb) eb.onclick=()=>openEditor(it,im,()=>{ paintShape(); }); }
       const orig={w:it.w,h:it.h}, cur={w:ov?ov.w:it.w,h:ov?ov.h:it.h};
       const place=()=>{ if(!it.box||!im.naturalWidth) return; const k=im.clientWidth/im.naturalWidth, [bx,by,bw,bh]=it.box, sw=bw/orig.w, sh=bh/orig.h;
@@ -167,7 +182,7 @@ function render(){
   });
 }
 function load(){
-  return fetch('/api/art-index',{cache:'no-store'}).then(r=>r.json()).then(j=>{ HB=j.hitboxes||{}; HS=j.hitshapes||{}; }).catch(()=>{})
+  return fetch('/api/art-index',{cache:'no-store'}).then(r=>r.json()).then(j=>{ HB=j.hitboxes||{}; HS=j.hitshapes||{}; HW=j.weights||{}; }).catch(()=>{})
     .then(()=>fetch('assets/catalog/catalog.json?t='+Date.now())).then(r=>r.json()).then(j=>{ CAT=j; render(); })
     .catch(()=>{ $('catInfo').textContent='No catalog yet. Press "Recapture from the game".'; });
 }

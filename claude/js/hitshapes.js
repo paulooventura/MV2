@@ -289,6 +289,39 @@ S.drawDebug=function(){
   }catch(e){}
   ctx.restore();
 };
+// ── objects: blocks, crates, gate, doors, trap doors, save point, knife, knowls ──
+// Their default shape is their own box, so nothing changes until Paulo edits one on the Art Board; then the edit
+// (MV_HITSHAPES['obj_…'], box fractions like the foes) is what punches, shots and touches meet. Grid-locked blocks
+// still move against walls and floors on their tile box.
+const OBJ_KEYS={omni:'obj_block',push:'obj_push',pull:'obj_pull',laser:'obj_laser'};
+S.bwKey=bw=>OBJ_KEYS[(bw&&bw.only)||'omni']||'obj_block';
+S.bwRect=bw=>({x:bw.x+(bw._ox||0), y:bw.y+(bw._oy||0), w:bw.w, h:bw.h});
+// the art box of each kind (also what the catalog cuts out)
+S.objRect=function(key,o){
+  const T_=32, B=window.MV_BETA||{};
+  if(key==='obj_save') return {x:o.x-24, y:o.y-64, w:48, h:64};
+  if(key==='obj_knife') return {x:o.x-16, y:o.y-48, w:32, h:48};
+  if(key==='obj_crate'){ const CR=B.CRATE||{W:92,H:80}; return {x:o.cx-CR.W/2, y:o.bottom-CR.H, w:CR.W, h:CR.H}; }
+  if(key==='obj_door') return {x:o.c*T_, y:o.r0*T_, w:T_, h:(o.r1-o.r0+1)*T_};
+  if(key==='obj_trap') return {x:o.c0*T_, y:o.r*T_, w:(o.c1-o.c0+1)*T_, h:T_};
+  if(key==='obj_knowl') return {x:o.x-12, y:o.y-12, w:24, h:24};
+  return {x:o.x, y:o.y, w:o.w, h:o.h};
+};
+const objDef=key=>{ const d=(window.MV_HITSHAPES||{})[key]; return d&&d.parts&&d.parts.length?d:null; };
+S.objEdited=key=>!!objDef(key);
+S.objShape=function(key,r,rot){
+  const d=objDef(key); if(!d) return [box(r.x,r.y,r.w,r.h,'body')];
+  const e={x:r.x,y:r.y,w:r.w,h:r.h};
+  return place(d,e,{cx:r.x+r.w/2, cy:r.y+r.h/2, pv:[0,0], rot:rot||0});
+};
+// edited ? the shape test : the caller's own old test
+S.objCircle=(key,r,cx,cy,rad,old,rot)=>objDef(key)?S.hitCircle(S.objShape(key,r,rot),cx,cy,rad):old;
+S.objSeg=(key,r,x0,y0,x1,y1,rad,old,rot)=>objDef(key)?S.hitSeg(S.objShape(key,r,rot),x0,y0,x1,y1,rad):old;
+S.objHero=(key,r,pl,old,rot)=>objDef(key)?!!S.hit(contactParts(pl),S.objShape(key,r,rot)):old;
+S.objDef=function(key,r,rot){   // for the Art Board: box-relative parts of the current shape
+  const d=objDef(key); return d?{parts:JSON.parse(JSON.stringify(d.parts)),rot:rot||0,pv:[0,0],lift:0,edited:true}
+    :{parts:[{k:'p',id:'body',v:[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]]}],rot:rot||0,pv:[0,0],lift:0,edited:false};
+};
 window.MV_SHAPES=S;
 
 // ── route the game's entity-vs-entity tests through the shapes ──

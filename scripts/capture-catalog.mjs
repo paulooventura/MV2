@@ -42,15 +42,38 @@ for (const st of STAGES) {
     const seenFoe = {}, foeCount = {};
     for (const e of ENEMS) { const k = e.type || 'foe'; foeCount[k] = (foeCount[k] || 0) + 1; if (!seenFoe[k]) { seenFoe[k] = 1; list.push({ kind: 'foe', name: k, x: e.x, y: e.y, w: e.w, h: e.h, hp: e.mhp || e.hp, rank: e.rank, ref: e }); } }
     const seenBw = {}, bwCount = {};
-    for (const w of BWALLS) { const k = (w.label || 'block') + (w.col ? ' · ' + w.col : ''); bwCount[k] = (bwCount[k] || 0) + 1; if (!seenBw[k]) { seenBw[k] = 1; list.push({ kind: 'object', name: k, x: w.x, y: w.y, w: w.w, h: w.h, hp: w.maxHp }); } }
-    if (B.shells && B.shells.length) { const s = B.shells[0]; list.push({ kind: 'object', name: 'knowl shell', x: s.x - 16, y: s.y - 16, w: 32, h: 32, count: B.shells.length }); }
-    for (const k of ['savePt', 'knifePickup', 'isoPickup', 'gate', 'laitu']) { const o = B[k]; if (o && typeof o.x === 'number') list.push({ kind: 'object', name: k, x: o.x, y: o.y, w: o.w || 48, h: o.h || 48 }); }
+    const S_ = window.MV_SHAPES, WT = B.WEIGHT || {};
+    const wOf = (key, w) => ({ key, w: Math.round((+w || 0) * 100) / 100 });
+    for (const w of BWALLS) { const k = (w.label || 'block') + (w.col ? ' · ' + w.col : ''); bwCount[k] = (bwCount[k] || 0) + 1; if (!seenBw[k]) { seenBw[k] = 1; const r = S_.bwRect(w);
+      list.push({ kind: 'object', name: k, x: r.x, y: r.y, w: r.w, h: r.h, hp: w.maxHp, key: S_.bwKey(w), rot: w.rot || 0, grid: true, weight: wOf(w.only || 'omni', B.weightOf('cube', w)) }); } }
+    if (B.shells && B.shells.length) { const s = B.shells[0]; list.push({ kind: 'object', name: 'knowl shell', x: s.x - 16, y: s.y - 16, w: 32, h: 32, count: B.shells.length, decor: true }); }
+    // knowl gems (seeds, crystals): the first of each kind still in the stage
+    const kd = typeof KDROP !== 'undefined' ? KDROP : [];
+    for (const kind of ['seed', 'crystal']) { const k = kd.find(q => q && (q.kind === kind || (kind === 'crystal' && q.kind === 'echo')) && !q.got) || kd.find(q => q && q.kind === kind);
+      if (k) { const r = S_.objRect('obj_knowl', k); list.push({ kind: 'object', name: 'knowl ' + kind, ...r, key: 'obj_knowl', count: kd.filter(q => q && q.kind === kind).length, weight: wOf(kind, B.weightOf('knowl', k)), show: () => { const was = k.got; k.got = false; return () => { k.got = was; }; } }); } }
+    // item boxes (the jack crates and the Isolator's box)
+    const crates = B.crateList ? B.crateList() : [];
+    if (crates.length) { const c = crates[0], r = S_.objRect('obj_crate', c); list.push({ kind: 'object', name: 'item box', ...r, key: 'obj_crate', count: crates.length, fixed: true, weight: wOf('jack', WT.jack || 1.5) }); }
+    const one = (name, key, o, extra) => { if (!o) return; const r = S_.objRect(key, o); list.push(Object.assign({ kind: 'object', name, ...r, key }, extra || {})); };
+    one('savePt', 'obj_save', B.savePt, { fixed: true });
+    one('knifePickup', 'obj_knife', B.knifePickup, { fixed: true, show: () => { const k = B.knifePickup, was = k.got; k.got = false; return () => { k.got = was; }; } });
+    if (B.isoPickup && typeof B.isoPickup.x === 'number') { const iso = B.isoPickup, r = S_.objRect('obj_crate', { cx: iso.x, bottom: iso.y });
+      list.push({ kind: 'object', name: 'isoPickup', ...r, key: 'obj_crate', fixed: true, show: () => { const was = iso.got; iso.got = false; return () => { iso.got = was; }; } }); }
+    if (B.gate && typeof B.gate.x === 'number') one('gate', 'obj_gate', B.gate, { fixed: true });
+    const D = st === '1.1' ? window.MV_DOORS : null;   // the house's doors and trap doors are in 1.1
+    if (D && D.doors && D.doors.length) one('door', 'obj_door', D.doors[0], { fixed: true, count: D.doors.length });
+    if (D && D.traps && D.traps.length) one('trap door', 'obj_trap', D.traps[0], { fixed: true, count: D.traps.length });
+    if (B.laitu && typeof B.laitu.x === 'number' && typeof B.laitu.y === 'number') list.push({ kind: 'object', name: 'laitu', x: B.laitu.x, y: B.laitu.y, w: B.laitu.w || 48, h: B.laitu.h || 48, decor: true });
+    // weights of the heroes and foes, as the game reads them
+    for (const o of list) { if (o.kind === 'foe' && o.ref) o.weight = wOf(o.ref.type, B.weightOf('enemy', o.ref)); }
     // ---- cut each one out of a real frame ----
     const shot = (o) => {
       const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
       camX = cx - W / 2; camY = cy - H / 2; _rcamX = camX; _rcamY = camY; try { camZoom = 1; } catch (e) {}
       try { if (typeof p2 !== 'undefined' && p2) p2.x = p2.y = -99999; } catch (e) {}
-      try { draw(); } catch (e) {}
+      const undo = o.show ? o.show() : null;     // a pickup already taken is put back for its picture
+      try { draw(); } catch (e) { R.drawErr = R.drawErr || (o.name + ': ' + (e && e.message)); }
+      if (undo) undo();
       const pad = Math.max(24, Math.min(o.w, o.h) * 0.6), x0 = sx(o.x - pad), y0 = sy(o.y - pad - (o.kind === 'hero' ? 40 : 0)), w = sw(o.w + 2 * pad), h = sw(o.h + 2 * pad + (o.kind === 'hero' ? 40 : 0));
       const c = document.createElement('canvas'); c.width = Math.max(8, Math.round(w)); c.height = Math.max(8, Math.round(h));
       c.getContext('2d').drawImage(cvs, x0, y0, w, h, 0, 0, c.width, c.height);
@@ -58,17 +81,18 @@ for (const st of STAGES) {
       const box = [sx(o.x) - x0, sy(o.y) - y0, sw(o.w), sw(o.h)].map(v => Math.round(v));
       // the hit shape (hitshapes.js): foes as box-relative outlines + their spin, heroes as parts in body-box px
       let shape = null;
-      try { if (window.MV_SHAPES && o.ref) { shape = MV_SHAPES.def(o.ref); if (shape) shape.k = sw(o.w) / o.w; } } catch (e) {}
+      try { if (window.MV_SHAPES && o.ref) { shape = MV_SHAPES.def(o.ref); if (shape) shape.k = sw(o.w) / o.w; }
+        else if (window.MV_SHAPES && o.key) { shape = MV_SHAPES.objDef(o.key, o, o.rot); shape.obj = true; shape.k = sw(o.w) / o.w; } } catch (e) {}
       return { img: c.toDataURL('image/png'), box, shape };
     };
     for (const o of list) {
       if (o.kind === 'hero' && o.ref === p) {   // both looks of the lead: Mind and Venture
         const was = p.hero;
-        for (const hero of ['mind', 'venture']) { p.hero = hero; const s = shot(o); R.items.push({ kind: 'hero', name: hero, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h) }); }
+        for (const hero of ['mind', 'venture']) { p.hero = hero; const s = shot(o); R.items.push({ kind: 'hero', name: hero, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h), weight: wOf(hero, hero === 'mind' ? WT.mindTotal : (WT.venture || 7.6)) }); }
         p.hero = was; continue;
       }
       const s = shot(o);
-      R.items.push({ kind: o.kind, name: o.name, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
+      R.items.push({ kind: o.kind, name: o.name, key: o.key, grid: o.grid, fixed: o.fixed, decor: o.decor, weight: o.weight, img: s.img, box: s.box, shape: s.shape, w: Math.round(o.w), h: Math.round(o.h), hp: o.hp, rank: o.rank,
         count: o.kind === 'foe' ? foeCount[o.name] : o.kind === 'object' ? (bwCount[o.name] || o.count || 1) : 1, at: [Math.round(o.x / T), Math.round(o.y / T)] });
     }
     // ---- the collision map, with everything marked ----
@@ -90,9 +114,10 @@ for (const st of STAGES) {
     R.counts = { solid: 0, oneway: 0, destructible: 0, slopes: 0 };
     for (const row of G.data) for (const v of row) { if (v === 1) R.counts.solid++; else if (v === 2) R.counts.oneway++; else if (v === 3) R.counts.destructible++; else if (v === 4 || v === 5) R.counts.slopes++; }
     R.foes = foeCount; R.objects = bwCount;
+    R.cam = [camX, camY, typeof _gameState !== 'undefined' ? _gameState : '?'];
     return R;
   }, st);
-  catalog.build = res.build;
+  catalog.build = res.build; if (res.drawErr) console.log('draw error in ' + st + ': ' + res.drawErr);
   const dir = path.join(out, 'stage-' + st.replace('.', '-')); fs.mkdirSync(dir, { recursive: true });
   const save = (name, data) => { const f = name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-') + '.png'; fs.writeFileSync(path.join(dir, f), Buffer.from(data.split(',')[1], 'base64')); return 'assets/catalog/' + path.basename(dir) + '/' + f; };
   const items = res.items.map(it => ({ ...it, img: save(it.kind + '-' + it.name, it.img) }));

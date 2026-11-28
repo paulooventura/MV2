@@ -759,7 +759,8 @@ function updatePlayerShots(){
     if(dead){p.shots.splice(i,1);continue;}
     for(const bw of BWALLS){
       if(bw.hp<=0) continue;
-      if(!_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,bw)) continue;
+      const _cOld=_capsuleHitsBox(strike.x1,strike.y1,strike.x2,strike.y2,strike.r,bw);
+      if(!(window.MV_SHAPES?MV_SHAPES.objSeg(MV_SHAPES.bwKey(bw),MV_SHAPES.bwRect(bw),strike.x1,strike.y1,strike.x2,strike.y2,strike.r,_cOld,bw.rot):_cOld)) continue;   // hitshapes.js
       _damageBwall(bw,s.charged?'laserCharged':'laser',{shakeX:(s.vx>0?1:-1)*3,shakeY:-2,vx:bw.movable?s.vx*0.2:0,vy:bw.movable?s.vy*0.2:0});
       if(s.enhanced) spawnTrsFlame(s.x,s.y,{stick:true,hero:s.owner});
       p.shots.splice(i,1); dead=true; break;

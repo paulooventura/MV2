@@ -180,7 +180,8 @@
   S.fist=function(wx,wy,wr,charged){
     if(!on()) return false;
     for(const d of S.doors){
-      const inRect=wx>d.c*T-wr-6&&wx<(d.c+1)*T+wr+6&&wy>d.r0*T-wr&&wy<(d.r1+1)*T+wr;
+      const inRect0=wx>d.c*T-wr-6&&wx<(d.c+1)*T+wr+6&&wy>d.r0*T-wr&&wy<(d.r1+1)*T+wr;
+      const inRect=window.MV_SHAPES?MV_SHAPES.objCircle('obj_door',MV_SHAPES.objRect('obj_door',d),wx,wy,wr+6,inRect0):inRect0;   // hitshapes.js
       // Paulo: punch an OPEN door to swing it shut again. debounced so the same
       // punch can't immediately reopen it, and it won't shut while MIND is in it.
       if(d.st==='open'&&inRect){ d.st='closing'; d.t=0; thud(0.9); creak(0.5);
@@ -197,7 +198,8 @@
         B.doorsOpened=(B.doorsOpened|0)+1; netDoor(d); return true; } }
     for(const t of S.traps){ if(t.st!=='shut') continue;
       const x0=t.c0*T, x1=(t.c1+1)*T, y0=t.r*T, y1=(t.r+1)*T;
-      if(wx>x0-wr&&wx<x1+wr&&wy>y0-wr-18&&wy<y1+wr+18){
+      const _tOld=wx>x0-wr&&wx<x1+wr&&wy>y0-wr-18&&wy<y1+wr+18;
+      if(window.MV_SHAPES?MV_SHAPES.objCircle('obj_trap',MV_SHAPES.objRect('obj_trap',t),wx,wy,wr+18,_tOld):_tOld){   // hitshapes.js
         t.hits+=charged?3:1; t.shake=10; thud(t.hits>=3?1.3:1); dust((x0+x1)/2,t.dir==='down'?y0:y1,6);
         if(t.hits>=3){ t.st='opening'; t.t=0; creak(0.35); B.shake=Math.max(B.shake||0,7); B.trapsOpened=(B.trapsOpened|0)+1; dust((x0+x1)/2,(y0+y1)/2,18,'#6a5038'); }
         netTrap(t); return true; } }

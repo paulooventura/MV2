@@ -974,6 +974,9 @@
   const WEIGHT={mind:{wheel:3, box:4, head:1.5, fists:1}, omni:3, push:5, pull:5, laser:4,
     seed:2.8, crystal:3.6, circle:6, square:8, flyer:4, object:3, b_circle:3, b_square:19, b_tri:14};   // T636: gems, not paper
   WEIGHT.mindTotal=WEIGHT.mind.wheel+WEIGHT.mind.box+WEIGHT.mind.head+WEIGHT.mind.fists;
+  WEIGHT.venture=7.6; WEIGHT.jack=1.5;
+  // Art Board weights (MV_WEIGHTS in sfx-replacements.js, saved per type): laid over the table as the game loads
+  try{ const AW=window.MV_WEIGHTS||{}; for(const k in AW){ const v=+(AW[k]&&AW[k].w); if(!(v>0)) continue; if(k==='mind') WEIGHT.mindTotal=v; else if(typeof WEIGHT[k]!=='object') WEIGHT[k]=v; } }catch(e){}
   B.WEIGHT=WEIGHT;
   // T636 (Paulo, Nov 27 playtest): hull = artwork outline (seed teardrop / crystal hex in
   // beta_decor.js); mass = solid gemstone — heavy tumble + bounce, never paper/floaty.
@@ -985,8 +988,8 @@
   }
   function knowlMass(k){
     // Dense gemstones: seed ≈ one omni, crystal ≈ a heavy chunk (sinks, tumbles).
-    if(k&&(k.kind==='crystal'||k.kind==='echo')) return 3.6;
-    return 2.8;
+    if(k&&(k.kind==='crystal'||k.kind==='echo')) return WEIGHT.crystal||3.6;
+    return WEIGHT.seed||2.8;
   }
   function primeKnowl(k){
     if(!k) return k;
@@ -1026,7 +1029,7 @@
   function foeWeight(e){ if(e&&e.mirror) return WEIGHT.mindTotal; return weightOf('enemy',e)||6; }
   function itemFx(m){ return Math.min(1,7/Math.max(0.5,m)); }
   B.itemFx=itemFx;
-  function bodyMass(pl){ return pl&&pl.hero==='venture'?7.6:WEIGHT.mindTotal; }
+  function bodyMass(pl){ return pl&&pl.hero==='venture'?(WEIGHT.venture||7.6):WEIGHT.mindTotal; }
   B.bodyMass=bodyMass;
 
   // ── Thrown cubes: real flight until they come to rest, then they snap into a cell
@@ -2087,6 +2090,7 @@
   function knowlTouchesPlayer(k, who){
     if(!who||!k) return false;
     const hx=k.x, hy=k.y, hr=12;
+    if(window.MV_SHAPES&&MV_SHAPES.objEdited('obj_knowl')) return !!MV_SHAPES.hit(MV_SHAPES.heroParts(who),MV_SHAPES.objShape('obj_knowl',MV_SHAPES.objRect('obj_knowl',k)));   // hitshapes.js: Paulo's knowl shape
     if(window.MV_SHAPES) return MV_SHAPES.heroHitByCircle(who,hx,hy,hr);   // hitshapes.js: wheel, body, head or a hand
     const core=typeof playerCoreHB==='function'?playerCoreHB(who):null;
     if(core&&ov(core.x-4,core.y-2,core.w+8,core.h+4,hx-hr,hy-hr,hr*2,hr*2)) return true;
@@ -2305,7 +2309,7 @@
     }
     if(!B.open&&B.gate&&p){
       const h=playerCoreHB(p), g=B.gate;
-      if(ov(h.x,h.y,h.w,h.h,g.x+8,g.y,g.w-16,g.h)){
+      if(window.MV_SHAPES?MV_SHAPES.objHero('obj_gate',g,p,ov(h.x,h.y,h.w,h.h,g.x+8,g.y,g.w-16,g.h)):ov(h.x,h.y,h.w,h.h,g.x+8,g.y,g.w-16,g.h)){   // hitshapes.js
         // closed arch shoves MIND back the way he came
         const dir=(p.x+SW/2)<(g.x+g.w/2)?-1:1;
         p.x+=dir*12; p.vx=dir*9; p.vy=Math.min(p.vy,-3.2); p.og=false;
@@ -2329,7 +2333,7 @@
       }
     }else if(B.open&&B.gate&&p&&!B.trans&&!B.results&&!(B.gateCd>0)){
       const h=playerCoreHB(p), g=B.gate;
-      if(ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){
+      if(window.MV_SHAPES?MV_SHAPES.objHero('obj_gate',g,p,ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)):ov(h.x,h.y,h.w,h.h,g.x,g.y,g.w,g.h)){   // hitshapes.js
         const nx=LEVELS[B.stageId]&&LEVELS[B.stageId].next;
         // first clear just goes — the question is only for walking back into a world already left
         if(!B.cleared){ B.cleared=true; openResults(); }

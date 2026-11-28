@@ -158,7 +158,8 @@
       for(const it of looseList(b)){
         if(!it||it.taken) continue;
         it.noPick=Math.max(it.noPick||0,18);
-        it.vx+=Math.cos(ang)*force; it.vy+=Math.sin(ang)*force-2.5-force*0.25; it.vr+=(Math.cos(ang)>=0?1:-1)*0.25*force/5; it.og=false;
+        const wk=1.5/Math.max(0.2,(B.WEIGHT&&B.WEIGHT.jack)||1.5);   // a loose jack's weight (Art Board): heavier = knocked less far
+        it.vx+=Math.cos(ang)*force*wk; it.vy+=(Math.sin(ang)*force-2.5-force*0.25)*Math.sqrt(wk); it.vr+=(Math.cos(ang)>=0?1:-1)*0.25*force/5; it.og=false;
         hit=true;
       }
       if(hit){ S('item_clink'); netCrate(c.o,b); }
@@ -198,7 +199,9 @@
       // a straight punch is at shoulder height: let it reach down onto a low box / an item on the floor
       if(b.broken&&live){ hx=live.x-20; hy=live.y-50; hw=40; hh=64; real={x:live.x-18,y:live.y-14,w:36,h:28}; }
       else{ const R=rectOf(c); hx=R.x; hy=R.y-34; hw=R.w; hh=R.h+34; real=R; }
-      if(!(wx+wr>hx&&wx-wr<hx+hw&&wy+wr>hy&&wy-wr<hy+hh)) continue;
+      const _old=wx+wr>hx&&wx-wr<hx+hw&&wy+wr>hy&&wy-wr<hy+hh;
+      // hitshapes.js: an edited crate shape (it still takes a punch from just above, as the box did)
+      if(!(window.MV_SHAPES&&!b.broken&&MV_SHAPES.objEdited('obj_crate')?(MV_SHAPES.objCircle('obj_crate',real,wx,wy,wr,_old)||MV_SHAPES.objCircle('obj_crate',{x:real.x,y:real.y-34,w:real.w,h:real.h},wx,wy,wr,_old)):_old)) continue;
       // Paulo (Oct 21): never through a wall — the line from the shoulder must reach the REAL box
       const tx=Math.max(real.x,Math.min(real.x+real.w,wx)), ty=Math.max(real.y,Math.min(real.y+real.h,wy));
       if(typeof _punchReach==='function'&&shX!=null&&!_punchReach(shX,shY,tx,ty,real)) continue;

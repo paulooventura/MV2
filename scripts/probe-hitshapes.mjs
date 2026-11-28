@@ -88,6 +88,29 @@ check('a foe in the empty air beside the head does not', r.hero.gapTouch === fal
 check('holding the RCA, the plug hand spans grip to drawn tip (facing right, left)', r.plugTip.every(Boolean), r.plugTip);
 check('Art Board definition for b_tri is a 3-point polygon', r.def.tri && r.def.tri.parts[0].v && r.def.tri.parts[0].v.length === 3);
 
+// objects and weights: an Art Board edit (served the way the tools server writes it) reaches the game
+{
+  const cx2 = await b.newContext({ viewport: { width: 1280, height: 720 } }), pg = await cx2.newPage();   // its own connections
+  await pg.route(/\.(mp3|ogg|m4a|wav)(\?|$)/, r => r.fulfill({ status: 404, body: '' }));
+  await pg.route(/sfx-replacements\.js/, async r => { let t = fs.readFileSync(new URL('../claude/js/sfx-replacements.js', import.meta.url), 'utf8');
+    t = t.replace(/window\.MV_WEIGHTS = .*/, 'window.MV_WEIGHTS = {"push": {"w": 9}, "b_tri": {"w": 20}, "mind": {"w": 12}, "seed": {"w": 1.5}};')
+         .replace(/window\.MV_HITSHAPES = .*/, 'window.MV_HITSHAPES = {"obj_block": {"parts": [{"k": "c", "x": 0, "y": 0, "r": 0.25}]}};');
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: t }); });
+  await pg.goto(base + 'index.html?ci=1&tv=0', { waitUntil: 'domcontentloaded' });
+  await pg.waitForFunction(() => window.MV_BETA && MV_BETA.WEIGHT && window.MV_SHAPES, null, { timeout: 40000 });
+  const o = await pg.evaluate(() => {
+    const W = MV_BETA.WEIGHT, S = MV_SHAPES, r = { x: 0, y: 0, w: 32, h: 32 };
+    return { push: W.push, tri: MV_BETA.weightOf('enemy', { type: 'b_tri', w: 74, h: 64 }), mind: W.mindTotal, seed: MV_BETA.knowlMass({ kind: 'seed' }),
+      cornerHit: S.objCircle('obj_block', r, 1, 1, 2, true), centreHit: S.objCircle('obj_block', r, 16, 16, 2, false),
+      pushUnedited: S.objCircle('obj_push', r, 1, 1, 2, 'old') };
+  });
+  check('weights from the Art Board: push block 9, triangle foe 20, MIND 12, seed 1.5', o.push === 9 && o.tri === 20 && o.mind === 12 && o.seed === 1.5, o);
+  check('an edited block shape (small circle): a punch on its corner misses', o.cornerHit === false);
+  check('an edited block shape: a punch on its centre hits', o.centreHit === true);
+  check('an unedited object keeps its own box test', o.pushUnedited === 'old');
+  await cx2.close();
+}
+
 if (shotDir) {
   fs.mkdirSync(shotDir, { recursive: true });
   for (const st of ['1.1', '1.3']) {

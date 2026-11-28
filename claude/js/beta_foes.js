@@ -890,13 +890,15 @@
     if(!on()) return;
     const P=centre();
     const k=B.knifePickup;
-    if(k&&!k.got&&Math.abs(P.x-k.x)<40&&Math.abs(P.y-(k.y-20))<70){
+    const _kOld=k&&Math.abs(P.x-k.x)<40&&Math.abs(P.y-(k.y-20))<70;
+    if(k&&!k.got&&(window.MV_SHAPES?MV_SHAPES.objHero('obj_knife',MV_SHAPES.objRect('obj_knife',k),p,_kOld):_kOld)){   // hitshapes.js
       k.got=true; _unlockedMask|=16; ITEM=4; B._itemWho=p; B.stats&&B.stats.items++;
       burst(k.x,k.y-20,24,['#e8a060','#ffe0b0','#a0a8b8'],4); S('item_get');
       if(B.openPopup) B.openPopup(5); else if(typeof uiShowToast==='function') uiShowToast('THE GAUCHO KNIFE!');
     }
     const s=B.savePt;
-    if(s&&Math.abs(P.x-s.x)<40&&Math.abs(P.y-(s.y-20))<70){
+    const _sOld=s&&Math.abs(P.x-s.x)<40&&Math.abs(P.y-(s.y-20))<70;
+    if(s&&(window.MV_SHAPES?MV_SHAPES.objHero('obj_save',MV_SHAPES.objRect('obj_save',s),p,_sOld):_sOld)){   // hitshapes.js
       if(!s.near){ s.near=true; s.used=true; s.say=200;
         // Paulo, Nov 4 (build 367): the first time in this journey she gives MIND a spare battery
         // (a battery is what reboots him after a shutdown); her line says so.
