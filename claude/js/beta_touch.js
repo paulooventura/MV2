@@ -13,6 +13,7 @@
   const PAD_ID='padRight';
   const MAP={bSp:['Space'], bE:['KeyE'], bQ:['KeyQ','Sprint_t'], bF:['KeyF']};
   const touches=new Map();          // identifier -> {x,y,r}
+  const holdUntil={};               // minimum hold after a press, so a fast tap is never lost
   let held=new Set();
 
   function buttons(){
@@ -23,6 +24,13 @@
       out.push({id, cx:r.left+r.width/2, cy:r.top+r.height/2, R:r.width/2});
     }
     return out;
+  }
+  // A press must survive at least a few frames: a phone tap can start and end
+  // between two updates, and the game reads its edges once per frame.
+  function press(id){
+    const fresh=!held.has(id);
+    for(const c of MAP[id]){ if(fresh&&!K[c]) Kj[c]=true; K[c]=true; }
+    holdUntil[id]=performance.now()+140;
   }
   function refresh(){
     const now=new Set();
@@ -42,11 +50,12 @@
         if(pair==='bQbSp'||pair==='bSpbQ') now.add(near[1].id);
       }
     }
-    for(const id of now){
-      const fresh=!held.has(id);
-      for(const c of MAP[id]){ if(fresh&&!K[c]) Kj[c]=true; K[c]=true; }
+    for(const id of now) if(!held.has(id)) press(id);
+    for(const id of held){
+      if(now.has(id)) continue;
+      if(performance.now()<(holdUntil[id]||0)){ now.add(id); continue; }
+      for(const c of MAP[id]) K[c]=false;
     }
-    for(const id of held) if(!now.has(id)) for(const c of MAP[id]) K[c]=false;
     for(const id in MAP){ const b=document.getElementById(id); if(b) b.classList.toggle('held',now.has(id)); }
     held=now;
   }
@@ -56,6 +65,11 @@
     const pad=document.getElementById(PAD_ID); if(!pad) return;
     pad.addEventListener('touchstart',e=>{
       for(const t of e.changedTouches) put(t);
+      // Force the button that was actually touched. The nearest-button rule
+      // below is still used for thumbs resting between two buttons, but a
+      // direct hit on Y/B/X must never depend on geometry.
+      const btn=e.target&&e.target.closest?e.target.closest('button'):null;
+      if(btn&&MAP[btn.id]) press(btn.id);
       refresh();
       if(typeof _phoneEnterPlay==='function') _phoneEnterPlay();
       e.preventDefault(); e.stopPropagation();

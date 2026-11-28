@@ -213,6 +213,15 @@
     buildCrayonButtons();
     buildHatButtons();
     paintIdButtons();
+    // Phone: opening ?join=CODE should work with a tap anywhere on the room
+    // panel, not only a pixel-perfect press on JOIN. The code is already known.
+    panel.addEventListener('touchstart',function(e){
+      if(view!=='join'||!el.Code) return;
+      var c=NET.normCode(el.Code.value);
+      if(c.length!==NET.CODE_LEN) return;
+      if(NET.role()==='joiner'&&NET.code()===c) return;
+      startJoin(c);
+    },{passive:true,capture:true});
     NET.onStatus(render);
     if(VOICE()) VOICE().onChange(renderVoice);
     render(NET.status()); renderVoice();
@@ -385,7 +394,19 @@
     if(c.length!==NET.CODE_LEN){ el.Status.textContent='Room codes have '+NET.CODE_LEN+' letters.'; return; }
     if(NET.role()==='joiner'&&NET.code()===c&&/joining|connected/.test(NET.status().status)) return;
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
-    NET.join(c).then(function(){ showIdentity(NET.seat()); }).catch(function(){});
+    // Mobile browsers drop the first broker handshake more often. Retry a
+    // couple of times before surrendering, and say so on screen.
+    var tries=0;
+    var go=function(){
+      NET.join(c).then(function(){ showIdentity(NET.seat()); })
+        .catch(function(){
+          if(++tries<3&&isOpen()){
+            if(el.Status) el.Status.textContent='Reconnecting to room '+c+' ('+tries+'/3)';
+            setTimeout(go,900);
+          }
+        });
+    };
+    go();
   }
   function qr(text){
     var cv=el.Qr; if(!cv) return;
