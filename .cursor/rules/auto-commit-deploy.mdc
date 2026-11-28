@@ -23,7 +23,8 @@ selftest, and takes it live (GitHub Pages + itch) only if dev has new commits.
 3. Write a concise commit message (1–2 sentences, focus on why)
 4. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
 5. Tell Paulo the commit hash.
-6. Ship it in the same turn. He should not have to ask for the live site to match the build he is testing (Paulo, 2026-11-27). Run `powershell -File C:\Users\PVProductions\HOMEBASE\scripts\daily-ship.ps1 -Only MV2`, then read `https://mindandventure.pauloventura.org/build.txt`. Say that number only after it matches. If the Pages run failed, start a fresh deploy (`gh workflow run`), not a rerun of the same run.
+6. Only files of an area you own (see `ownership.mdc`). Online changes only after `npm run probe:online` passes the whole journey.
+7. Ship it in the same turn. He should not have to ask for the live site to match the build he is testing (Paulo, 2026-11-27). Run `powershell -File C:\Users\PVProductions\HOMEBASE\scripts\daily-ship.ps1 -Only MV2`, then read `https://mindandventure.pauloventura.org/build.txt`. Say that number only after it matches. If the Pages run failed, start a fresh deploy (`gh workflow run`), not a rerun of the same run.
 
 ## Remote
 

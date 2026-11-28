@@ -7,6 +7,8 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 
 ## Hard rules
 
+- **One owner per area (Paulo, Nov 28 2026).** `.cursor/rules/ownership.mdc` is the table of who owns which files (Claude sessions and Cursor both follow it). Do not edit an area you don't own; put the ask on the HQ board (`claim.py`) for its owner. Commit only your own paths. Online changes ship only after `npm run probe:online` passes the whole journey.
+
 - **Since Oct 20 2026 the live game is Claude's build 223**: `index.html` is `claude/index.html` plus `<base href="claude/">`, so it runs `claude/js/` + `claude/assets/` (Wall's call). Edit the game in `claude/`, and keep `index.html` in sync with `claude/index.html` (same file + the base tag). Build 168 (co-op/VS, water play, phone/PC screen fit, `beta/js/`) lives at `awdjoo-168.html` until it is merged into `claude/`; `npm run selftest:flow` tests that page.
 - **Awdjoo (`awdjoo-168.html`, was `index.html`).** Since build 162 (Wall promoted the L1 beta, Oct 2026) it runs the `beta/js/` modules (water, cubes, towns 1.1 → 1.2) on top of shared `js/`. The old Awdjoo lives on as lab G (`awdjoo-classic.html`). Labs B–G are experiments. Do not promote a lab over A unless Wall says so.
 - Collision = typed grid (`js/collision_grid.js`). If the player wedges, fix the grid — do not retune `vx`.

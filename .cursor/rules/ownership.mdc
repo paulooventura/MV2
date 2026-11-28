@@ -1,0 +1,34 @@
+---
+description: One owner per area. Do not edit another owner's files; send the ask to the owner instead.
+alwaysApply: true
+---
+
+# Who owns what (Paulo, 2026-11-28: "can we have intuition and clock what we're orchestrating together?")
+
+Several agents (Cursor, Claude sessions, the HQ) work in this repo at once. When two of them edit the same
+files, each one undoes the other and Paulo ends up re-testing the same thing for hours. So every area has ONE
+owner. If you are not the owner:
+
+1. Do **not** edit the owner's files, not even "a small fix".
+2. Write the ask on the HQ board instead, with Paulo's words and what you saw:
+   `python C:/Users/PVProductions/HOMEBASE/staging/office/claim.py "<your name>" "<the ask>"` (it routes to the owner),
+   or tell Paulo in one line that it belongs to the owner.
+3. Never commit files you didn't change (`git commit -- <your paths>` only). Never sweep another agent's
+   uncommitted edits into your commit.
+
+| Area | Files | Owner |
+|---|---|---|
+| Online play (rooms, join, QR, sync, voice, identity, Palotino map rooms) | `claude/js/mv2_net*.js`, `mv2_voice.js`, `mv2_identity.js`, `claude/js/vendor/peerjs*`, `scripts/probe-online*.mjs` | Claude session "MV2 online play" |
+| Collision and anti-tunneling | `claude/js/beta_tunnel.js`, `collision_grid.js`, `scripts/probe-tunnel.mjs` | Claude session "MV2 QA" |
+| Hit shapes and the Art Board | `claude/js/hitshapes.js`, `claude/art-board.html`, `claude/js/art-*.js`, `scripts/capture-*.mjs` | Claude session "MV2 shape hitboxes" |
+| AI brother | `claude/js/beta_sibling.js` and the AI brother modules | Claude session "MV2 smart AI brother" |
+| Audio and frame rate | `claude/js/audio.js`, `sfx_*.js`, `scripts/probe-perf-audio.mjs` | Claude session "Launch readiness" |
+
+Everything else: claim it first with `claim.py`; whoever claims it owns it until it's done.
+
+## Online play is tested as one journey, never patched by symptom
+
+Before any online change is pushed, `npm run probe:online` must pass the whole journey:
+the host on PC opens a room; a phone-sized guest joins by code, by link and by QR; both reach Palotino and
+the map, enter the same stage, see and hit each other, and see items, shots and water; then disconnect,
+rejoin, and a 15-minute wait. One failing step = not pushed. Do not push a fix for one step that breaks another.
