@@ -24,7 +24,6 @@
     {id:0, name:'SOLO', sub:'YOUR BROTHER STAYS HOME', icon:'one', col:'#C9A24A'},
     {id:1, name:'WITH BROTHER', sub:'SHADOWS YOU, HAS YOUR BACK', icon:'shadow', col:'#ffb86a'},
     {id:2, name:'2P LOCAL', sub:'SHARE THE KEYBOARD', icon:'two', col:'#7ad8ff'},
-    {id:3, name:'ONLINE', sub:'UP TO 5 RIDERS', icon:'net', col:'#C9A24A'},
   ];
   const anim={mind:0, venture:0, m0:0, m1:0, m2:0, m3:0, last:null, punch:0};
   const EYE={mind:{u:0.50,v:0.31}, venture:{u:0.50,v:0.28}};
@@ -382,7 +381,7 @@
     sparkTick();
     // Keep the SOLO | WITH | CO-OP row visible in co-op too, with CO-OP lit —
     // Paulo still wants to see (and switch) that row on the cards he likes.
-    if(window.MV_SIBLING) sibToggle();
+    if(window.MV_SIBLING&&brotherChoice()!==3) sibToggle();
     hints();
   }
   // Paulo (Oct 22): on this screen, under the heroes, two switches â€”
@@ -397,7 +396,6 @@
     {k:0,label:'SOLO',col:'#C9A24A'},
     {k:1,label:'WITH',col:'#ffb86a'},
     {k:2,label:'CO-OP',col:'#7ad8ff'},
-    {k:3,label:'ONLINE',col:'#C9A24A'},   // Paulo, Nov 27: up to 5 riders (mv2_net_ui.js host / join)
   ];
   const onlineLinked=()=>!!(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked());
   function openOnline(){ if(window.MV_NET_UI) MV_NET_UI.open(); else if(typeof uiShowToast==='function') uiShowToast('ONLINE PLAY DID NOT LOAD'); }
@@ -417,16 +415,9 @@
     MV_SIBLING.on=!!on; if(typeof _playModeIdx!=='undefined') _playModeIdx=on?1:0;
   }
   function setBrotherChoice(v){
-    v=((v|0)+4)%4;
-    if(v!==3&&onlineLinked()&&window.MV_NET) MV_NET.disconnect();   // leaving ONLINE closes the room
-    if(v===3){
-      // ONLINE: one human here, the friend plays the other brother on their device.
-      if(typeof _playerCount!=='undefined') _playerCount=1;
-      if(typeof _playModeIdx!=='undefined') _playModeIdx=3;
-      if(window.MV_SIBLING) MV_SIBLING.on=false;
-      try{ sfx('menu'); }catch(e2){}
-      return;
-    }
+    v=((v|0)%3+3)%3;
+    if(onlineLinked()&&window.MV_NET) MV_NET.disconnect();
+    if(typeof _playModeIdx!=='undefined'&&_playModeIdx===3) _playModeIdx=v;
     if(v===2){
       // Straight to the SAME select screen — never _gameState='partysetup'.
       if(typeof _playerCount!=='undefined') _playerCount=2;
@@ -506,7 +497,6 @@
     if(window.MV_SIBLING) for(const b of sibRects) if(inR(b,mx,my)){
       selRow=b.row;
       if(b.row===1&&brotherChoice()!==b.k){ setBrotherChoice(b.k); beep(); }
-      if(b.row===1&&b.k===3&&!onlineLinked()) openOnline();
       return;
     }
     for(const b of heroRects) if(inR(b,mx,my)){ selRow=0; if(_heroChoice===b.k) startGame(); else { _heroChoice=b.k; beep(); } return; }

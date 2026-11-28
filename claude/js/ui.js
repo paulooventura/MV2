@@ -155,7 +155,7 @@ function _driveMenusFromPads(){
       if(rt){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; }
     }
     if(ok) startGame();
-    if(back){ if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
+    if(back){ if(_selectStep===1&&_playModeIdx===3) _backFromOnlineHero(); else if(_selectStep===1) _selectStep=0; else if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){ _gameState='story'; _storyPage=STORY_PAGES.length-1; } }
     return;
   }
   if(_gameState==='options'){
@@ -254,7 +254,7 @@ let _playModeIdx=0;
 // T137 (store gate A): the Steam build (served from app://) does not show the 2P ONLINE "coming soon"
 // card: it has 3 modes, the web build keeps all 4. ?store=1 shows the store menu in a browser.
 const MV_STORE_BUILD=(()=>{ try{ return location.protocol==='app:'||/[?&]store=1\b/.test(location.search); }catch(e){ return false; } })();
-const MV_MODE_N=4;   // Nov 26 2026: online co-op is real (mv2_net.js room codes) and works on app:// too, so the store build shows 2P ONLINE again
+const MV_MODE_N=3;   // Story mode: solo, with brother, local co-op. Online is a title-screen choice.
 
 const GAME_BEATEN_KEY='mv_game_beaten';
 const CUSTOM_STAGES_KEY='mv_custom_stages';
@@ -477,8 +477,9 @@ function _drawUiToast(){
 function _titleMenuItems(){
   return [
     {label:'STORY MODE', activate:()=>startStoryMode()},
-    // Paulo (Nov 18): LOCAL PLAY / CREATIVE MODE are gone from the title. Co-op is
-    // picked from the character-select screen's BROTHER row instead.
+    {label:'ONLINE', activate:()=>startOnlineMode()},
+    // Paulo (Nov 18): LOCAL PLAY / CREATIVE MODE are gone from the title. Local co-op
+    // stays on the story select screen. Online is its own title choice.
     // Hidden still: Tutorial Chamber, Item Sprite Lab, Physics Lab, Battle Practice.
     {label:'OPTIONS', activate:()=>{_gameState='options';_optRow=0;}},
     // Paulo (Nov 26): saves travel between devices with no account (mv2_save_share.js: code + QR, text code, file)
@@ -748,7 +749,23 @@ function _titleBgImage(){
 const MAP_ART=(()=>{ const im=new Image(); im.src='assets/story/sonnata-map.png'; return im; })();
 
 // ── Game state transitions ────────────────────────────────────
+function startOnlineMode(){
+  _unlockAudio();
+  if(!window.MV_NET_UI){ uiShowToast('ONLINE PLAY DID NOT LOAD'); return; }
+  _playerCount=1; _playModeIdx=3;
+  if(window.MV_SIBLING) MV_SIBLING.on=false;
+  MV_NET_UI.open(function(){
+    _gameState='select'; _selectStep=1; _playModeIdx=3; _playerCount=1;
+    if(window.MV_SIBLING) MV_SIBLING.on=false;
+  });
+}
+function _backFromOnlineHero(){
+  _gameState='title'; _titleT=0;
+  if(window.MV_NET_UI) MV_NET_UI.open();
+}
 function startStoryMode(){
+  if(_playModeIdx===3) _playModeIdx=0;
+  if(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked()){ try{ MV_NET.disconnect(); }catch(e){} }
   _unlockAudio(); _clearBattleRespawnTimer();
   _battleTestMode=false; _syncBattleHud();
   _runTestMode=false; _stageDesignerMode=false;
@@ -794,8 +811,7 @@ function startGame(){
     if(_storyPage>=STORY_PAGES.length){ _gameState='select'; _selectStep=0; _playModeIdx=_playerCount===2?2:(window.MV_SIBLING&&!MV_SIBLING.on?0:1); }
   }else if(_gameState==='select'){
     if(_selectStep===0){
-      // modes (Paulo, Oct 22): 0 SOLO · 1 WITH YOUR SIBLING (it shadows you) · 2 2P LOCAL · 3 2P ONLINE
-      if(_playModeIdx===3){ if(window.MV_NET_UI) MV_NET_UI.open(); else uiShowToast('ONLINE PLAY DID NOT LOAD'); return; }   // mv2_net_ui.js: host / join a room
+      // Story modes: 0 SOLO · 1 WITH YOUR BROTHER · 2 2P LOCAL. Online is on the title.
       _playerCount=_playModeIdx===2?2:1; if(_playModeIdx<2&&window.MV_SIBLING) MV_SIBLING.on=_playModeIdx===1;
       _selectStep=1; return;
     }
@@ -917,12 +933,12 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(_gameState==='select'){
-    if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1){_selectStep=0;e.preventDefault();return;}if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){_gameState='story';_storyPage=STORY_PAGES.length-1;}e.preventDefault();return;}
+    if(e.code==='Escape'||e.code==='Backspace'){if(_selectStep===1&&_playModeIdx===3){_backFromOnlineHero();e.preventDefault();return;}if(_selectStep===1){_selectStep=0;e.preventDefault();return;}if(!(window.MV_TIMELINE_BACK&&MV_TIMELINE_BACK())){_gameState='story';_storyPage=STORY_PAGES.length-1;}e.preventDefault();return;}
     const dx=(e.code==='ArrowLeft'||e.code==='KeyA')?-1:(e.code==='ArrowRight'||e.code==='KeyD')?1:0;
     const dy=(e.code==='ArrowUp'||e.code==='KeyW')?-1:(e.code==='ArrowDown'||e.code==='KeyS')?1:0;
     if((dx||dy)&&window.MV_SELECT_NAV&&MV_SELECT_NAV(dx,dy)){ e.preventDefault(); return; }
-    if(dx<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+3)%4; else _heroChoice='mind'; e.preventDefault(); return; }
-    if(dx>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%4; else _heroChoice='venture'; e.preventDefault(); return; }
+    if(dx<0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+MV_MODE_N-1)%MV_MODE_N; else _heroChoice='mind'; e.preventDefault(); return; }
+    if(dx>0){ if(_selectStep===0)_playModeIdx=(_playModeIdx+1)%MV_MODE_N; else _heroChoice='venture'; e.preventDefault(); return; }
     if(e.code==='Enter'||e.code==='Space'){startGame();e.preventDefault();return;}
     return;
   }
