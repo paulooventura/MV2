@@ -12,7 +12,8 @@
  *            not paused): silent gaps, restarts (currentTime jumping back, not a loop wrap), pause() calls and
  *            who made them, playbackRate writes, 'waiting'/'stalled' (buffer underruns), AudioContext suspends,
  *            and WebAudio notes started in the past (heard as clipped/late notes).
- * Usage: node scripts/probe-perf-audio.mjs [--secs 40] [--only 1.1,coop] [--online] [--swgl] [--json out.json]
+ * Usage: node scripts/probe-perf-audio.mjs [--secs 40] [--only 1.1,coop] [--online] [--swgl] [--json out.json] [--native-fn]
+ *        --native-fn names the JS function behind each canvas call (drawImage < beta_decor.js:artBlitImg)
  * Exit 1 if any music cut / underrun / late note is found, or p99 frame work > 16.7 ms.
  */
 import { createServer } from 'http';
@@ -174,7 +175,7 @@ async function measure(pg, secs, pauseAt) {
   for (let i = 0; i < profile.samples.length; i++) {
     const dt = (profile.timeDeltas[i] || 0) / 1000; tUs += profile.timeDeltas[i] || 0;
     const n = byId.get(profile.samples[i]); let f = fileOf(n);
-    if (!n.callFrame.url && !/^\(/.test(f)) { let q = parentOf.get(n.id); while (q && !q.callFrame.url) q = parentOf.get(q.id); if (q) f += ' < ' + fileOf(q); }   // a canvas call, named with who made it
+    if (!n.callFrame.url && !/^\(/.test(f)) { let q = parentOf.get(n.id); while (q && !q.callFrame.url) q = parentOf.get(q.id); if (q) f += ' < ' + fileOf(q) + (process.argv.includes('--native-fn') ? ':' + (q.callFrame.functionName || '(anon)') : ''); }   // a canvas call, named with who made it
     all[f] = (all[f] || 0) + dt;
     if (n.callFrame.url) { const k = f + ':' + (n.callFrame.functionName || '(anon)') + ':' + (n.callFrame.lineNumber + 1); fns[k] = (fns[k] || 0) + dt; }
     if (f === '(gc)') { gcTot += dt; gcRun += dt; gcMax = Math.max(gcMax, gcRun); } else gcRun = 0;
