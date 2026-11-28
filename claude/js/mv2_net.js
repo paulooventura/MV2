@@ -63,7 +63,7 @@
   // sorted seat list, rebuilt only when a seat comes or goes (was: Object.keys+sort several times a frame)
   var seatsVer=0, seatsAt=-1, seatsArr=[], activeSeats={};
   function seatKeys(){ if(seatsAt!==seatsVer){ seatsArr=Object.keys(remotes).map(Number).sort(function(a,b){ return a-b; }); seatsAt=seatsVer; } return seatsArr; }
-  var lastSend=0, lastFat=0, lastEnemy=0, lastPing=0;
+  var lastSend=0, lastFat=0, lastEnemy=0, lastPing=0, sendSeq=0;
   var myEpoch=0, lastStage=null, followUntil=0, followEpoch=-1, base=0, baseStage=null;
   var own='', remEn={};
   var extras=[]; // puppet actors for seats beyond the first remote (p2)
@@ -123,11 +123,15 @@
   // Perf (Paulo, Nov 27: "frame rate as high as possible, especially online"): the local
   // identity was re-read from localStorage every frame (tick) and every send. Cache it;
   // setIdentity() clears the cache. idVer bumps only when the packed identity changes.
-  var locCache=null, idVer=0, idSig='', idpSentVer=-1, idpSentAt=0;
+  var locCache=null, idVer=0, idSig='', idpSentVer=-1, idpSentAt=0, sessCol='';
+  // Until the stage starts, the seat decides the hero (seat 1 Mind, seat 2 Venture): the
+  // select screen's last pick is not who this rider will be online.
+  function idHero(){ return (!inGame()&&mySeat>=0&&ID)?ID.defaultHeroForSeat(mySeat):heroName(); }
   function localIdentity(){
     var loc=locCache||(locCache=ID?ID.loadLocal():{name:'',color:'',hat:'gaucho'});
-    var hero=heroName();
-    var col=loc.color||(mySeat>=2?'yellow':(hero==='venture'?'red':'purple'));
+    var hero=idHero();
+    // sessCol: the colour this rider was moved to because someone in the room already had theirs
+    var col=sessCol||loc.color||(mySeat>=2?'yellow':(hero==='venture'?'red':'purple'));
     var hat=loc.hat||(hero==='venture'?'cap':'gaucho');
     return {name:loc.name||(ID?ID.defaultName(mySeat):(hero==='venture'?'VENTURE':'MIND')), color:col, hat:hat, hatMatch:true, hero:hero};
   }
@@ -160,6 +164,12 @@
     ID.applyToActor(pl, localIdentity()); pl._netIdVer=idVer; pl._netIdFor=idSig;
   }
   function rosterSnapshot(){
+    if(peer&&peer.id&&roster[String(mySeat)]) roster[String(mySeat)].pid=peer.id;
+    for(var ci=0;ci<conns.length;ci++){
+      var c=conns[ci];
+      if(!c||!c.open||c._mvSeat==null||!c.peer) continue;
+      if(roster[String(c._mvSeat)]) roster[String(c._mvSeat)].pid=c.peer;
+    }
     var out=[];
     Object.keys(roster).forEach(function(k){ out.push(roster[k]); });
     out.sort(function(a,b){ return (a.seat|0)-(b.seat|0); });
@@ -239,7 +249,7 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
-  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false, palClaimMs=4000, wantGo=false;
+  var refused='', rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false, palClaimMs=4000, wantGo=false, selfLeave=false, dropGen=0;
   function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
   function scheduleRetry(ms){
     if(retryTimer||st.linked||st.role!=='joiner') return;
@@ -263,7 +273,28 @@
     wireConn(dc,{timeout:ICE_ATTEMPT_MS, allowRetry:true, onRetry:function(){ scheduleRetry(1200); }});
     setStatus('joining', st.code==='PALOTINO'?'Walking into Palotino…':('Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.'));
   }
+  function leave(){
+    disconnect();
+    try{
+      _paused=false;
+      if(window.MV_BETA&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
+      else _gameState='title';
+    }catch(e){}
+  }
+  function voiceTargets(){
+    var out=[], seen={}, mine=peer&&peer.id;
+    function add(id, seat){
+      if(!id||id===mine||seen[id]) return;
+      seen[id]=1;
+      out.push({id:id, seat:seat|0});
+    }
+    for(var i=0;i<conns.length;i++){ var c=conns[i]; if(c&&c.open&&c.peer) add(c.peer, c._mvSeat); }
+    var list=rosterSnapshot();
+    for(var j=0;j<list.length;j++){ var r=list[j]; if(r&&r.pid&&(r.seat|0)!==(mySeat|0)) add(r.pid, r.seat); }
+    return out;
+  }
   function disconnect(){
+    dropGen++; selfLeave=true;
     rejoinUntil=0; roomUntil=0;
     if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
     joinResolve=null;
@@ -271,7 +302,7 @@
     try{ sendAll({t:'bye', seat:mySeat}); }catch(e){}
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
-    peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={};
+    peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={}; sessCol=''; locCache=null;
     hostOpen=false; reviving=false; liveStage=null; runId=0; seenGen=0; wantGo=false;
     setStatus('offline','');
   }
@@ -364,6 +395,7 @@
     c.on('open',function(){
       if(conns.indexOf(c)<0) return;
       if(c._mvTimer){ clearTimeout(c._mvTimer); c._mvTimer=null; }
+      c._mvRx=performance.now(); refused='';
       st.linked=true; lastPhase='room'; joinTries=0;
       if(st.role==='joiner') rejoinUntil=Date.now()+ROOM_JOIN_MS;
       refreshMyPack();
@@ -384,8 +416,12 @@
         if(wantGo) beginShared('1.1');
       }
     });
-    c.on('data',function(d){ if(conns.indexOf(c)>=0) handle(d,c); });
-    c.on('close',function(){
+    c.on('data',function(d){ if(conns.indexOf(c)>=0){ c._mvRx=performance.now(); handle(d,c); } });
+    // One way out for a link: a real close, or the watchdog finding it silent (a phone that
+    // slept or lost its radio never says goodbye, and its channel can look open for a minute).
+    c._born=dropGen;
+    function gone(){
+      if(c._born!==dropGen){ var ix0=conns.indexOf(c); if(ix0>=0) conns.splice(ix0,1); return; }
       var ix=conns.indexOf(c); if(ix<0) return;
       conns.splice(ix,1);
       var leftSeat=c._mvSeat;
@@ -415,16 +451,38 @@
           if(!holding) dropPuppets();
           toast(holding?'CONNECTION BLINKED':'A FRIEND LEFT');
         }
+      }else if(!selfLeave&&st.code){
+        // The host can step out. The room stays: whoever is still here opens it again.
+        var keep=st.code;
+        st.linked=false;
+        setStatus('joining', keep==='PALOTINO'?'Someone stepped out. Palotino stays open.':('Someone stepped out. Room '+keep+' stays open.'));
+        setTimeout(function(){
+          if(selfLeave||st.linked) return;
+          var back=keep==='PALOTINO'?enterPalotino():host(keep).catch(function(h){
+            if(h&&h.type==='unavailable-id') return join(keep);
+            throw h;
+          });
+          back.then(function(){
+            if(selfLeave||typeof _gameState==='undefined'||_gameState!=='game') return;
+            if(st.role==='host'){ runId=(runId||1)+1; seenGen=0; }
+            beginShared(stageId()||'1.1');
+          }).catch(function(){});
+        }, 700);
       }else if(rejoinUntil&&Date.now()<rejoinUntil&&st.code){
         st.linked=false;
         setStatus('joining','Connection blinked. Finding your friend again — '+minsLeft(rejoinUntil)+' min left.');
         scheduleRetry(1200);
+      }else if(refused){
+        closeAllConns();
+        setStatus(st.status==='error'?'error':'closed', refused);
       }else{
         closeAllConns();
         setStatus('closed', wasLinked?'The host left the room.':guestTimeoutCopy());
         if(wasLinked) toast('THE HOST LEFT');
       }
-    });
+    }
+    c._mvGone=gone;
+    c.on('close',gone);
     c.on('error',function(e){
       if(conns.indexOf(c)<0) return;
       if(st.role==='host'&&!c.open){
@@ -495,6 +553,7 @@
     var pin=String(fixed||'').toUpperCase();
     var standing=pin==='PALOTINO';
     disconnect();
+    selfLeave=false;
     st.role='host'; mySeat=0; joinTries=0; hostOpen=false;
     roomUntil=standing?0:(Date.now()+ROOM_JOIN_MS);
     refreshMyPack();
@@ -549,12 +608,28 @@
     reviveHost(st.code);
   }, 4000);
 
+  // Watchdog: a link that has said nothing for DEAD_MS is gone (pings go out every 2 s both ways).
+  // performance.now, not Date.now: a clock change must not kill a link. A long gap between two
+  // checks means this page was asleep, not the link: start counting again from the wake-up.
+  var DEAD_MS=10000, lastDog=0;
+  setInterval(function(){
+    var now=performance.now(), gap=lastDog?now-lastDog:0; lastDog=now;
+    if(gap>3000){ conns.forEach(function(c){ if(c) c._mvRx=now; }); return; }
+    conns.slice().forEach(function(c){
+      if(!c||!c.open||!c._mvRx||now-c._mvRx<DEAD_MS) return;
+      var g=c._mvGone; c._mvRx=0;
+      try{ c.close(); }catch(e){}
+      if(g) g();
+    });
+  }, 1000);
+
   function join(code){
     var raw=String(code||'').toUpperCase().replace(/[^A-Z]/g,'');
     var standing=raw==='PALOTINO';
     var c=standing?PALOTINO:normCode(code);
     if(!standing&&c.length!==CODE_LEN) return Promise.reject(new Error('Room codes have '+CODE_LEN+' letters.'));
     disconnect();
+    selfLeave=false;
     st.role='joiner'; st.code=c; mySeat=-1; joinTries=0;
     rejoinUntil=Date.now()+ROOM_JOIN_MS;
     roomUntil=standing?0:rejoinUntil;
@@ -671,6 +746,9 @@
         if(pk.until!=null) roomUntil=+pk.until||0;
         if(pk.go&&st.role!=='host') followStage(pk.go, 0, pk.h||null, pk.gen|0);
         if(pk.roster) pk.roster.forEach(function(r){ upsertRoster(r.seat,r); });
+        // One colour per rider: if mine is already in the room, take the first free one (this session only).
+        delete roster[String(mySeat)];
+        (function(){ var want=localIdentity().color, got=claimColor(want, mySeat); if(got!==want) sessCol=got; })();
         refreshMyPack();
         upsertRoster(mySeat, Object.assign({id:MY_ID, role:'joiner'}, myIdPack, {seat:mySeat}));
         send({t:'hi', v:3, id:MY_ID, role:st.role, h:heroName(), seat:mySeat, idp:myIdPack});
@@ -699,17 +777,22 @@
         break;
       case 'id':
         (function(){
-          var seat=pk.seat|0;
-          var idp=ID?ID.unpackId(pk):{name:pk.nm,color:pk.col,hat:pk.hat,hero:pk.hero};
+          var seat=pk.seat|0, q=pk.idp||pk;   // setIdentity sends {t:'id', seat, idp:{nm,col,hat,…}}
+          var idp=ID?ID.unpackId(q):{name:q.nm,color:q.col,hat:q.hat,hero:q.hero};
           upsertRoster(seat, Object.assign({}, roster[String(seat)]||{}, {seat:seat}, ID?ID.packId(idp):{}));
           if(st.role==='host') relay(fromConn, pk);
         })();
         break;
       case 'shut':
-        setStatus('closed','This room\'s 15 minutes to join are up.');
+        // the room said no: stop the 15-minute retry loop, or it knocks again forever
+        rejoinUntil=0; if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
+        refused='The 15 minutes to join this room are up.';
+        setStatus('closed',refused);
         try{ if(fromConn) fromConn.close(); }catch(e){}
         return;
       case 'full':
+        rejoinUntil=0; if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
+        refused='That room is full ('+(pk.max||MAX_PEERS)+' players).';
         setStatus('error','That room is full ('+(pk.max||MAX_PEERS)+' players).');
         try{ if(fromConn) fromConn.close(); }catch(e){}
         return;
@@ -729,9 +812,13 @@
           if(seat===mySeat) return;
           pk._rx=Date.now();
           if(pk.until!=null&&st.role!=='host') roomUntil=+pk.until||0;
-          if(!pk.a||pk.a.length<2) return;
           var b=remBucket(seat);
-          b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift();
+          // The channel is unordered (Build 477): a late packet must never move the hero back.
+          // (a big step back is a reloaded page starting its count again, not a late packet)
+          if(pk.q!=null){ var dq=(b.q==null)?1:(pk.q|0)-b.q; if(dq<=0&&dq>-50) return; b.q=pk.q|0; }
+          // Room presence ({a:[]}) still says where they are (phase, follow) and who they are.
+          if(pk.a&&pk.a.length>=2){ b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift(); }
+          else b.buf.length=0;
           b.latest=pk;
           var q=pk.idp||pk, cur=roster[String(seat)];
           if((pk.idp||pk.nm||pk.col||pk.hat)&&(!cur||cur.nm!==q.nm||cur.col!==q.col||cur.hat!==q.hat||(q.hero&&cur.hero!==q.hero))){
@@ -828,7 +915,7 @@
     refreshMyPack();
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
             st:b.stageId||null, se:myEpoch, ld:0, gs:gs(), cm:(b.carryMask|0),
-            seat:mySeat, gen:runId||0};
+            seat:mySeat, gen:runId||0, q:++sendSeq};
     // identity rides along only when it changed, and once a second for late joiners
     var nowI=Date.now();
     if(idVer!==idpSentVer||nowI-idpSentAt>1000){ pk.idp=myIdPack; idpSentVer=idVer; idpSentAt=nowI; }
@@ -861,9 +948,15 @@
   // with the fat one, so the PC never saw it move.
   function poseSnap(actor){
     var b=B()||{};
-    return {t:'p', a:[r1(actor.x),r1(actor.y),r1(actor.vx),r1(actor.vy),actor.fc?1:0],
-      h:String(actor.hero||'mind'), st:b.stageId||null, ld:0, gs:gs(),
-      seat:mySeat, gen:runId||0};
+    // se + cm ride along: they are what the other side follows a stage change by
+    var a=[];
+    a[0]=r1(actor.x); a[1]=r1(actor.y); a[2]=r1(actor.vx); a[3]=r1(actor.vy); a[4]=actor.fc?1:0;
+    a[8]=actor.item|0; a[9]=r1(actor.pt||0); a[10]=r1(actor.pCharge||0); a[11]=actor.pCharging?1:0;
+    a[15]=!!actor.xlrOn; a[16]=!!actor.magOn;
+    a[24]=r1(actor.duckCharge||0); a[25]=!!actor.duckBoostReady; a[26]=r1(actor.wallGrip||0); a[27]=!!actor._wallChargeReady; a[29]=r1(actor.runRamp||0);
+    return {t:'p', a:a,
+      h:String(actor.hero||'mind'), st:b.stageId||null, se:myEpoch, cm:(b.carryMask|0), ld:0, gs:gs(),
+      seat:mySeat, gen:runId||0, q:++sendSeq};
   }
 
   function applyIdentity(actor, pk, seat){
@@ -1225,6 +1318,7 @@
   }
 
   function tick(pl){
+    lastTick=performance.now();
     if(!st.linked&&!(st.role==='host'&&st.code)) return;
     if(!st.linked) return;
     notePhase();
@@ -1251,12 +1345,15 @@
     applyEnemies();
   }
 
+  var lastTick=0;
   setInterval(function(){
-    if(!st.linked||inGame()) return;
+    if(!st.linked) return;
+    // In a stage the frame loop talks. A hidden tab has no frames: keep the link alive from here.
+    if(inGame()){ var t=Date.now(); if(performance.now()-lastTick>1000&&t-lastPing>PING_MS){ lastPing=t; send({t:'ping',c:t}); } return; }
     notePhase();
     var now=Date.now();
     if(now-lastPing>PING_MS){ lastPing=now; send({t:'ping',c:now}); }
-    if(now-lastSend>=250){ lastSend=now; refreshMyPack(); var b=B()||{}; send({t:'p', a:[], h:heroName(), st:null, se:myEpoch, ld:0, gs:gs(), cm:b.carryMask|0, seat:mySeat, idp:myIdPack, until:roomUntil}); }
+    if(now-lastSend>=250){ lastSend=now; refreshMyPack(); var b=B()||{}; if(mySeat>=0) send({t:'p', a:[], h:idHero(), st:null, se:myEpoch, ld:0, gs:gs(), cm:b.carryMask|0, seat:mySeat, idp:myIdPack, until:roomUntil, q:++sendSeq}); }
     if(st.role==='joiner') maybeFollow();
   },120);
 
@@ -1266,7 +1363,7 @@
       if(partial.name!=null) loc.name=ID?ID.cleanName(partial.name):String(partial.name||'');
       if(partial.color){
         var asked=partial.color, got=claimColor(asked, mySeat);
-        loc.color=got;
+        loc.color=got; sessCol='';
         partial._moved=got!==normCol(asked);
       }
       if(partial.hat) loc.hat=partial.hat;
@@ -1283,7 +1380,7 @@
   }
 
   window.MV_NET={
-    host:host, join:join, enterPalotino:enterPalotino, beginShared:beginShared, disconnect:disconnect,
+    host:host, join:join, enterPalotino:enterPalotino, beginShared:beginShared, disconnect:disconnect, leave:leave,
     status:status, role:function(){ return st.role; }, code:function(){ return st.code; },
     isActive:function(){ return st.linked; }, isLinked:function(){ return st.linked; },
     inTimeline:inTimeline, phase:phase, drawExtras:drawExtras,
@@ -1294,6 +1391,7 @@
     peer:function(){ return peer; },
     // voice still pairs the first open conn (TODO multi-voice)
     remoteId:function(){ var o=openConns(); return o[0]?o[0].peer:null; },
+    voiceTargets:voiceTargets,
     owners:function(){ return own; }, base:function(){ return base; },
     joinLink:joinLink, normCode:normCode, CODE_LEN:CODE_LEN, myId:MY_ID,
     MAX_PEERS:MAX_PEERS, seat:function(){ return mySeat; },

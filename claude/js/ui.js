@@ -94,6 +94,7 @@ function drawOff(){
 function _pauseItems(){
   const items=['RESUME','OPTIONS'];
   // (Paulo, Nov 4, build 358: no LEAVE A NOTE / UNSTICK ME in the pause menu)
+  if(window.MV_NET&&MV_NET.isLinked&&MV_NET.isLinked()) items.push('LEAVE ROOM');
   items.push('EXIT');
   return items;
 }
@@ -566,6 +567,10 @@ function _pausePick(it){
   if(it==='RESUME') _togglePause();
   else if(it==='OPTIONS'){ _optFromPause=true; _optRow=0; _optRow2=0; _optFollow=0; _gameState='options'; }
   else if(it==='UNSTICK ME'){ if(window.MV_BETA&&MV_BETA.unstick) MV_BETA.unstick(); }
+  else if(it==='LEAVE ROOM'){
+    _paused=false;
+    if(window.MV_NET&&MV_NET.leave) MV_NET.leave();
+  }
   else if(it==='EXIT'){
     _paused=false;
     if(window.MV_BETA&&MV_BETA.on&&MV_BETA.quitToTitle) MV_BETA.quitToTitle();
