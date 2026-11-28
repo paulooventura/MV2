@@ -23,7 +23,8 @@
     var s=document.createElement('style');
     s.id='mvNetCss';
     s.textContent=
-      '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:'+WASHI+';'+
+      '#mvNetPanel{display:none;position:fixed;inset:0;z-index:120000;color:'+WASHI+';'+
+        'touch-action:manipulation;-webkit-tap-highlight-color:transparent;'+
         'background:rgba(18,6,36,.62);'+
         'font:18px/1.35 "MV Pixel",ui-monospace,Menlo,monospace;-webkit-text-size-adjust:100%;text-size-adjust:100%;'+
         'align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));}'+
@@ -38,12 +39,15 @@
       '#mvNetPanel .sub{color:'+AGED+';font-size:16px;margin:0 0 14px;}'+
       '#mvNetPanel .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0;}'+
       '#mvNetPanel button{font:inherit;letter-spacing:.08em;min-height:44px;padding:8px 16px;border-radius:0;'+
+        'touch-action:manipulation;-webkit-tap-highlight-color:transparent;'+
         'background:'+SUMI+';color:'+WASHI+';border:2px solid '+GOLD+';cursor:pointer;}'+
       '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;border-color:'+GOLD+';color:'+GOLD+';}'+
       '#mvNetPanel button.on{background:'+MURA+';border-color:'+GOLD+';color:'+WASHI+';}'+
       '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:'+GOLD+';box-shadow:inset 0 0 0 1px '+GOLD+';}'+
       '#mvNetPanel button:disabled{opacity:.4;cursor:default;}'+
-      '#mvNetPanel #mvNetDone{background:#1c8a3a;color:#f3ffe8;border:3px solid #8dff9a;min-width:220px;min-height:64px;font-size:28px;letter-spacing:.22em;}'+
+      '#mvNetPanel .goRow{position:sticky;bottom:0;z-index:3;padding:12px 0 8px;margin-top:16px;'+
+        'background:rgba(18,6,36,.94);}'+
+      '#mvNetPanel #mvNetDone{background:#1c8a3a;color:#f3ffe8;border:3px solid #8dff9a;min-width:220px;min-height:64px;font-size:28px;letter-spacing:.22em;touch-action:manipulation;}'+
       '#mvNetPanel #mvNetDone:disabled{opacity:.4;}'+
       '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:'+GOLD+';'+
         'margin:6px 0 2px;padding-left:.28em;text-shadow:2px 2px 0 '+SUMI+';}'+
@@ -168,7 +172,7 @@
           '<div class="tiny" id="mvNetVoiceHint">Off until you turn it on. Push-to-talk: hold T (pad: R-stick click). Open mic: T mutes.</div>'+
         '</div>'+
 
-        '<div class="row" style="margin-top:16px">'+
+        '<div class="row goRow">'+
           '<button type="button" id="mvNetDone" disabled>GO</button>'+
           '<button type="button" id="mvNetBack">BACK</button>'+
         '</div>'+
@@ -189,6 +193,19 @@
     el.Code.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); startJoin(el.Code.value); } });
     el.Back.onclick=back;
     el.Done.onclick=goMap;
+    // A phone page sets touch-action:none, so the tap never becomes a click.
+    // The finger-up itself is the press.
+    function armGoTap(e){
+      if(!el.Done||el.Done.disabled||el.Done.style.display==='none') return;
+      if(e&&e.cancelable) e.preventDefault();
+      if(e) e.stopPropagation();
+      goMap();
+    }
+    el.Done.addEventListener('touchend',armGoTap,{passive:false});
+    el.Done.addEventListener('pointerup',function(e){
+      if(e.pointerType&&e.pointerType!=='touch'&&e.pointerType!=='pen') return;
+      armGoTap(e);
+    });
     el.Nick.value=draft.name;
     el.Nick.addEventListener('input',commitId);
     el.Nick.addEventListener('change',commitId);
@@ -411,7 +428,7 @@
       el.Status.className=hardErr?'warn':'';
       el.Status.style.color=hardErr?SEAL:WASHI;
       el.Status.style.borderLeftColor=hardErr?SEAL:(s.linked||s.status==='hosting'?GOLD:USU);
-      el.Done.disabled=!((s.role==='host'&&s.open)||(s.role==='joiner'&&s.linked));
+      el.Done.disabled=!(s.role==='host'||s.role==='joiner');
       if(el.Count) el.Count.textContent=(s.peers||(s.linked?2:1))+' / '+max+' in the room';
       renderRoster(el.Roster); renderRoster(el.RosterJ);
       showIdentity(typeof NET.seat==='function'?NET.seat():0);

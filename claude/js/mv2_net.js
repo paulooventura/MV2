@@ -239,7 +239,7 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
-  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false, palClaimMs=4000;
+  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false, palClaimMs=4000, wantGo=false;
   function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
   function scheduleRetry(ms){
     if(retryTimer||st.linked||st.role!=='joiner') return;
@@ -270,7 +270,7 @@
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
     peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={};
-    hostOpen=false; reviving=false; liveStage=null; runId=0; seenGen=0;
+    hostOpen=false; reviving=false; liveStage=null; runId=0; seenGen=0; wantGo=false;
     setStatus('offline','');
   }
   function errText(e){
@@ -375,6 +375,7 @@
       }else{
         if(joinResolve){ var fn=joinResolve; joinResolve=null; try{ fn({code:st.code}); }catch(e){} }
         setStatus('joining','Linked — waiting for a seat…');
+        if(wantGo) beginShared('1.1');
       }
     });
     c.on('data',function(d){ if(conns.indexOf(c)>=0) handle(d,c); });
@@ -493,7 +494,7 @@
         peer=pr; st.code=code;
         setStatus('opening','Opening room…');
         var marked=false;
-        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; hostOpen=true; setStatus('hosting',hostWaitingCopy()); if(!marked){ marked=true; res({code:code}); } });
+        pr.on('open',function(){ if(peer!==pr) return; hostTries=0; hostOpen=true; setStatus('hosting',hostWaitingCopy()); if(wantGo) beginShared(liveStage||'1.1'); if(!marked){ marked=true; res({code:code}); } });
         pr.on('connection',function(c){ if(peer===pr) wireConn(c); });
         pr.on('call',function(call){ fire('call',call); });
         pr.on('disconnected',function(){
@@ -981,7 +982,12 @@
   function beginShared(stage){
     stage=stage||'1.1';
     if(st.role==='joiner'){
-      if(!st.linked) return false;
+      if(!st.linked){
+        wantGo=true;
+        setStatus('joining','Still walking in. The map opens as soon as you are in the room.');
+        return 'wait';
+      }
+      wantGo=false;
       var latest=primaryLatest();
       if(latest&&latest.gs==='game'&&latest.st&&!latest.ld){
         followStage(latest.st, latest.cm|0, latest.h, +latest.gen||0);
@@ -992,7 +998,13 @@
       setStatus('connected','Starting the room together…');
       return 'wait';
     }
-    if(st.role!=='host'||!hostOpen) return false;
+    if(st.role!=='host') return false;
+    if(!hostOpen){
+      wantGo=true;
+      setStatus('opening','Opening the room… the map starts as soon as it is up.');
+      return 'wait';
+    }
+    wantGo=false;
     if(!runId){ runId=1; seenGen=1; }
     liveStage=stage;
     send({t:'go', st:liveStage, gen:runId, cm:0, h:heroName()});
