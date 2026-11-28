@@ -322,6 +322,8 @@ function _updateCamZoom(){
   const fit=p?_outlineZoomCap(p):1.5;
   if(_threatZoomS>camZoomTgt) camZoomTgt=Math.min(fit,_threatZoomS);
   if(camZoomTgt>fit) camZoomTgt=fit;
+  // Punch never zooms the picture in. The lens stays where it was for the swing.
+  if(p&&((typeof isPunch==='function'&&isPunch())||p.pCharging||p.pt>0)&&camZoomTgt>camZoom) camZoomTgt=camZoom;
   camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS+0.08*(_threatZoomS>1.4?1:0));
   if(camZoom>fit) camZoom=fit;
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;

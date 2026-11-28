@@ -288,9 +288,8 @@ function _padMenuInput(st,pressed,rose,ay){
         // Title → SHUT DOWN?; pause → resume; options/select/manual → back one level
         Kj['Escape']=true;
         Kj['KeyF']=true;   // options / pause / manual already treat punch-key as back
-      }else{
-        Kj['KeyF']=true;   // in-game: legacy KeyF punch edge (binds.punch still via set1)
       }
+      // In a stage, Y is only punch. It must not also press the back key.
     }
     if(rose(1)&&_gameState!=='game'&&_gameState!=='options'&&_gameState!=='manual'&&_gameState!=='testmode') Kj['Escape']=true;
   }
@@ -323,9 +322,9 @@ function _readPad1(g){
   if(rose(2)) Kj['KeyQ']=true;
   if(rose(1)&&_gameState!=='options') Kj['KeyE']=true;
   K['KeyQ']=(K['KeyQ_kb']||pressed(2));
-  K['Sprint_gp']=pressed(2);
+  K['Sprint_gp']=pressed(2)&&!pressed(3);
   K['KeyE']=(K['KeyE_kb']||pressed(1));
-  K['KeyF']=(K['KeyF_kb']||pressed(3));
+  K['KeyF']=!!K['KeyF_kb'];
   // Legacy K/Kj codes above stay for menu-back + beta lanes; these drive play.
   set1('jump', bJump, bJump&&!s.prev[0]);
   set1('use',  false, rose(1));          // B = item SELECT (cycle)
@@ -338,7 +337,9 @@ function _readPad1(g){
   // Stale-save safety: an old browser may still have punch bound to KeyF. Mirror
   // the pad's punch into both possible codes so either layout registers a hold.
   for(const c of ['KeyB','KeyF']){ if((OPT.binds.punch||[]).indexOf(c)>=0) K[c]=!!KB1[c]||pressed(3); }
-  set1('sprint',pressed(2));             // X = run
+  // Y is punch even if this pad also reports the run button underneath it.
+  if(pressed(3)){ for(const c of (OPT.binds.sprint||[])) if(!KB1[c]) K[c]=false; }
+  set1('sprint',pressed(2)&&!pressed(3));             // X = run. Never Y.
   if(_gameState==='partysetup'){
     const dX=(rose(14)||st.edges.left)?-1:(rose(15)||st.edges.right)?1:0;
     const dY=(rose(12)||st.edges.up)?-1:(rose(13)||st.edges.down)?1:0;
@@ -381,7 +382,7 @@ function _readPad2(g){
   set('jump', jump, menu2?rose(0):(rose(0)||rose(12)||st.edges.up));       // A = jump (held for variable height)
   set('use',  false,rose(2));                              // X = item SELECT (cycle)
   set('swap', pressed(1),rose(1));                         // B = USE item (hold for XLR / MEG)
-  set('punch',false,rose(3));                              // Y = punch
+  set('punch',pressed(3),rose(3));                         // Y = punch, held so it can charge
   set('sprint',pressed(4));                                // LB = run (if P2 bound a key)
   K2['Sprint_gp2']=pressed(4);
   if(_gameState==='partysetup'){
@@ -503,6 +504,8 @@ function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
 function isSprintHeld(){
+  // A punch is not a run. Holding Y must not pull the sports-camera in.
+  if((typeof isPunch==='function'&&isPunch())||(p&&(p.pCharging||p.pt>0))) return false;
   if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
   if(p&&p._ignition&&_moveInputX()!==0) return true;
   if(p&&p._sprintMode&&_itemBtnDown()&&_moveInputX()!==0) return true;
