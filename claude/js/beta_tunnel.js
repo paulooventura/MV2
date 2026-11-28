@@ -80,7 +80,7 @@
     const out=[]; roped.clear();
     for(const r of (B.ropes||[])) if(r&&r.e) roped.add(r.e);
     if(typeof ENEMS!=='undefined') for(const e of ENEMS){
-      if(!e||e._hidden||e._gone||e._permOff||e._betaHeld||!isFinite(e.x)||!isFinite(e.y)) continue;
+      if(!e||e._hidden||e._gone||e._betaHeld||!isFinite(e.x)||!isFinite(e.y)) continue;
       if(e.alive===false&&!e._downed&&!e._mindOff) continue;
       if(e.y>MV_GRID.rows*MV_GRID.tile) continue;
       out.push({o:e,kind:'e'});
