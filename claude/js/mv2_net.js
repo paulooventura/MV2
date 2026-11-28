@@ -63,7 +63,7 @@
   // sorted seat list, rebuilt only when a seat comes or goes (was: Object.keys+sort several times a frame)
   var seatsVer=0, seatsAt=-1, seatsArr=[], activeSeats={};
   function seatKeys(){ if(seatsAt!==seatsVer){ seatsArr=Object.keys(remotes).map(Number).sort(function(a,b){ return a-b; }); seatsAt=seatsVer; } return seatsArr; }
-  var lastSend=0, lastEnemy=0, lastPing=0;
+  var lastSend=0, lastFat=0, lastEnemy=0, lastPing=0;
   var myEpoch=0, lastStage=null, followUntil=0, followEpoch=-1, base=0, baseStage=null;
   var own='', remEn={};
   var extras=[]; // puppet actors for seats beyond the first remote (p2)
@@ -257,7 +257,9 @@
     if(!pr||pr.destroyed){ scheduleRetry(1500); return; }
     if(!pr.open){ try{ pr.reconnect(); }catch(e){} scheduleRetry(1500); return; }
     if(conns.some(function(c){ return c&&!c.open; })) return;
-    var dc=pr.connect(PREFIX+st.code,{reliable:true,serialization:'json',metadata:{v:3,id:MY_ID}});
+    // Unordered: an ordered channel stalls on Android (Galaxy) and then the
+    // phone's movement never arrives on the other screen.
+    var dc=pr.connect(PREFIX+st.code,{reliable:false,serialization:'json',metadata:{v:3,id:MY_ID}});
     wireConn(dc,{timeout:ICE_ATTEMPT_MS, allowRetry:true, onRetry:function(){ scheduleRetry(1200); }});
     setStatus('joining', st.code==='PALOTINO'?'Walking into Palotino…':('Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.'));
   }
@@ -727,6 +729,7 @@
           if(seat===mySeat) return;
           pk._rx=Date.now();
           if(pk.until!=null&&st.role!=='host') roomUntil=+pk.until||0;
+          if(!pk.a||pk.a.length<2) return;
           var b=remBucket(seat);
           b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift();
           b.latest=pk;
@@ -824,7 +827,7 @@
     var b=B()||{};
     refreshMyPack();
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
-            st:b.stageId||null, se:myEpoch, ld:loading()?1:0, gs:gs(), cm:(b.carryMask|0),
+            st:b.stageId||null, se:myEpoch, ld:0, gs:gs(), cm:(b.carryMask|0),
             seat:mySeat, gen:runId||0};
     // identity rides along only when it changed, and once a second for late joiners
     var nowI=Date.now();
@@ -853,6 +856,15 @@
     }
     return pk;
   }
+  // The other screens only need where this body is. The fat snap (rope, shots,
+  // water) rides along a few times a second. A phone was filling the channel
+  // with the fat one, so the PC never saw it move.
+  function poseSnap(actor){
+    var b=B()||{};
+    return {t:'p', a:[r1(actor.x),r1(actor.y),r1(actor.vx),r1(actor.vy),actor.fc?1:0],
+      h:String(actor.hero||'mind'), st:b.stageId||null, ld:0, gs:gs(),
+      seat:mySeat, gen:runId||0};
+  }
 
   function applyIdentity(actor, pk, seat){
     if(!actor) return;
@@ -867,7 +879,8 @@
   }
 
   function ensurePuppetFor(seat, latest){
-    if(!latest||latest.gs!=='game'||!inGame()||loading()||latest.st!==stageId()||latest.ld) return null;
+    if(!latest||latest.gs!=='game'||!inGame()||loading()||latest.st!==stageId()) return null;
+    if(!latest.a||latest.a.length<2) return null;
     if(seat===mySeat) return null;
     try{
       // First remote seat keeps classic p2 for 2P probes / HUD.
@@ -905,8 +918,11 @@
   }
   function applyHero(actor, bucket){
     if(!actor||!bucket||!bucket.buf.length) return;
-    var buf=bucket.buf, target=Date.now()-RENDER_DELAY_MS, a=buf[0], b=buf[buf.length-1], k=1;
-    for(var i=0;i<buf.length-1;i++){
+    var buf=bucket.buf, target=Date.now()-RENDER_DELAY_MS, a=null, b=null, k=1, i;
+    for(i=0;i<buf.length;i++){ if(buf[i].a&&buf[i].a.length>=2){ if(!a) a=buf[i]; b=buf[i]; } }
+    if(!a||!b) return;
+    for(i=0;i<buf.length-1;i++){
+      if(!(buf[i].a&&buf[i].a.length>=2&&buf[i+1].a&&buf[i+1].a.length>=2)) continue;
       if(buf[i]._rx<=target&&buf[i+1]._rx>=target){ a=buf[i]; b=buf[i+1]; break; }
     }
     if(b._rx>a._rx) k=Math.max(0,Math.min(1,(target-a._rx)/(b._rx-a._rx)));
@@ -916,7 +932,8 @@
     var x=ax+(bx-ax)*k, y=ay+(by-ay)*k;
     // starved (late packet): run on from the newest state for up to EXTRAP_MS on its
     // velocity (px per 60 Hz step), so a hiccup glides instead of freezing then jumping
-    var last=buf[buf.length-1];
+    var last=b;
+    for(i=buf.length-1;i>=0;i--){ if(buf[i].a&&buf[i].a.length>=2){ last=buf[i]; break; } }
     if(b===last&&target>last._rx){
       var dt=Math.min(EXTRAP_MS,target-last._rx)/16.667, vx=+last.a[2]||0, vy=+last.a[3]||0;
       if(Math.abs(vx)<40&&Math.abs(vy)<40){ x=bx+vx*dt; y=by+vy*dt; }
@@ -1219,9 +1236,13 @@
     // apply local identity once in-stage
     try{ applyMine(pl); }catch(e){}
     syncPuppets();
-    if(now-lastSend>=SEND_MS&&mySeat>=0){ lastSend=now; sendState(heroSnap(pl)); }
+    if(now-lastSend>=SEND_MS){
+      lastSend=now;
+      send(poseSnap(pl));
+      if(now-lastFat>=400){ lastFat=now; send(heroSnap(pl)); }
+    }
     if(now-lastEnemy>=ENEMY_MS&&!loading()){ lastEnemy=now; computeOwners(); sendEnemies(); }
-    if(now-lastWorldSnap>=WORLD_SNAP_MS&&!loading()&&inTimeline()){ lastWorldSnap=now; if(st.role==='host') sendWorldSnap(); }
+    if(st.role==='host'&&now-lastWorldSnap>=WORLD_SNAP_MS&&!loading()){ lastWorldSnap=now; sendWorldSnap(); }
     applyEnemies();
   }
   function applyVisual(){
