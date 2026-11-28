@@ -65,11 +65,14 @@ try {
   // Since build 422 the host's room stays open (seats fill up to 5); PICK YOUR HERO moves on.
   await until(A, () => !document.getElementById('mvNetDone').disabled, null, 5000);
   await A.click('#mvNetDone');
-  ok('host moves on to hero select', await until(A, () => !MV_NET_UI.isOpen() && _gameState === 'select' && _selectStep === 1, null, 5000));
+  // Since build 469 GO takes the room straight into the shared map (stage 1.1), no hero select
+  ok('host GO leaves the room screen', await until(A, () => !MV_NET_UI.isOpen() && (_gameState === 'game' || (window.MV_BETA && MV_BETA.loading)), null, 15000),
+    await A.evaluate(() => ({ open: MV_NET_UI.isOpen(), gs: _gameState, step: typeof _selectStep !== 'undefined' ? _selectStep : null })));
   if (SHOTS) await Bp.screenshot({ path: 'test-results/online-join-wait.png' });
 
   // Host picks MIND and starts
-  await A.evaluate(() => { _heroChoice = 'mind'; startGame(); });
+  // (old flow: host picked a hero on the select screen; only if a build still lands there)
+  await A.evaluate(() => { if (_gameState === 'select') { _heroChoice = 'mind'; startGame(); } });
   ok('host in stage 1.1', await until(A, () => _gameState === 'game' && MV_BETA.stageId === '1.1' && !MV_BETA.loading && p, null, 40000));
   ok('joiner follows into 1.1 as VENTURE', await until(Bp, () => _gameState === 'game' && MV_BETA.stageId === '1.1' && !MV_BETA.loading && p && p.hero === 'venture', null, 40000),
     await Bp.evaluate(() => ({ gs: _gameState, st: MV_BETA.stageId, hero: p && p.hero })));
@@ -158,7 +161,8 @@ try {
   // Leaving
   console.log('note: link', JSON.stringify(await A.evaluate(() => { const s = MV_NET.status(); return { ping: s.ping, buffered: s.buffered }; })));
   await Bp.evaluate(() => MV_NET.disconnect());
-  ok('host notices the friend left and keeps the room open', await until(A, () => !MV_NET.isLinked() && MV_NET.status().status === 'hosting' && !(p2 && p2._netPuppet), null, 10000));
+  ok('host notices the friend left and keeps the room open', await until(A, () => !MV_NET.isLinked() && MV_NET.status().status === 'hosting', null, 10000),   // since build 468 the seat (and puppet) is held 15 min for a rejoin
+    await A.evaluate(() => { const s = MV_NET.status(); return { linked: s.linked, status: s.status, detail: s.detail, peers: s.peers, puppet: !!(p2 && p2._netPuppet) }; }));
 } catch (e) { console.log('PROBE ERROR', e.message); fail++; }
 await browser.close(); srv.close();
 console.log(fail ? `\nONLINE PROBE: ${fail} FAIL` : '\nONLINE PROBE: ALL PASS');

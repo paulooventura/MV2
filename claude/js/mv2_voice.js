@@ -39,7 +39,7 @@
   }
   function level(an){
     if(!an) return 0;
-    var a=new Uint8Array(an.fftSize); an.getByteTimeDomainData(a);
+    var a=an._mvBuf||(an._mvBuf=new Uint8Array(an.fftSize)); an.getByteTimeDomainData(a);   // one buffer per analyser, not per call
     var s=0; for(var i=0;i<a.length;i++){ var v=(a[i]-128)/128; s+=v*v; }
     return Math.sqrt(s/a.length);
   }
@@ -94,6 +94,7 @@
   }
   function attachRemote(s){
     detachRemote();
+    lastG=-1; lastPan=9;   // new gain node starts at 0: force the first proximity target
     remoteStream=s;
     // Chrome only feeds a remote WebRTC stream into WebAudio while a media
     // element also plays it, so keep a muted <audio> attached.
@@ -139,21 +140,30 @@
     var g=(1-t)*(1-t);                                            // smooth fade, louder up close
     return {g:g, pan:Math.max(-0.8,Math.min(0.8,dx/700))};
   }
+  // Perf: this ran every frame forever and queued a new gain + pan automation event on
+  // the audio thread each frame. Now: nothing while voice is off and no friend's voice is
+  // attached; a new target only when it moved enough to hear (ramps stay smooth).
+  var lastG=-1, lastPan=9;
   function frame(){
+    requestAnimationFrame(frame);
+    if(V.mode==='off'&&!gNode&&!audioEl){ if(padDown){ padDown=false; } return; }
     var pr=proximity();
     var g=(V.mode==='off')?0:pr.g;
     V.gain=g; V.pan=pr.pan;
     var c=actx;
-    if(gNode&&c){ try{ gNode.gain.setTargetAtTime(g,c.currentTime,0.08); }catch(e){ gNode.gain.value=g; } }
-    if(pNode&&c){ try{ pNode.pan.setTargetAtTime(pr.pan,c.currentTime,0.1); }catch(e){} }
-    if(!gNode&&audioEl&&remoteStream) audioEl.volume=Math.max(0,Math.min(1,g));
+    if(Math.abs(g-lastG)>0.004||(g===0&&lastG!==0)){
+      lastG=g;
+      if(gNode&&c){ try{ gNode.gain.setTargetAtTime(g,c.currentTime,0.08); }catch(e){ gNode.gain.value=g; } }
+      if(!gNode&&audioEl&&remoteStream) audioEl.volume=Math.max(0,Math.min(1,g));
+    }
+    if(Math.abs(pr.pan-lastPan)>0.01){ lastPan=pr.pan; if(pNode&&c){ try{ pNode.pan.setTargetAtTime(pr.pan,c.currentTime,0.1); }catch(e){} } }
+    if(V.mode==='off') return;
     // pad right-stick click (button 11) = push-to-talk / mute toggle (8 = View is pause)
     try{
       var pads=navigator.getGamepads?navigator.getGamepads():[], down=false;
       for(var i=0;i<pads.length;i++){ var gp=pads[i]; if(gp&&gp.buttons&&gp.buttons[11]&&gp.buttons[11].pressed) down=true; }
       if(down!==padDown){ padDown=down; keyEdge(down); }
     }catch(e){}
-    requestAnimationFrame(frame);
   }
   var padDown=false;
   requestAnimationFrame(frame);
