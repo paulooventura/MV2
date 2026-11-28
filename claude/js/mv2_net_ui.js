@@ -112,13 +112,17 @@
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
+            '<button type="button" class="big" id="mvNetPaloBtn">PALOTINO</button>'+
+          '</div>'+
+          '<div class="tiny">The main room. Walk in any time, from anywhere. Or open a room of your own.</div>'+
+          '<div class="row">'+
             '<button type="button" class="big" id="mvNetHostBtn">HOST A ROOM</button>'+
             '<button type="button" class="big" id="mvNetJoinBtn">JOIN A ROOM</button>'+
           '</div>'+
         '</div>'+
 
         '<div id="mvNetHostV" style="display:none">'+
-          '<div class="sub" style="margin:0">ROOM CODE — tell your friends</div>'+
+          '<div class="sub" id="mvNetHostLbl" style="margin:0">ROOM CODE — tell your friends</div>'+
           '<div class="code" id="mvNetHostCode">····</div>'+
           '<div class="link" id="mvNetLink"></div>'+
           '<canvas id="mvNetQr" width="148" height="148"></canvas>'+
@@ -164,13 +168,14 @@
           '<button type="button" id="mvNetDone" disabled>PICK YOUR HERO</button>'+
           '<button type="button" id="mvNetBack">BACK</button>'+
         '</div>'+
-        '<div class="tiny">Friends can be anywhere in the world. The room stays open for 15 minutes while everyone gets in.</div>'+
+        '<div class="tiny">Palotino is the main room and stays open. A room of your own waits 15 minutes.</div>'+
       '</div>';
     document.body.appendChild(panel);
-    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','Clock','ClockBox'].forEach(function(k){
+    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','PaloBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','Clock','ClockBox'].forEach(function(k){
       el[k]=document.getElementById('mvNet'+k);
     });
     el.HostBtn.onclick=startHost;
+    el.PaloBtn.onclick=startPalotino;
     el.JoinBtn.onclick=function(){ setView('join'); setTimeout(function(){ try{ el.Code.focus(); }catch(e){} },30); };
     el.Go.onclick=function(){ startJoin(el.Code.value); };
     el.Code.addEventListener('input',function(){
@@ -195,6 +200,15 @@
   function paintClock(){
     if(!el.ClockBox||!el.Clock) return;
     var s=NET.status?NET.status():null;
+    if(s&&s.code==='PALOTINO'){
+      el.ClockBox.style.display='';
+      el.Clock.textContent='PALOTINO';
+      el.Clock.style.fontSize='clamp(28px,6vw,48px)';
+      var lab=document.getElementById('mvNetClockLbl');
+      if(lab) lab.textContent='THE MAIN ROOM — WALK IN ANY TIME';
+      return;
+    }
+    el.Clock.style.fontSize='';
     var until=s&&s.until;
     if(!until||!s.role){ el.ClockBox.style.display='none'; return; }
     var left=Math.max(0, until-Date.now());
@@ -288,17 +302,32 @@
     el.JoinV.style.display=v==='join'?'':'none';
     el.Done.style.display=v==='host'?'':'none';
     el.Back.textContent=v==='menu'?'CLOSE':'BACK';
-    if(v==='menu') el.Status.textContent='Pick HOST or JOIN.';
+    if(v==='menu') el.Status.textContent='Walk into Palotino, or open a room of your own.';
     padFocus(0);
   }
   function startHost(){
     setView('host');
+    el.HostCode.style.fontSize='';
+    var lbl=document.getElementById('mvNetHostLbl'); if(lbl) lbl.textContent='ROOM CODE — tell your friends';
     el.HostCode.textContent='····'; el.Link.textContent=''; qr('');
     NET.host().then(function(r){
       el.HostCode.textContent=r.code;
       var link=NET.joinLink(r.code);
       el.Link.textContent=link; qr(link);
       showIdentity(0);
+    }).catch(function(){});
+  }
+  function startPalotino(){
+    setView('host');
+    el.HostCode.style.fontSize='clamp(28px,6vw,48px)';
+    var lbl=document.getElementById('mvNetHostLbl'); if(lbl) lbl.textContent='THE MAIN ROOM';
+    el.HostCode.textContent='PALOTINO'; el.Link.textContent=''; qr('');
+    try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
+    NET.enterPalotino().then(function(){
+      el.HostCode.textContent='PALOTINO';
+      var link=NET.joinLink('PALOTINO');
+      el.Link.textContent=link; qr(link);
+      showIdentity(NET.seat());
     }).catch(function(){});
   }
   function startJoin(code){
@@ -548,16 +577,20 @@
   },50);
 
   (function(){
-    var m=/[?&]join=([A-Za-z]{4})\b/.exec(location.search||'');
+    var m=/[?&]join=(PALOTINO|[A-Za-z]{4})\b/i.exec(location.search||'');
     if(!m) return;
-    var code=NET.normCode(m[1]);
+    var code=String(m[1]||'').toUpperCase();
+    var pal=code==='PALOTINO';
+    if(!pal) code=NET.normCode(m[1]);
     var t0=Date.now();
     var wait=setInterval(function(){
       var ready=false;
       try{ ready=!!document.body&&typeof _gameState!=='undefined'&&!!_gameState; }catch(e){}
       if(!ready&&Date.now()-t0<20000) return;
       clearInterval(wait);
-      show(null); setView('join'); el.Code.value=code;
+      show(null);
+      if(pal){ startPalotino(); return; }
+      setView('join'); el.Code.value=code;
       // A phone that opens the link has not tapped yet. Starting the
       // connection before that tap is what fails on iOS.
       var touch=false;

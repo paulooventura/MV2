@@ -31,7 +31,7 @@
   var CFG=window.MV2_NET_CFG||{};
   var PREFIX=CFG.prefix||'mv2-room-';
   var ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
-  var CODE_LEN=4;
+  var CODE_LEN=4, PALOTINO='PALOTINO';
   var SEND_MS=50, ENEMY_MS=80, RENDER_DELAY_MS=90, EXTRAP_MS=120, BUF_MAX=24, PING_MS=2000;
   // A friend can be anywhere. One attempt may cross the ocean; the room keeps trying for 15 minutes.
   var ROOM_JOIN_MS=15*60*1000, ICE_ATTEMPT_MS=45000, OWN_SWAP_PX=160;
@@ -279,6 +279,7 @@
     return (e&&e.message)||String(e||'unknown error');
   }
   function hostWaitingCopy(){
+    if(st.code==='PALOTINO') return 'Palotino is open. Anyone can walk in, from anywhere.';
     return 'Room is open for 15 minutes. Share the code — friends can join from anywhere.';
   }
   function guestTimeoutCopy(){
@@ -473,15 +474,17 @@
       setStatus('error',errText(e));
     });
   }
-  function host(){
+  function host(fixed){
+    var pin=String(fixed||'').toUpperCase();
+    var standing=pin==='PALOTINO';
     disconnect();
     st.role='host'; mySeat=0; joinTries=0; hostOpen=false;
-    roomUntil=Date.now()+ROOM_JOIN_MS;
+    roomUntil=standing?0:(Date.now()+ROOM_JOIN_MS);
     refreshMyPack();
     upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0}));
     return new Promise(function(res,rej){
       var tryOne=function(){
-        var code=newCode();
+        var code=standing?pin:newCode();
         var pr=makePeer(PREFIX+code);
         if(!pr){ st.role=null; return rej(new Error(st.detail)); }
         peer=pr; st.code=code;
@@ -496,7 +499,13 @@
         });
         pr.on('error',function(e){
           if(peer!==pr) return;
-          if(e&&e.type==='unavailable-id'&&!hostOpen&&hostTries++<6){ try{ pr.destroy(); }catch(_e){} peer=null; tryOne(); return; }
+          if(e&&e.type==='unavailable-id'&&!hostOpen){
+            if(standing){
+              var taken=new Error('Palotino is already open.'); taken.type='unavailable-id';
+              st.role=null; rej(taken); return;
+            }
+            if(hostTries++<6){ try{ pr.destroy(); }catch(_e){} peer=null; tryOne(); return; }
+          }
           if(e&&e.type==='peer-unavailable') return;
           if(hostOpen&&e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error'||e.type==='socket-closed')){
             setStatus('hosting','Reconnecting room '+st.code+'…');
@@ -518,12 +527,14 @@
   }, 4000);
 
   function join(code){
-    var c=normCode(code);
-    if(c.length!==CODE_LEN) return Promise.reject(new Error('Room codes have '+CODE_LEN+' letters.'));
+    var raw=String(code||'').toUpperCase().replace(/[^A-Z]/g,'');
+    var standing=raw==='PALOTINO';
+    var c=standing?PALOTINO:normCode(code);
+    if(!standing&&c.length!==CODE_LEN) return Promise.reject(new Error('Room codes have '+CODE_LEN+' letters.'));
     disconnect();
     st.role='joiner'; st.code=c; mySeat=-1; joinTries=0;
     rejoinUntil=Date.now()+ROOM_JOIN_MS;
-    roomUntil=rejoinUntil;
+    roomUntil=standing?0:rejoinUntil;
     refreshMyPack();
     return new Promise(function(res,rej){
       var pr=makePeer(null);
@@ -538,7 +549,7 @@
         setStatus('error', (e&&errText(e))||guestTimeoutCopy());
         rej(e||new Error(guestTimeoutCopy()));
       }
-      setStatus('joining','Looking for room '+c+'… 15 min to get in, from anywhere.');
+      setStatus('joining', standing?'Walking into Palotino…':('Looking for room '+c+'… 15 min to get in, from anywhere.'));
       pr.on('open',function(){
         if(peer!==pr) return;
         retryJoinLink();
@@ -555,6 +566,12 @@
         // The room broker often says "no such room" for a second after the
         // host opens, and again if the host's phone slept. Keep trying
         // for the whole 15 minutes — a friend far away just needs the time.
+        if(!st.linked&&standing&&ty==='peer-unavailable'){
+          var empty=new Error('empty'); empty.type='empty';
+          settled=true; joinReject=null;
+          rej(empty);
+          return;
+        }
         if(!st.linked&&(ty==='peer-unavailable'||ty==='network'||ty==='server-error'||ty==='socket-error'||ty==='webrtc'||ty==='disconnected')){
           setStatus('joining','Still reaching room '+c+' — '+minsLeft(rejoinUntil)+' min left.');
           scheduleRetry(2000);
@@ -569,6 +586,20 @@
     });
   }
 
+  function enterPalotino(){
+    function walk(n){
+      return join(PALOTINO).catch(function(e){
+        if(!e||e.type!=='empty') throw e;
+        setStatus('joining','Palotino is empty. Opening it…');
+        return host(PALOTINO).catch(function(h){
+          if(h&&h.type==='unavailable-id'&&n<4) return walk(n+1);
+          throw h;
+        });
+      });
+    }
+    return walk(0);
+  }
+
   function handle(pk, fromConn){
     if(!pk||typeof pk!=='object') return;
     // Host: the seat it gave this connection wins. A joiner's packets sent before its 'seat'
@@ -579,7 +610,7 @@
     switch(pk.t){
       case 'seat':
         mySeat=pk.seat|0;
-        if(pk.until) roomUntil=+pk.until;
+        if(pk.until!=null) roomUntil=+pk.until||0;
         if(pk.roster) pk.roster.forEach(function(r){ upsertRoster(r.seat,r); });
         refreshMyPack();
         upsertRoster(mySeat, Object.assign({id:MY_ID, role:'joiner'}, myIdPack, {seat:mySeat}));
@@ -603,7 +634,7 @@
         })();
         break;
       case 'roster':
-        if(pk.until&&st.role!=='host') roomUntil=+pk.until;
+        if(pk.until!=null&&st.role!=='host') roomUntil=+pk.until||0;
         roster={};
         (pk.roster||[]).forEach(function(r){ upsertRoster(r.seat,r); });
         break;
@@ -631,7 +662,7 @@
           var seat=pk.seat!=null?pk.seat|0:1;
           if(seat===mySeat) return;
           pk._rx=Date.now();
-          if(pk.until&&st.role!=='host') roomUntil=+pk.until;
+          if(pk.until!=null&&st.role!=='host') roomUntil=+pk.until||0;
           var b=remBucket(seat);
           b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift();
           b.latest=pk;
@@ -1117,7 +1148,7 @@
   }
 
   window.MV_NET={
-    host:host, join:join, disconnect:disconnect,
+    host:host, join:join, enterPalotino:enterPalotino, disconnect:disconnect,
     status:status, role:function(){ return st.role; }, code:function(){ return st.code; },
     isActive:function(){ return st.linked; }, isLinked:function(){ return st.linked; },
     inTimeline:inTimeline, phase:phase, drawExtras:drawExtras,
