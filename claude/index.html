@@ -24,7 +24,7 @@
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
 <script src="js/mv_palette.js?v=444"></script>
-<script>window.MV_BUILD='457';
+<script>window.MV_BUILD='458';
 /* T425 + T602: Unfiltered boot; Ink and Vinyl / Gore locked until secret code or +/-33. */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
@@ -178,8 +178,16 @@ html.phone-play.land #padLeft .d-diags .sw{bottom:11%;left:11%;height:0;width:14
 html.phone-play.land #padLeft button{
   position:absolute;width:34%;height:34%;margin:0;padding:0;min-width:0;min-height:0;
   height:34%!important;background:transparent;border:none;box-shadow:none;
-  color:#d8d8e0;font-size:20px;font-weight:900;border-radius:0;pointer-events:none;
+  color:#d8d8e0;font:20px "MV Pixel",ui-monospace,Menlo,monospace;border-radius:0;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
 }
+html.phone-play.land #padLeft button .ph{
+  width:11px;height:11px;border:solid #EFE6D2;border-width:0 3px 3px 0;display:block;
+}
+html.phone-play.land #bU .ph{transform:rotate(-135deg);margin-top:5px;}
+html.phone-play.land #bDn .ph{transform:rotate(45deg);margin-bottom:5px;}
+html.phone-play.land #bL .ph{transform:rotate(135deg);margin-right:5px;}
+html.phone-play.land #bR .ph{transform:rotate(-45deg);margin-left:5px;}
 html.phone-play.land #bU{top:0;left:33%;}
 html.phone-play.land #bDn{bottom:0;left:33%;}
 html.phone-play.land #bL{left:0;top:33%;}
@@ -192,7 +200,7 @@ html.phone-play.land #padRight{
 }
 html.phone-play.land #padRight button{
   position:absolute;width:64px;height:64px!important;min-width:64px;min-height:64px;opacity:.88;
-  padding:0;border-radius:50%;font-size:20px;font-weight:900;letter-spacing:0;
+  padding:0;border-radius:50%;font:22px "MV Pixel",ui-monospace,Menlo,monospace;letter-spacing:0;
   border:2px solid #0a0a10;box-shadow:0 2px 0 #000,0 4px 8px #0008;
   -webkit-tap-highlight-color:transparent;
 }
@@ -210,12 +218,16 @@ html.phone-play.land .desk-only{display:none!important;}
 html.phone-play.land #touchHud button{-webkit-tap-highlight-color:transparent;}
 html.phone-play.land #bPause{
   position:absolute;top:max(8px,env(safe-area-inset-top,0px));left:50%;
-  transform:translateX(-50%);pointer-events:auto;min-width:52px;min-height:40px;
-  font-size:20px;font-weight:900;padding:0 12px;border-radius:10px;
+  transform:translateX(-50%);pointer-events:auto;min-width:44px;min-height:40px;
+  font:18px "MV Pixel",ui-monospace,Menlo,monospace;padding:0 12px;border-radius:10px;
   background:rgba(28,26,25,.88);border:2px solid rgba(201,162,74,.65);color:#EFE6D2;
+  display:flex;align-items:center;justify-content:center;
+}
+html.phone-play.land #bPause .ph{
+  width:4px;height:14px;background:#EFE6D2;box-shadow:7px 0 0 #EFE6D2;display:block;
 }
 html.phone-play.land #bRst{
-  min-width:44px;min-height:36px;font-size:11px;opacity:.8;padding:0 10px;
+  min-width:44px;min-height:36px;font:14px "MV Pixel",ui-monospace,Menlo,monospace;opacity:.8;padding:0 10px;
   background:rgba(16,12,36,.88);border:2px solid rgba(220,200,255,.7);
   color:#C9A24A;border-radius:10px;
 }
@@ -271,13 +283,13 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
     <div class="d-plus" aria-hidden="true"></div>
     <div class="d-diags" aria-hidden="true"><span class="nw"></span><span class="ne"></span><span class="sw"></span><span class="se"></span></div>
     <div></div>
-    <button id="bU" type="button" aria-label="Up"><span class="desk">WÃ¢â€ â€˜</span><span class="ph">Ã¢â€ â€˜</span></button>
+    <button id="bU" type="button" aria-label="Up"><span class="desk">W</span><span class="ph"></span></button>
     <div></div>
-    <button id="bL" type="button" aria-label="Left"><span class="desk">AÃ¢â€ Â</span><span class="ph">Ã¢â€ Â</span></button>
+    <button id="bL" type="button" aria-label="Left"><span class="desk">A</span><span class="ph"></span></button>
     <div class="d-hub" aria-hidden="true"></div>
-    <button id="bR" type="button" aria-label="Right"><span class="desk">DÃ¢â€ â€™</span><span class="ph">Ã¢â€ â€™</span></button>
+    <button id="bR" type="button" aria-label="Right"><span class="desk">D</span><span class="ph"></span></button>
     <div></div>
-    <button id="bDn" type="button" aria-label="Down"><span class="desk">SÃ¢â€ â€œ</span><span class="ph">Ã¢â€ â€œ</span></button>
+    <button id="bDn" type="button" aria-label="Down"><span class="desk">S</span><span class="ph"></span></button>
     <div></div>
   </div>
   <div class="acts" id="padRight">
@@ -286,9 +298,9 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
     <button id="bSp" type="button" aria-label="A: jump"><span class="desk">A</span><span class="ph">A</span></button>
     <button id="bE" type="button" aria-label="B: item select"><span class="desk">B</span><span class="ph">B</span></button>
   </div>
-  <button id="bPause" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="Pause"><span class="desk">PAUSE</span><span class="ph">Ã¢ËœÂ°</span></button>
+  <button id="bPause" type="button" style="height:30px;padding:0 12px;font-weight:700;" aria-label="Pause"><span class="desk">PAUSE</span><span class="ph"></span></button>
   <div class="devrow">
-    <button id="bRst" type="button" aria-label="Restart the stage">Ã¢â€ Âº</button>
+    <button id="bRst" type="button" aria-label="Restart the stage"><span class="ph">RST</span></button>
   </div>
 </div>
 <div id="helpLine" class="mv-controls" aria-label="Controls">
