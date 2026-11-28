@@ -90,7 +90,8 @@
     return {active:!!st.role, linked:st.linked, role:st.role, status:st.status, detail:st.detail,
             code:st.code, ping:st.ping, buffered:buffered(), remoteHero:primaryLatest()?primaryLatest().h:null,
             remoteStage:primaryLatest()?primaryLatest().st:null, phase:phase(),
-            seat:mySeat, peers:linkedCount(), maxPeers:MAX_PEERS, roster:rosterSnapshot()};
+            seat:mySeat, peers:linkedCount(), maxPeers:MAX_PEERS, roster:rosterSnapshot(),
+            until:roomUntil||0};
   }
   function setStatus(s,d){
     st.status=s; st.detail=d||'';
@@ -126,7 +127,7 @@
     var hero=heroName();
     var col=loc.color||(mySeat>=2?'yellow':(hero==='venture'?'red':'purple'));
     var hat=loc.hat||(hero==='venture'?'cap':'gaucho');
-    return {name:loc.name||(ID?ID.defaultName(mySeat):(hero==='venture'?'VENTURE':'MIND')), color:col, hat:hat, hatMatch:!!loc.hatMatch, hero:hero};
+    return {name:loc.name||(ID?ID.defaultName(mySeat):(hero==='venture'?'VENTURE':'MIND')), color:col, hat:hat, hatMatch:true, hero:hero};
   }
   function normCol(id){ return ID?ID.crayonById(id).id:(id||'purple'); }
   function colorTaken(id, exceptSeat){
@@ -236,7 +237,7 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
-  var rejoinUntil=0, retryTimer=null, joinReject=null;
+  var rejoinUntil=0, retryTimer=null, joinReject=null, roomUntil=0;
   function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
   function scheduleRetry(ms){
     if(retryTimer||st.linked||st.role!=='joiner') return;
@@ -259,7 +260,7 @@
     setStatus('joining','Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.');
   }
   function disconnect(){
-    rejoinUntil=0;
+    rejoinUntil=0; roomUntil=0;
     if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
     if(joinReject){ var r=joinReject; joinReject=null; try{ r(new Error('cancelled')); }catch(e){} }
     try{ sendAll({t:'bye', seat:mySeat}); }catch(e){}
@@ -316,6 +317,10 @@
 
   function wireConn(c, opts){
     opts=opts||{};
+    if(st.role==='host'&&roomUntil&&Date.now()>=roomUntil){
+      try{ c.on('open',function(){ try{ c.send({t:'shut'}); }catch(e){} setTimeout(function(){ try{ c.close(); }catch(e){} },300); }); }catch(e){}
+      return;
+    }
     if(st.role==='host'&&openConns().length>=MAX_PEERS-1){
       try{ c.on('open',function(){ try{ c.send({t:'full', max:MAX_PEERS}); }catch(e){} setTimeout(function(){ try{ c.close(); }catch(e){} },400); }); }catch(e){}
       return;
@@ -361,7 +366,7 @@
         // Reserve the seat immediately so the next guest does not steal it.
         upsertRoster(seat, {id:'pending', role:'joiner', seat:seat, nm:'…', col:'yellow', hat:'gaucho', hero:'mind'});
         upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0, hero:heroName()}));
-        sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot()});
+        sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot(), until:roomUntil});
         setStatus('connected','In the room · '+peerCount()+'/'+MAX_PEERS+'. Pick heroes; extras pick crayon, name and hat.');
       }else{
         // Joiner waits for the host's `seat` packet before sending `hi` (identity + seat).
@@ -424,7 +429,7 @@
 
   function broadcastRoster(){
     upsertRoster(mySeat, Object.assign({id:MY_ID, role:st.role}, myIdPack||{}, {seat:mySeat, hero:heroName()}));
-    sendAll({t:'roster', roster:rosterSnapshot(), max:MAX_PEERS});
+    sendAll({t:'roster', roster:rosterSnapshot(), max:MAX_PEERS, until:roomUntil});
   }
 
   function makePeer(id){
@@ -471,6 +476,7 @@
   function host(){
     disconnect();
     st.role='host'; mySeat=0; joinTries=0; hostOpen=false;
+    roomUntil=Date.now()+ROOM_JOIN_MS;
     refreshMyPack();
     upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0}));
     return new Promise(function(res,rej){
@@ -517,6 +523,7 @@
     disconnect();
     st.role='joiner'; st.code=c; mySeat=-1; joinTries=0;
     rejoinUntil=Date.now()+ROOM_JOIN_MS;
+    roomUntil=rejoinUntil;
     refreshMyPack();
     return new Promise(function(res,rej){
       var pr=makePeer(null);
@@ -572,6 +579,7 @@
     switch(pk.t){
       case 'seat':
         mySeat=pk.seat|0;
+        if(pk.until) roomUntil=+pk.until;
         if(pk.roster) pk.roster.forEach(function(r){ upsertRoster(r.seat,r); });
         refreshMyPack();
         upsertRoster(mySeat, Object.assign({id:MY_ID, role:'joiner'}, myIdPack, {seat:mySeat}));
@@ -595,6 +603,7 @@
         })();
         break;
       case 'roster':
+        if(pk.until&&st.role!=='host') roomUntil=+pk.until;
         roster={};
         (pk.roster||[]).forEach(function(r){ upsertRoster(r.seat,r); });
         break;
@@ -606,6 +615,10 @@
           if(st.role==='host') relay(fromConn, pk);
         })();
         break;
+      case 'shut':
+        setStatus('closed','This room\'s 15 minutes to join are up.');
+        try{ if(fromConn) fromConn.close(); }catch(e){}
+        return;
       case 'full':
         setStatus('error','That room is full ('+(pk.max||MAX_PEERS)+' players).');
         try{ if(fromConn) fromConn.close(); }catch(e){}
@@ -618,6 +631,7 @@
           var seat=pk.seat!=null?pk.seat|0:1;
           if(seat===mySeat) return;
           pk._rx=Date.now();
+          if(pk.until&&st.role!=='host') roomUntil=+pk.until;
           var b=remBucket(seat);
           b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift();
           b.latest=pk;
@@ -1076,7 +1090,7 @@
     notePhase();
     var now=Date.now();
     if(now-lastPing>PING_MS){ lastPing=now; send({t:'ping',c:now}); }
-    if(now-lastSend>=250){ lastSend=now; refreshMyPack(); var b=B()||{}; send({t:'p', a:[], h:heroName(), st:null, se:myEpoch, ld:0, gs:gs(), cm:b.carryMask|0, seat:mySeat, idp:myIdPack}); }
+    if(now-lastSend>=250){ lastSend=now; refreshMyPack(); var b=B()||{}; send({t:'p', a:[], h:heroName(), st:null, se:myEpoch, ld:0, gs:gs(), cm:b.carryMask|0, seat:mySeat, idp:myIdPack, until:roomUntil}); }
     if(st.role==='joiner') maybeFollow();
   },120);
 
@@ -1090,7 +1104,7 @@
         partial._moved=got!==normCol(asked);
       }
       if(partial.hat) loc.hat=partial.hat;
-      if(partial.hatMatch!=null) loc.hatMatch=!!partial.hatMatch;
+      loc.hatMatch=true;
     }
     if(ID) ID.saveLocal(loc);
     locCache=null;

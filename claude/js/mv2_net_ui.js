@@ -108,7 +108,7 @@
     panel.innerHTML=
       '<div class="box">'+
         '<h2>ONLINE</h2>'+
-        '<p class="sub">Up to 5 riders. Each one picks a colour, a hat and a name. The colour is the sprite. The name rides above the head.</p>'+
+        '<p class="sub">Up to 5 riders. One colour each. Pick a hat — it wears that colour. Your name rides above your head.</p>'+
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
@@ -137,18 +137,17 @@
           '<div class="sub" style="margin:0 0 4px">YOUR RIDE (session only)</div>'+
           '<label for="mvNetNick">NAME — this sits above your head</label>'+
           '<input id="mvNetNick" maxlength="12" autocomplete="nickname" spellcheck="false" placeholder="YOUR NAME">'+
-          '<label>COLOUR — this paints the sprite. Purple is Mind. Red is Venture.</label>'+
+          '<label>COLOUR — one rider each. This paints the sprite.</label>'+
           '<div id="mvNetColors"></div>'+
-          '<label>HAT</label>'+
+          '<label>HAT — the one you pick wears your colour</label>'+
           '<div id="mvNetHats"></div>'+
-          '<label>HAT COLOUR</label>'+
-          '<div class="row" id="mvNetHatMatch">'+
-            '<button type="button" data-m="1">MATCH MY COLOUR</button>'+
-            '<button type="button" data-m="0">KEEP ITS OWN COLOUR</button>'+
-          '</div>'+
-          '<div class="tiny">Gaucho or baseball cap. Match paints the hat the same colour as the sprite. Your name rides above your head.</div>'+
+          '<div class="tiny">Gaucho or baseball cap. The hat is the same colour as you. Your name rides above your head.</div>'+
         '</div>'+
 
+        '<div id="mvNetClockBox" style="display:none">'+
+            '<div class="sub" id="mvNetClockLbl" style="margin:8px 0 0">TIME TO JOIN</div>'+
+          '<div class="code" id="mvNetClock">15:00</div>'+
+        '</div>'+
         '<div id="mvNetStatus">Pick HOST or JOIN.</div>'+
 
         '<div class="voice">'+
@@ -168,7 +167,7 @@
         '<div class="tiny">Friends can be anywhere in the world. The room stays open for 15 minutes while everyone gets in.</div>'+
       '</div>';
     document.body.appendChild(panel);
-    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','HatMatch'].forEach(function(k){
+    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','Clock','ClockBox'].forEach(function(k){
       el[k]=document.getElementById('mvNet'+k);
     });
     el.HostBtn.onclick=startHost;
@@ -187,13 +186,23 @@
     el.Nick.addEventListener('blur',commitId);
     buildCrayonButtons();
     buildHatButtons();
-    if(el.HatMatch) Array.prototype.forEach.call(el.HatMatch.querySelectorAll('button'),function(b){
-      b.onclick=function(){ draft.hatMatch=b.getAttribute('data-m')==='1'; paintIdButtons(); commitId(); };
-    });
     paintIdButtons();
     NET.onStatus(render);
     if(VOICE()) VOICE().onChange(renderVoice);
     render(NET.status()); renderVoice();
+    setInterval(paintClock, 250);
+  }
+  function paintClock(){
+    if(!el.ClockBox||!el.Clock) return;
+    var s=NET.status?NET.status():null;
+    var until=s&&s.until;
+    if(!until||!s.role){ el.ClockBox.style.display='none'; return; }
+    var left=Math.max(0, until-Date.now());
+    var m=Math.floor(left/60000), sec=Math.floor((left%60000)/1000);
+    el.ClockBox.style.display='';
+    el.Clock.textContent=(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+    var lbl=document.getElementById('mvNetClockLbl');
+    if(lbl) lbl.textContent=left>0?'TIME TO JOIN':'JOIN TIME IS UP';
   }
 
   function buildCrayonButtons(){
@@ -232,15 +241,12 @@
     if(el.Hats) Array.prototype.forEach.call(el.Hats.querySelectorAll('button'),function(b){
       b.className=b.getAttribute('data-hat')===draft.hat?'on':'';
     });
-    if(el.HatMatch) Array.prototype.forEach.call(el.HatMatch.querySelectorAll('button'),function(b){
-      b.className=(b.getAttribute('data-m')==='1')===!!draft.hatMatch?'on':'';
-    });
   }
   function commitId(){
     draft.name=el.Nick?el.Nick.value:'';
     var asked=draft.color;
     var got=null;
-    if(typeof NET.setIdentity==='function') got=NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat, hatMatch:!!draft.hatMatch});
+    if(typeof NET.setIdentity==='function') got=NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat, hatMatch:true});
     if(got&&got.color&&got.color!==asked){
       draft.color=got.color;
       paintIdButtons();
