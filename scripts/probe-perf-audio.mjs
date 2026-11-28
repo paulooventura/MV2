@@ -240,7 +240,7 @@ for (const [id, r] of Object.entries(out)) {
   const f = r.frames, a = r.audio;
   // after the window comes back: the same track, from where it was (not 0:00), and moving again
   const hc = a.hideCheck, hideBad = hc && hc.before.length && !(hc.after.length && hc.after[0].src === hc.before[0].src && hc.after[0].t >= hc.before[0].t - 0.5
-    && hc.later.length && hc.later[0].src === hc.after[0].src && hc.later[0].t > hc.after[0].t + 0.8);
+    && hc.later.length && hc.later[0].src === hc.after[0].src && hc.later[0].t > hc.after[0].t + 0.4);   // +0.4 s in 1.5 s: moving even at the hurt tempo (down to 0.5x)
   const cuts = (hideBad ? 1 : 0) + a.gaps.length + a.restarts.length + a.waits.length + a.lateN + a.suspends + a.pauses.filter((q) => q.gs === 'game' && !q.paused).length;
   if (cuts || f.work.p99 > 16.7) bad++;
   console.log(`\n== ${id}: ${f.fps} fps · interval p50/p95/p99 ${f.interval.p50}/${f.interval.p95}/${f.interval.p99} ms · work p50/p95/p99 ${f.work.p50}/${f.work.p95}/${f.work.p99} (max ${f.work.max}) · update p99 ${f.update.p99} · draw p99 ${f.draw.p99} · long ${f.long} · GC ${r.cpu.gcMs} ms (max run ${r.cpu.gcMaxRunMs})`);

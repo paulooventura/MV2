@@ -426,6 +426,11 @@ function _kickBgmSoon(){
     if(ac&&ac.state==='suspended') ac.resume().catch(()=>{});
     const type=_activeBgmType;
     if(!type||!_audioUnlocked) return;
+    // Paulo, Nov 28 (build 474): music already going (the stage player's track, the 1.2 blend, a menu song) is
+    // never restarted from here. In a stage the remembered type is still the MENU song, whose element is
+    // paused: kicking it stopped the stage theme and started that song from 0:00 on every return to the window.
+    if(_allMusicEls().some(e=>!e.paused)) return;
+    try{ const B=window.MV_BETA; if(B&&B.on&&(gs==='game'||gs==='paused'||gs==='options')){ if(window.MV_BETA_AUDIO&&MV_BETA_AUDIO.ensure) MV_BETA_AUDIO.ensure(); return; } }catch(e){}
     const el=type==='game'?_gameAudioEl:type==='story'?_storyAudioEl:_openingAudioEl;
     const proc=type==='game'?_gameSrc:_titleSrc;
     if(el&&!el.paused) return;
