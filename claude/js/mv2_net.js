@@ -111,15 +111,13 @@
   function localIdentity(){
     var loc=locCache||(locCache=ID?ID.loadLocal():{name:'',color:'',hat:'gaucho'});
     var hero=heroName();
-    var col=loc.color||(mySeat>=2?'blue':(hero==='venture'?'red':'purple'));
-    if(mySeat<=1){
-      return {name:loc.name||(ID?ID.defaultName(mySeat):hero.toUpperCase()), color:col, hat:mySeat===1?'cap':'gaucho', hero:hero};
-    }
-    return {name:loc.name||(ID?ID.defaultName(mySeat):'RIDER'), color:col, hat:loc.hat||'gaucho', hero:hero};
+    var col=loc.color||(mySeat>=2?'yellow':(hero==='venture'?'red':'purple'));
+    var hat=loc.hat||(hero==='venture'?'cap':'gaucho');
+    return {name:loc.name||(ID?ID.defaultName(mySeat):(hero==='venture'?'VENTURE':'MIND')), color:col, hat:hat, hatMatch:!!loc.hatMatch, hero:hero};
   }
   function refreshMyPack(){
     var pk=ID?ID.packId(localIdentity()):{nm:'',col:'purple',hat:'gaucho',hero:heroName()};
-    var sig=mySeat+'|'+pk.nm+'|'+pk.col+'|'+pk.hat+'|'+pk.hero;
+    var sig=mySeat+'|'+pk.nm+'|'+pk.col+'|'+pk.hat+'|'+(pk.hm?1:0)+'|'+pk.hero;
     if(sig!==idSig||!myIdPack){ idSig=sig; myIdPack=pk; idVer++; }
   }
   // apply my identity to my hero only when it changed (was: every frame)
@@ -624,11 +622,8 @@
       ctx.strokeStyle='rgba(235,250,255,0.9)'; ctx.lineWidth=Math.max(1.5,sc(2)); ctx.stroke();
     }
     ctx.restore();
-    // nameplates for local + remotes
     try{
-      if(typeof p!=='undefined'&&p&&ID){ applyMine(p); ID.drawNameplate(p); }
-      if(typeof p2!=='undefined'&&p2&&ID) ID.drawNameplate(p2);
-      extras.forEach(function(ex){ if(ID) ID.drawNameplate(ex); });
+      if(typeof p!=='undefined'&&p&&ID) applyMine(p);
     }catch(e){}
   }
 
@@ -1007,6 +1002,7 @@
       if(partial.name!=null) loc.name=ID?ID.cleanName(partial.name):String(partial.name||'');
       if(partial.color) loc.color=partial.color;
       if(partial.hat) loc.hat=partial.hat;
+      if(partial.hatMatch!=null) loc.hatMatch=!!partial.hatMatch;
     }
     if(ID) ID.saveLocal(loc);
     locCache=null;

@@ -96,7 +96,8 @@
     var loc=ID?ID.loadLocal():{name:'',color:'',hat:'gaucho'};
     draft.name=loc.name||'';
     draft.color=loc.color||'';
-    draft.hat=loc.hat||'gaucho';
+    draft.hat=loc.hat||'';
+    draft.hatMatch=!!loc.hatMatch;
   }
 
   function build(){
@@ -107,7 +108,7 @@
     panel.innerHTML=
       '<div class="box">'+
         '<h2>ONLINE</h2>'+
-        '<p class="sub">Up to 5 riders on one room. Seats 1–2 are Mind and Venture. Everyone else picks a colour, a session name and a hat, and the sprite wears that colour. No account — nicknames stay on this device for this session. Same Wi‑Fi is the surest path; the 4-letter code always works as a fallback.</p>'+
+        '<p class="sub">Up to 5 riders. Each one picks a colour, a hat and a name. The colour is the sprite. The name rides above the head.</p>'+
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
@@ -134,13 +135,18 @@
 
         '<div id="mvNetId" class="idbox" style="display:none">'+
           '<div class="sub" style="margin:0 0 4px">YOUR RIDE (session only)</div>'+
-          '<label for="mvNetNick">NAME — a nickname is fine; never required to be real</label>'+
-          '<input id="mvNetNick" maxlength="12" autocomplete="nickname" spellcheck="false" placeholder="RIDER">'+
-          '<label>COLOUR</label>'+
+          '<label for="mvNetNick">NAME — this sits above your head</label>'+
+          '<input id="mvNetNick" maxlength="12" autocomplete="nickname" spellcheck="false" placeholder="YOUR NAME">'+
+          '<label>COLOUR — this paints the sprite. Purple is Mind. Red is Venture.</label>'+
           '<div id="mvNetColors"></div>'+
           '<label>HAT</label>'+
           '<div id="mvNetHats"></div>'+
-          '<div class="tiny">The sprite wears this colour: wheel, bulb, glove and hat. Purple is Mind. Red is Venture.</div>'+
+          '<label>HAT COLOUR</label>'+
+          '<div class="row" id="mvNetHatMatch">'+
+            '<button type="button" data-m="1">MATCH MY COLOUR</button>'+
+            '<button type="button" data-m="0">KEEP ITS OWN COLOUR</button>'+
+          '</div>'+
+          '<div class="tiny">Gaucho or baseball cap. Match paints the hat the same colour as the sprite. Your name rides above your head.</div>'+
         '</div>'+
 
         '<div id="mvNetStatus">Pick HOST or JOIN.</div>'+
@@ -162,7 +168,7 @@
         '<div class="tiny">Direct player-to-player link (like any P2P game). If a join stalls, type the room code — the host room stays open.</div>'+
       '</div>';
     document.body.appendChild(panel);
-    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats'].forEach(function(k){
+    ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','HatMatch'].forEach(function(k){
       el[k]=document.getElementById('mvNet'+k);
     });
     el.HostBtn.onclick=startHost;
@@ -176,10 +182,15 @@
     el.Back.onclick=back;
     el.Done.onclick=function(){ if(NET.isLinked()&&NET.role()==='host') finishHost(); };
     el.Nick.value=draft.name;
+    el.Nick.addEventListener('input',commitId);
     el.Nick.addEventListener('change',commitId);
     el.Nick.addEventListener('blur',commitId);
     buildCrayonButtons();
     buildHatButtons();
+    if(el.HatMatch) Array.prototype.forEach.call(el.HatMatch.querySelectorAll('button'),function(b){
+      b.onclick=function(){ draft.hatMatch=b.getAttribute('data-m')==='1'; paintIdButtons(); commitId(); };
+    });
+    paintIdButtons();
     NET.onStatus(render);
     if(VOICE()) VOICE().onChange(renderVoice);
     render(NET.status()); renderVoice();
@@ -217,10 +228,13 @@
     if(el.Hats) Array.prototype.forEach.call(el.Hats.querySelectorAll('button'),function(b){
       b.className=b.getAttribute('data-hat')===draft.hat?'on':'';
     });
+    if(el.HatMatch) Array.prototype.forEach.call(el.HatMatch.querySelectorAll('button'),function(b){
+      b.className=(b.getAttribute('data-m')==='1')===!!draft.hatMatch?'on':'';
+    });
   }
   function commitId(){
     draft.name=el.Nick?el.Nick.value:'';
-    if(typeof NET.setIdentity==='function') NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat});
+    if(typeof NET.setIdentity==='function') NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat, hatMatch:!!draft.hatMatch});
   }
   function showIdentity(seat){
     var need=ID?ID.needsCrayon(seat):(seat|0)>=2;
@@ -229,8 +243,8 @@
     // crayon+hat emphasized for guests.
     if(!el.Id) return;
     el.Id.style.display=NET.isLinked()?'block':'none';
-    if(el.Colors) el.Colors.parentNode&&(el.Colors.style.opacity=need||(seat|0)>=2?1:0.55);
-    if(el.Hats) el.Hats.style.opacity=need||(seat|0)>=2?1:0.55;
+    if(el.Colors) el.Colors.style.opacity=1;
+    if(el.Hats) el.Hats.style.opacity=1;
   }
 
   function renderRoster(into){
@@ -359,6 +373,10 @@
     onDone=typeof cb==='function'?cb:null;
     if(!panel) build();
     loadDraft();
+    var hero='mind';
+    try{ hero=(typeof _heroChoice==='string'&&_heroChoice)?_heroChoice:((typeof heroName==='function')?heroName():'mind'); }catch(e){}
+    if(!draft.color) draft.color=hero==='venture'?'red':'purple';
+    if(!draft.hat) draft.hat=hero==='venture'?'cap':'gaucho';
     if(el.Nick) el.Nick.value=draft.name;
     paintIdButtons();
     panel.style.display='flex';

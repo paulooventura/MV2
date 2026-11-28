@@ -592,8 +592,8 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty, dir=window._hatDirOverride||_hatDir();
   const pl=typeof p!=='undefined'?p:null;
-  const crayon=pl&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(pl)&&pl._netColor;
-  const cols=(crayon&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
+  const dye=pl&&pl._netHatMatch&&pl._netColor&&window.MV_IDENTITY&&MV_IDENTITY.hatColors&&MV_IDENTITY.hatColors(pl._netColor);
+  const cols=dye||null;
   ctx.save(); _hatXform(cx+tx,hatBrimY,dir<0?-1:1);
   drawLogoHat(cx+tx,hatBrimY,80,dir,Object.assign({crownH:15}, cols||{}));   // the key art's wide flat brim; crayon resonates when set
   ctx.restore();
@@ -607,8 +607,8 @@ function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   // crayon identity soft-tints the crown (online seats 3–5).
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
   const pl=typeof p!=='undefined'?p:null;
-  const crayon=pl&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(pl)&&pl._netColor;
-  const cols=(crayon&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
+  const dye=pl&&pl._netHatMatch&&pl._netColor&&window.MV_IDENTITY&&MV_IDENTITY.hatColors&&MV_IDENTITY.hatColors(pl._netColor);
+  const cols=dye||null;
   const crown0=cols?cols.col:'#000', crown1=cols?cols.inner:'#1a1a1e', crown2=cols?cols.hi:'#2a2a30';
   ctx.save(); _hatXform(cx+tx,by,dir<0?-1:1);
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
@@ -1873,6 +1873,7 @@ function drawCharacter(){
   // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
   drawConnArm();
   ctx.restore();
+  if(p&&p._netName&&window.MV_IDENTITY) MV_IDENTITY.drawNameplate(p);
 }
 function drawCharacterFor(pl){
   const oldP=p;

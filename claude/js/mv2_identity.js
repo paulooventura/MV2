@@ -18,19 +18,19 @@
   var CRAYONS=[
     {id:'purple', name:'PURPLE', hex:'#7A3CD0', dark:'#2E0E5A', mid:'#7A3CD0', light:'#C08CFF', glow:'170,110,255'},
     {id:'red',    name:'RED',    hex:'#D42030', dark:'#5A0812', mid:'#C81C2C', light:'#FF6A72', glow:'255,70,90'},
-    {id:'blue',   name:'BLUE',   hex:'#2F6FE0', dark:'#0C2460', mid:'#2F6FE0', light:'#8CB4FF', glow:'80,140,255'},
     {id:'yellow', name:'YELLOW', hex:'#E6C020', dark:'#6A4E08', mid:'#E6C020', light:'#FFE98A', glow:'255,220,80'},
-    {id:'orange', name:'ORANGE', hex:'#F07818', dark:'#6A2808', mid:'#F07818', light:'#FFB060', glow:'255,140,40'},
+    {id:'blue',   name:'BLUE',   hex:'#2F6FE0', dark:'#0C2460', mid:'#2F6FE0', light:'#8CB4FF', glow:'80,140,255'},
     {id:'green',  name:'GREEN',  hex:'#2EAE4A', dark:'#0C4018', mid:'#2EAE4A', light:'#8AE8A0', glow:'60,220,100'},
-    {id:'white',  name:'WHITE',  hex:'#F2F2F2', dark:'#8A8A92', mid:'#E4E4EA', light:'#FFFFFF', glow:'230,230,240'},
-    {id:'black',  name:'BLACK',  hex:'#16161C', dark:'#050507', mid:'#2A2A32', light:'#8A8E98', glow:'160,164,176'}
+    {id:'orange', name:'ORANGE', hex:'#F07818', dark:'#6A2808', mid:'#F07818', light:'#FFB060', glow:'255,140,40'},
+    {id:'black',  name:'BLACK',  hex:'#16161C', dark:'#050507', mid:'#2A2A32', light:'#8A8E98', glow:'160,164,176'},
+    {id:'white',  name:'WHITE',  hex:'#F2F2F2', dark:'#8A8A92', mid:'#E4E4EA', light:'#FFFFFF', glow:'230,230,240'}
   ];
 
   // Existing hero hat art (render.js): gaucho = Mind wide brim (drawLogoHat),
   // cap = Venture black backwards baseball cap.
   var HATS=[
     {id:'gaucho', name:'GAUCHO',  sub:'WIDE BRIM'},
-    {id:'cap',    name:'BACK CAP',sub:'BLACK BILL'}
+    {id:'cap',    name:'BASEBALL CAP', sub:'BACKWARDS'}
   ];
 
   function crayonById(id){
@@ -66,11 +66,12 @@
   }
 
   function loadLocal(){
-    var o={name:'', color:'', hat:'gaucho'};
+    var o={name:'', color:'', hat:'', hatMatch:false};
     try{
       var n=localStorage.getItem('mv2.netNick'); if(n) o.name=cleanName(n);
       var c=localStorage.getItem('mv2.netColor'); if(c&&crayonById(c).id===c) o.color=c;
       var h=localStorage.getItem('mv2.netHat'); if(h&&hatById(h).id===h) o.hat=h;
+      var m=localStorage.getItem('mv2.netHatMatch'); if(m==='1'||m==='0') o.hatMatch=(m==='1');
     }catch(e){}
     return o;
   }
@@ -79,6 +80,7 @@
       if(o&&o.name!=null) localStorage.setItem('mv2.netNick', cleanName(o.name));
       if(o&&o.color) localStorage.setItem('mv2.netColor', crayonById(o.color).id);
       if(o&&o.hat) localStorage.setItem('mv2.netHat', hatById(o.hat).id);
+      localStorage.setItem('mv2.netHatMatch', o&&o.hatMatch?'1':'0');
     }catch(e){}
   }
 
@@ -89,6 +91,7 @@
     actor._netColor=crayonById(id.color).hex;
     actor._netHat=hatById(id.hat).id;
     actor.hatStyle=actor._netHat;
+    actor._netHatMatch=!!id.hatMatch;
     if(id.hero==='mind'||id.hero==='venture') actor.hero=id.hero;
     return actor;
   }
@@ -98,7 +101,8 @@
     return {
       nm:cleanName(id.name)||'',
       col:crayonById(id.color).id,
-      hat:hatById(id.hat).id,
+      hat:hatById(id.hat||(id.hero==='venture'?'cap':'gaucho')).id,
+      hm:id.hatMatch?1:0,
       hero:(id.hero==='venture')?'venture':'mind'
     };
   }
@@ -108,6 +112,7 @@
       name:cleanName(pk.nm||pk.name||''),
       color:crayonById(pk.col||pk.color).id,
       hat:hatById(pk.hat).id,
+      hatMatch:!!(pk.hm||pk.hatMatch),
       hero:(pk.hero==='venture'||pk.h==='venture')?'venture':'mind'
     };
   }
@@ -196,7 +201,7 @@
   function drawNameplate(pl){
     if(!pl||!pl._netName||typeof ctx==='undefined'||typeof sx!=='function') return;
     var w=typeof SW!=='undefined'?SW:64;
-    var x=sx(pl.x+w*0.5), y=sy(pl.y)-8;
+    var x=sx(pl.x+w*0.5), y=sy(pl.y)-36;
     var col=pl._netColor||'#C9A24A';
     ctx.save();
     ctx.font='14px "MV Pixel",ui-monospace,Consolas,monospace';
