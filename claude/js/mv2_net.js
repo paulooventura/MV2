@@ -33,13 +33,25 @@
   var ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
   var CODE_LEN=4;
   var SEND_MS=50, ENEMY_MS=80, RENDER_DELAY_MS=90, EXTRAP_MS=120, BUF_MAX=24, PING_MS=2000;
-  var CONNECT_TIMEOUT_MS=20000, OWN_SWAP_PX=160;
+  // A friend can be anywhere. One attempt may cross the ocean; the room keeps trying for 15 minutes.
+  var ROOM_JOIN_MS=15*60*1000, ICE_ATTEMPT_MS=45000, OWN_SWAP_PX=160;
+  var CONNECT_TIMEOUT_MS=ICE_ATTEMPT_MS;
   var PUBLIC_URL='https://mindandventure.pauloventura.org/';
   // PeerJS cloud defaults — always attach so a blank CFG.iceServers cannot strip TURN.
+  // UDP and TCP on both regions: a phone network often blocks one of them. Direct
+  // links still win when they can; the relay is there for everyone else.
   var DEFAULT_ICE=[
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    {urls:['turn:eu-0.turn.peerjs.com:3478','turn:us-0.turn.peerjs.com:3478'],username:'peerjs',credential:'peerjsp'}
+    {urls:[
+      'stun:stun.l.google.com:19302',
+      'stun:stun1.l.google.com:19302',
+      'stun:stun.cloudflare.com:3478'
+    ]},
+    {urls:[
+      'turn:eu-0.turn.peerjs.com:3478?transport=udp',
+      'turn:eu-0.turn.peerjs.com:3478?transport=tcp',
+      'turn:us-0.turn.peerjs.com:3478?transport=udp',
+      'turn:us-0.turn.peerjs.com:3478?transport=tcp'
+    ],username:'peerjs',credential:'peerjsp'}
   ];
 
   var st={role:null, status:'offline', detail:'', code:'', linked:false, ping:0};
@@ -91,7 +103,8 @@
     var o={debug:0};
     ['host','port','path','secure','key'].forEach(function(k){ if(CFG[k]!=null) o[k]=CFG[k]; });
     var ice=(CFG.iceServers&&CFG.iceServers.length)?CFG.iceServers:DEFAULT_ICE;
-    o.config={iceServers:ice, sdpSemantics:'unified-plan'};
+    o.pingInterval=5000;
+    o.config={iceServers:ice, sdpSemantics:'unified-plan', iceCandidatePoolSize:2};
     return o;
   }
   function normCode(c){
@@ -156,6 +169,29 @@
   function takenSeats(){
     var s={}; Object.keys(roster).forEach(function(k){ s[roster[k].seat|0]=1; }); return s;
   }
+  function seatForReturning(id){
+    if(!id) return -1;
+    var now=Date.now(), keys=Object.keys(roster);
+    for(var i=0;i<keys.length;i++){
+      var r=roster[keys[i]];
+      if(r&&r.holdId===id&&r.holdUntil&&now<r.holdUntil) return r.seat|0;
+    }
+    return -1;
+  }
+  function sweepHolds(){
+    if(st.role!=='host') return;
+    var now=Date.now(), changed=false;
+    Object.keys(roster).forEach(function(k){
+      var r=roster[k];
+      if(!r||!r.holdUntil||now<r.holdUntil) return;
+      var live=conns.some(function(c){ return c&&c.open&&(c._mvSeat|0)===(r.seat|0); });
+      if(live){ delete r.holdUntil; delete r.holdId; return; }
+      delete roster[k];
+      delete remotes[r.seat]; seatsVer++;
+      changed=true;
+    });
+    if(changed) broadcastRoster();
+  }
   function nextSeat(){
     var taken=takenSeats();
     for(var i=0;i<MAX_PEERS;i++) if(!taken[i]) return i;
@@ -200,7 +236,32 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
+  var rejoinUntil=0, retryTimer=null, joinReject=null;
+  function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
+  function scheduleRetry(ms){
+    if(retryTimer||st.linked||st.role!=='joiner') return;
+    if(!rejoinUntil||Date.now()>=rejoinUntil){
+      setStatus('error', guestTimeoutCopy());
+      if(joinReject){ var r=joinReject; joinReject=null; try{ r(new Error(guestTimeoutCopy())); }catch(e){} }
+      return;
+    }
+    retryTimer=setTimeout(function(){ retryTimer=null; retryJoinLink(); }, ms==null?1500:ms);
+  }
+  function retryJoinLink(){
+    if(st.role!=='joiner'||!st.code||st.linked) return;
+    if(!rejoinUntil||Date.now()>=rejoinUntil){ scheduleRetry(0); return; }
+    var pr=peer;
+    if(!pr||pr.destroyed){ scheduleRetry(1500); return; }
+    if(!pr.open){ try{ pr.reconnect(); }catch(e){} scheduleRetry(1500); return; }
+    if(conns.some(function(c){ return c&&!c.open; })) return;
+    var dc=pr.connect(PREFIX+st.code,{reliable:true,serialization:'json',metadata:{v:3,id:MY_ID}});
+    wireConn(dc,{timeout:ICE_ATTEMPT_MS, allowRetry:true, onRetry:function(){ scheduleRetry(1200); }});
+    setStatus('joining','Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.');
+  }
   function disconnect(){
+    rejoinUntil=0;
+    if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
+    if(joinReject){ var r=joinReject; joinReject=null; try{ r(new Error('cancelled')); }catch(e){} }
     try{ sendAll({t:'bye', seat:mySeat}); }catch(e){}
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
@@ -213,17 +274,17 @@
     if(t==='peer-unavailable') return 'No room with that code. Check the letters with your friend.';
     if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed') return 'Cannot reach the room server. Check your internet.';
     if(t==='browser-incompatible') return 'This browser cannot play online (no WebRTC).';
-    if(t==='webrtc') return 'Direct link blocked on this network. Try same Wi‑Fi, or type the 4-letter room code.';
+    if(t==='webrtc') return 'Still finding a path. The room keeps trying for 15 minutes, from anywhere.';
     return (e&&e.message)||String(e||'unknown error');
   }
   function hostWaitingCopy(){
-    return 'Waiting for friends — share the code, QR, or link. Same Wi‑Fi is most reliable.';
+    return 'Room is open for 15 minutes. Share the code — friends can join from anywhere.';
   }
   function guestTimeoutCopy(){
-    return 'Could not reach the host. Check the code, try same Wi‑Fi, or ask them to host again.';
+    return 'Could not reach that room in 15 minutes. Check the code, and ask your friend to keep the room open.';
   }
   function dropFailedConn(c){
-    if(connTimer){ clearTimeout(connTimer); connTimer=null; }
+    if(c&&c._mvTimer){ clearTimeout(c._mvTimer); c._mvTimer=null; }
     var ix=conns.indexOf(c);
     if(ix>=0) conns.splice(ix,1);
     var leftSeat=c&&c._mvSeat;
@@ -261,8 +322,9 @@
     }
     if(st.role==='joiner'){ closeAllConns(); }
     conns.push(c);
-    if(connTimer){ clearTimeout(connTimer); connTimer=null; }
-    connTimer=setTimeout(function(){
+    if(c._mvTimer) clearTimeout(c._mvTimer);
+    c._mvTimer=setTimeout(function(){
+      c._mvTimer=null;
       if(conns.indexOf(c)<0||c.open) return;
       // Never leave a half-open DataConnection hanging — PeerJS often skips 'close' if ICE never finished.
       dropFailedConn(c);
@@ -273,11 +335,11 @@
         setStatus(openConns().length?'connected':'hosting',
           openConns().length
             ?('In the room · '+peerCount()+'/'+MAX_PEERS+'.')
-            :('A friend could not reach this room (network). Room '+(st.code||'')+' is still open — have them type the code, or try same Wi‑Fi.'));
+            :('A friend is still connecting. Room '+(st.code||'')+' stays open — they have 15 minutes, from anywhere.'));
         return;
       }
       if(opts.allowRetry&&typeof opts.onRetry==='function'){
-        setStatus('joining','Link timed out — trying once more…');
+        setStatus('joining','The link is slow. Still trying — '+minsLeft(rejoinUntil)+' min left.');
         opts.onRetry();
         return;
       }
@@ -286,11 +348,14 @@
     },(opts.timeout||CONNECT_TIMEOUT_MS));
     c.on('open',function(){
       if(conns.indexOf(c)<0) return;
-      if(connTimer){ clearTimeout(connTimer); connTimer=null; }
+      if(c._mvTimer){ clearTimeout(c._mvTimer); c._mvTimer=null; }
       st.linked=true; lastPhase='room'; joinTries=0;
+      if(st.role==='joiner') rejoinUntil=Date.now()+ROOM_JOIN_MS;
       refreshMyPack();
       if(st.role==='host'){
-        var seat=nextSeat();
+        var want=c.metadata&&c.metadata.id;
+        var seat=seatForReturning(want);
+        if(seat<0) seat=nextSeat();
         if(seat<0){ try{ c.send({t:'full', max:MAX_PEERS}); }catch(e){} try{ c.close(); }catch(e){} return; }
         c._mvSeat=seat;
         // Reserve the seat immediately so the next guest does not steal it.
@@ -308,7 +373,15 @@
       var ix=conns.indexOf(c); if(ix<0) return;
       conns.splice(ix,1);
       var leftSeat=c._mvSeat;
-      if(leftSeat!=null){
+      if(leftSeat!=null&&st.role==='host'){
+        var held=roster[String(leftSeat)];
+        if(held&&held.id&&held.id!=='pending'){
+          held.holdId=held.id; held.holdUntil=Date.now()+ROOM_JOIN_MS;
+        }else{
+          delete roster[String(leftSeat)];
+          delete remotes[leftSeat]; seatsVer++;
+        }
+      }else if(leftSeat!=null){
         delete roster[String(leftSeat)];
         delete remotes[leftSeat]; seatsVer++;
       }
@@ -320,8 +393,16 @@
         setStatus(openConns().length?'connected':'hosting',
           openConns().length
             ?('In the room · '+peerCount()+'/'+MAX_PEERS+'.')
-            :(wasLinked?'A friend left. Room '+st.code+' is still open.':hostWaitingCopy()));
-        if(wasLinked&&!openConns().length){ dropPuppets(); toast('A FRIEND LEFT'); }
+            :(wasLinked?'A friend blinked. Their seat stays for 15 minutes. Room '+st.code+' is still open.':hostWaitingCopy()));
+        if(wasLinked&&!openConns().length){
+          var holding=Object.keys(roster).some(function(k){ return roster[k]&&roster[k].holdUntil; });
+          if(!holding) dropPuppets();
+          toast(holding?'CONNECTION BLINKED':'A FRIEND LEFT');
+        }
+      }else if(rejoinUntil&&Date.now()<rejoinUntil&&st.code){
+        st.linked=false;
+        setStatus('joining','Connection blinked. Finding your friend again — '+minsLeft(rejoinUntil)+' min left.');
+        scheduleRetry(1200);
       }else{
         closeAllConns();
         setStatus('closed', wasLinked?'The host left the room.':guestTimeoutCopy());
@@ -424,6 +505,7 @@
     });
   }
   if(!hostWatch) hostWatch=setInterval(function(){
+    sweepHolds();
     if(st.role!=='host'||!hostOpen||!st.code) return;
     if(peerUp(peer)) return;
     reviveHost(st.code);
@@ -434,45 +516,26 @@
     if(c.length!==CODE_LEN) return Promise.reject(new Error('Room codes have '+CODE_LEN+' letters.'));
     disconnect();
     st.role='joiner'; st.code=c; mySeat=-1; joinTries=0;
+    rejoinUntil=Date.now()+ROOM_JOIN_MS;
     refreshMyPack();
     return new Promise(function(res,rej){
       var pr=makePeer(null);
-      if(!pr){ st.role=null; return rej(new Error(st.detail)); }
+      if(!pr){ st.role=null; rejoinUntil=0; return rej(new Error(st.detail)); }
       peer=pr;
-      var settled=false, tries=0, wait=null, MAX_TRIES=6;
+      var settled=false;
+      joinReject=rej;
       function giveUp(e){
         if(settled||st.linked) return;
-        settled=true;
+        if(Date.now()<rejoinUntil){ scheduleRetry(2000); return; }
+        settled=true; joinReject=null;
         setStatus('error', (e&&errText(e))||guestTimeoutCopy());
         rej(e||new Error(guestTimeoutCopy()));
       }
-      function startData(){
-        if(peer!==pr||pr.destroyed||st.linked) return;
-        var dc=pr.connect(PREFIX+c,{reliable:true,serialization:'json',metadata:{v:3}});
-        wireConn(dc,{
-          timeout:8000,
-          allowRetry:true,
-          onRetry:function(){ schedule(guestTimeoutCopy()); }
-        });
-      }
-      function schedule(why){
-        if(settled||st.linked||peer!==pr) return;
-        if(tries>=MAX_TRIES){ giveUp(new Error(why||guestTimeoutCopy())); return; }
-        if(wait) return;
-        tries++;
-        setStatus('joining', tries<=1?('Looking for room '+c+'…'):('Still looking for room '+c+' ('+tries+'/'+MAX_TRIES+')…'));
-        wait=setTimeout(function(){
-          wait=null;
-          if(settled||st.linked||peer!==pr||pr.destroyed) return;
-          if(!pr.open){ try{ pr.reconnect(); }catch(e){} }
-          else startData();
-        }, tries<=1?40:1000);
-      }
-      setStatus('joining','Looking for room '+c+'…');
+      setStatus('joining','Looking for room '+c+'… 15 min to get in, from anywhere.');
       pr.on('open',function(){
         if(peer!==pr) return;
-        startData();
-        if(!settled){ settled=true; res({code:c}); }
+        retryJoinLink();
+        if(!settled){ settled=true; joinReject=null; res({code:c}); }
       });
       pr.on('call',function(call){ fire('call',call); });
       pr.on('disconnected',function(){
@@ -483,15 +546,19 @@
         if(peer!==pr) return;
         var ty=e&&e.type;
         // The room broker often says "no such room" for a second after the
-        // host opens, and again if the host's phone slept. Keep trying.
+        // host opens, and again if the host's phone slept. Keep trying
+        // for the whole 15 minutes — a friend far away just needs the time.
         if(!st.linked&&(ty==='peer-unavailable'||ty==='network'||ty==='server-error'||ty==='socket-error'||ty==='webrtc'||ty==='disconnected')){
-          if(settled) settled=false;
-          schedule(errText(e));
+          setStatus('joining','Still reaching room '+c+' — '+minsLeft(rejoinUntil)+' min left.');
+          scheduleRetry(2000);
           return;
         }
         if(!st.linked) giveUp(e);
         else setStatus('error',errText(e));
       });
+      setTimeout(function(){
+        if(peer===pr&&!pr.open&&!pr.destroyed&&!st.linked){ try{ pr.reconnect(); }catch(e){} }
+      }, 8000);
     });
   }
 

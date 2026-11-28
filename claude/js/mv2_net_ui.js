@@ -165,7 +165,7 @@
           '<button type="button" id="mvNetDone" disabled>PICK YOUR HERO</button>'+
           '<button type="button" id="mvNetBack">BACK</button>'+
         '</div>'+
-        '<div class="tiny">Direct player-to-player link (like any P2P game). If a join stalls, type the room code — the host room stays open.</div>'+
+        '<div class="tiny">Friends can be anywhere in the world. The room stays open for 15 minutes while everyone gets in.</div>'+
       '</div>';
     document.body.appendChild(panel);
     ['Menu','HostV','JoinV','HostCode','Link','Qr','Code','Go','Status','Done','Back','Voice','VoiceHint','HostBtn','JoinBtn','Roster','RosterJ','Count','Id','Nick','Colors','Hats','HatMatch'].forEach(function(k){
