@@ -6,6 +6,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 import { WebSocketServer } from 'ws';
 import { chromium } from 'playwright';
 
@@ -121,4 +122,34 @@ setInterval(async () => {
 }, TICK_MS);
 
 server.listen(PORT, '127.0.0.1', () => console.log(`MV2 authority on http://127.0.0.1:${PORT} (ws /auth)`));
-process.on('SIGINT', async () => { await browser.close(); server.close(); process.exit(0); });
+
+// Optional free public route: Cloudflare Quick Tunnel (no account, HTTPS,
+// WebSocket-capable). Set MV_AUTH_TUNNEL=1 to publish this authority so phones
+// can join from anywhere. The URL is temporary and changes on every restart.
+let tunnelProc = null;
+if (process.env.MV_AUTH_TUNNEL === '1') {
+  const exe = process.env.MV_CLOUDFLARED || 'I:\\PVP\\apps\\cloudflared.exe';
+  try {
+    tunnelProc = spawn(exe, ['tunnel', '--url', `http://127.0.0.1:${PORT}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let announced = false;
+    const scan = buf => {
+      const s = buf.toString();
+      const m = /https:\/\/([a-z0-9-]+\.trycloudflare\.com)/i.exec(s);
+      if (!m || announced) return;
+      announced = true;
+      const host = m[1];
+      const join = `https://mindandventure.pauloventura.org/?auth=wss://${host}/auth`;
+      console.log('PUBLIC JOIN URL:', join);
+      const out = path.join(ROOT, '..', '..', 'HOMEBASE', 'staging', 'mv2-asks', 'auth-tunnel-url.txt');
+      fs.writeFile(out, join + '\n').catch(e => console.log('tunnel url write failed', String(e).slice(0, 120)));
+    };
+    tunnelProc.stdout.on('data', scan);
+    tunnelProc.stderr.on('data', scan);
+    tunnelProc.on('error', e => console.log('tunnel failed to start:', String(e).slice(0, 160)));
+  } catch (e) { console.log('tunnel launch failed:', String(e).slice(0, 160)); }
+}
+
+process.on('SIGINT', async () => {
+  try { if (tunnelProc) tunnelProc.kill(); } catch {}
+  await browser.close(); server.close(); process.exit(0);
+});
