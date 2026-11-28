@@ -273,10 +273,14 @@
     hostOpen=false; reviving=false; liveStage=null; runId=0; seenGen=0; wantGo=false;
     setStatus('offline','');
   }
+  function brokerDown(e){
+    var t=e&&e.type;
+    return t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'||t==='ssl-unavailable';
+  }
   function errText(e){
     var t=e&&e.type;
     if(t==='peer-unavailable') return 'No room with that code. Check the letters with your friend.';
-    if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed') return 'Cannot reach the room server. Check your internet.';
+    if(brokerDown(e)) return 'Cannot reach the room server. Check your internet.';
     if(t==='browser-incompatible') return 'This browser cannot play online (no WebRTC).';
     if(t==='webrtc') return 'Still finding a path. The room keeps trying for 15 minutes, from anywhere.';
     return (e&&e.message)||String(e||'unknown error');
@@ -424,10 +428,17 @@
       if(st.role==='host'&&!c.open){
         // Inbound ICE noise: keep hosting, do not paint the lobby as broken.
         setStatus(openConns().filter(function(x){ return x!==c&&x.open; }).length?'connected':'hosting',
-          errText(e)+' Room '+(st.code||'')+' is still open.');
+          'A friend is still connecting. Room '+(st.code||'')+' stays open.');
         return;
       }
-      if(st.role==='joiner'&&!st.linked) return;
+      if(st.role==='joiner'&&(!st.linked||(rejoinUntil&&Date.now()<rejoinUntil))){
+        if(st.linked){
+          st.linked=false;
+          setStatus('joining','Still reaching the room server…');
+          scheduleRetry(1200);
+        }
+        return;
+      }
       setStatus('error',errText(e));
     });
   }
@@ -486,8 +497,12 @@
     roomUntil=standing?0:(Date.now()+ROOM_JOIN_MS);
     refreshMyPack();
     upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0}));
+    setStatus('opening','Opening room…');
     return new Promise(function(res,rej){
+      // The phone just closed the look-up socket. Opening the room socket in
+      // the same breath makes mobile drop it and blame the internet. Wait.
       var tryOne=function(){
+        if(st.role!=='host'||hostOpen) return;
         var code=standing?pin:newCode();
         var pr=makePeer(PREFIX+code);
         if(!pr){ st.role=null; return rej(new Error(st.detail)); }
@@ -508,19 +523,21 @@
               var taken=new Error('Palotino is already open.'); taken.type='unavailable-id';
               st.role=null; rej(taken); return;
             }
-            if(hostTries++<6){ try{ pr.destroy(); }catch(_e){} peer=null; tryOne(); return; }
+            if(hostTries++<6){ if(peer===pr) peer=null; try{ pr.destroy(); }catch(_e){} setTimeout(tryOne, 600); return; }
           }
           if(e&&e.type==='peer-unavailable') return;
-          if(hostOpen&&e&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error'||e.type==='socket-closed')){
-            setStatus('hosting','Reconnecting room '+st.code+'…');
-            setTimeout(function(){ reviveHost(st.code); }, 600);
-            return;
+          if(brokerDown(e)){
+            setStatus(hostOpen?'hosting':'opening','Still reaching the room server…');
+            if(hostOpen){ setTimeout(function(){ reviveHost(st.code); }, 600); return; }
+            if(peer===pr) peer=null;
+            try{ pr.destroy(); }catch(_e){}
+            if(hostTries++<6){ setTimeout(tryOne, 1200); return; }
           }
           setStatus('error',errText(e));
           if(!hostOpen&&!st.linked){ st.role=null; rej(e); }
         });
       };
-      tryOne();
+      setTimeout(tryOne, 1200);
     });
   }
   if(!hostWatch) hostWatch=setInterval(function(){
@@ -578,7 +595,7 @@
         setTimeout(function(){ if(peer===pr&&!pr.destroyed){ try{ pr.reconnect(); }catch(e){} } }, 400);
       });
       pr.on('error',function(e){
-        if(peer!==pr) return;
+        if(peer!==pr||settled) return;
         var ty=e&&e.type;
         // The room broker often says "no such room" for a second after the
         // host opens, and again if the host's phone slept. Keep trying
@@ -586,11 +603,13 @@
         if(!st.linked&&standing&&ty==='peer-unavailable'){
           var empty=new Error('empty'); empty.type='empty';
           settled=true; joinReject=null;
+          if(peer===pr) peer=null;
+          try{ pr.destroy(); }catch(err){}
           rej(empty);
           return;
         }
-        if(!st.linked&&(ty==='peer-unavailable'||ty==='network'||ty==='server-error'||ty==='socket-error'||ty==='webrtc'||ty==='disconnected')){
-          setStatus('joining','Still reaching room '+c+' — '+minsLeft(rejoinUntil)+' min left.');
+        if(!st.linked&&(ty==='peer-unavailable'||ty==='webrtc'||ty==='disconnected'||brokerDown(e))){
+          setStatus('joining','Still reaching the room server…');
           scheduleRetry(2000);
           return;
         }
@@ -617,6 +636,7 @@
           setStatus('joining','Palotino is empty. Opening it…');
           return host(PALOTINO).catch(function(h){
             if(h&&h.type==='unavailable-id'&&n<6) return later(400+Math.floor(Math.random()*900)).then(function(){ return walk(n+1); });
+            if(h&&brokerDown(h)&&n<6) return later(900).then(function(){ return walk(n+1); });
             throw h;
           });
         }
