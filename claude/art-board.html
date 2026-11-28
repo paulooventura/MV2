@@ -61,6 +61,8 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 .hb.edit{pointer-events:auto;cursor:nwse-resize;border-style:dashed}
 .hb.faint{border-width:1px;border-style:dotted;background:none;opacity:.55}
 .hsSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.hsSvg.hb{border:0;background:none;box-shadow:none;opacity:1}   /* the shape layer is not a box: no green frame over the whole picture */
+.hsSvg polygon,.hsSvg circle,.hsSvg rect{stroke-width:2.2;fill-opacity:.22}
 .hsLegend{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:10.5px;margin-top:3px}.hsLegend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:-1px}
 #hsEd{position:fixed;inset:0;background:rgba(20,14,10,.72);z-index:50;display:grid;place-items:center}
 #hsEd .box{background:#fff9ee;border:2px solid var(--sumi);padding:12px;max-width:min(96vw,760px);max-height:96vh;overflow:auto}
@@ -74,6 +76,8 @@ h2{font-size:16px;margin:0 0 4px}.sub{font-size:11px;color:var(--mica)}
 <header>
   <h1><span class="seal">絵</span>MV2 · ART BOARD</h1>
   <a href="mv2-hub.html">← hub</a><a href="sfx-studio.html">SFX studio</a><a href="mask-studio.html">Mask studio</a><a href="work-queue.html">Work queue</a>
+  <button class="btn hot" id="pubEdits" title="Saves your shape, box, picture and tile edits to dev; the hourly ship tests them and takes them live">Send my edits to the next build <span id="pubCount"></span></button>
+  <span class="sub" id="pubMsg" style="max-width:360px"></span>
   <div class="tabs"><button data-tab="catalog">Catalog &amp; collision</button><button data-tab="sprite" class="on">Sprites</button><button data-tab="tiles">Tilesets</button><button data-tab="kit">Level kit sheet</button></div>
 </header>
 
@@ -369,6 +373,12 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='tiles'&&!window._tilesOn&&window.MV_ArtTiles){ window._tilesOn=true; MV_ArtTiles.init(); }
 });
 
+/* Paulo 2026-11-28: edits made here go into the next build with one click */
+function pubStatus(){ if(!api) return; fetch('/api/edits-status',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
+  .then(j=>{ const n=(j.pending||[]).length; $('pubCount').textContent=n?'('+n+' waiting)':''; $('pubEdits').disabled=!n; }).catch(()=>{}); }
+$('pubEdits').onclick=()=>{ $('pubMsg').textContent='Sending…'; fetch('/api/publish-edits',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
+  .then(j=>{ $('pubMsg').textContent=j.ok?j.msg:('Not sent: '+(j.error||'')); pubStatus(); }).catch(e=>{ $('pubMsg').textContent='Not sent: '+e.message; }); };
+pubStatus(); setInterval(pubStatus,8000);
 load();
 })();
 </script>
