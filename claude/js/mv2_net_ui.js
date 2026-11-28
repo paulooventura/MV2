@@ -399,10 +399,12 @@
     var tries=0;
     var go=function(){
       NET.join(c).then(function(){ showIdentity(NET.seat()); })
-        .catch(function(){
+        .catch(function(e){
           if(++tries<3&&isOpen()){
             if(el.Status) el.Status.textContent='Reconnecting to room '+c+' ('+tries+'/3)';
             setTimeout(go,900);
+          }else if(el.Status){
+            el.Status.textContent='Could not reach room '+c+'. '+((e&&e.message)||'Check the code and your connection.');
           }
         });
     };
