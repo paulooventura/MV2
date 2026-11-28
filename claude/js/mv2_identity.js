@@ -124,8 +124,9 @@
     return !!(pl&&pl._netColorId&&pl._netColorId!==ownColor(pl));
   }
   function tone(pl){
-    if(!spriteTakesColor(pl)) return null;
+    if(!pl||!pl._netColorId) return null;
     var c=crayonById(pl._netColorId);
+    if(!c||!c.dark) return null;
     return {id:c.id, hex:c.hex, dark:c.dark, mid:c.mid, light:c.light, glow:c.glow};
   }
   function parseHex(h){

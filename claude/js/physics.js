@@ -301,7 +301,9 @@ function _updateCamZoom(){
     return;
   }
   const spd=Math.hypot(p.vx||0,(p.vy||0)*0.55);
-  const wantSport=(typeof isSprintHeld==='function'&&isSprintHeld())?1:0;
+  const punching=!!window._mvFaceY||(typeof isPunch==='function'&&isPunch())||!!(p.pCharging||p.pt>0);
+  if(punching) _sportZoomS=0;
+  const wantSport=(!punching&&typeof isSprintHeld==='function'&&isSprintHeld())?1:0;
   _sportZoomS+=(wantSport-_sportZoomS)*0.08;
   _camSpdS+=(spd-_camSpdS)*(spd>_camSpdS?(0.05+0.12*_sportZoomS):(0.02+0.05*_sportZoomS));
   const k=Math.min(1,_camSpdS/CAM_ZOOM_SPD), e=k*k*(3-2*k);
@@ -322,8 +324,8 @@ function _updateCamZoom(){
   const fit=p?_outlineZoomCap(p):1.5;
   if(_threatZoomS>camZoomTgt) camZoomTgt=Math.min(fit,_threatZoomS);
   if(camZoomTgt>fit) camZoomTgt=fit;
-  // Punch never zooms the picture in. The lens stays where it was for the swing.
-  if(p&&((typeof isPunch==='function'&&isPunch())||p.pCharging||p.pt>0)&&camZoomTgt>camZoom) camZoomTgt=camZoom;
+  // Y punches. The picture does not move in while that button is down.
+  if(punching&&camZoomTgt>camZoom) camZoomTgt=camZoom;
   camZoom+=(camZoomTgt-camZoom)*(CAM_ZOOM_EASE+0.09*_sportZoomS+0.08*(_threatZoomS>1.4?1:0));
   if(camZoom>fit) camZoom=fit;
   if(Math.abs(camZoom-camZoomTgt)<0.0005) camZoom=camZoomTgt;

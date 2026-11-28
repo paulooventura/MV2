@@ -204,7 +204,7 @@
       b.type='button'; b.setAttribute('data-color',c.id);
       b.innerHTML='<span class="dot" style="background:'+c.hex+'"></span>'+c.name;
       if(c.id===draft.color) b.className='on';
-      b.onclick=function(){ draft.color=c.id; paintIdButtons(); commitId(); };
+      b.onclick=function(){ if(b.disabled) return; el._colorNote=''; draft.color=c.id; paintIdButtons(); commitId(); };
       el.Colors.appendChild(b);
     });
   }
@@ -222,8 +222,12 @@
     });
   }
   function paintIdButtons(){
+    var seat=(NET.seat?NET.seat():-1);
     if(el.Colors) Array.prototype.forEach.call(el.Colors.querySelectorAll('button'),function(b){
-      b.className=b.getAttribute('data-color')===draft.color?'on':'';
+      var id=b.getAttribute('data-color');
+      var taken=NET.colorTaken&&id!==draft.color&&NET.colorTaken(id, seat);
+      b.disabled=!!taken;
+      b.className=id===draft.color?'on':'';
     });
     if(el.Hats) Array.prototype.forEach.call(el.Hats.querySelectorAll('button'),function(b){
       b.className=b.getAttribute('data-hat')===draft.hat?'on':'';
@@ -234,7 +238,14 @@
   }
   function commitId(){
     draft.name=el.Nick?el.Nick.value:'';
-    if(typeof NET.setIdentity==='function') NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat, hatMatch:!!draft.hatMatch});
+    var asked=draft.color;
+    var got=null;
+    if(typeof NET.setIdentity==='function') got=NET.setIdentity({name:draft.name, color:draft.color, hat:draft.hat, hatMatch:!!draft.hatMatch});
+    if(got&&got.color&&got.color!==asked){
+      draft.color=got.color;
+      paintIdButtons();
+      if(el.Status) el.Status.textContent='That colour is taken. Yours is '+String(got.color).toUpperCase()+'.';
+    }
   }
   function showIdentity(seat){
     var need=ID?ID.needsCrayon(seat):(seat|0)>=2;
@@ -303,15 +314,28 @@
       for(var r=0;r<n;r++) for(var c=0;c<n;c++) if(q.isDark(r,c)) g.fillRect(off+c*sz,off+r*sz,sz,sz);
     }catch(e){ cv.style.display='none'; }
   }
+  function keepUnique(){
+    if(!NET.claimColor||!draft.color||el._claiming) return;
+    var seat=NET.seat?NET.seat():-1;
+    var next=NET.claimColor(draft.color, seat);
+    if(!next||next===draft.color) return;
+    draft.color=next;
+    el._claiming=1;
+    try{ commitId(); }finally{ el._claiming=0; }
+    el._colorNote='That colour is taken. Yours is '+String(next).toUpperCase()+'.';
+    paintIdButtons();
+  }
   function render(s){
+    keepUnique();
     if(panel){
       var max=s.maxPeers||NET.MAX_PEERS||5;
       var txt=s.detail||String(s.status||'').toUpperCase();
       if(s.phase==='timeline') txt='In the same stage · '+(s.peers||'?')+'/'+max+'.';
       else if(s.phase==='entering') txt=s.role==='host'?'Friends are entering the stage.':'Entering the stage.';
       else if(s.phase==='room'&&s.linked) txt=s.role==='host'
-        ?('In the room · '+(s.peers||1)+'/'+max+'. Pick your hero; seats 3–5 pick crayon, name and hat.')
+        ?('In the room · '+(s.peers||1)+'/'+max+'. Pick a colour, a hat and a name.')
         :'In the room. Waiting for the host to start.';
+      if(el._colorNote) txt=el._colorNote;
       if(s.linked&&s.ping) txt+='  ·  ping '+s.ping+' ms';
       if(view!=='menu'||s.status!=='offline') el.Status.textContent=txt;
       // Host "friend could not reach" stays gold (room healthy). Hard join failure = seal red.
@@ -474,7 +498,7 @@
     if(typeof btn.onclick==='function') btn.onclick.call(btn,e);
   },true);
   ['touchstart','touchend','mousedown','pointerup'].forEach(function(t){
-    window.addEventListener(t,function(e){ if(ours(e.target)) e.stopPropagation(); },{capture:true,passive:true});
+    window.addEventListener(t,function(e){ if(ours(e.target)) e.stopPropagation(); },false);
   });
 
   var pf=0, padPrev={}, padRep=0;

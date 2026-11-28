@@ -115,6 +115,23 @@
     var hat=loc.hat||(hero==='venture'?'cap':'gaucho');
     return {name:loc.name||(ID?ID.defaultName(mySeat):(hero==='venture'?'VENTURE':'MIND')), color:col, hat:hat, hatMatch:!!loc.hatMatch, hero:hero};
   }
+  function normCol(id){ return ID?ID.crayonById(id).id:(id||'purple'); }
+  function colorTaken(id, exceptSeat){
+    id=normCol(id);
+    var list=rosterSnapshot();
+    for(var i=0;i<list.length;i++){
+      if((list[i].seat|0)===(exceptSeat|0)) continue;
+      if(normCol(list[i].col||list[i].color)===id) return true;
+    }
+    return false;
+  }
+  function claimColor(prefer, exceptSeat){
+    var list=ID&&ID.CRAYONS?ID.CRAYONS:[];
+    var want=normCol(prefer);
+    if(!colorTaken(want, exceptSeat)) return want;
+    for(var i=0;i<list.length;i++) if(!colorTaken(list[i].id, exceptSeat)) return list[i].id;
+    return want;
+  }
   function refreshMyPack(){
     var pk=ID?ID.packId(localIdentity()):{nm:'',col:'purple',hat:'gaucho',hero:heroName()};
     var sig=mySeat+'|'+pk.nm+'|'+pk.col+'|'+pk.hat+'|'+(pk.hm?1:0)+'|'+pk.hero;
@@ -277,7 +294,7 @@
         if(seat<0){ try{ c.send({t:'full', max:MAX_PEERS}); }catch(e){} try{ c.close(); }catch(e){} return; }
         c._mvSeat=seat;
         // Reserve the seat immediately so the next guest does not steal it.
-        upsertRoster(seat, {id:'pending', role:'joiner', seat:seat, nm:'…', col:'prussian', hat:'gaucho', hero:'mind'});
+        upsertRoster(seat, {id:'pending', role:'joiner', seat:seat, nm:'…', col:'yellow', hat:'gaucho', hero:'mind'});
         upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0, hero:heroName()}));
         sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot()});
         setStatus('connected','In the room · '+peerCount()+'/'+MAX_PEERS+'. Pick heroes; extras pick crayon, name and hat.');
@@ -1000,7 +1017,11 @@
     var loc=ID?ID.loadLocal():{};
     if(partial){
       if(partial.name!=null) loc.name=ID?ID.cleanName(partial.name):String(partial.name||'');
-      if(partial.color) loc.color=partial.color;
+      if(partial.color){
+        var asked=partial.color, got=claimColor(asked, mySeat);
+        loc.color=got;
+        partial._moved=got!==normCol(asked);
+      }
       if(partial.hat) loc.hat=partial.hat;
       if(partial.hatMatch!=null) loc.hatMatch=!!partial.hatMatch;
     }
@@ -1031,6 +1052,7 @@
     MAX_PEERS:MAX_PEERS, seat:function(){ return mySeat; },
     roster:rosterSnapshot, extras:function(){ return extras.slice(); },
     identity:localIdentity, setIdentity:setIdentity,
+    claimColor:claimColor, colorTaken:colorTaken,
     peerCount:linkedCount
   };
 })();

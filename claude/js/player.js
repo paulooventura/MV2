@@ -334,6 +334,7 @@ function _readPad1(g){
   // and the held-idle gate could never see a punch press (turbo). This is why
   // punch/loaded-punch/turbo were all dead when playing on an Xbox controller.
   set1('punch', pressed(3), rose(3));
+  if(pressed(3)) window._mvFaceY=true;
   // Stale-save safety: an old browser may still have punch bound to KeyF. Mirror
   // the pad's punch into both possible codes so either layout registers a hold.
   for(const c of ['KeyB','KeyF']){ if((OPT.binds.punch||[]).indexOf(c)>=0) K[c]=!!KB1[c]||pressed(3); }
@@ -383,6 +384,7 @@ function _readPad2(g){
   set('use',  false,rose(2));                              // X = item SELECT (cycle)
   set('swap', pressed(1),rose(1));                         // B = USE item (hold for XLR / MEG)
   set('punch',pressed(3),rose(3));                         // Y = punch, held so it can charge
+  if(pressed(3)) window._mvFaceY=true;
   set('sprint',pressed(4));                                // LB = run (if P2 bound a key)
   K2['Sprint_gp2']=pressed(4);
   if(_gameState==='partysetup'){
@@ -422,6 +424,7 @@ function _findPad(pads,idx){
   return null;
 }
 function readGamepad(){
+  window._mvFaceY=false;
   let pads;
   try{ pads=navigator.getGamepads?navigator.getGamepads():[]; }catch(e){ return; }
   if(!pads||!pads.length) return;
@@ -504,10 +507,10 @@ function _itemBtnDown(){
   return (typeof _bindDown==='function'&&_bindDown('swap'))||!!(K.Sprint_gp||K.Sprint_t);
 }
 function isSprintHeld(){
-  // A punch is not a run. Holding Y must not pull the sports-camera in.
+  // Y is punch. It is never the run, and the punch-turbo must not pull the camera in.
+  if(window._mvFaceY) return false;
   if((typeof isPunch==='function'&&isPunch())||(p&&(p.pCharging||p.pt>0))) return false;
-  if(K.ShiftLeft||K.ShiftRight||K.Shift) return true;
-  if(p&&p._ignition&&_moveInputX()!==0) return true;
+  if(K.ShiftLeft||K.ShiftRight||K.Shift||K.Sprint_gp) return true;
   if(p&&p._sprintMode&&_itemBtnDown()&&_moveInputX()!==0) return true;
   return false;
 }
