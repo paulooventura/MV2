@@ -578,13 +578,16 @@
         if(standing&&palClaim){
           setTimeout(function(){
             if(settled||st.linked||peer!==pr) return;
+            // The room answered and the phone is still finishing the link.
+            // Cutting it here made the phone open its own socket and fail.
+            if(conns.some(function(c){ return c&&!c.open; })) return;
             settled=true; joinReject=null; joinResolve=null;
             if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
             var empty=new Error('empty'); empty.type='empty';
-            try{ pr.destroy(); }catch(err){}
             if(peer===pr) peer=null;
+            try{ pr.destroy(); }catch(err){}
             rej(empty);
-          }, palClaimMs||4000);
+          }, Math.max(palClaimMs||12000, 12000));
           return;
         }
         if(!settled){ settled=true; joinReject=null; joinResolve=null; res({code:c}); }
@@ -626,16 +629,22 @@
   function enterPalotino(){
     // Two machines must not each decide the room is empty and open their own.
     // Look, wait a beat, look again, and only then open. If the name is taken, join that one.
+    function stay(){
+      // The room is already open. Stay in the join until the link finishes.
+      palClaim=false;
+      setStatus('joining','Palotino is open. Walking in…');
+      return join(PALOTINO);
+    }
     function walk(n){
       palClaim=true;
-      palClaimMs=n===0?1400:2000;
+      palClaimMs=12000;
       return join(PALOTINO).catch(function(e){
         palClaim=false;
         if(!e||e.type!=='empty') throw e;
         if(n>=1){
           setStatus('joining','Palotino is empty. Opening it…');
           return host(PALOTINO).catch(function(h){
-            if(h&&h.type==='unavailable-id'&&n<6) return later(400+Math.floor(Math.random()*900)).then(function(){ return walk(n+1); });
+            if(h&&h.type==='unavailable-id') return stay();
             if(h&&brokerDown(h)&&n<6) return later(900).then(function(){ return walk(n+1); });
             throw h;
           });
