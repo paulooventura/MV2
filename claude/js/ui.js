@@ -856,6 +856,9 @@ document.addEventListener('touchstart',e=>{ if(e.touches&&e.touches[0]) _onInter
 document.addEventListener('keyup',e=>{ if(e.code==='KeyE') _optSwapHeld=false; },true);
 document.addEventListener('keydown',e=>{
   if(window.MV_SIGNAL&&MV_SIGNAL.blocking()) return;
+  // Room code and rider name own the keyboard. S and Backspace are title keys;
+  // if this handler sees them it cancels the letter before the box can use it.
+  if(window.MV_NET_UI&&MV_NET_UI.isOpen&&MV_NET_UI.isOpen()) return;
   // World map: M opens it from play; B (KeyB / legacy KeyE), Escape or
   // Backspace closes it. stopPropagation keeps these keys out of gameplay.
   if(_gameState==='map'){

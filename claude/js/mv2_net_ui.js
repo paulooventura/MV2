@@ -412,12 +412,35 @@
     if(isOpen()) return true;
     return typeof realNav==='function'?realNav.apply(this,arguments):false;
   };
+  function inField(t){
+    return !!(t&&(t.id==='mvNetNick'||t.id==='mvNetCode'||t.tagName==='INPUT'||t.tagName==='TEXTAREA'));
+  }
+  // Title owns S (menu down) and Backspace (shut down) on the way to this box.
+  // Stopping here, without preventDefault, is what lets the letter land.
   window.addEventListener('keydown',function(e){
     if(!isOpen()) return;
-    if(e.code==='Escape'){ e.preventDefault(); back(); }
-    else if(e.key==='Enter'&&e.target&&e.target.tagName==='BUTTON'){ /* native click */ }
-    if(e.target&&(e.target.id==='mvNetNick'||e.target.id==='mvNetCode')) return; // let typing through
-    if(e.target&&e.target.tagName==='INPUT') return;
+    var t=e.target;
+    if(e.code==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); back(); return; }
+    if(inField(t)){
+      if(e.key==='Enter'&&t.id==='mvNetCode'){ e.preventDefault(); e.stopImmediatePropagation(); startJoin(el.Code.value); return; }
+      e.stopImmediatePropagation();
+      return;
+    }
+    if(view==='join'&&el.Code&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+      var ch=/^Key([A-Z])$/.test(e.code)?e.code.charAt(3):'';
+      if(ch||e.code==='Backspace'||e.code==='Delete'||e.key==='Enter'){
+        e.preventDefault(); e.stopImmediatePropagation();
+        try{ el.Code.focus(); }catch(err){}
+        if(e.key==='Enter'){ startJoin(el.Code.value); return; }
+        var v=NET.normCode(el.Code.value);
+        if(e.code==='Backspace'||e.code==='Delete') v=v.slice(0,-1);
+        else if(v.length<NET.CODE_LEN) v=NET.normCode(v+ch);
+        el.Code.value=v;
+        if(v.length===NET.CODE_LEN) startJoin(v);
+        return;
+      }
+    }
+    if(e.key==='Enter'&&t&&t.tagName==='BUTTON'){ e.stopImmediatePropagation(); return; }
     e.stopImmediatePropagation();
   },true);
 
