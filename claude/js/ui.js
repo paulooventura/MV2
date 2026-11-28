@@ -606,6 +606,8 @@ function _drawPauseColumn(px,py,pw,ph,items,idx,tag,col){
 function drawPauseMenu(){
   ctx.fillStyle='rgba(30,27,39,0.68)'; ctx.fillRect(0,0,W,H);
   const items=_pauseItems();
+  const hits=[];
+  window._pauseHits=null;
   const rowH=52, ph=136+items.length*rowH, py=Math.max(uiLayout().inset.t+8, Math.round(H/2-ph/2));
   if(_optInCoop()){
     const gap=28, pw=Math.min(400,(W-gap*3)/2), ph2=120+items.length*48;
@@ -623,10 +625,23 @@ function drawPauseMenu(){
     const sel=i===_pauseIdx;
     if(sel){ uiPanel(px+28,y-12,pw-56,rowH-8,{sel:true,r:12,flat:true}); uiCursor(px+50,y+10,10); }
     drawTextC(it,W/2,y,sel?'#ffe39a':'#c8b8ff',3);
+    hits.push({x:px+28,y:y-12,w:pw-56,h:rowH-8,it:it});
     y+=rowH;
   });
   drawTextC(uiMenuHint('pause'),W/2,py+ph-28,'#d8ffc8',3);
+  window._pauseHits=hits;
 }
+document.addEventListener('pointerdown',function(e){
+  if(_gameState!=='game'||!_paused||!window._pauseHits) return;
+  if(e.target&&e.target.closest&&e.target.closest('#touchHud,#padLeft,#padRight,#bPause')) return;
+  const c=document.getElementById('c'); if(!c) return;
+  const r=c.getBoundingClientRect(); if(!r.width||!r.height) return;
+  const mx=(e.clientX-r.left)*(W/r.width), my=(e.clientY-r.top)*(H/r.height);
+  for(let i=0;i<window._pauseHits.length;i++){
+    const b=window._pauseHits[i];
+    if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){ _pausePick(b.it); e.preventDefault(); return; }
+  }
+},true);
 
 // ── Options ───────────────────────────────────────────────────
 // music volume, sfx, sports-mode volume, filters, CRT, then the control binds, manual last.

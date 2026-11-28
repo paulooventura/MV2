@@ -67,6 +67,8 @@
   var myEpoch=0, lastStage=null, followUntil=0, followEpoch=-1, base=0, baseStage=null;
   var own='', remEn={};
   var extras=[]; // puppet actors for seats beyond the first remote (p2)
+  // The host's run id. A local stage with the same name is still a different instance until this matches.
+  var liveStage=null, runId=0, seenGen=0;
 
   function anonId(){
     var k='mv2.netId', v=null;
@@ -91,7 +93,7 @@
             code:st.code, ping:st.ping, buffered:buffered(), remoteHero:primaryLatest()?primaryLatest().h:null,
             remoteStage:primaryLatest()?primaryLatest().st:null, phase:phase(),
             seat:mySeat, peers:linkedCount(), maxPeers:MAX_PEERS, roster:rosterSnapshot(),
-            until:roomUntil||0};
+            until:roomUntil||0, open:!!hostOpen, run:runId||0, stage:liveStage};
   }
   function setStatus(s,d){
     st.status=s; st.detail=d||'';
@@ -237,7 +239,7 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
-  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false;
+  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false, palClaimMs=4000;
   function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
   function scheduleRetry(ms){
     if(retryTimer||st.linked||st.role!=='joiner') return;
@@ -268,7 +270,7 @@
     closeAllConns();
     try{ if(peer) peer.destroy(); }catch(e){}
     peer=null; st.role=null; st.code=''; hostTries=0; joinTries=0; mySeat=0; roster={};
-    hostOpen=false; reviving=false;
+    hostOpen=false; reviving=false; liveStage=null; runId=0; seenGen=0;
     setStatus('offline','');
   }
   function errText(e){
@@ -368,7 +370,7 @@
         // Reserve the seat immediately so the next guest does not steal it.
         upsertRoster(seat, {id:'pending', role:'joiner', seat:seat, nm:'…', col:'yellow', hat:'gaucho', hero:'mind'});
         upsertRoster(0, Object.assign({id:MY_ID, role:'host'}, myIdPack, {seat:0, hero:heroName()}));
-        sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot(), until:roomUntil});
+        sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot(), until:roomUntil, go:liveStage, gen:runId||0, h:heroName()});
         setStatus('connected','In the room · '+peerCount()+'/'+MAX_PEERS+'. Pick heroes; extras pick crayon, name and hat.');
       }else{
         if(joinResolve){ var fn=joinResolve; joinResolve=null; try{ fn({code:st.code}); }catch(e){} }
@@ -564,7 +566,7 @@
             try{ pr.destroy(); }catch(err){}
             if(peer===pr) peer=null;
             rej(empty);
-          }, 4000);
+          }, palClaimMs||4000);
           return;
         }
         if(!settled){ settled=true; joinReject=null; joinResolve=null; res({code:c}); }
@@ -600,17 +602,25 @@
     });
   }
 
+  function later(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   function enterPalotino(){
+    // Two machines must not each decide the room is empty and open their own.
+    // Look, wait a beat, look again, and only then open. If the name is taken, join that one.
     function walk(n){
-      palClaim=n===0;
+      palClaim=true;
+      palClaimMs=n===0?1400:2000;
       return join(PALOTINO).catch(function(e){
         palClaim=false;
         if(!e||e.type!=='empty') throw e;
-        setStatus('joining','Palotino is empty. Opening it…');
-        return host(PALOTINO).catch(function(h){
-          if(h&&h.type==='unavailable-id'&&n<4) return walk(n+1);
-          throw h;
-        });
+        if(n>=1){
+          setStatus('joining','Palotino is empty. Opening it…');
+          return host(PALOTINO).catch(function(h){
+            if(h&&h.type==='unavailable-id'&&n<6) return later(400+Math.floor(Math.random()*900)).then(function(){ return walk(n+1); });
+            throw h;
+          });
+        }
+        setStatus('joining','Checking Palotino again…');
+        return later(400+Math.floor(Math.random()*1100)).then(function(){ return walk(1); });
       });
     }
     return walk(0);
@@ -627,6 +637,7 @@
       case 'seat':
         mySeat=pk.seat|0;
         if(pk.until!=null) roomUntil=+pk.until||0;
+        if(pk.go&&st.role!=='host') followStage(pk.go, 0, pk.h||null, pk.gen|0);
         if(pk.roster) pk.roster.forEach(function(r){ upsertRoster(r.seat,r); });
         refreshMyPack();
         upsertRoster(mySeat, Object.assign({id:MY_ID, role:'joiner'}, myIdPack, {seat:mySeat}));
@@ -671,6 +682,13 @@
         try{ if(fromConn) fromConn.close(); }catch(e){}
         return;
       case 'bye': break;
+      case 'go':
+        if(st.role==='host') break;
+        followStage(pk.st||'1.1', pk.cm|0, pk.h||null, pk.gen|0);
+        break;
+      case 'gowant':
+        if(st.role==='host') beginShared(pk.st||'1.1');
+        break;
       case 'ping': sendOne(fromConn,{t:'pong',c:pk.c}); return;
       case 'pong': st.ping=Math.max(0,Date.now()-(+pk.c||0)); fire('ping',st.ping); return;
       case 'p':
@@ -777,7 +795,7 @@
     refreshMyPack();
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
             st:b.stageId||null, se:myEpoch, ld:loading()?1:0, gs:gs(), cm:(b.carryMask|0),
-            seat:mySeat};
+            seat:mySeat, gen:runId||0};
     // identity rides along only when it changed, and once a second for late joiners
     var nowI=Date.now();
     if(idVer!==idpSentVer||nowI-idpSentAt>1000){ pk.idp=myIdPack; idpSentVer=idVer; idpSentAt=nowI; }
@@ -934,6 +952,12 @@
   function maybeFollow(){
     var latest=primaryLatest();
     if(!latest||latest.gs!=='game'||!latest.st||latest.ld) return;
+    var gen=+latest.gen||0;
+    // Same stage name is not the same room. A private GO used to load 1.1 alone.
+    if(st.role!=='host'&&gen&&gen!==seenGen){
+      followStage(latest.st, latest.cm|0, latest.h, gen);
+      return;
+    }
     var now=Date.now();
     if(now<followUntil||loading()) return;
     var mine=inGame()?stageId():null;
@@ -942,15 +966,48 @@
     var pe=+latest.se||0;
     if(mine&&!(pe>myEpoch||(pe===myEpoch&&st.role==='joiner'))) return;
     followUntil=now+2500; followEpoch=pe;
-    if(!inGame()) launchJoin(latest.st,latest.cm,latest.h);
+    if(!inGame()) followStage(latest.st,latest.cm,latest.h,gen);
     else if(typeof window.startBetaLab==='function') window.startBetaLab(latest.st,latest.cm).catch(function(e){ console.error('net follow load',e); });
+  }
+  function followStage(stage, mask, friendHero, gen){
+    stage=stage||'1.1';
+    gen=gen|0;
+    if(gen&&seenGen===gen&&(loading()||(inGame()&&stageId()===stage))) return;
+    if(gen){ seenGen=gen; runId=gen; }
+    liveStage=stage;
+    followUntil=Date.now()+2500;
+    launchJoin(stage, mask|0, friendHero||null);
+  }
+  function beginShared(stage){
+    stage=stage||'1.1';
+    if(st.role==='joiner'){
+      if(!st.linked) return false;
+      var latest=primaryLatest();
+      if(latest&&latest.gs==='game'&&latest.st&&!latest.ld){
+        followStage(latest.st, latest.cm|0, latest.h, +latest.gen||0);
+        return true;
+      }
+      if(liveStage&&seenGen&&(inGame()&&stageId()===liveStage)) return true;
+      send({t:'gowant', st:stage});
+      setStatus('connected','Starting the room together…');
+      return 'wait';
+    }
+    if(st.role!=='host'||!hostOpen) return false;
+    if(!runId){ runId=1; seenGen=1; }
+    liveStage=stage;
+    send({t:'go', st:liveStage, gen:runId, cm:0, h:heroName()});
+    if(!(inGame()&&!loading()&&stageId()===liveStage&&seenGen===runId)) followStage(liveStage, 0, null, runId);
+    return true;
   }
   function launchJoin(stage,mask,friendHero){
     try{
-      if(mySeat<=1){
+      if(friendHero&&mySeat<=1){
         _heroChoice=(friendHero==='mind')?'venture':'mind';
+      }else if(mySeat===1){
+        _heroChoice='venture';
+      }else if(mySeat<=0){
+        _heroChoice='mind';
       }else{
-        var loc=ID?ID.loadLocal():{};
         _heroChoice=(ID?ID.defaultHeroForSeat(mySeat):'mind');
       }
       _playerCount=1;
@@ -1164,7 +1221,7 @@
   }
 
   window.MV_NET={
-    host:host, join:join, enterPalotino:enterPalotino, disconnect:disconnect,
+    host:host, join:join, enterPalotino:enterPalotino, beginShared:beginShared, disconnect:disconnect,
     status:status, role:function(){ return st.role; }, code:function(){ return st.code; },
     isActive:function(){ return st.linked; }, isLinked:function(){ return st.linked; },
     inTimeline:inTimeline, phase:phase, drawExtras:drawExtras,
