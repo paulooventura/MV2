@@ -450,12 +450,31 @@
       }
     }catch(e){}
   }
+  // Paulo, Nov 27 (build 451): "a serrated bloodstain instead of following the slope diagonal".
+  // gridWorldSolid() counts only full tiles, so a ramp cell was empty air to the blood: drops fell
+  // through the drawn grass to the flat tile under each ramp cell and pooled there, one step per
+  // tile, with a run down every step's face. The ramp's surface is gridSlopeY(), the very line the
+  // wheel rolls on and the grass is drawn on (collision_grid.js), so liquid uses it too.
+  function slopeCell(x,y){
+    try{
+      if(typeof gridIsSlope!=='function'||typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.tile) return null;
+      const t=MV_GRID.tile, c=Math.floor(x/t), r=Math.floor(y/t);
+      return gridIsSlope(c,r)?{c,r,k:gridSlopeKind(c,r)}:null;
+    }catch(e){ return null; }
+  }
+  function platAt(x,y){
+    const B=window.MV_BETA; if(!B||!B.platforms) return null;
+    for(const m of B.platforms){ if(m.hidden) continue; if(x>=m.x&&x<=m.x+m.w&&y>=m.y&&y<=m.y+(m.h||14)) return m; }
+    return null;
+  }
   function hitFloor(x,y){
     try{
       if(typeof gridSolid!=='function'||typeof MV_GRID==='undefined'||!MV_GRID||!MV_GRID.tile) return false;
-      if(typeof gridWorldSolid==='function') return !!gridWorldSolid(x,y);      // (build 408) the exact shape, ramps included
       const t=MV_GRID.tile;
-      return gridSolid(Math.floor(x/t), Math.floor(y/t));
+      if(typeof gridWorldSolid==='function'?gridWorldSolid(x,y):gridSolid(Math.floor(x/t), Math.floor(y/t))) return true;
+      const sc=slopeCell(x,y);
+      if(sc){ const top=gridSlopeY(sc.c,sc.r,x); if(top!=null&&y>=top) return true; }
+      return !!platAt(x,y);                                                  // a moving platform catches it too
     }catch(e){ return false; }
   }
   // ── Paulo, Nov 4 (build 362): blood on a floor is liquid. Drops that land merge into a
@@ -464,18 +483,23 @@
   //   the platform below, where it pools again. (Blood that hits a wall still stains it.)
   const puddles=[], hang=[], seeps=[], films=[], clouds=[];
   const TS=()=>(typeof MV_GRID!=='undefined'&&MV_GRID&&MV_GRID.tile)||32;
-  function floorTop(x,y){ const t=TS(); return hitFloor(x,y+2)?Math.floor((y+2)/t)*t:null; }
   function onFloor(x,fy){ return hitFloor(x,fy+3)&&!hitFloor(x,fy-3); }
-  // A drop inside a roof must land on the highest face, not a tile buried in the stack.
+  // The first solid pixel under (x,y): a flat top, a ramp's diagonal, a platform. A drop inside a
+  // roof climbs to the highest face, not a tile buried in the stack. null = nothing within a tile.
   function surfaceTop(x,y){
-    const t=TS();
-    if(hitFloor(x,y)){
-      let yy=y;
-      for(let n=0;n<20&&hitFloor(x,yy-3);n++) yy-=t;
-      const fy=Math.floor(yy/t)*t;
-      if(onFloor(x,fy)) return fy;
+    const t=TS(); let yy=y;
+    if(hitFloor(x,yy)){
+      for(let n=0;n<20&&hitFloor(x,yy-t);n++) yy-=t;
+      for(let n=0;n<t+2&&hitFloor(x,yy-1);n++) yy--;
+      return onFloor(x,yy)?yy:null;
     }
-    return floorTop(x,y);
+    for(let n=0;n<t+4;n++){ yy++; if(hitFloor(x,yy)) return yy; }
+    return null;
+  }
+  // Downhill along the surface at (x, fy): +1 / -1 on a ramp, 0 on the flat.
+  function downhill(x,fy){
+    const sc=slopeCell(x,fy+1)||slopeCell(x,fy-1);
+    return sc?(sc.k==='L'?1:-1):0;
   }
   // Fish-scale roofs: a scale's crown is the high paint, the gap between scales is deeper.
   // 0 at a crown, ~5 in a groove. Liquid settles into the grooves first.
@@ -484,12 +508,87 @@
     const fromCrown=Math.abs(((lx%16)+16)%16-8);
     return (fromCrown/8)*5;
   }
-  function pour(x,fy,m){
+  function pour(x,fy,m,on){
     if(!isFinite(x)||fy==null) return;
-    const reach=10+Math.sqrt(Math.max(0,m))*10;
-    for(const q of puddles) if(q.y===fy&&x>=q.x0-reach&&x<=q.x1+reach){ q.m=Math.min(55,q.m+m); q.x0=Math.min(q.x0,x-4); q.x1=Math.max(q.x1,x+4); q.age=0; return; }
-    puddles.push({x0:x-6,x1:x+6,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6,seepN:0});
+    const reach=10+Math.sqrt(Math.max(0,m))*10, oo=on?on.o:null;
+    for(const q of puddles) if(q.y===fy&&(q.on?q.on.o:null)===oo&&x>=q.x0-reach&&x<=q.x1+reach){ q.m=Math.min(55,q.m+m); q.x0=Math.min(q.x0,x-4); q.x1=Math.max(q.x1,x+4); q.age=0; return; }
+    puddles.push({x0:x-6,x1:x+6,y:fy,m,age:0,dl:0,dr:0,ph:Math.random()*6,seepN:0,on:on||null});
     if(puddles.length>100) puddles.shift();
+  }
+  // ── Paulo, Nov 27: on a ramp the liquid is a smear down the diagonal. It runs downhill along the
+  //   true surface (each point sits on gridSlopeY), thins as it lays its trail, and where the ramp
+  //   meets the flat it gathers into a pool there. A dip between two ramps holds it.
+  const runs=[];
+  function startRun(x,fy,m,dir){
+    for(const q of runs) if(!q.done&&q.dir===dir&&Math.abs(q.hx-x)<12&&Math.abs(q.hy-fy)<12){ q.m=Math.min(30,q.m+m); q.w=Math.max(q.w,0.9+Math.min(2,q.m*0.5)); q.age=0; return; }
+    runs.push({dir,m,age:0,hx:x,hy:fy,pts:[{x,y:fy}],done:false,w:0.9+Math.min(2,m*0.5)});
+    if(runs.length>60) runs.shift();
+  }
+  function runTick(){
+    for(let i=runs.length-1;i>=0;i--){
+      const q=runs[i]; q.age++;
+      if(q.age>60*70){ runs.splice(i,1); continue; }
+      if(q.done) continue;
+      const sp=(INK()?1.1:0.55)*(0.4+Math.min(1.6,q.m*0.35));
+      const nx=q.hx+q.dir*sp, ny=surfaceTop(nx,q.hy-3);
+      if(ny==null){                                                          // off the end of a ledge: it lets go
+        drops.push({x:nx,y:q.hy+2,px:nx,py:q.hy,vx:q.dir*sp*0.5,vy:0.6,r:Math.max(1.2,Math.min(3,0.8+q.m*0.6)),t:5,max:900,chunk:false,drip:true});
+        q.done=true; continue;
+      }
+      if(ny<q.hy-2){ q.done=true; continue; }                                // the ground rises again: it rests in the dip
+      q.hx=nx; q.hy=ny; q.m-=0.004*sp;
+      const last=q.pts[q.pts.length-1]; if(Math.abs(nx-last.x)>=3&&q.pts.length<160) q.pts.push({x:nx,y:ny});
+      if(!downhill(nx,ny)){ if(onFloor(nx,ny)) pour(nx+q.dir*3,ny,Math.max(0.2,q.m),moverAt(nx,ny+2)); q.done=true; q.m=Math.min(q.m,0.4); continue; }
+      if(q.m<0.1) q.done=true;
+    }
+  }
+  // ── Paulo, Nov 27: "if I open the door, the spill stays where it is but it should move with the door
+  //   because that's where it got spilled on." Blood that lands on something that moves holds on to
+  //   it: a door's leaf, a trap door leaf (the attic hatch too), a cube, a moving platform. It is kept
+  //   where it landed (the thing at rest) and drawn through the thing's live pose: it slides, swings,
+  //   turns and hides with it. (Blood on foes and heroes rides their live box already: estains.)
+  function moverAt(x,y){
+    const T=TS(), D=window.MV_DOORS, B=window.MV_BETA||{};
+    try{ if(D&&B.stageId==='1.1'){
+      for(const d of D.doors||[]){ if(d.st!=='shut') continue;
+        if(x>=d.c*T-1&&x<=(d.c+1)*T+1&&y>=d.r0*T-1&&y<=(d.r1+1)*T+1) return {k:'door',o:d,ext:[d.c*T,(d.c+1)*T]}; }
+      for(const t of D.traps||[]){ if(t.st!=='shut') continue;
+        const x0=t.c0*T, x1=(t.c1+1)*T;
+        if(x>=x0&&x<=x1&&y>=t.r*T-1&&y<=(t.r+1)*T+1){ const sd=x<(x0+x1)/2?-1:1; return {k:'trap',o:t,s:sd,ext:sd<0?[x0,(x0+x1)/2-2]:[(x0+x1)/2+2,x1]}; } }
+    } }catch(e){}
+    try{ if(typeof BWALLS!=='undefined') for(const bw of BWALLS){ if(!bw||!bw.cube||!(bw.hp>0)) continue;
+      const bx=bw.x+(bw._ox||0), by=bw.y+(bw._oy||0);
+      if(x>=bx-1&&x<=bx+bw.w+1&&y>=by-1&&y<=by+bw.h+1) return {k:'cube',o:bw,x0:bx,y0:by,r0:bw.rot||0,ext:[bx,bx+bw.w]}; } }catch(e){}
+    const m=platAt(x,y); if(m) return {k:'plat',o:m,x0:m.x,y0:m.y,ext:[m.x,m.x+m.w]};
+    return null;
+  }
+  // The thing's pose now. null = it's gone (the stain goes with it), false = hidden this frame.
+  function moverPose(on){
+    const o=on.o, D=window.MV_DOORS;
+    if(on.k==='door'){ if(!D||!D.leafSpan||o.st==='smashed'||(D.doors||[]).indexOf(o)<0) return null; if(o.st==='shut') return {rest:true};
+      const L=D.leafSpan(o); return {sxk:L.scale, hx:L.hinge}; }
+    if(on.k==='trap'){ if(!D||!D.trapTurn||(D.traps||[]).indexOf(o)<0) return null; if(D.trapDrawn&&!D.trapDrawn(o)) return false; if(o.st==='shut') return {rest:true};
+      const tt=D.trapTurn(o,on.s); return {rot:tt.a, hx:tt.hx, hy:tt.hy}; }
+    if(on.k==='cube'){ if(!(o.hp>0)||o._gone) return null;
+      const bx=o.x+(o._ox||0), by=o.y+(o._oy||0), dr=(o.rot||0)-on.r0;
+      if(Math.abs(bx-on.x0)<0.01&&Math.abs(by-on.y0)<0.01&&Math.abs(dr)<0.001) return {rest:true};
+      return {dx:bx-on.x0, dy:by-on.y0, rot:dr, hx:bx+o.w/2, hy:by+o.h/2}; }
+    if(on.k==='plat'){ const B=window.MV_BETA; if(!B||!B.platforms||B.platforms.indexOf(o)<0) return null; if(o.hidden) return false;
+      if(o.x===on.x0&&o.y===on.y0) return {rest:true}; return {dx:o.x-on.x0, dy:o.y-on.y0}; }
+    return null;
+  }
+  function poseMap(ps,x,y){                                                // a point at rest -> where it is now
+    if(!ps||ps.rest) return {x,y};
+    if(ps.sxk!=null) return {x:ps.hx+(x-ps.hx)*ps.sxk, y};
+    let X=x+(ps.dx||0), Y=y+(ps.dy||0);
+    if(ps.rot){ const c=Math.cos(ps.rot), sn=Math.sin(ps.rot), ux=X-ps.hx, uy=Y-ps.hy; X=ps.hx+ux*c-uy*sn; Y=ps.hy+ux*sn+uy*c; }
+    return {x:X,y:Y};
+  }
+  function poseCtx(ps){                                                    // the same pose on the canvas (sx/sy are affine)
+    if(!ps||ps.rest) return;
+    if(ps.sxk!=null){ const H=sx(ps.hx); ctx.translate(H,0); ctx.scale(ps.sxk,1); ctx.translate(-H,0); return; }
+    if(ps.rot){ const HX=sx(ps.hx), HY=sy(ps.hy); ctx.translate(HX,HY); ctx.rotate(ps.rot); ctx.translate(-HX,-HY); }
+    if(ps.dx||ps.dy){ const k=(sx(1000)-sx(0))/1000; ctx.translate((ps.dx||0)*k,(ps.dy||0)*k); }
   }
   function addHang(x,y,m){
     const mm=Math.max(0.08,m);
@@ -503,22 +602,59 @@
     if(films.length>40) films.shift();
   }
   function ceilingAt(x,y){ return hitFloor(x,y-3)&&!hitFloor(x,y+2); }
-  window.MV_BLOOD={pour:(x,fy,m)=>{ if(playing()) pour(x,fy,m); }, spray:(x,y,n,b)=>spray(x,y,n,b), state:()=>({drops:drops.length, seeps:seeps.length, seepsDone:seeps.filter(q=>q.done).length, onChars:estains.filter(q=>q.me).length, puddles:puddles.length})};
+  window.MV_BLOOD={pour:(x,fy,m)=>{ if(!playing()) return; const d=downhill(x,fy); if(d) startRun(x,fy,m,d); else pour(x,fy,m,moverAt(x,fy+2)); }, spray:(x,y,n,b)=>spray(x,y,n,b), state:()=>({drops:drops.length, seeps:seeps.length, seepsDone:seeps.filter(q=>q.done).length, onChars:estains.filter(q=>q.me).length, puddles:puddles.length, runs:runs.length, riding:puddles.filter(q=>q.on).length+stains.filter(q=>q.on).length})};
+  // Probe view (scripts/probe-gore-surfaces.mjs): is every pool / smear point on the drawn surface?
+  window.MV_BLOOD._dbg=()=>({
+    puddles, stains, runs,
+    truthY(x,y){ const t=TS(), c=Math.floor(x/t); let best=null;
+      for(let r=Math.floor(y/t)-2;r<=Math.floor(y/t)+2;r++){ let top=null;
+        if(gridIsSlope(c,r)) top=gridSlopeY(c,r,x); else if(gridSolid(c,r)&&!gridSolid(c,r-1)&&!gridIsSlope(c,r-1)) top=r*t;
+        if(top!=null&&(best==null||Math.abs(top-y)<Math.abs(best-y))) best=top; }
+      return best; },
+    slopeCheck(){
+      const D=this, t=TS(), cols=new Set();
+      for(let r=0;r<MV_GRID.rows;r++) for(let c=0;c<MV_GRID.cols;c++) if(gridIsSlope(c,r)) cols.add(c);
+      const onRampX=x=>cols.has(Math.floor(x/t));
+      let runPts=0, runMax=0, poolPts=0, poolMax=0, stairPools=0, rampWallStains=0;
+      for(const q of runs) for(const pt of q.pts.concat([{x:q.hx,y:q.hy}])){ const tr=D.truthY(pt.x,pt.y); if(tr==null) continue; runPts++; runMax=Math.max(runMax,Math.abs(pt.y-tr)); }
+      for(const q of puddles){ if(q.on) continue; let bad=false;
+        for(let k=0;k<=8;k++){ const x=q.x0+(q.x1-q.x0)*k/8; const tr=D.truthY(x,q.y); if(tr==null) continue; poolPts++; const e=Math.abs(q.y-tr); poolMax=Math.max(poolMax,e); if(onRampX(x)&&(e>4||(k===4&&e>2))) bad=true; }   // a stair = a pool off the surface (its rim may lap a ramp's first px)
+        if(bad) stairPools++; }
+      for(const s of stains) if(s.side&&onRampX(s.x)) rampWallStains++;
+      return {runs:runs.length, runPts, runMaxErr:+runMax.toFixed(2), puddles:puddles.length, poolPts, poolMaxErr:+poolMax.toFixed(2), stairPools, rampWallStains}; },
+    doorCheck(id){ const Dr=window.MV_DOORS, d=Dr&&Dr.doors&&Dr.doors.find(q=>q.id===id); if(!d) return null;
+      const ps=moverPose({k:'door',o:d}), L=Dr.leafSpan(d), on=stains.filter(s=>s.on&&s.on.o===d).concat(puddles.filter(q=>q.on&&q.on.o===d));
+      const rx=on.map(s=>s.x!=null?s.x:(s.x0+s.x1)/2), now=rx.map((x,i)=>+poseMap(ps,x,on[i].y).x.toFixed(1));
+      return {st:d.st, n:on.length, leaf:[+L.px.toFixed(1),+(L.px+L.wv).toFixed(1)], rest:rx.map(x=>+x.toFixed(1)), now}; }
+  });
   // Paulo, Nov 13: blood (and ink) never hangs in the air or sits inside a wall: it lands on a surface; on a wall
   // it slides down in a little line, and where the wall ends it lets go as a drop that falls to the next surface
   function splat(x,y,r){
     const fy=surfaceTop(x,y);
-    if(fy!=null&&onFloor(x,fy)){ pour(x,fy,0.7+r*0.45); return; }
+    if(fy!=null&&onFloor(x,fy)){ const m=0.7+r*0.45, dir=downhill(x,fy);
+      if(dir) startRun(x,fy,m,dir); else pour(x,fy,m,moverAt(x,fy+2)); return; }
     let side=0; for(const s of [-1,1]) if(hitFloor(x+s*4,y)){ side=s; break; }
     if(!side){ if(hitFloor(x,y)) return; drops.push({x,y,px:x,py:y,vx:0,vy:0.8,r:Math.max(1,r),t:5,max:900,chunk:false,drip:true}); return; }   // nothing to stick to: it keeps falling
     let sx0=x; for(let k=0;k<6&&!hitFloor(sx0+side*1,y);k++) sx0+=side;           // right on the wall's face
-    stains.push({x:sx0,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:INK()?30+Math.random()*50:8+Math.random()*18,bits:2+Math.random()*3|0, side, y0:y});
+    stains.push({x:sx0,y,r:1.1+Math.random()*1.6,a:0.35+Math.random()*0.3,rot:Math.random()*Math.PI,drip:INK()?30+Math.random()*50:8+Math.random()*18,bits:2+Math.random()*3|0, side, y0:y, on:moverAt(sx0+side*2,y)});
     if(stains.length>220) stains.splice(0,stains.length-220);
   }
   function puddleTick(){
+    runTick();
     for(let i=puddles.length-1;i>=0;i--){
       const q=puddles[i]; q.age++;
       if(q.age>60*70||q.m<0.08){ puddles.splice(i,1); continue; }
+      if(q.on){                                                            // a pool on a door / hatch / cube / platform
+        const ps=moverPose(q.on);
+        if(ps===null){ puddles.splice(i,1); continue; }
+        if(ps&&ps.rot&&Math.abs(ps.rot)>0.45){                              // tipped: it pours off the leaf
+          for(let k=0;k<4;k++){ const w=poseMap(ps,q.x0+(q.x1-q.x0)*(k+0.5)/4,q.y-1); drops.push({x:w.x,y:w.y,px:w.x,py:w.y-1,vx:0,vy:0.5,r:Math.max(1.2,Math.min(3,0.6+q.m*0.25)),t:5,max:900,chunk:false,drip:true}); }
+          puddles.splice(i,1); continue;
+        }
+        const want=6+Math.sqrt(q.m)*14, rate=0.14*(0.35+Math.min(1.6,q.m*0.07)), ex=q.on.ext;
+        if((q.x1-q.x0)/2<want){ q.x0=Math.max(ex[0],q.x0-rate); q.x1=Math.min(ex[1],q.x1+rate); }
+        continue;
+      }
       const want=6+Math.sqrt(q.m)*14, half=(q.x1-q.x0)/2;
       const rate=(INK()?0.32:0.14)*(0.35+Math.min(1.6,q.m*0.07));
       if(half<want){ q.x0-=rate; q.x1+=rate; }
@@ -537,12 +673,16 @@
         if(q[key]>=1&&q.m>0.3){
           const dump=Math.min(q.m*0.32, 0.28+q.m*0.1);
           q[key]=0; q.m-=dump;
-          addHang(k+side*1.5,q.y,dump);
+          // the floor goes on down a ramp: it runs down the diagonal instead of dripping off a step
+          const rx=k+side*3, ry=surfaceTop(rx,q.y-1);
+          if(ry!=null&&ry>=q.y&&ry<q.y+TS()&&downhill(rx,ry)===side) startRun(rx,ry,dump,side);
+          else addHang(k+side*1.5,q.y,dump);
         }
       }
     }
     // A deep pool soaks through as a few channels, not a field of straws.
     for(const q of puddles){
+      if(q.on) continue;                                                   // no soaking through a door or a cube
       const cap=q.m>8?3:1;
       if(q.age>80&&q.m>1.3&&(q.seepN||0)<cap&&seeps.length<24&&Math.random()<0.02){
         const x=q.x0+Math.random()*(q.x1-q.x0);
@@ -612,13 +752,31 @@
       ctx.closePath(); ctx.fill();
     }
   }
+  function drawRuns(){
+    for(const q of runs){
+      const n=q.pts.length; if(!n) continue;
+      if(!nearView(q.hx,q.hy,240)&&!nearView(q.pts[0].x,q.pts[0].y,240)) continue;
+      const a=Math.min(1,(60*70-q.age)/(60*6)), th=Math.max(1.2,sw(q.w));
+      const path=(off)=>{ ctx.beginPath(); ctx.moveTo(sx(q.pts[0].x),sy(q.pts[0].y)-off); for(let k=1;k<n;k++) ctx.lineTo(sx(q.pts[k].x),sy(q.pts[k].y)-off); ctx.lineTo(sx(q.hx),sy(q.hy)-off); };
+      ctx.save(); ctx.globalAlpha=a; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=IC('#6e0010'); ctx.lineWidth=th; path(th*0.5); ctx.stroke();          // the smear, lying on the diagonal
+      ctx.strokeStyle=IC('rgba(200,30,50,0.5)'); ctx.lineWidth=Math.max(1,th*0.3); path(th*0.82); ctx.stroke();
+      const last=n>1?q.pts[n-2]:q.pts[0], ang=Math.atan2(q.hy-last.y,(q.hx-last.x)||q.dir);
+      const br=Math.max(1.2,sw(0.7+Math.min(2.4,q.m*0.5)));
+      ctx.fillStyle=IC('#7a0012'); ctx.beginPath();
+      ctx.ellipse(sx(q.hx)+Math.sin(ang)*br*0.5,sy(q.hy)-Math.cos(ang)*br*0.5,br*1.4,br*0.6,ang,0,Math.PI*2); ctx.fill();   // the bead at its front
+      ctx.restore();
+    }
+  }
   function drawPuddles(){
     for(const q of puddles){
-      if(!nearView((q.x0+q.x1)/2,q.y,160)) continue;                  // draw-time camera cull
+      let ps=null;
+      if(q.on){ ps=moverPose(q.on); if(!ps) continue; }
+      else if(!nearView((q.x0+q.x1)/2,q.y,160)) continue;             // draw-time camera cull
       const a=Math.min(1,(60*70-q.age)/(60*6)), th=Math.min(4.5,1.4+Math.sqrt(q.m)*0.9);
       const x0=sx(q.x0), x1=sx(q.x1), y=sy(q.y), h=Math.max(1.5,sw(th)), w=x1-x0;
       if(w<1) continue;
-      ctx.save(); ctx.globalAlpha=a;
+      ctx.save(); ctx.globalAlpha=a; poseCtx(ps);
       // Shallow liquid follows the scale grooves. A deep pool fills them and sits level.
       const fill=Math.min(1,q.m/8), dip=1-fill*0.85;
       const g=ctx.createLinearGradient(0,y-h,0,y+1);
@@ -650,8 +808,8 @@
   }
   function tick(){
     const id=window.MV_BETA&&MV_BETA.stageId;
-    if(id!==stage){ stage=id; clouds.length=0; if(window.MV_BETA) MV_BETA.waterStain=0; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; estains.length=0; seeps.length=0; burstN=0; splashN=0; }
-    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; seeps.length=0; } return; }
+    if(id!==stage){ stage=id; clouds.length=0; if(window.MV_BETA) MV_BETA.waterStain=0; drops.length=0; stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; estains.length=0; seeps.length=0; runs.length=0; burstN=0; splashN=0; }
+    if(!playing()){ drops.length=0; splashN=0; burstN=0; if(!gore()){ stains.length=0; glass.length=0; puddles.length=0; hang.length=0; films.length=0; seeps.length=0; runs.length=0; } return; }
     const deep=goreAmt()>=0.55;
     if(deep&&splashN>=90) screenBurst(4);
     if(splashN>0){ splashSfx(splashN); splashN=0; }
@@ -703,6 +861,7 @@
     }
     // stains on a wall run down its face; past its bottom edge the run lets go and drips to what's below
     for(const s of stains){ if(!s.side||!(s.drip>0)) continue;
+      if(s.on){ const ps=moverPose(s.on); if(!ps||!ps.rest) continue; }       // it runs only while its door / cube is where it landed
       const ny=s.y+(INK()?0.6:0.35);
       if(!hitFloor(s.x+s.side*3,ny+2)){ drops.push({x:s.x,y:ny+2,px:s.x,py:ny,vx:0,vy:0.6,r:1.4,t:5,max:900,chunk:false,drip:true}); s.drip=0; continue; }
       s.ly=ny;
@@ -740,12 +899,15 @@
     { const Bq=window.MV_BETA; if(Bq&&(Bq.results||Bq.popup||Bq.ending||Bq.trans||Bq.contScreen||Bq.overT>0)) return; }
     const zOwn=!(typeof _zoomSaved!=='undefined'&&_zoomSaved);                 // (inside the world pass the zoom may already be on)
     if(zOwn&&typeof _worldZoomBegin==='function') _worldZoomBegin();
-    try{ drawSeeps(); drawFilms(); drawPuddles(); }catch(e){}
+    try{ drawSeeps(); drawFilms(); drawRuns(); drawPuddles(); }catch(e){}
     for(const c of clouds){ const a=0.35*(1-c.t/90); ctx.fillStyle=IC('rgba(140,0,16,'+a.toFixed(3)+')'); ctx.beginPath(); ctx.arc(sx(c.x),sy(c.y),Math.max(1,sw(c.r)),0,Math.PI*2); ctx.fill(); }
     try{ if(IVF()) drawDreams(); }catch(e){}
-    for(const s of stains){
+    for(let si=stains.length-1;si>=0;si--){ const s=stains[si];
+      let ps=null;
+      if(s.on){ ps=moverPose(s.on); if(ps===null){ stains.splice(si,1); continue; } if(ps===false) continue; }
       if(s.drip>0){ if(s.side){ if(s.ly!=null) s.y=s.ly; } s.drip--; }   // (a wall stain's run is moved in tick(); floor stains don't run)
-      if(!nearView(s.x,s.y,80)) continue;                               // draw-time camera cull
+      if(!s.on&&!nearView(s.x,s.y,80)) continue;                        // draw-time camera cull
+      ctx.save(); poseCtx(ps);                                           // on a door / hatch / cube: drawn where that thing is now
       if(s.side&&s.y0!=null&&s.y>s.y0+1){ ctx.fillStyle=IC('rgba(110,0,12,'+(s.a*0.8).toFixed(2)+')'); ctx.fillRect(sx(s.x)-Math.max(0.6,sw(0.7)),sy(s.y0),Math.max(1,sw(1.4)),sy(s.y)-sy(s.y0)); }   // the line it leaves running down")
       ctx.save();
       ctx.translate(sx(s.x),sy(s.y)); ctx.rotate(s.rot);
@@ -755,6 +917,7 @@
         ctx.fillRect(sw(ox)*0.15, sw(oy), Math.max(1,sw(s.r*0.55)), Math.max(2,sw(s.r*(1.4+b*0.2))));
       }
       if(s.drip>0){ ctx.fillStyle=IC('rgba(120,0,12,'+s.a.toFixed(2)+')'); ctx.fillRect(-0.6,0,1.2,sw(3)); }
+      ctx.restore();
       ctx.restore();
     }
     // Blood / ink clinging to the actor's DRAWN silhouette: blots on the outline,

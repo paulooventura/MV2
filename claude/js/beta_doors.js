@@ -99,6 +99,23 @@
     // opening: clear once the leaf has swung past ~half (same moment the old t===8 did)
     return doorOpenK(d)>=0.30;
   }
+  // The leaf as drawn: it swings on its hinge and is seen edge-on as it opens (drawDoor). Paulo, Nov 27:
+  // blood spilled on a door rides the leaf (beta_gore.js reads this), so art and stain share one curve.
+  function leafSpan(d){
+    const x=d.c*T, k=doorOpenK(d), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
+    const wv=d.st==='shut'?T:Math.max(k>0.85?9:5, T*Math.cos(ang)), hinge=d.side>0?x+T:x;
+    return {k, wv, hinge, px:d.side>0?hinge-wv:hinge, scale:wv/T};
+  }
+  S.leafSpan=leafSpan;
+  // A trap door leaf's turn (drawTrap): s=-1 the left leaf on its left hinge, s=1 the right one.
+  function trapTurn(t,s){
+    const x0=t.c0*T, x1=(t.c1+1)*T, y=t.r*T, down=t.dir==='down';
+    const k=t.st==='shut'?0:t.st==='open'?1:Math.min(1,t.t/22), e=k<1?1-Math.pow(1-k,2):1;
+    const ang=e*Math.PI*0.5*(down?1:-1);
+    return {hx:s<0?x0:x1, hy:y+(down?2:T-2), a:s<0?ang:-ang, k};
+  }
+  S.trapTurn=trapTurn;
+  S.trapDrawn=t=>t.id!=='attic'||S.reveal<1||t.st!=='shut';
   function syncDoorGrid(d){
     if(typeof MV_GRID_SOLID==='undefined'||typeof MV_GRID_AIR==='undefined') return;
     const air=doorPassable(d);
@@ -258,8 +275,7 @@
       return;
     }
     // Same openness curve the hitbox uses (doorOpenK) — art and solid stay matched.
-    const k=doorOpenK(d), e=1-Math.pow(1-k,3), ang=e*Math.PI*0.47;
-    const wv=Math.max(k>0.85?9:5, T*Math.cos(ang)), hingeX=d.side>0?x+T:x, px=d.side>0?hingeX-wv:hingeX;
+    const k=doorOpenK(d), L=leafSpan(d), wv=L.wv, hingeX=L.hinge, px=L.px;
     // Timber jamb. The opening behind an open leaf is the room itself.
     ctx.fillStyle='#8a5a34'; ctx.fillRect(X(x-3),Y(y-6),W2(T+6),W2(3));
     ctx.fillStyle='#6a3f24'; ctx.fillRect(X(x-3),Y(y-3),W2(T+6),W2(5));
@@ -293,13 +309,13 @@
   }
   function drawTrap(t){
     const x0=t.c0*T, x1=(t.c1+1)*T, y=t.r*T, w=x1-x0, half=w/2, sh=t.shake>0?(Math.random()-0.5)*3:0;
-    const k=t.st==='shut'?0:t.st==='open'?1:Math.min(1,t.t/22), e=k<1?1-Math.pow(1-k,2):1;
+    const k=trapTurn(t,-1).k;
     const down=t.dir==='down';
     ctx.save();
     // two leaves: each turns on its outer hinge, the left one away down-left (or up-left), the right one down-right
     for(const s of [-1,1]){
-      const hx=s<0?x0:x1, ang=e*Math.PI*0.5*(down?1:-1);
-      ctx.save(); ctx.translate(X(hx),Y(y+(down?2:T-2))+sh); ctx.rotate(s<0?ang:-ang);
+      const tt=trapTurn(t,s);
+      ctx.save(); ctx.translate(X(tt.hx),Y(tt.hy)+sh); ctx.rotate(tt.a);
       // (Paulo, Nov 13: two leaves facing each other) each leaf stops 2 px short of the middle: a dark seam between them
       const lw=half-2, lx=s<0?0:-lw;
       ctx.fillStyle=s<0?'#c4894e':'#b07840'; ctx.fillRect(W2(lx),W2(-7),W2(lw),W2(14));
@@ -434,7 +450,7 @@
     if(!on()||S.lv!==B.level) return;
     try{ treeLife(); }catch(e){}
     try{ drawShelf(); }catch(e){}
-    for(const t of S.traps) if(t.id!=='attic'||S.reveal<1||t.st!=='shut') drawTrap(t);
+    for(const t of S.traps) if(S.trapDrawn(t)) drawTrap(t);
     try{ drawAttic(); }catch(e){}
     for(const d of S.doors) drawDoor(d);
   };
