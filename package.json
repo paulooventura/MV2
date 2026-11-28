@@ -16,6 +16,7 @@
     "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-play.ps1"
   },
   "devDependencies": {
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "ws": "^8.23.1"
   }
 }
