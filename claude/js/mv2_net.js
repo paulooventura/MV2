@@ -342,8 +342,26 @@
     openConns().forEach(function(c){ try{ if(c.dataChannel) n=Math.max(n,c.dataChannel.bufferedAmount|0); }catch(e){} });
     return n;
   }
+  // Read-only counters for the online diagnostic overlay (no behaviour change).
+  var diag={pktOut:0,pktIn:0,pktOutAt:0,pktInAt:0,worldOut:0,worldIn:0,
+            hitOut:0,hitIn:0,poseOut:0,poseIn:0,lastType:'',lastTypeAt:0};
+  function markOut(o){
+    diag.pktOut++; diag.pktOutAt=Date.now();
+    if(!o) return;
+    if(o.t==='p') diag.poseOut++;
+    if(o.t==='w') diag.worldOut++;
+    if(o.t==='hit') diag.hitOut++;
+  }
+  function markIn(pk){
+    diag.pktIn++; diag.pktInAt=Date.now(); diag.lastType=String(pk&&pk.t||''); diag.lastTypeAt=diag.pktInAt;
+    if(!pk) return;
+    if(pk.t==='p') diag.poseIn++;
+    if(pk.t==='w') diag.worldIn++;
+    if(pk.t==='hit') diag.hitIn++;
+  }
   function sendOne(c,o){ try{ if(c&&c.open){ c.send(o); return true; } }catch(e){} return false; }
   function sendAll(o, except){
+    markOut(o);
     var ok=false;
     openConns().forEach(function(c){ if(c!==except) ok=sendOne(c,o)||ok; });
     return ok;
@@ -735,6 +753,7 @@
 
   function handle(pk, fromConn){
     if(!pk||typeof pk!=='object') return;
+    markIn(pk);
     // Host: the seat it gave this connection wins. A joiner's packets sent before its 'seat'
     // welcome lands carry seat -1; filed as remotes[-1], that stale packet sorted first in
     // primaryLatest(), so the host never saw the joiner enter the stage (flaky race).
@@ -1398,6 +1417,10 @@
     roster:rosterSnapshot, extras:function(){ return extras.slice(); },
     identity:localIdentity, setIdentity:setIdentity,
     claimColor:claimColor, colorTaken:colorTaken,
-    peerCount:linkedCount
+    peerCount:linkedCount,
+    diag:function(){ return {pktOut:diag.pktOut,pktIn:diag.pktIn,
+      pktOutAt:diag.pktOutAt,pktInAt:diag.pktInAt,
+      worldOut:diag.worldOut,worldIn:diag.worldIn,hitOut:diag.hitOut,hitIn:diag.hitIn,
+      poseOut:diag.poseOut,poseIn:diag.poseIn,lastType:diag.lastType,lastTypeAt:diag.lastTypeAt}; }
   };
 })();
