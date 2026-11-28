@@ -375,7 +375,8 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
 
 /* Paulo 2026-11-28: edits made here go into the next build with one click */
 function pubStatus(){ if(!api) return; fetch('/api/edits-status',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
-  .then(j=>{ const n=(j.pending||[]).length; $('pubCount').textContent=n?'('+n+' waiting)':''; $('pubEdits').disabled=!n; }).catch(()=>{}); }
+  .then(j=>{ const n=(j.pending||[]).length; $('pubCount').textContent=n?'('+n+' waiting'+(j.queued?', sending by itself in a moment':'')+')':'';
+    $('pubEdits').disabled=!n; if(j.last&&j.last.msg&&!$('pubMsg')._manual) $('pubMsg').textContent='Last sent: '+j.last.msg; }).catch(()=>{}); }
 $('pubEdits').onclick=()=>{ $('pubMsg').textContent='Sending…'; fetch('/api/publish-edits',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())
   .then(j=>{ $('pubMsg').textContent=j.ok?j.msg:('Not sent: '+(j.error||'')); pubStatus(); }).catch(e=>{ $('pubMsg').textContent='Not sent: '+e.message; }); };
 pubStatus(); setInterval(pubStatus,8000);
