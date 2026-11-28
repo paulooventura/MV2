@@ -1783,6 +1783,7 @@ function drawCharacter(){
         const q=hookAttachWorld();
         pose.drawnNoseX=q.x; pose.drawnNoseY=q.y;
         p._drawnNoseX=q.x; p._drawnNoseY=q.y; p._drawnNoseFr=fr;
+        if(window.MV_SHAPES) MV_SHAPES.recWorld(p,'nose',q.x,q.y);
       }
       return;
     }
@@ -1800,6 +1801,7 @@ function drawCharacter(){
     // pre-zoom screen space the jack is drawn in, so it needs no correction here.
     pose.drawnNoseX=ux-sx(0); pose.drawnNoseY=uy-sy(0);
     p._drawnNoseX=pose.drawnNoseX; p._drawnNoseY=pose.drawnNoseY; p._drawnNoseFr=fr;
+    if(window.MV_SHAPES) MV_SHAPES.recWorld(p,'nose',pose.drawnNoseX,pose.drawnNoseY);   // the plug hand reaches to the jack's drawn tip
   };
   // (build 356) empty hands: this is the left glove. The left jab punches from this shoulder
   // toward the aim, with the same hit logic as the right glove.

@@ -61,6 +61,13 @@ const r = await page.evaluate(() => {
   const head = parts.find(q => q.id === 'head'), hb2 = S.bounds([head]);
   const gap = { x: (p.fc === false ? hb2.x - 40 : hb2.x + hb2.w + 20), y: hb2.y - 30, w: 16, h: 16, alive: true, type: 'probe' };
   out.hero.gapTouch = S.heroTouchesFoe(p, gap);
+  // holding a jack, the plug hand reaches the jack's drawn tip, facing either way
+  out.plugTip = [];
+  const it0 = ITEM, fc0 = p.fc;
+  for (const fc of [true, false]) { ITEM = 1; p.fc = fc; p._hs = {}; try { draw(); } catch (e) {}
+    const pl = MV_SHAPES.of(p).find(q => q.id === 'plug'), n = p._hs.nose;
+    out.plugTip.push(!!(n && MV_SHAPES.hitPoint([pl], n.x, n.y) && MV_SHAPES.hitPoint([pl], p._hs.plug.x, p._hs.plug.y))); }
+  ITEM = it0; p.fc = fc0;
   out.def = { tri: S.def(ENEMS.find(q => q.type === 'b_tri')), hero: S.def(p) };
   return out;
 });
@@ -78,6 +85,7 @@ check('MIND has wheel, body, head, glove and plug', JSON.stringify(r.hero.ids) =
 check('the glove part sits where render.js drew the glove this frame', r.hero.rec && Math.abs(r.hero.rec.x - r.hero.glove.x) < 0.5 && r.hero.rec.fr >= r.hero.fr - 2, { rec: r.hero.rec, glove: r.hero.glove });
 check('a foe touching only the wheel hurts', r.hero.wheelTouch === true);
 check('a foe in the empty air beside the head does not', r.hero.gapTouch === false);
+check('holding the RCA, the plug hand spans grip to drawn tip (facing right, left)', r.plugTip.every(Boolean), r.plugTip);
 check('Art Board definition for b_tri is a 3-point polygon', r.def.tri && r.def.tri.parts[0].v && r.def.tri.parts[0].v.length === 3);
 
 if (shotDir) {

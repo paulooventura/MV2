@@ -141,6 +141,7 @@ S.rec=function(pl,slot,sxp,syp,extra){
   const s=typeof SMS_SCALE==='number'&&typeof MV2_VISUAL!=='undefined'&&!MV2_VISUAL?SMS_SCALE:1;
   o[slot]={x:(x-ox)*s, y:(y-oy)*s, fr:FR(), r:extra&&extra.r, rot};
 };
+S.recWorld=function(pl,slot,x,y){ if(!pl||!isFinite(x)||!isFinite(y)) return; (pl._hs||(pl._hs={}))[slot]={x,y,fr:FR()}; };
 function spin(v,ox,oy,a){ if(!a||Math.abs(a)<1e-4) return v; const c=Math.cos(a), s=Math.sin(a); return v.map(q=>[ox+(q[0]-ox)*c-(q[1]-oy)*s, oy+(q[0]-ox)*s+(q[1]-oy)*c]); }
 function fresh(q){ return q&&FR()-q.fr<=2&&FR()>=q.fr; }
 function heroOverride(pl){
@@ -185,7 +186,15 @@ function heroParts(pl){
   let pg=fresh(R.plug)?R.plug:null;
   if(!pg){ let ps=pl._armPose||pl._pose; if(!ps&&pl.mind&&typeof computeConnectorArmPose==='function') try{ ps=computeConnectorArmPose(pl); }catch(e){} pg=ps&&isFinite(ps.tipX)?{x:ps.tipX,y:ps.tipY}:{x:cx-fd*(BW/2-2), y:sh+16}; }
   const glove=circ(gl.x+oG.dx,gl.y+oG.dy,11*oG.s,'glove');
-  const plug=circ(pg.x+oP.dx,pg.y+oP.dy,9*oP.s,'plug');
+  // holding a jack, the plug hand is the jack itself: grip to the drawn tip, as thick as the plug art
+  let plug;
+  const held=typeof _heldItemFor==='function'?_heldItemFor(pl):(typeof pl.item==='number'?pl.item:-1);
+  if(fresh(R.nose)&&fresh(R.plug)&&held>=0&&Math.hypot(R.nose.x-pg.x,R.nose.y-pg.y)>4){
+    const ax=pg.x+oP.dx, ay=pg.y+oP.dy, bx2=R.nose.x+oP.dx, by2=R.nose.y+oP.dy, L=Math.hypot(bx2-ax,by2-ay), hw=7*oP.s;
+    const nx=-(by2-ay)/L*hw, ny=(bx2-ax)/L*hw, ex=(bx2-ax)/L*3, ey=(by2-ay)/L*3;
+    plug={k:'p',v:[[ax+nx-ex,ay+ny-ey],[bx2+nx+ex,by2+ny+ey],[bx2-nx+ex,by2-ny+ey],[ax-nx-ex,ay-ny-ey]],id:'plug'};
+    plug.o=[ax,ay];
+  } else plug=circ(pg.x+oP.dx,pg.y+oP.dy,9*oP.s,'plug');
   body.o=[bx+oB.dx, bt+BH/2+oB.dy];
   return [wheel,body,head,glove,plug];
 }
