@@ -118,7 +118,7 @@
     return {name:loc.name||(ID?ID.defaultName(mySeat):'RIDER'), color:col, hat:loc.hat||'gaucho', hero:hero};
   }
   function refreshMyPack(){
-    var pk=ID?ID.packId(localIdentity()):{nm:'',col:'prussian',hat:'gaucho',hero:heroName()};
+    var pk=ID?ID.packId(localIdentity()):{nm:'',col:'purple',hat:'gaucho',hero:heroName()};
     var sig=mySeat+'|'+pk.nm+'|'+pk.col+'|'+pk.hat+'|'+pk.hero;
     if(sig!==idSig||!myIdPack){ idSig=sig; myIdPack=pk; idVer++; }
   }

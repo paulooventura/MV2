@@ -136,11 +136,11 @@
           '<div class="sub" style="margin:0 0 4px">YOUR RIDE (session only)</div>'+
           '<label for="mvNetNick">NAME — a nickname is fine; never required to be real</label>'+
           '<input id="mvNetNick" maxlength="12" autocomplete="nickname" spellcheck="false" placeholder="RIDER">'+
-          '<label>CRAYON</label>'+
+          '<label>COLOUR</label>'+
           '<div id="mvNetColors"></div>'+
           '<label>HAT</label>'+
           '<div id="mvNetHats"></div>'+
-          '<div class="tiny">Colour tints your hero, hat and held jacks. Hat art: gaucho brim or black back-cap.</div>'+
+          '<div class="tiny">The sprite wears this colour: wheel, bulb, glove and hat. Purple is Mind. Red is Venture.</div>'+
         '</div>'+
 
         '<div id="mvNetStatus">Pick HOST or JOIN.</div>'+

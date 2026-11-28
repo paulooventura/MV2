@@ -138,27 +138,21 @@ function _wheelPalette(pl){
   if(pl._wheelHostile) return {b1:'#660018',b2:'#aa0028',b3:'#dd2244',spin:'rgba(200,40,60,0.6)',tread:false};
   if(ready&&(springReady||wallReady)) return {b1:'#0a3818',b2:'#22c060',b3:'#7affa8',spin:'rgba(48,255,120,0.7)',tread:true};
   if(ready) return {b1:'#184820',b2:'#28a050',b3:'#58e878',spin:'rgba(40,200,80,0.55)',tread:true};
+  const tone=window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(pl);
+  const base=tone||(pl.hero==='venture'
+    ?{dark:'#661018',mid:'#aa2030',light:'#dd4050',glow:'200,60,80'}
+    :{dark:'#3d0066',mid:'#6600aa',light:'#9922dd',glow:'120,60,200'});
   if(chargeFrac>0.04){
     const t=Math.min(1,chargeFrac);
-    if(pl.hero==='venture'){
-      return {
-        b1:_mixHex('#661018','#184838',t),
-        b2:_mixHex('#aa2030','#28a088',t),
-        b3:_mixHex('#dd4050','#58d0b0',t),
-        spin:`rgba(${Math.round(200+t*-160)},${Math.round(60+t*120)},${Math.round(80+t*80)},${0.35+t*0.2})`,
-        tread:t>0.35
-      };
-    }
     return {
-      b1:_mixHex('#3d0066','#184838',t),
-      b2:_mixHex('#6600aa','#28a088',t),
-      b3:_mixHex('#9922dd','#58d0b0',t),
-      spin:`rgba(${Math.round(120+t*-80)},${Math.round(60+t*120)},${Math.round(200+t*-40)},${0.35+t*0.25})`,
+      b1:_mixHex(base.dark,'#184838',t),
+      b2:_mixHex(base.mid,'#28a088',t),
+      b3:_mixHex(base.light,'#58d0b0',t),
+      spin:'rgba('+base.glow+','+(0.35+t*0.2)+')',
       tread:t>0.35
     };
   }
-  if(pl.hero==='venture') return {b1:'#661018',b2:'#aa2030',b3:'#dd4050',spin:'rgba(200,60,80,0.5)',tread:false};
-  return {b1:'#3d0066',b2:'#6600aa',b3:'#9922dd',spin:'rgba(120,60,200,0.6)',tread:false};
+  return {b1:base.dark,b2:base.mid,b3:base.light,spin:'rgba('+base.glow+',0.55)',tread:false};
 }
 function _mixHex(a,b,t){
   const p=(h)=>parseInt(h.slice(1),16);
@@ -324,6 +318,8 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   facing=!facing;   // the speaker faces the way MIND is heading
   const bw=52,bh=42, x=bx-bw/2, y=by;
   const isVenture=p.hero==='venture';
+  const tone=window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(p);
+  const ride=tone?('rgba('+tone.glow+','):null;
   const top=y+10;                                   // the cabinet's face starts under the record
   // cabinet
   ctx.fillStyle='#030304'; ctx.fillRect(x-1,top-1,bw+2,bh-top+y+2);
@@ -339,12 +335,12 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=0.6; for(const r of [8,5.5]){ ctx.beginPath();ctx.arc(scx,scy,r,0,Math.PI*2);ctx.stroke(); }
   ctx.beginPath();ctx.arc(scx,scy,3.6,0,Math.PI*2);ctx.fillStyle='#050507';ctx.fill();
   ctx.beginPath();ctx.arc(scx-1.2,scy-1.2,1.2,0,Math.PI*2);ctx.fillStyle='rgba(220,220,255,0.35)';ctx.fill();
-  ctx.beginPath();ctx.arc(scx,scy,wr+0.5,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle=isVenture?'rgba(255,110,110,0.45)':'rgba(170,140,255,0.45)';ctx.lineWidth=1.2;ctx.stroke();
-  if((p._dblJumpFx||0)>0){ const f=p._dblJumpFx/14; ctx.save(); ctx.strokeStyle=`rgba(${isVenture?'255,150,170':'200,160,255'},${f.toFixed(2)})`; ctx.lineWidth=2; for(const k of [0,6]){ ctx.beginPath(); ctx.arc(scx,scy,wr+1+(1-f)*16+k,0,Math.PI*2); ctx.stroke(); } ctx.restore(); }   // the woofer's kick (double jump)
+  ctx.beginPath();ctx.arc(scx,scy,wr+0.5,Math.PI*1.05,Math.PI*1.6);ctx.strokeStyle=ride?ride+'0.45)':(isVenture?'rgba(255,110,110,0.45)':'rgba(170,140,255,0.45)');ctx.lineWidth=1.2;ctx.stroke();
+  if((p._dblJumpFx||0)>0){ const f=p._dblJumpFx/14; ctx.save(); ctx.strokeStyle=ride?ride+f.toFixed(2)+')':`rgba(${isVenture?'255,150,170':'200,160,255'},${f.toFixed(2)})`; ctx.lineWidth=2; for(const k of [0,6]){ ctx.beginPath(); ctx.arc(scx,scy,wr+1+(1-f)*16+k,0,Math.PI*2); ctx.stroke(); } ctx.restore(); }   // the woofer's kick (double jump)
   // corner screws
   ctx.fillStyle='#4a4e58'; for(const [sx2,sy2] of [[x+4,top+4],[x+bw-4,top+4],[x+4,y+bh-4],[x+bw-4,y+bh-4]]){ if((facing&&sx2<x+bw/2&&sy2>top+8)||(!facing&&sx2>x+bw/2&&sy2>top+8)) continue; ctx.beginPath();ctx.arc(sx2,sy2,1.3,0,Math.PI*2);ctx.fill(); }
   // rim light (the key art's coloured edge light) and a shadowed bottom
-  ctx.fillStyle=isVenture?'rgba(255,70,80,0.5)':'rgba(150,100,255,0.5)'; ctx.fillRect(facing?x+bw-1.5:x,top,1.5,y+bh-top);
+  ctx.fillStyle=ride?ride+'0.55)':(isVenture?'rgba(255,70,80,0.5)':'rgba(150,100,255,0.5)'); ctx.fillRect(facing?x+bw-1.5:x,top,1.5,y+bh-top);
   ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(x+1,y+bh-1.5,bw-2,1.5);
   // sports heat: the back-bottom corner runs cold purple to a bright orange tip
   const heat=!status&&p&&p._sportHeat||0;
@@ -435,7 +431,7 @@ function drawBody(bx,by,facing,ca2=0,status=null){
   ctx.fillStyle=rg; ctx.fillRect(rx0,ry0,rw,rh);
   ctx.fillStyle='rgba(255,255,255,0.07)'; for(let k=ry0+3;k<ry0+rh;k+=2) ctx.fillRect(rx0+1,k,rw-2,0.6);
   ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(rx0+2,ry0,rw-4,1);
-  ctx.fillStyle=isVenture?'rgba(255,80,90,0.35)':'rgba(170,120,255,0.35)'; ctx.fillRect(facing?rx0+rw-10:rx0+4,ry0+1,6,0.8);   // a coloured glint
+  ctx.fillStyle=ride?ride+'0.4)':(isVenture?'rgba(255,80,90,0.35)':'rgba(170,120,255,0.35)'); ctx.fillRect(facing?rx0+rw-10:rx0+4,ry0+1,6,0.8);   // a coloured glint
   // chrome orbs on the record's edges (the shoulder sockets)
   for(const ox of [rx0-1,rx0+rw+1]){
     const og=ctx.createRadialGradient(ox-1.5,ry0+4.5,0.5,ox,ry0+6,5); og.addColorStop(0,'#ffffff'); og.addColorStop(0.4,'#b8bec8'); og.addColorStop(1,'#2a2e36');
@@ -655,10 +651,12 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     ctx.fill();
   }
   const isVen=!hostile&&hero==='venture';
+  const tone=!hostile&&window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(p);
   // pass 4 (Oct 22): the glowing green glass bulb of the key art (the mirror enemy keeps dark red glass)
   if(isFinite(cx)&&isFinite(drawY)){
-    // Paulo (Oct 22, the key art): clear glass with a violet (MIND) / rose (VENTURE) glow
-    const gl=MIR?['rgba(255,214,90,','#fff4b8','#e0b030','#5a4208']:hostile?['rgba(205,215,230,','#2a2e36','#14161a','#3a3e48']:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
+    // Paulo (Oct 22, the key art): clear glass with a violet (MIND) / rose (VENTURE) glow.
+    // A picked colour replaces that glow on the glass itself.
+    const gl=MIR?['rgba(255,214,90,','#fff4b8','#e0b030','#5a4208']:hostile?['rgba(205,215,230,','#2a2e36','#14161a','#3a3e48']:tone?['rgba('+tone.glow+',',tone.light,tone.mid,tone.dark]:isVen?['rgba(255,70,90,','#f0c8d4','#9a5a70','#4a1a2a']:['rgba(170,110,255,','#e2d6ff','#8a70c8','#3a2a6a'];
     const halo=ctx.createRadialGradient(cx,drawY,R*0.6,cx,drawY,R+9);
     halo.addColorStop(0,gl[0]+(hostile?0.0:0.30)+')'); halo.addColorStop(1,gl[0]+'0)');
     ctx.fillStyle=halo; ctx.beginPath(); ctx.ellipse(cx,drawY,R+9,R+10,0,0,Math.PI*2); ctx.fill();
@@ -667,13 +665,13 @@ function drawHead(cx,cy,pupilX,pupilY,ca2=0,hero='mind',peek=0,charge=null,hatTX
     bg.addColorStop(0,gl[1]); bg.addColorStop(0.55,gl[2]); bg.addColorStop(1,gl[3]);
     ctx.beginPath();ctx.ellipse(cx,drawY,R,R+2,0,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
     // filament glow ring behind the eye
-    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=MIR?(MOFF?'rgba(40,20,20,0.16)':'rgba(255,230,120,0.35)'):hostile?'rgba(255,90,60,0.18)':isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)';ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx,drawY+2,11.5,10.5,0,0,Math.PI*2);ctx.fillStyle=MIR?(MOFF?'rgba(40,20,20,0.16)':'rgba(255,230,120,0.35)'):hostile?'rgba(255,90,60,0.18)':tone?('rgba('+tone.glow+',0.34)'):(isVen?'rgba(255,120,140,0.3)':'rgba(190,150,255,0.32)');ctx.fill();
   }
 
   let scleraCol=MIR?'#fff2c4':hostile?'#e87878':(isVen?'#e8d0d0':'#d0d4dc');
   if(lampReady&&!hostile) scleraCol=`rgb(${200+Math.round(Math.sin(fr*0.2)*30)},255,${210+Math.round(Math.sin(fr*0.17)*25)})`;
-  let irisCol=MIR?'#2a2a30':hostile?'#882018':(isVen?'#e02a3c':'#9a4cff');
-  let irisDark=MIR?'#08080a':hostile?'#5a1010':(isVen?'#6a0a18':'#4a1a9a');
+  let irisCol=MIR?'#2a2a30':hostile?'#882018':(tone?tone.mid:(isVen?'#e02a3c':'#9a4cff'));
+  let irisDark=MIR?'#08080a':hostile?'#5a1010':(tone?tone.dark:(isVen?'#6a0a18':'#4a1a9a'));
   if(!hostile&&cg>0.05){
     const g=cg;
     irisCol=_mixHex(isVen?'#e02a3c':'#9a4cff','#28a050',g);
@@ -1123,9 +1121,10 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
     if(_armSolid(fx,fy)||_armSolid(fx+fd*8,fy)) facing=!facing;
   }
   const isVenture=p.hero==='venture';
+  const tone=window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(p);
   // Paulo 2026-11-20: MIND's arm = coiled aux cable (black rubber + dark chrome).
-  const armCol1=window._mirrorDraw?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
-  const armCol2=window._mirrorDraw?'#5c626e':isVenture?C.RED_D:C.INDIGO;
+  const armCol1=window._mirrorDraw?'#0e1014':tone?tone.dark:(isVenture?C.MAROON:C.PURPLE_D);
+  const armCol2=window._mirrorDraw?'#5c626e':tone?tone.mid:(isVenture?C.RED_D:C.INDIGO);
   const punching   = p.pt > 0;
   const charging   = p.pCharging;
   const HP = typeof _heroPunch==='function' ? _heroPunch(p) : {dmg:15,reach:28,loadF:20,loadDmg:35,loadReach:58};
@@ -1139,7 +1138,7 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
   const guardFwd = 12;
   const isChargedHook = (p.pCharge||0)>HP.loadF || (punching && p.pCd>4);
   const punchFwd = isChargedHook ? HP.loadReach : HP.reach;
-  const armShine=isVenture?'rgba(200,80,80,0.15)':'rgba(120,80,200,0.15)';
+  const armShine=tone?('rgba('+tone.glow+',0.18)'):(isVenture?'rgba(200,80,80,0.15)':'rgba(120,80,200,0.15)');
   // Paulo (Oct 22): switching items while hooked, this hand pulls the RCA off the other arm
   // and plugs it into the top back of the box, elbow arched up over the head (beta_feel.js)
   const GR=(!punching&&!hidden&&window.MV_BETA&&MV_BETA.gloveReach)?MV_BETA.gloveReach(shWX,shWY):null;
@@ -1406,7 +1405,8 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   if(punching) ctx.scale(1+snapFrac*0.1,1+snapFrac*0.1);
   // Paulo 2026-11-20: MIND's glove is now a gold-plated jack housing (reference hardware);
   // VENTURE keeps the red glove, the mirror D keeps its chrome one.
-  const gL=window._mirrorDraw?['#e8eef8','#6a707c','#14161c']:isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];   // (build 411) the mirror D: a chrome glove
+  const tone=window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(p);
+  const gL=window._mirrorDraw?['#e8eef8','#6a707c','#14161c']:tone?[tone.light,tone.mid,tone.dark]:isVenture?['#ff6a72','#c81c2c','#5a0812']:['#c08cff','#7a3cd0','#2e0e5a'];   // (build 411) the mirror D: a chrome glove
   ctx.fillStyle='#050507';
   ctx.beginPath();ctx.roundRect(-1,-gh/2-1,gw+2,gh+2,7);ctx.fill();
   ctx.beginPath();ctx.arc(gw/2,0,gh/2+3,0,Math.PI*2);ctx.fill();
@@ -1423,7 +1423,7 @@ function drawFist(gx, gy, facing, charging, chargeFrac, punching, snapFrac){
   ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(-4,-3,4,1);
   if(charging&&chargeFrac>0.25){
     ctx.globalAlpha=chargeFrac*0.6;
-    ctx.fillStyle=chargeFrac>0.8?'#ffffff':(isVenture?'#ff8888':'#cc88ff');
+    ctx.fillStyle=chargeFrac>0.8?'#ffffff':(tone?tone.light:(isVenture?'#ff8888':'#cc88ff'));
     ctx.beginPath();ctx.arc(gw/2,0,8+chargeFrac*10,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=1;
   }
@@ -1634,12 +1634,6 @@ function groovePose(gc,groove,gore,mode,ink){
   return _poseOut;
 }
 function drawCharacter(){
-  if(p&&!p._recoloring&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(p)){
-    p._recoloring=1;
-    try{ MV_IDENTITY.recolorDraw(p, drawCharacter); }
-    finally{ p._recoloring=0; }
-    return;
-  }
   if(window.MV_SHAPES) MV_SHAPES.base();   // hit shapes: undo the world zoom, keep the rope tilt / lean / groove
   // Co-op: BOTH players are drawn in BOTH viewports. The old _splitHide filter
   // hid the other player per half, so each screen only showed its own character.
@@ -1759,9 +1753,10 @@ function drawCharacter(){
   const drawConnArm=()=>{
   const isVenture=p.hero==='venture';
   const _md=!!window._mirrorDraw;                                  // T490: the mirror foe's arms are black and chrome
-  const _armDark=_md?'#0e1014':isVenture?C.MAROON:C.PURPLE_D;
-  const _armMain=_md?'#5c626e':isVenture?C.RED_D:C.INDIGO;
-  const _armGlow=_md?'rgba(220,228,240,0.16)':isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)';
+  const _tone=window.MV_IDENTITY&&MV_IDENTITY.tone&&MV_IDENTITY.tone(p);
+  const _armDark=_md?'#0e1014':_tone?_tone.dark:(isVenture?C.MAROON:C.PURPLE_D);
+  const _armMain=_md?'#5c626e':_tone?_tone.mid:(isVenture?C.RED_D:C.INDIGO);
+  const _armGlow=_md?'rgba(220,228,240,0.16)':_tone?('rgba('+_tone.glow+',0.18)'):(isVenture?'rgba(210,90,110,0.18)':'rgba(120,80,200,0.15)');
   const held=typeof _heldItemFor==='function'?_heldItemFor(p):ITEM;
   const _plugging=(window.MV_BETA&&MV_BETA.ropeClip&&MV_BETA.ropeClip.toBody&&MV_BETA.ropeClip.grab!==false)||(held===1&&p.hook&&p.hook.st==='on'&&p.hook._plugged);   // the RCA is (being) plugged into the back
   const coilFlow=(held===2&&p.xlrOn)?2:(held===3&&p.magOn)?3:0;

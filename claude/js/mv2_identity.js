@@ -13,19 +13,17 @@
 
   var MAX_PEERS=5;
 
-  // Monika house crayons (staging/art-direction/palette.json mid+accent) —
-  // woodblock-friendly, no signal neon / cyber mint.
+  // Paulo: the basic colours. Mind starts purple, Venture starts red.
+  // A pick paints the sprite's own coloured parts. It is not a square on top.
   var CRAYONS=[
-    {id:'prussian', name:'PRUSSIAN', hex:'#23466B'},
-    {id:'beni',     name:'BENI',     hex:'#E8A8A0'},
-    {id:'kihada',   name:'KIHADA',   hex:'#D8B04A'},
-    {id:'plum',     name:'PLUM',     hex:'#7A4E6B'},
-    {id:'celadon',  name:'CELADON',  hex:'#A8BFA0'},
-    {id:'vermilion',name:'VERMILION',hex:'#D9472B'},
-    {id:'gold',     name:'GOLD',     hex:'#C9A24A'},
-    {id:'murasaki', name:'MURASAKI', hex:'#5B2A8C'},
-    {id:'indigo',   name:'INDIGO',   hex:'#8FA8C0'},
-    {id:'blood',    name:'BLOOD',    hex:'#9E1B1B'}
+    {id:'purple', name:'PURPLE', hex:'#7A3CD0', dark:'#2E0E5A', mid:'#7A3CD0', light:'#C08CFF', glow:'170,110,255'},
+    {id:'red',    name:'RED',    hex:'#D42030', dark:'#5A0812', mid:'#C81C2C', light:'#FF6A72', glow:'255,70,90'},
+    {id:'blue',   name:'BLUE',   hex:'#2F6FE0', dark:'#0C2460', mid:'#2F6FE0', light:'#8CB4FF', glow:'80,140,255'},
+    {id:'yellow', name:'YELLOW', hex:'#E6C020', dark:'#6A4E08', mid:'#E6C020', light:'#FFE98A', glow:'255,220,80'},
+    {id:'orange', name:'ORANGE', hex:'#F07818', dark:'#6A2808', mid:'#F07818', light:'#FFB060', glow:'255,140,40'},
+    {id:'green',  name:'GREEN',  hex:'#2EAE4A', dark:'#0C4018', mid:'#2EAE4A', light:'#8AE8A0', glow:'60,220,100'},
+    {id:'white',  name:'WHITE',  hex:'#F2F2F2', dark:'#8A8A92', mid:'#E4E4EA', light:'#FFFFFF', glow:'230,230,240'},
+    {id:'black',  name:'BLACK',  hex:'#16161C', dark:'#050507', mid:'#2A2A32', light:'#8A8E98', glow:'160,164,176'}
   ];
 
   // Existing hero hat art (render.js): gaucho = Mind wide brim (drawLogoHat),
@@ -114,13 +112,16 @@
     };
   }
 
-  // The hero's own purple (Mind) or red (Venture) stays. Any other pick
-  // repaints the coloured parts of the sprite — bulb, rim, glove, wheel —
-  // and the hat. A flat square over the character is not a colour.
+  function ownColor(pl){ return pl&&pl.hero==='venture'?'red':'purple'; }
+  // Mind in purple and Venture in red keep the drawn art. Any other pick
+  // is handed to the sprite (wheel, bulb, glove, rim, hat). No rectangle.
   function spriteTakesColor(pl){
-    if(!pl||!pl._netColorId) return false;
-    if(pl.hero==='venture') return pl._netColorId!=='red';
-    return pl._netColorId!=='purple';
+    return !!(pl&&pl._netColorId&&pl._netColorId!==ownColor(pl));
+  }
+  function tone(pl){
+    if(!spriteTakesColor(pl)) return null;
+    var c=crayonById(pl._netColorId);
+    return {id:c.id, hex:c.hex, dark:c.dark, mid:c.mid, light:c.light, glow:c.glow};
   }
   function parseHex(h){
     h=String(h||'').replace('#','');
@@ -239,6 +240,6 @@
     cleanName:cleanName, defaultName:defaultName,
     loadLocal:loadLocal, saveLocal:saveLocal,
     applyToActor:applyToActor, packId:packId, unpackId:unpackId,
-    spriteTakesColor:spriteTakesColor, recolorDraw:recolorDraw, drawNameplate:drawNameplate, hatColors:hatColors
+    spriteTakesColor:spriteTakesColor, tone:tone, recolorDraw:recolorDraw, drawNameplate:drawNameplate, hatColors:hatColors
   };
 })();
