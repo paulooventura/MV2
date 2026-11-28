@@ -49,6 +49,10 @@
       if(o===self||!(o.hp>0)||!(o._fly||o._pb)||o._carried) continue;
       if(Math.min(o.x+o.w,x+T)-Math.max(o.x,x)>4&&Math.min(o.y+o.h,y+T)-Math.max(o.y,y)>4) return true;
     }
+    if(typeof ENEMS!=='undefined') for(const e of ENEMS){            // …or on top of a foe standing in it
+      if(!e||e.alive===false||e._hidden||e.mind) continue;
+      if(Math.min(e.x+e.w,x+T)-Math.max(e.x,x)>6&&Math.min(e.y+e.h,y+T)-Math.max(e.y,y)>6) return true;
+    }
     return false;
   }
   function settle(bw){

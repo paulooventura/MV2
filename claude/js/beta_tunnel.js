@@ -129,7 +129,7 @@
     const dirs=[];
     if(pref&&(pref.x||pref.y)){ const l=Math.hypot(pref.x,pref.y)||1; dirs.push([-pref.x/l,-pref.y/l]); }
     dirs.push([0,-1],[-1,0],[1,0],[0,1],[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]);
-    for(let rad=2;rad<=T*3;rad+=2){
+    for(let rad=2;rad<=T*6;rad+=(rad<T*2?2:4)){   // a big foe (the 112px boss) can be buried by a block that settled onto it
       for(const d of dirs){
         const nx=x+d[0]*rad, ny=y+d[1]*rad;
         if(depth(nx,ny,w,h,own)<=TOL&&exits(x,y,nx,ny,w,h,own)) return {x:nx,y:ny};

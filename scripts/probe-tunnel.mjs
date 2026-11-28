@@ -96,7 +96,7 @@ async function runStage(lvl) {
         if (dd.d > TOL) { rep.embeds++; flagged = true; log('embed', b, { from: pv ? [Math.round(pv.x), Math.round(pv.y), Math.round(pv.d)] : null, depth: Math.round(dd.d), cell: dd.cell, near: b.k.startsWith('bw:') && dd.cell ? BWALLS.filter((o) => o !== b.o && o.hp > 0 && Math.abs(o.x - dd.cell[0] * T) < 40 && Math.abs(o.y - dd.cell[1] * T) < 40).map((o) => ({ x: Math.round(o.x), y: Math.round(o.y), hc: o.homeCol, hr: o.homeRow, fly: !!o._fly, pb: !!o._pb, mov: !!o.movable })) : undefined, cellType: dd.cell ? G.data[dd.cell[1]][dd.cell[0]] : undefined, info: b.k.startsWith('bw:') ? { kind: b.o.kind, mov: !!b.o.movable, fly: !!b.o._fly, aw: !!b.o._awake, pb: !!b.o._pb, car: !!b.o._carried, home: [Math.round(b.o.homeX), Math.round(b.o.homeY)], w: b.w, h: b.h } : { st: b.o.st, h: b.h, og: !!b.o.og },  v: [Math.round((b.o.vx || 0) * 10) / 10, Math.round((b.o.vy || 0) * 10) / 10] }); }
         if (pv && !flagged && b.k !== 'p1' && b.k !== 'p2') {
           const dx = b.x - pv.x, dy = b.y - pv.y, dist = Math.max(Math.abs(dx), Math.abs(dy));
-          if (dist > 3 && dist < 400 && pv.d <= TOL && depth(pv.x, pv.y, b.w, b.h, own).d <= TOL) {   // (a block stamped into last frame's spot is not a crossing: the grid changed, nothing moved through it)
+          if (dist > 3 && dist < 200 && !(B.ropes || []).some((r) => r.e === b.o) && pv.d <= TOL && depth(pv.x, pv.y, b.w, b.h, own).d <= TOL) {   // (a block stamped into last frame's spot is not a crossing: the grid changed, nothing moved through it)
             // a move is legal if ANY of three paths stays out of rock: straight, x-then-y, y-then-x (a slide round a corner)
             const walk = (pts) => { for (let k = 0; k + 1 < pts.length; k++) { const [x0, y0] = pts[k], [x1, y1] = pts[k + 1]; const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) / 2)); for (let i = 1; i <= n; i++) { const q = depth(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, b.w, b.h, own); if (q.d > TOL + 6) return q; } } return null; };
             const q1 = walk([[pv.x, pv.y], [b.x, b.y]]);
@@ -145,7 +145,7 @@ async function runStage(lvl) {
       const m = pls[Math.floor(rnd() * pls.length)];
       const foes = ENEMS.filter((e) => e && e.alive !== false && !e.mind);
       const e = foes[Math.floor(rnd() * foes.length)];
-      if (e) { e.x = m.x + m.w / 2 - (e.w || 30) / 2; e.y = m.y - (e.h || 30) - 1; e.vx = e.vy = 0; e.og = true; e._plat = m; e._platOff = e.x - m.x; rep.riders = (rep.riders || 0) + 1; }
+      if (e) { e.x = m.x + m.w / 2 - (e.w || 30) / 2; e.y = m.y - (e.h || 30) - 1; e.vx = e.vy = 0; e.og = true; e._plat = m; e._platOff = e.x - m.x; prev.delete(e); rep.riders = (rep.riders || 0) + 1; }
       try { const c = Math.floor((m.x + m.w / 2) / T), r = Math.floor(m.y / T) - 2; if (!solidAt(c, r) && !solidAt(c, r - 1)) { const mk = B.placeEntity('Box', c, r, { kind: 'xlr' }); const bw = mk && mk.bwalls && mk.bwalls[0]; if (bw) { if (typeof _wakeBwall === 'function') _wakeBwall(bw); bw._fly = true; bw.vx = 0; bw.vy = 0; } } } catch (e2) {}
     };
     // water-pushed cubes: blocks dropped into the pools and left to the water's push (stages without a pool skip this)
