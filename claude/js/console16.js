@@ -103,6 +103,7 @@
     mosaic:1, fade:0, fadeStep:0, // set by transitions (beta stage travel)
     MODES, LABELS
   };
+  api._crushPaths={cpu:crushCPU, gl:crushGL};   // probe-perf-audio.mjs checks the GPU crush against the CPU one
   window.MV_CONSOLE=api;
   try{ if(mode==='gore'||mode==='ink'){ if(window.MV_LIFT&&MV_LIFT.setFilterVibe) MV_LIFT.setFilterVibe(mode); } }catch(e){}  // T547: boot with the picked filter on the scale
   function syncHue(){
@@ -197,7 +198,51 @@
   const CRUSH=[null,{f:7,lv:4,tear:1,dark:0.88,rate:0.52},{f:5,lv:5,tear:0.75,dark:0.62,rate:0.64},{f:4,lv:7,tear:0.45,dark:0.4,rate:0.76},{f:3,lv:10,tear:0.2,dark:0.2,rate:0.88},{dark:0,rate:1}];
   const DITH=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5].map(v=>v/16-0.47);   // ordered dither so dark shades survive the crush
   const JOLT_FR=28; let jolt=0, lastHp=null;          // a hit: a short burst of full crush, tear and a red flash
-  let crushC=null;
+  let crushC=null, crushK=null;
+  function crushCPU(src,lv){
+    const w=src.width, h=src.height;
+    if(!crushK||crushK.width!==w||crushK.height!==h){ crushK=mk(w,h); crushK.g=crushK.getContext('2d',{willReadFrequently:true}); }
+    const g=crushK.g; g.clearRect(0,0,w,h); g.drawImage(src,0,0);
+    const img=g.getImageData(0,0,w,h), d=img.data, q=255/(lv-1);
+    for(let y=0,i=0;y<h;y++) for(let x=0;x<w;x++,i+=4){ const t=DITH[(y&3)*4+(x&3)];
+      d[i]=Math.min(255,Math.round(d[i]/q+t)*q); d[i+1]=Math.min(255,Math.round(d[i+1]/q+t)*q); d[i+2]=Math.min(255,Math.round(d[i+2]/q+t)*q); }
+    g.putImageData(img,0,0);
+    return crushK;
+  }
+  let GLc=null, GL=null, GLp=null, GLu=null, GLt=null, GLfail=/[?&]crush=cpu/.test(location.search);
+  function crushGL(src,lv){
+    if(GLfail) return null;
+    try{
+      if(!GL){
+        GLc=mk(src.width,src.height);
+        GL=GLc.getContext('webgl',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false});
+        if(!GL){ GLfail=true; return null; }
+        const sh=(t,src)=>{ const o=GL.createShader(t); GL.shaderSource(o,src); GL.compileShader(o); if(!GL.getShaderParameter(o,GL.COMPILE_STATUS)) throw new Error(GL.getShaderInfoLog(o)); return o; };
+        GLp=GL.createProgram();
+        GL.attachShader(GLp,sh(GL.VERTEX_SHADER,'attribute vec2 a;varying vec2 v;void main(){v=a*0.5+0.5;gl_Position=vec4(a,0.,1.);}'));
+        GL.attachShader(GLp,sh(GL.FRAGMENT_SHADER,
+          'precision mediump float;varying vec2 v;uniform sampler2D s;uniform float q;uniform vec2 n;'+
+          'float d(vec2 p){p=mod(floor(p),4.);float i=p.y*4.+p.x;'+                       // the same 4x4 table as DITH, row-major
+          'float t=i<1.?0.:i<2.?8.:i<3.?2.:i<4.?10.:i<5.?12.:i<6.?4.:i<7.?14.:i<8.?6.:i<9.?3.:i<10.?11.:i<11.?1.:i<12.?9.:i<13.?15.:i<14.?7.:i<15.?13.:5.;return t/16.-0.47;}'+
+          'void main(){vec2 px=vec2(gl_FragCoord.x,n.y-gl_FragCoord.y);vec4 c=texture2D(s,v);float t=d(px);'+
+          'vec3 o=min(vec3(255.),floor(c.rgb*255./q+t+0.5)*q)/255.;gl_FragColor=vec4(o,c.a);}'));
+        GL.linkProgram(GLp); if(!GL.getProgramParameter(GLp,GL.LINK_STATUS)) throw new Error('link');
+        GL.useProgram(GLp);
+        const b=GL.createBuffer(); GL.bindBuffer(GL.ARRAY_BUFFER,b); GL.bufferData(GL.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),GL.STATIC_DRAW);
+        const a=GL.getAttribLocation(GLp,'a'); GL.enableVertexAttribArray(a); GL.vertexAttribPointer(a,2,GL.FLOAT,false,0,0);
+        GLt=GL.createTexture(); GL.bindTexture(GL.TEXTURE_2D,GLt);
+        for(const [k,v] of [[GL.TEXTURE_MIN_FILTER,GL.NEAREST],[GL.TEXTURE_MAG_FILTER,GL.NEAREST],[GL.TEXTURE_WRAP_S,GL.CLAMP_TO_EDGE],[GL.TEXTURE_WRAP_T,GL.CLAMP_TO_EDGE]]) GL.texParameteri(GL.TEXTURE_2D,k,v);
+        GL.pixelStorei(GL.UNPACK_FLIP_Y_WEBGL,true);
+        GLu={q:GL.getUniformLocation(GLp,'q'), n:GL.getUniformLocation(GLp,'n')};
+      }
+      if(GLc.width!==src.width||GLc.height!==src.height){ GLc.width=src.width; GLc.height=src.height; }
+      GL.viewport(0,0,GLc.width,GLc.height);
+      GL.texImage2D(GL.TEXTURE_2D,0,GL.RGBA,GL.RGBA,GL.UNSIGNED_BYTE,src);   // canvas -> texture stays on the GPU
+      GL.uniform1f(GLu.q,255/(lv-1)); GL.uniform2f(GLu.n,GLc.width,GLc.height);
+      GL.drawArrays(GL.TRIANGLE_STRIP,0,4);
+      return GLc;
+    }catch(e){ GLfail=true; console.warn('MV crush: WebGL path off',e); return null; }
+  }
   function hpPhase(){
     if(typeof _gameState==='undefined'||_gameState!=='game'||typeof p==='undefined'||!p) return 5;
     if(typeof _shutdownTimer!=='undefined'&&_shutdownTimer>0) return 1;
@@ -249,14 +294,15 @@
     let ph=hpPhase(); if(jolt>0) ph=Math.max(1,ph-2);   // a hit crushes two phases deeper for a moment
     if(ph>=5) return;
     const c=CRUSH[ph], w=Math.max(16,Math.round(W/c.f)), h=Math.max(12,Math.round(H/c.f));
-    if(!crushC||crushC.width!==w||crushC.height!==h){ crushC=mk(w,h); crushC.g=crushC.getContext('2d',{willReadFrequently:true}); }
+    if(!crushC||crushC.width!==w||crushC.height!==h){ crushC=mk(w,h); crushC.g=crushC.getContext('2d'); }
     const g=crushC.g; g.imageSmoothingEnabled=true; g.clearRect(0,0,w,h); g.drawImage(cv,0,0,w,h);
-    const img=g.getImageData(0,0,w,h), d=img.data, q=255/(c.lv-1);
-    for(let y=0,i=0;y<h;y++) for(let x=0;x<w;x++,i+=4){ const t=DITH[(y&3)*4+(x&3)];
-      d[i]=Math.min(255,Math.round(d[i]/q+t)*q); d[i+1]=Math.min(255,Math.round(d[i+1]/q+t)*q); d[i+2]=Math.min(255,Math.round(d[i+2]/q+t)*q); }
-    g.putImageData(img,0,0);
+    // Paulo, Nov 28 (build 473): "highest framerate as possible". The crush used to read the frame back
+    // from the GPU (getImageData) every frame while he is hurt: ~25% of the frame in 1.3, the frame rate
+    // fell exactly when he got hit. The same quantize + ordered dither now runs as a tiny WebGL pass on
+    // the GPU (crushGL); the CPU loop stays as the fallback where WebGL is missing.
+    const out=crushGL(crushC,c.lv)||crushCPU(crushC,c.lv);
     ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='copy'; ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(crushC,0,0,W,H);
+    ctx.drawImage(out,0,0,W,H);
     if(c.tear&&(jolt>0||Math.random()<c.tear*0.5)){                  // a torn signal: a few rows slip sideways
       ctx.globalCompositeOperation='source-over';
       for(let k=0;k<1+(c.tear*3|0);k++){ const y=Math.random()*H|0, hh=4+Math.random()*24|0, dx=(Math.random()-0.5)*40*c.tear|0; ctx.drawImage(cv,0,y,W,hh,dx,y,W,hh); }

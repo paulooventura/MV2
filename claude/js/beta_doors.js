@@ -418,7 +418,14 @@
   function treeLife(){
     const tree=(B.decor||[]).find(d=>d.kind==='tree'); if(!tree) return;
     const tx=tree.x+T/2, ty=tree.y, pulse=0.5+0.5*Math.sin(fr*0.05);
-    if(typeof inView==='function'&&false) return;
+    // (build 473, perf) only while the tree's glow can be on screen: its roots, motes and flowers reach ~12 tiles
+    // out and ~15 up, and were painted every frame from anywhere in 1.1
+    try{
+      const Z=(typeof sw==='function'?sw(1000)/1000:1)||1;
+      const vx=(typeof _rcamX!=='undefined'&&_rcamX!=null)?_rcamX:camX, vy=(typeof _rcamY!=='undefined'&&_rcamY!=null)?_rcamY:camY;
+      const vw=typeof camViewW==='function'?camViewW():W/Z, vh=typeof camViewH==='function'?camViewH():H/Z;
+      if(tx+13*T<vx||tx-13*T>vx+vw||ty+3*T<vy||ty-16*T>vy+vh) return;
+    }catch(e){}
     ctx.save(); ctx.globalCompositeOperation='lighter';
     // roots of light running out from the trunk along the floor and up the walls
     for(let i=0;i<9;i++){

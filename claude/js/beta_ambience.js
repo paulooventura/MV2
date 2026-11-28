@@ -68,13 +68,16 @@
     grHP.connect(grG); grG.connect(a.destination); loopNoise(a,grHP);
     return {out,rev,wBP,wG,amb,hG,hLP,dG,lG,lLP,whBP,whG,grG};
   }
+  // Paulo, Nov 28 (build 473): one-shot sounds start a hair ahead of "now" on the audio clock, so a slow frame
+  // never lands them in the past (a note started late loses its attack: a click, a clipped chirp).
+  const LEAD=0.03;
   const set=(param,v,tc)=>{ try{ param.setTargetAtTime(v,A.currentTime,tc||0.25); }catch(e){} };
 
   // one-shots
   function env(g,t,peak,att,dec){ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak),t+att); g.gain.exponentialRampToValueAtTime(0.0001,t+att+dec); }
   function at(x,y,g){ return window.MV_SPATIAL?MV_SPATIAL.chainAt(A,x,y,{dest:N.out,gain:g||1}):null; }
   function cricket(pan,x,y){
-    const t=A.currentTime, carrier=4200+Math.random()*700, pulses=2+((Math.random()*3)|0);
+    const t=A.currentTime+LEAD, carrier=4200+Math.random()*700, pulses=2+((Math.random()*3)|0);
     const o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner(); o.type='sine'; o.frequency.value=carrier; p.pan.value=pan;
     g.gain.value=0.0001; const d0=x!=null?at(x,y,1.6):N.out; if(!d0) return; o.connect(g); g.connect(p); p.connect(d0);
     for(let i=0;i<pulses;i++){ const s=t+i*0.055; g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.05,s+0.008); g.gain.exponentialRampToValueAtTime(0.0001,s+0.04); }
@@ -84,7 +87,7 @@
   // so it pans and dims behind walls with everything else.
   function bird(x,y){
     const d0=x!=null?at(x,y,1.3):N.out; if(!d0) return;
-    const t=A.currentTime, f0=1750+Math.random()*950, n=2+((Math.random()*3)|0), pan=(Math.random()*2-1)*0.7;
+    const t=A.currentTime+LEAD, f0=1750+Math.random()*950, n=2+((Math.random()*3)|0), pan=(Math.random()*2-1)*0.7;
     for(let i=0;i<n;i++){
       const s=t+i*(0.075+Math.random()*0.05), o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner();
       o.type='sine'; o.frequency.setValueAtTime(f0,s);
@@ -95,12 +98,12 @@
     }
   }
   function owl(){
-    const t=A.currentTime, L=window.MV_SPATIAL?MV_SPATIAL.listener():null, d0=L?at(L.x+(Math.random()<0.5?-1:1)*22*32,L.y-8*32,2.2):N.out; if(!d0) return;
+    const t=A.currentTime+LEAD, L=window.MV_SPATIAL?MV_SPATIAL.listener():null, d0=L?at(L.x+(Math.random()<0.5?-1:1)*22*32,L.y-8*32,2.2):N.out; if(!d0) return;
     [[0,0.32],[0.5,0.18],[0.72,0.5]].forEach(([dt,d])=>{ const o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(410,t+dt); o.frequency.linearRampToValueAtTime(370,t+dt+d); env(g,t+dt,0.05,0.06,d); o.connect(g); g.connect(d0); o.start(t+dt); o.stop(t+dt+d+0.1); });
   }
   function frog(pan,x,y){
     const d0=x!=null?at(x,y,1.5):N.out; if(!d0) return;
-    const t=A.currentTime, f=140+Math.random()*60, n=2+((Math.random()*2)|0);
+    const t=A.currentTime+LEAD, f=140+Math.random()*60, n=2+((Math.random()*2)|0);
     for(let i=0;i<n;i++){ const s=t+i*0.16, o=A.createOscillator(), g=A.createGain(), bp=A.createBiquadFilter(), p=A.createStereoPanner();
       o.type='sawtooth'; o.frequency.setValueAtTime(f,s); o.frequency.exponentialRampToValueAtTime(f*1.5,s+0.09);
       bp.type='bandpass'; bp.frequency.value=f*4; bp.Q.value=5; p.pan.value=pan; env(g,s,0.07,0.01,0.11);
@@ -108,14 +111,14 @@
   }
   function drip(pan,amt,x,y){
     const d0=x!=null?at(x,y,1.8):N.out; if(!d0) return;
-    const t=A.currentTime, f=900+Math.random()*1300, o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner();
+    const t=A.currentTime+LEAD, f=900+Math.random()*1300, o=A.createOscillator(), g=A.createGain(), p=A.createStereoPanner();
     o.type='sine'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*2.3,t+0.05); p.pan.value=pan;
     env(g,t,0.09*amt,0.003,0.08); o.connect(g); g.connect(p); p.connect(d0); p.connect(N.rev); o.start(t); o.stop(t+0.12);
   }
   // Paulo, Nov 13: "add ... sfx to the levels so that the world looks more alive" — far-off life, quiet and
   // filtered: a dog in the town (1.1 / 1.2), a car horn down in the city (1.3), wind chimes on a porch
   function townCall(id){
-    const t=A.currentTime, out=A.createGain(), lp=A.createBiquadFilter(), p=A.createStereoPanner();
+    const t=A.currentTime+LEAD, out=A.createGain(), lp=A.createBiquadFilter(), p=A.createStereoPanner();
     lp.type='lowpass'; lp.frequency.value=1400; p.pan.value=(Math.random()*2-1)*0.8; out.gain.value=1; out.connect(lp); lp.connect(p); p.connect(N.out); p.connect(N.rev);
     const r=Math.random();
     if(r<0.45&&id!=='1.3'){                                         // a dog, two or three barks
@@ -133,7 +136,7 @@
     }
   }
   function thud(k){
-    const t=A.currentTime, o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(95,t); o.frequency.exponentialRampToValueAtTime(40,t+0.18);
+    const t=A.currentTime+LEAD, o=A.createOscillator(), g=A.createGain(); o.type='sine'; o.frequency.setValueAtTime(95,t); o.frequency.exponentialRampToValueAtTime(40,t+0.18);
     env(g,t,0.32*k*sv(),0.004,0.2); o.connect(g); g.connect(A.destination); o.start(t); o.stop(t+0.25);
     const n=A.createBufferSource(); n.buffer=noise(A); const lp=A.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; const ng=A.createGain();
     env(ng,t,0.12*k*sv(),0.003,0.14); n.connect(lp); lp.connect(ng); ng.connect(A.destination); n.start(t,Math.random()); n.stop(t+0.2);
@@ -205,7 +208,7 @@
   }
   function crackle(x,y,amt){
     const d0=at(x,y,amt); if(!d0) return;
-    const t=A.currentTime, n=1+((Math.random()*3)|0);
+    const t=A.currentTime+LEAD, n=1+((Math.random()*3)|0);
     for(let i=0;i<n;i++){ const s=t+i*(0.02+Math.random()*0.05), src=A.createBufferSource(); src.buffer=noise(A);
       const hp=A.createBiquadFilter(); hp.type='bandpass'; hp.frequency.value=1800+Math.random()*3500; hp.Q.value=2.5;
       const g=A.createGain(); env(g,s,0.09+Math.random()*0.08,0.001,0.02+Math.random()*0.03);
@@ -216,7 +219,7 @@
   function yellows(){ return (typeof BWALLS!=='undefined'?BWALLS:[]).filter(b=>b&&b.only==='laser'&&b.hp>0&&!b._destroyFr); }
   function spark(x,y,amt){
     const d0=at(x,y,amt); if(!d0) return;
-    const t=A.currentTime, src=A.createBufferSource(); src.buffer=noise(A);
+    const t=A.currentTime+LEAD, src=A.createBufferSource(); src.buffer=noise(A);
     const hp=A.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3000;
     const g=A.createGain(); env(g,t,0.12,0.001,0.05); src.connect(hp); hp.connect(g); g.connect(d0); src.start(t,Math.random()); src.stop(t+0.08);
     const o=A.createOscillator(), og=A.createGain(); o.type='square'; o.frequency.setValueAtTime(900+Math.random()*900,t); env(og,t,0.025,0.001,0.04); o.connect(og); og.connect(d0); o.start(t); o.stop(t+0.06);

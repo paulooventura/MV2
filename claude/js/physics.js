@@ -429,10 +429,14 @@ function _syncGameCamera(){
 function _platActsAsCeiling(plat, pl){
   if(!plat||!pl) return false;
   if(plat.tp!=='solid'&&plat.tp!=='ceil') return false;
-  const body=playerCoreHB(pl);
   const feet=pl.y+FEET_OFF;
   const ceilB=plat.y+plat.h;
   if(ceilB>=feet-6) return false;
+  // (build 473, perf) the core box's x and width don't depend on the pose: reject on them before the art
+  // geometry is worked out. This ran for every platform of the stage, ~6000 times a frame in co-op.
+  const bx=pl.x+SW/2-BODY_W/2;
+  if(Math.min(bx+BODY_W,plat.x+plat.w)-Math.max(bx,plat.x)<=0) return false;
+  const body=playerCoreHB(pl);
   const overlapX=Math.min(body.x+body.w,plat.x+plat.w)-Math.max(body.x,plat.x);
   if(overlapX<=0) return false;
   const overlapY=Math.min(body.y+body.h,plat.y+plat.h)-Math.max(body.y,plat.y);
@@ -2413,22 +2417,22 @@ function _stabilizePlayerCollision(pl){
 }
 
 // ── Segment / AABB intersection ───────────────────────────────
+// (build 473, perf) same edges, same order, same answer — without four edge objects per call, and a
+// segment whose box can't touch the rectangle is turned away first (rope / arm rays test every platform).
+const _SEG_EDGES=[[0,0,0,1,-1,0],[1,0,1,1,1,0],[0,0,1,0,0,-1],[0,1,1,1,0,1]];   // x1,y1,x2,y2 in units of w/h, nx, ny
 function _segAabbHit(x1,y1,x2,y2,pl){
   const rx=pl.x,ry=pl.y,rw=pl.w,rh=pl.h;
-  const edges=[
-    {x1:rx,y1:ry,x2:rx,y2:ry+rh,nx:-1,ny:0},{x1:rx+rw,y1:ry,x2:rx+rw,y2:ry+rh,nx:1,ny:0},
-    {x1:rx,y1:ry,x2:rx+rw,y2:ry,nx:0,ny:-1},{x1:rx,y1:ry+rh,x2:rx+rw,y2:ry+rh,nx:0,ny:1}
-  ];
+  if(Math.max(x1,x2)<Math.min(rx,rx+rw)||Math.min(x1,x2)>Math.max(rx,rx+rw)||Math.max(y1,y2)<Math.min(ry,ry+rh)||Math.min(y1,y2)>Math.max(ry,ry+rh)) return null;
   const ex=x2-x1,ey=y2-y1;
-  let best=null,bestT=1;
-  for(const e of edges){
-    const fx=e.x2-e.x1,fy=e.y2-e.y1,dn=ex*fy-ey*fx;
+  let bi=-1,bestT=1;
+  for(let k=0;k<4;k++){
+    const E=_SEG_EDGES[k], e1x=E[0]?rx+rw:rx, e1y=E[1]?ry+rh:ry, fx=(E[2]?rx+rw:rx)-e1x, fy=(E[3]?ry+rh:ry)-e1y, dn=ex*fy-ey*fx;
     if(Math.abs(dn)<.001) continue;
-    const t=((e.x1-x1)*fy-(e.y1-y1)*fx)/dn;
-    const u=((e.x1-x1)*ey-(e.y1-y1)*ex)/dn;
-    if(t>=0&&t<=1&&u>=0&&u<=1&&t<bestT){bestT=t;best={tx:x1+t*ex,ty:y1+t*ey,nx:e.nx,ny:e.ny};}
+    const t=((e1x-x1)*fy-(e1y-y1)*fx)/dn;
+    const u=((e1x-x1)*ey-(e1y-y1)*ex)/dn;
+    if(t>=0&&t<=1&&u>=0&&u<=1&&t<bestT){bestT=t;bi=k;}
   }
-  return best;
+  return bi<0?null:{tx:x1+bestT*ex,ty:y1+bestT*ey,nx:_SEG_EDGES[bi][4],ny:_SEG_EDGES[bi][5]};
 }
 function segHit(x1,y1,x2,y2,pl){ const hit=_segAabbHit(x1,y1,x2,y2,pl); return hit?{tx:hit.tx,ty:hit.ty}:null; }
 function _segBarrierHit(x1,y1,x2,y2,seg){

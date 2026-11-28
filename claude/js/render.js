@@ -3124,7 +3124,8 @@ function drawFX(){
   // is. drawWorldPass() already computes p._armPose / p2._armPose, and the caller
   // sets `p` (and `ITEM`) to the right player; the helpers read only that state.
   _fxItemStreams();
-  if(!_coopFXGuard&&window.MV_NET&&MV_NET.drawExtras){ try{ MV_NET.drawExtras(); }catch(e){} }
+  // (build 473, perf) MV_NET.drawExtras() is called by main.js right after drawFX() (both world passes),
+  // over the heroes. Calling it here too drew the remote's shots, water, bubble and nameplates twice a frame.
   // â”€â”€ LASER SHOTS â€” fast plasma bolts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _allShots=(p2&&p2.shots)?p.shots.concat(p2.shots):p.shots;
   const _laserList=_allShots.concat((typeof ESHOTS!=='undefined'?ESHOTS:[]).filter(s=>s&&s.type==='laser'));
