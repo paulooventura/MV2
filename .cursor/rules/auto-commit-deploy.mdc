@@ -22,11 +22,8 @@ selftest, and takes it live (GitHub Pages + itch) only if dev has new commits.
 2. `git status` and `git diff` — stage only files related to the task, by explicit path
 3. Write a concise commit message (1–2 sentences, focus on why)
 4. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
-5. Tell Paulo: commit hash, and "it's in the Test lab now" (quest screen → The Office → Test lab).
-   It goes live at `https://mindandventure.pauloventura.org/` after the next Daily Ship.
-
-Urgent live fix only when Paulo says "ship now" / "push live now":
-`powershell -File C:\Users\PVProductions\HOMEBASE\scripts\daily-ship.ps1 -Only MV2`
+5. Tell Paulo the commit hash.
+6. Ship it in the same turn. He should not have to ask for the live site to match the build he is testing (Paulo, 2026-11-27). Run `powershell -File C:\Users\PVProductions\HOMEBASE\scripts\daily-ship.ps1 -Only MV2`, then read `https://mindandventure.pauloventura.org/build.txt`. Say that number only after it matches. If the Pages run failed, start a fresh deploy (`gh workflow run`), not a rerun of the same run.
 
 ## Remote
 

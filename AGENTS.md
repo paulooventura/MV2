@@ -123,7 +123,7 @@ After completing substantive work in this repo, **commit and push to `dev` witho
 4. `git commit` → `git pull --rebase --autostash origin dev` → `git push origin dev`
 5. Tell Paulo: commit hash, and "it's in the Test lab now" (quest screen → The Office → Test lab)
 
-**Going live:** Homebase Daily Ship (05:00, `HOMEBASE\scripts\daily-ship.ps1`) merges dev into `main`, runs the selftest, and pushes `main` (GitHub Pages, `https://mindandventure.pauloventura.org/`) and itch, only if dev has new commits. Urgent fix when Paulo says "ship now": `daily-ship.ps1 -Only MV2`.
+**Going live:** after a player-facing change is on `dev`, run `HOMEBASE\scripts\daily-ship.ps1 -Only MV2` in the same turn and confirm `https://mindandventure.pauloventura.org/build.txt` before saying where to play. Paulo should not have to ask for the live site to catch up (2026-11-27). The hourly ship is the backstop. Do not push `main` by hand.
 
 **Do not commit:** `.vs/`, IDE layout files, secrets, unrelated C# Unity experiments unless requested.
 

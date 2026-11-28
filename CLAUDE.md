@@ -14,7 +14,7 @@ You are in Paulo Ventura’s **Mind & Venture** repo. Before changing code:
 - QA = `npm run selftest` (or `selftest:quick`) for the shared engine (runs on `awdjoo-classic.html`), plus `npm run selftest:flow` for the live menus (splashes, title, pause, shut-down, journeys, game over, hints, full-window layout). Do not ask for F12 pastes.
 - Do **not** open Simple Browser / extra play tabs on `:8765` (BGM stacks).
 - Venture’s hat is **black like Mind’s**, back brim only (laid-down P) — not red.
-- After substantive game work: commit and push `dev` (the Test lab shows `dev`). Never push `main`; the hourly Homebase Ship takes `dev` live.
+- After substantive game work: commit and push `dev`, then run the Daily Ship in the same turn and confirm the live `build.txt`. Never push `main` by hand. Paulo should not have to ask for the public site to match the build he is testing.
 
 ## First files to open for a typical ask
 
