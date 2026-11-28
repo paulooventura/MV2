@@ -15,7 +15,7 @@
   var WASHI=P.washi||'#EFE6D2', AGED=P.washi_aged||'#E6CFAB', SUMI=P.sumi||'#1C1A19';
   var GOLD=P.gold||'#C9A24A', MICA=P.mica||'#B9B3A8', USU=P.usuzumi||'#8C8580';
   var NIGHT=P.violet_black||'#1E1B27', SEAL=P.vermilion||'#D9472B', MURA=P.murasaki||'#5B2A8C';
-  var panel=null, el={}, view='menu', onDone=null, chip=null;
+  var panel=null, el={}, view='menu', onDone=null, chip=null, chipHtml='';
   var draft={name:'', color:'prussian', hat:'gaucho'};
 
   function css(){
@@ -25,8 +25,9 @@
     s.textContent=
       '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:'+WASHI+';'+
         'background:radial-gradient(ellipse at 50% 20%,'+MURA+'55 0%, '+NIGHT+' 42%, '+SUMI+' 100%);'+
-        'font:18px/1.35 "MV Pixel",ui-monospace,Consolas,monospace;align-items:center;justify-content:center;padding:16px;}'+
-      '#mvNetPanel .box{width:min(680px,94vw);max-height:92vh;overflow:auto;text-align:center;position:relative;'+
+        'font:18px/1.35 "MV Pixel",ui-monospace,Menlo,monospace;-webkit-text-size-adjust:100%;text-size-adjust:100%;'+
+        'align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));}'+
+      '#mvNetPanel .box{width:min(680px,94vw);max-height:100%;max-height:calc(100dvh - 24px);overflow:auto;text-align:center;position:relative;'+
         'background:linear-gradient(165deg,'+AGED+' 0%, '+WASHI+' 38%, '+AGED+' 100%);color:'+SUMI+';'+
         'border:3px solid '+GOLD+';border-radius:0;'+
         'box-shadow:6px 8px 0 rgba(0,0,0,.45), inset 0 0 0 1px '+SUMI+', inset 0 0 0 4px '+AGED+';'+
@@ -48,7 +49,7 @@
       '#mvNetPanel canvas#mvNetQr{position:static!important;display:inline-block;width:148px!important;height:148px!important;max-width:40vw;max-height:40vw;'+
         'background:'+WASHI+';border:3px solid '+GOLD+';border-radius:0;padding:6px;margin-top:8px;'+
         'box-shadow:3px 3px 0 '+SUMI+';image-rendering:pixelated;transform:none!important;}'+
-      '#mvNetCode{font:clamp(36px,9vw,64px) "MV Pixel",ui-monospace,Consolas,monospace;width:5.4em;text-align:center;letter-spacing:.28em;'+
+      '#mvNetCode{font:clamp(28px,8vw,64px) "MV Pixel",ui-monospace,Menlo,monospace;width:min(100%,7.2em);max-width:100%;box-sizing:border-box;text-align:center;letter-spacing:.18em;'+
         'padding:4px 0 4px .28em;text-transform:uppercase;background:'+SUMI+';color:'+GOLD+';border:3px solid '+GOLD+';border-radius:0;}'+
       '#mvNetStatus{margin:14px auto 0;max-width:540px;padding:10px 12px;border:2px solid '+GOLD+';'+
         'border-left:6px solid '+GOLD+';background:rgba(28,26,25,.06);color:'+SUMI+';font-size:16px;text-align:left;}'+
@@ -65,19 +66,29 @@
       '#mvNetPanel .idbox{margin:12px auto 0;max-width:480px;padding:12px;border:2px solid '+SUMI+';'+
         'background:linear-gradient(180deg,'+WASHI+', '+AGED+');text-align:left;box-shadow:3px 3px 0 rgba(28,26,25,.2);}'+
       '#mvNetPanel .idbox label{display:block;font-size:14px;color:'+USU+';margin:8px 0 4px;}'+
-      '#mvNetNick{width:100%;box-sizing:border-box;font:18px "MV Pixel",ui-monospace,Consolas,monospace;'+
+      '#mvNetNick{width:100%;box-sizing:border-box;font:18px "MV Pixel",ui-monospace,Menlo,monospace;'+
         'padding:8px 10px;background:'+WASHI+';color:'+SUMI+';border:2px solid '+SUMI+';}'+
       '#mvNetColors,#mvNetHats{display:flex;flex-wrap:wrap;gap:8px;}'+
       '#mvNetColors button,#mvNetHats button{min-width:0;min-height:40px;padding:6px 10px;}'+
       '#mvNetColors button .dot{display:inline-block;width:14px;height:18px;margin-right:6px;'+
         'border:2px solid '+SUMI+';border-radius:2px 2px 8px 8px;vertical-align:middle;transform:rotate(-8deg);}'+
       '#mvNetChip{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:10px;z-index:9000;display:none;'+
-        'font:16px "MV Pixel",ui-monospace,Consolas,monospace;color:'+SUMI+';background:'+AGED+';border:2px solid '+GOLD+';'+
+        'font:16px "MV Pixel",ui-monospace,Menlo,monospace;color:'+SUMI+';background:'+AGED+';border:2px solid '+GOLD+';'+
         'border-radius:0;padding:4px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;'+
         'box-shadow:3px 3px 0 '+SUMI+';}'+
       '#mvNetChip .mic{display:inline-block;width:8px;height:8px;border-radius:0;background:'+USU+';margin-left:6px;vertical-align:middle;}'+
       '#mvNetChip .mic.live{background:'+GOLD+';}'+
-      '#mvNetChip .mic.hear{background:'+MURA+';}';
+      '#mvNetChip .mic.hear{background:'+MURA+';}'+
+      '@media (max-height:520px){'+
+        '#mvNetPanel{font-size:15px;}'+
+        '#mvNetPanel .box{padding:12px 12px 8px;}'+
+        '#mvNetPanel .box:before{margin:-12px -12px 8px;}'+
+        '#mvNetPanel h2{font-size:20px;letter-spacing:.08em;}'+
+        '#mvNetPanel .sub{font-size:13px;margin-bottom:6px;}'+
+        '#mvNetPanel .code{font-size:32px;letter-spacing:.12em;}'+
+        '#mvNetPanel button.big{min-height:44px;font-size:16px;}'+
+        '#mvNetPanel canvas#mvNetQr{width:88px!important;height:88px!important;}'+
+      '}';
     document.head.appendChild(s);
   }
 
@@ -324,20 +335,23 @@
     if(!chip) buildChip();
     var s=NET.status(), live=false;
     try{ live=s.linked&&_gameState==='game'; }catch(e){}
-    chip.style.display=live?'block':'none';
+    // DOM writes only when something changed (was: innerHTML every 200 ms in play = layout churn)
+    var disp=live?'block':'none'; if(chip.style.display!==disp) chip.style.display=disp;
     if(!live) return;
     var v=VOICE(), m=v?v.mode():'off', vs=v?v.state():{};
     var vt=m==='off'?'VOICE OFF':(m==='open'?(vs.muted?'MIC MUTED':'OPEN MIC'):(vs.ptt?'TALKING':'HOLD T'));
     var tag=s.phase==='timeline'?'TOGETHER':(s.phase==='entering'?'ENTERING':'IN THE ROOM');
     var n=s.peers||'?';
-    chip.innerHTML=tag+' '+(s.code||'')+' · '+n+'/'+(s.maxPeers||5)+(s.ping?' · '+s.ping+'ms':'')+' · '+vt+'<span class="mic" id="mvNetMicDot"></span>';
+    var pingB=s.ping?(s.ping<80?'<80':(Math.round(s.ping/20)*20)):0;   // ping shown to 20 ms: fewer rewrites
+    var html=tag+' '+(s.code||'')+' · '+n+'/'+(s.maxPeers||5)+(pingB?' · '+pingB+'ms':'')+' · '+vt+'<span class="mic" id="mvNetMicDot"></span>';
+    if(html!==chipHtml){ chipHtml=html; chip.innerHTML=html; }
   }
   setInterval(function(){
     renderChip();
     var dot=document.getElementById('mvNetMicDot'), v=VOICE();
     if(dot&&v){
       var me=v.talking()&&v.level()>0.02, them=v.mode()!=='off'&&v.remoteLevel()*v.gain()>0.01;
-      dot.className='mic'+(me?' live':(them?' hear':''));
+      var cn='mic'+(me?' live':(them?' hear':'')); if(dot.className!==cn) dot.className=cn;
     }
   },200);
 

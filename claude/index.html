@@ -24,7 +24,7 @@
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
 <script src="js/mv_palette.js?v=444"></script>
-<script>window.MV_BUILD='455';
+<script>window.MV_BUILD='456';
 /* T425 + T602: Unfiltered boot; Ink and Vinyl / Gore locked until secret code or +/-33. */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
@@ -62,8 +62,9 @@ if(location.protocol==='file:'){
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/story/title-key-art.png">
 <style>
+@font-face{font-family:"MV Pixel";src:url("assets/fonts/vt323.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap;}
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{min-height:100%;overscroll-behavior:none;}
+html,body{min-height:100%;overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
 body{background:#1E1B27;color:#B9B3A8;display:flex;flex-direction:column;align-items:center;
   padding:8px;font-family:ui-monospace,Consolas,monospace;gap:6px;}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;
@@ -97,21 +98,20 @@ button{background:#1C1A19;color:#EFE6D2;border:1px solid #8C8580;padding:8px 14p
 #battleHud .bh-hp{color:#fff;text-shadow:0 1px 4px #000;}
 #battleHud .bh-rival{margin-top:12px;text-align:center;font-size:clamp(28px,6vw,44px);font-weight:800;color:#fc8;text-shadow:0 2px 6px #000;}
 #gameWrap{position:relative;display:inline-block;max-width:100%;}
-/* Full-viewport shell; #gameWrap is letterboxed by core.js to the design aspect
-   so scenes/characters never get cropped off the player's screen. */
+/* Full-viewport shell. core.js sizes #gameWrap to the device so the
+   picture fills the screen and stays in proportion. */
 html.mv-fit,html.mv-fit body{
   width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
   margin:0;padding:0;gap:0;
 }
 html.mv-fit body{position:fixed;inset:0;background:#1E1B27;}
 html.mv-fit #gameWrap{
-  /* Sized/positioned by core.js _fitPhoneFrame to the largest 4:3 box that fits. */
-  position:fixed;z-index:1;max-width:none;
+  position:fixed;inset:0;z-index:1;max-width:none;width:100%;height:100%;
   display:block;background:#1E1B27;
 }
 html.mv-fit canvas{
   position:absolute;inset:0;width:100%;height:100%;
-  max-width:none;max-height:none;border:none;object-fit:contain;
+  max-width:none;max-height:none;border:none;object-fit:fill;
 }
 /* Delivered game (Oct 2026): no debug readouts; SNES-style controls strip; the
    on-screen pad only on touch screens. */
@@ -319,7 +319,7 @@ window.onerror=function(msg,src,line,col,err){
 };
 </script>
 <script src="js/save.js?v=444"></script>
-<script src="js/core.js?v=444"></script>
+<script src="js/core.js?v=456"></script>
 <script src="js/sfx-replacements.js?v=444"></script>
 <script src="js/audio.js?v=444"></script>
 <script src="js/sound16.js?v=444"></script>
@@ -340,7 +340,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/mv2_identity.js?v=447"></script>
 <script src="js/mv2_net.js?v=447"></script>
 <script src="js/mv2_voice.js?v=447"></script>
-<script src="js/mv2_net_ui.js?v=447"></script>
+<script src="js/mv2_net_ui.js?v=456"></script>
 <script src="js/mv2_save_share.js?v=444"></script>
 <script src="js/mv2_brother_ask.js?v=444"></script>
   <script src="js/render.js?v=454"></script>

@@ -11,10 +11,9 @@ if (!cv || typeof cv.getContext !== 'function') {
 }
 const ctx = cv.getContext('2d');
 if (!ctx) throw new Error('Could not create 2d canvas context');
-// Design buffer is 1024×768. We scale that playfield to fit the player's
-// current viewport (letterbox / pillarbox) so scenes and characters never
-// get cropped — ultrawide, laptop chrome, phone, DPR changes all keep the
-// full frame visible. Selftest/CI keep a fixed 1024×768 for stable probes.
+// Design height is 768. The picture fills the device: width follows the
+// screen so a phone has no side bars and nothing is stretched. Selftest/CI
+// keep a fixed 1024×768 for stable probes.
 let W = 1024, H = 768;
 const MV_DESIGN_W=1024, MV_DESIGN_H=768;
 function _fitAvailRect(){
@@ -23,17 +22,7 @@ function _fitAvailRect(){
   let iw=Math.max(1,(vv&&vv.width)||window.innerWidth||MV_DESIGN_W);
   let ih=Math.max(1,(vv&&vv.height)||window.innerHeight||MV_DESIGN_H);
   if(vv){ left=vv.offsetLeft||0; top=vv.offsetTop||0; }
-  // Safe-area (notch / home indicator) stays outside the playfield.
-  let st=0, sr=0, sb=0, sl=0;
-  try{
-    const probe=document.getElementById('mvSafeProbe')||(()=>{ const d=document.createElement('div'); d.id='mvSafeProbe';
-      d.style.cssText='position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
-      document.body.appendChild(d); return d; })();
-    const ps=getComputedStyle(probe);
-    st=parseFloat(ps.paddingTop)||0; sr=parseFloat(ps.paddingRight)||0;
-    sb=parseFloat(ps.paddingBottom)||0; sl=parseFloat(ps.paddingLeft)||0;
-  }catch(e){}
-  left+=sl; top+=st; iw=Math.max(1,iw-sl-sr); ih=Math.max(1,ih-st-sb);
+  // The picture goes edge to edge. Menus keep their own notch inset (ui.js).
   return {left,top,iw,ih};
 }
 function _fitPhoneFrame(){
@@ -43,27 +32,24 @@ function _fitPhoneFrame(){
   const avail=_fitAvailRect();
   let nw=MV_DESIGN_W, nh=MV_DESIGN_H;
   if(!locked){
-    // Keep the designed aspect. Cap the buffer for GPU cost; CSS contain
-    // still shows every pixel of the playfield inside the available rect.
+    // Height stays near the design size so sprites and jumps keep their
+    // scale. Width follows the device, so the buffer matches the screen
+    // and the CSS box can fill it without stretching.
     const dpr=Math.min(2,window.devicePixelRatio||1);
-    const maxW=Math.min(2048,Math.round(avail.iw*dpr));
+    const aspect=avail.iw/Math.max(1,avail.ih);
     const maxH=Math.min(1536,Math.round(avail.ih*dpr));
-    const scale=Math.min(maxW/MV_DESIGN_W, maxH/MV_DESIGN_H);
-    const s=Math.max(0.5, scale);
-    nw=Math.max(640, Math.round(MV_DESIGN_W*s));
+    const s=Math.max(0.5, Math.min(maxH/MV_DESIGN_H, 2));
     nh=Math.max(480, Math.round(MV_DESIGN_H*s));
-    // Snap to exact design ratio after rounding.
-    if(nw/nh>MV_DESIGN_W/MV_DESIGN_H) nw=Math.round(nh*(MV_DESIGN_W/MV_DESIGN_H));
-    else nh=Math.round(nw*(MV_DESIGN_H/MV_DESIGN_W));
+    nw=Math.round(nh*aspect);
+    nw=Math.max(320, Math.min(2560, nw));
+    nh=Math.max(320, Math.round(nw/aspect));
   }
   const wrap=document.getElementById('gameWrap');
   if(wrap){
-    // Largest CSS box of design aspect that fits the available viewport.
-    const fit=Math.min(avail.iw/MV_DESIGN_W, avail.ih/MV_DESIGN_H);
-    const cssW=Math.max(1,Math.floor(MV_DESIGN_W*fit));
-    const cssH=Math.max(1,Math.floor(MV_DESIGN_H*fit));
-    const ox=avail.left+Math.floor((avail.iw-cssW)/2);
-    const oy=avail.top+Math.floor((avail.ih-cssH)/2);
+    const cssW=locked?Math.max(1,Math.floor(MV_DESIGN_W*Math.min(avail.iw/MV_DESIGN_W, avail.ih/MV_DESIGN_H))):Math.max(1,Math.floor(avail.iw));
+    const cssH=locked?Math.max(1,Math.floor(MV_DESIGN_H*Math.min(avail.iw/MV_DESIGN_W, avail.ih/MV_DESIGN_H))):Math.max(1,Math.floor(avail.ih));
+    const ox=locked?avail.left+Math.floor((avail.iw-cssW)/2):avail.left;
+    const oy=locked?avail.top+Math.floor((avail.ih-cssH)/2):avail.top;
     wrap.style.left=ox+'px'; wrap.style.top=oy+'px';
     wrap.style.width=cssW+'px'; wrap.style.height=cssH+'px';
     wrap.style.right='auto'; wrap.style.bottom='auto';
@@ -194,9 +180,19 @@ const UI_FACES=[['MV Pixel','assets/fonts/vt323.woff2',{weight:'400'}]];
 let _uiFontReady=false;
 (function _loadUiFont(){
   try{
+    // Phones (WebKit) will not paint a canvas face, and will substitute a
+    // different font in the online panel, unless the face is in the document.
+    const boot=document.createElement('span');
+    boot.id='mvFontBoot'; boot.textContent='MIND & VENTURE';
+    boot.setAttribute('aria-hidden','true');
+    boot.style.cssText='position:absolute;left:-9999px;top:0;font:20px "MV Pixel",ui-monospace,Menlo,monospace;visibility:hidden;';
+    (document.body||document.documentElement).appendChild(boot);
+    const mark=()=>{ _uiFontReady=true; _uiTwCache.clear(); try{ _uiSpr.clear(); }catch(e){} try{ boot.offsetWidth; }catch(e){} };
     if(typeof FontFace==='undefined'||!document.fonts) return;
-    Promise.all(UI_FACES.map(([fam,url,d])=>new FontFace(fam,'url('+url+') format("woff2")',d).load().then(f=>document.fonts.add(f))))
-      .then(()=>{ _uiFontReady=true; _uiTwCache.clear(); }).catch(()=>{});
+    const url=new URL(UI_FACES[0][1], document.baseURI).href;
+    new FontFace('MV Pixel','url("'+url+'") format("woff2")',{weight:'400',display:'swap'}).load()
+      .then(f=>{ document.fonts.add(f); return document.fonts.load('20px "MV Pixel"'); })
+      .then(mark).catch(()=>{});
   }catch(e){}
 })();
 const _uiTwCache=new Map();
