@@ -93,19 +93,39 @@
   B.fluidTotal=()=>F.ready?{water:total(), start:F.total0, lost:F.lost, vapor:F.vapor, drops:(B.drops||[]).reduce((a,d)=>a+d.m,0), mag:(B.magWater?B.magWater.area:0)/(F.CS*F.CS), core:B.magCore?B.magCore.mass:0}:null;
 
   // terrain → BLK (1). Slopes: a cell is solid where its centre is under the ramp.
+  // (build 476, perf) The terrain layer only changes where the tile grid changes, and gridSet() is the only
+  // thing that changes it. It is kept in F.BASE and rebuilt for the tiles gridSet touched (all of it when
+  // the stage's grid or the lift's cut changes); each tick just copies it back over last tick's body marks.
+  // Same BLK as rebuilding every cell every tick (B._waterSelfCheck compares the two).
+  const _gDirty=[]; let _gAll=true;
+  (function(){ const gs=window.gridSet; if(typeof gs!=='function'||gs._mvWater) return;
+    const w=function(c,r){ if(_gDirty.length<4096) _gDirty.push(c,r); else _gAll=true; return gs.apply(this,arguments); };
+    w._mvWater=true; window.gridSet=w; })();
+  function terrainCell(c,r,cut,out){
+    const NX=F.NX, CS=F.CS;
+    const solid=gridSolid(c,r)||!!(cut&&cut(c,r)), sk=solid?null:gridSlopeKind(c,r);
+    for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){
+      const x=c*2+dx, y=r*2+dy; let v=solid?1:0;
+      if(sk){ const wy=y*CS+CS/2, s=gridSlopeY(c,r,x*CS+CS/2); if(s!=null&&wy>s) v=1; }
+      out[y*NX+x]=v;
+    }
+  }
+  function terrainFull(out,cut){ const rows=MV_GRID.rows, cols=MV_GRID.cols; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) terrainCell(c,r,cut,out); }
   function terrain(){
-    const NX=F.NX, CS=F.CS, BLK=F.BLK, rows=MV_GRID.rows, cols=MV_GRID.cols;
+    const BLK=F.BLK, rows=MV_GRID.rows, cols=MV_GRID.cols;
     const L=window.MV_LIFT, cut=L&&L.isCut&&L.cut&&L.cut.size&&B.stageId==='1.3'?L.isCut:null;   // the elevator cut is rock to water
     if(!F.slopes){ F.slopes=[]; for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(!gridSolid(c,r)&&gridSlopeKind(c,r)){   // T452: the ramps, and which way is down
       const yl=gridSlopeY(c,r,c*MV_GRID.tile+1), yr=gridSlopeY(c,r,(c+1)*MV_GRID.tile-1); if(yl!=null&&yr!=null&&yl!==yr) F.slopes.push(c,r,yr>yl?1:-1); } }
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      const solid=gridSolid(c,r)||!!(cut&&cut(c,r)), sk=solid?null:gridSlopeKind(c,r);
-      for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){
-        const x=c*2+dx, y=r*2+dy; let v=solid?1:0;
-        if(sk){ const wy=y*CS+CS/2, s=gridSlopeY(c,r,x*CS+CS/2); if(s!=null&&wy>s) v=1; }
-        BLK[y*NX+x]=v;
-      }
+    const cutKey=cut?L.cut.size:0;
+    if(_gAll||!F.BASE||F.BASE.length!==BLK.length||F._gData!==MV_GRID.data||F._gSlope!==MV_GRID.slope||F._cutKey!==cutKey||F._cutFn!==cut){
+      if(!F.BASE||F.BASE.length!==BLK.length) F.BASE=new Uint8Array(BLK.length);
+      terrainFull(F.BASE,cut);
+      F._gData=MV_GRID.data; F._gSlope=MV_GRID.slope; F._cutKey=cutKey; F._cutFn=cut; _gAll=false;
+    }else{
+      for(let k=0;k<_gDirty.length;k+=2){ const c=_gDirty[k], r=_gDirty[k+1]; if(c>=0&&r>=0&&c<cols&&r<rows) terrainCell(c,r,cut,F.BASE); }
     }
+    _gDirty.length=0;
+    BLK.set(F.BASE);
   }
   // bodies take up the cells whose centres they cover
   function markRect(x,y,w,h,v){
@@ -171,13 +191,18 @@
   // one step: fall, spread, push up. Bodies (BLK 2) don't dam the water —
   // in a side view it flows past them; displace() then pushes out what's
   // inside them, so the level still rises around whatever is in the water.
+  // (build 476, perf) a step reads and writes only rows y0-1 .. y1+1 (fall writes one row down, the push-up one
+  // row up), so only those rows are copied between M and N2: same numbers, a fraction of the copying when
+  // the water sits in part of the stage. F.fullCopy (B._waterSelfCheck) copies the whole arrays, as before.
   function step(fall){
     const {NX,NY,M,N2,FX,BLK}=F, b=F.bb;
     if(b.x1<b.x0) return;
     const x0=Math.max(0,b.x0-1), x1=Math.min(NX-1,b.x1+1), y0=Math.max(0,b.y0-1), y1=Math.min(NY-1,b.y1+1);
+    const c0=F.fullCopy?0:Math.max(0,y0-1)*NX, c1=F.fullCopy?M.length:Math.min(NY,y1+2)*NX;
+    const copyIn=()=>N2.set(c0===0&&c1===M.length?M:M.subarray(c0,c1),c0), copyOut=()=>M.set(c0===0&&c1===M.length?N2:N2.subarray(c0,c1),c0);
     // 1) fall into the cell below (as much as fits) — every other step, so it
     //    falls about two cells a frame while it spreads four
-    N2.set(M);
+    copyIn();
     if(fall){
     for(let y=y0;y<=y1;y++){ const row=y*NX;
       for(let x=x0;x<=x1;x++){ const i=row+x, m=M[i]; if(m<=MINM||(BLK[i]&1)) continue;
@@ -186,7 +211,7 @@
         let f=stable(m+M[j])-M[j]; if(f>m) f=m; if(f<=0) continue;
         N2[i]-=f; N2[j]+=f; if(M[j]<0.7) F.FL[j]=F.FL[j]*0.8+f;   // only water dropping through air counts as falling
       } }
-    M.set(N2); }
+    copyOut(); }
     // 2) spread sideways over whatever holds it up. The push is the pressure:
     //    the water in the cell plus all the water standing on it, so a deep
     //    side drives the water at the bottom toward the shallow side and the
@@ -208,7 +233,7 @@
         else if(f<0){ if(mc<FILM||!(floor&&((BLK[c+NX]&1)||(BLK[c+NX]===2&&bodyUnder(c+NX))||M[c+NX]>=SUP))) f=0; else if(-f>mc*0.45) f=-mc*0.45; }
         FX[a]=f; N2[a]-=f; N2[c]+=f;
       } }
-    M.set(N2);
+    copyOut();
     // 3) squeezed water pushes up into the cell above
     for(let y=Math.max(1,y0);y<=y1;y++){ const row=y*NX;
       for(let x=x0;x<=x1;x++){ const i=row+x, m=M[i]; if(m<=1||(BLK[i]&1)) continue;
@@ -216,9 +241,37 @@
         let f=m-stable(m+M[u]); if(f<=0) continue; if(f>0.5) f=0.5;
         N2[i]-=f; N2[u]+=f;
       } }
-    M.set(N2);
+    copyOut();
     bbox();
   }
+  // Probe check: the cached terrain and the row-limited step give exactly the old numbers on the live state.
+  B._waterSelfCheck=function(n){
+    if(!F.ready) return null;
+    n=n||8;
+    const L=window.MV_LIFT, cut=L&&L.isCut&&L.cut&&L.cut.size&&B.stageId==='1.3'?L.isCut:null;
+    terrain(); const ref=new Uint8Array(F.BLK.length); terrainFull(ref,cut);
+    let blkDiff=0; for(let i=0;i<ref.length;i++) if(ref[i]!==F.BLK[i]) blkDiff++;
+    occupy();
+    const keys=['M','N2','FX','PR','RL','FL'], snap=()=>({arr:keys.map(k=>F[k].slice()), bb:Object.assign({},F.bb), lost:F.lost}),
+      put=(S)=>{ keys.forEach((k,i)=>F[k].set(S.arr[i])); Object.assign(F.bb,S.bb); F.lost=S.lost; };
+    const S0=snap();
+    F.fullCopy=true; for(let s=0;s<n;s++) step(!(s&1)); F.fullCopy=false; const A=snap();
+    put(S0); for(let s=0;s<n;s++) step(!(s&1)); const Bs=snap();
+    let mDiff=0; for(let k=0;k<keys.length;k++){ const a=A.arr[k], b=Bs.arr[k]; if(keys[k]==='N2') continue; for(let i=0;i<a.length;i++) if(a[i]!==b[i]&&!(a[i]!==a[i]&&b[i]!==b[i])) mDiff++; }
+    put(A);                                                     // leave the world as the old code would have
+    // timing, old vs new, interleaved on this same state (a busy machine slows both alike)
+    let tOld=0, tNew=0, rOld=0, rNew=0; const ROUNDS=20, now=()=>performance.now(), refBlk=new Uint8Array(F.BLK.length);
+    for(let k=0;k<ROUNDS;k++){
+      const S1=snap();
+      let t=now(); F.fullCopy=true; for(let s=0;s<SUB;s++) step(!(s&1)); F.fullCopy=false; tOld+=now()-t; put(S1);
+      t=now(); for(let s=0;s<SUB;s++) step(!(s&1)); tNew+=now()-t; put(S1);
+      t=now(); terrainFull(refBlk,cut); F.BLK.set(refBlk); rOld+=now()-t;
+      t=now(); terrain(); rNew+=now()-t;
+    }
+    put(A); terrain(); occupy();
+    return {blkDiff, mDiff, lostSame:A.lost===Bs.lost, bbSame:JSON.stringify(A.bb)===JSON.stringify(Bs.bb), cells:F.M.length, rows:[F.bb.y0,F.bb.y1],
+      msPerFrame:{stepOld:+(tOld/ROUNDS).toFixed(3), stepNew:+(tNew/ROUNDS).toFixed(3), terrainOld:+(rOld/ROUNDS).toFixed(3), terrainNew:+(rNew/ROUNDS).toFixed(3)}};
+  };
 
   // ── Water queries ──────────────────────────────────────────────
   const cX=x=>Math.floor(x/F.CS), cY=y=>Math.floor(y/F.CS);
