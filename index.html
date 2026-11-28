@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-ab="a">
 <head>
 <base href="claude/">
@@ -9,23 +9,23 @@
 <meta name="apple-mobile-web-app-title" content="Mind & Venture">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1E1B27">
-<meta name="description" content="Mind & Venture Ã¢â‚¬â€ a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
+<meta name="description" content="Mind & Venture â€” a 2D platformer by Paulo Ventura. Play in your browser: wheel, lightbulb, cable arms, and audio-powered items.">
 <link rel="canonical" href="https://paulooventura.github.io/MV2/">
 <meta property="og:title" content="Mind & Venture">
-<meta property="og:description" content="Play Mind & Venture in your browser Ã¢â‚¬â€ a sentient studio monitor on a wheel, exploring Awdjoo Town.">
+<meta property="og:description" content="Play Mind & Venture in your browser â€” a sentient studio monitor on a wheel, exploring Awdjoo Town.">
 <meta property="og:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
 <meta property="og:url" content="https://paulooventura.github.io/MV2/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mind & Venture">
-<meta name="twitter:description" content="Play in your browser Ã¢â‚¬â€ platformer by Paulo Ventura.">
+<meta name="twitter:description" content="Play in your browser â€” platformer by Paulo Ventura.">
 <meta name="twitter:image" content="https://paulooventura.github.io/MV2/assets/story/title-key-art.png">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Mind &amp; Venture</title>
 <script src="js/mv_palette.js?v=444"></script>
-<script>window.MV_BUILD='479';
+<script>window.MV_BUILD='480';
 /* T425 + T602: Unfiltered boot; Ink and Vinyl / Gore locked until secret code or +/-33. */
 try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setItem('mv2.console','off'); }catch(e){}</script>
 <script>
@@ -35,7 +35,7 @@ try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setIte
   function reloadForBuild(b){
     b=String(b||'').trim();
     if(!b||b===here) return;
-    // Never bounce backward (stale SW) — that was killing ONLINE joins mid-handshake.
+    // Never bounce backward (stale SW) � that was killing ONLINE joins mid-handshake.
     if(!(Number(b)>Number(here||0))) return;
     try{
       var u=new URL(location.href);
@@ -56,7 +56,7 @@ try{ if(!/[?&](console|selftest|ci)=/.test(location.search)) localStorage.setIte
 if(location.protocol==='file:'){
   document.addEventListener('DOMContentLoaded',function(){
     var v=document.getElementById('mvVer');
-    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// Ã¢â‚¬â€ close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
+    if(v){v.style.color='#f66';v.textContent='WRONG: opened as file:// â€” close this tab and run PLAY.bat (uses http://127.0.0.1:8765)';}
   });
 }
 </script>
@@ -126,7 +126,7 @@ html.mv-fit canvas{
 #touchHud{display:none!important;}
 /* Xbox face buttons on the phone pad: Y top (yellow), X left (blue), B right (red), A bottom (green) */
 
-/* Phone landscape play Ã¢â‚¬â€ full viewport canvas, overlay pads, portrait rotate */
+/* Phone landscape play â€” full viewport canvas, overlay pads, portrait rotate */
 html.phone-play,html.phone-play body{
   width:100%;height:100%;height:100dvh;max-height:100dvh;overflow:hidden;
   padding:0;gap:0;touch-action:none;-webkit-user-select:none;user-select:none;
@@ -265,7 +265,7 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
 </style>
 </head>
 <body>
-<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture Ã‚Â· Awdjoo Ã‚Â· build 138</div>
+<div id="mvVer" style="font-size:16px;color:#c8a0e8;font-weight:bold;font-family:ui-monospace,Consolas,monospace;margin:4px 0">Mind &amp; Venture Â· Awdjoo Â· build 138</div>
 <div id="battleHud">
   <div class="bh-title">BATTLE PRACTICE</div>
   <div class="bh-row">
@@ -306,12 +306,12 @@ html.phone-play.port #rotateHint .rh-sub{font:14px/1.4 ui-monospace,Consolas,mon
   </div>
 </div>
 <div id="helpLine" class="mv-controls" aria-label="Controls">
-  <span><kbd>Ã¢â€ ÂÃ¢â€ â€™Ã¢â€ â€˜Ã¢â€ â€œ</kbd>/<kbd>WASD</kbd> move Ã‚Â· aim</span>
+  <span><kbd>â†â†’â†‘â†“</kbd>/<kbd>WASD</kbd> move Â· aim</span>
   <span><i class="pa">A</i><kbd>Space</kbd> jump</span>
   <span><i class="pb">B</i><kbd>E</kbd> item select</span>
-  <span><i class="px">X</i><kbd>Q</kbd> run Ã‚Â· use item</span>
+  <span><i class="px">X</i><kbd>Q</kbd> run Â· use item</span>
   <span><i class="py">Y</i><kbd>F</kbd> punch</span>
-  <span><kbd>S</kbd> duck</span><span><kbd>Esc</kbd> / Ã¢ËœÂ° Menu button: pause (resume Ã‚Â· options Ã‚Â· exit)</span><span><kbd>Tab</kbd> restart stage</span>
+  <span><kbd>S</kbd> duck</span><span><kbd>Esc</kbd> / â˜° Menu button: pause (resume Â· options Â· exit)</span><span><kbd>Tab</kbd> restart stage</span>
 </div>
 <div id="rotateHint">
   <div class="rh-glyph" aria-hidden="true"></div>
@@ -355,7 +355,7 @@ window.onerror=function(msg,src,line,col,err){
 <script src="js/mv2_net.js?v=478"></script>
 <script src="js/mv2_voice.js?v=478"></script>
 <script src="js/mv2_net_ui.js?v=471"></script>
-<script src="js/mv2_net_debug.js?v=479"></script>
+<script src="js/mv2_net_debug.js?v=480"></script>
 <script src="js/mv2_save_share.js?v=444"></script>
 <script src="js/mv2_brother_ask.js?v=444"></script>
   <script src="js/render.js?v=473"></script>

@@ -1,8 +1,8 @@
-﻿/* Mind & Venture â€” never keep an old page.
+/* Mind & Venture — never keep an old page.
    HTML and JS always come from the network. When this file changes, open
    tabs reload onto the new build. The page registers this against its own
    URL, not the <base> tag (that used to request /claude/sw.js, which 404s). */
-const BUILD = '479';
+const BUILD = '480';
 
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 
