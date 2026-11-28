@@ -16,7 +16,7 @@
   var GOLD=P.gold||'#C9A24A', MICA=P.mica||'#B9B3A8', USU=P.usuzumi||'#8C8580';
   var NIGHT=P.violet_black||'#1E1B27', SEAL=P.vermilion||'#D9472B', MURA=P.murasaki||'#5B2A8C';
   var panel=null, el={}, view='menu', onDone=null, chip=null, chipHtml='';
-  var draft={name:'', color:'prussian', hat:'gaucho'};
+  var draft={name:'', color:'', hat:'gaucho'};
 
   function css(){
     if(document.getElementById('mvNetCss')) return;
@@ -93,9 +93,9 @@
   }
 
   function loadDraft(){
-    var loc=ID?ID.loadLocal():{name:'',color:'prussian',hat:'gaucho'};
+    var loc=ID?ID.loadLocal():{name:'',color:'',hat:'gaucho'};
     draft.name=loc.name||'';
-    draft.color=loc.color||'prussian';
+    draft.color=loc.color||'';
     draft.hat=loc.hat||'gaucho';
   }
 
@@ -107,7 +107,7 @@
     panel.innerHTML=
       '<div class="box">'+
         '<h2>ONLINE</h2>'+
-        '<p class="sub">Up to 5 riders on one room. Seats 1–2 are Mind &amp; Venture. Seats 3–5 pick a crayon colour, a session name and a hat. No account — nicknames stay on this device for this session. Same Wi‑Fi is the surest path; the 4-letter code always works as a fallback.</p>'+
+        '<p class="sub">Up to 5 riders on one room. Seats 1–2 are Mind and Venture. Everyone else picks a colour, a session name and a hat, and the sprite wears that colour. No account — nicknames stay on this device for this session. Same Wi‑Fi is the surest path; the 4-letter code always works as a fallback.</p>'+
 
         '<div id="mvNetMenu">'+
           '<div class="row">'+
@@ -240,7 +240,7 @@
     if(!list.length){ into.innerHTML='<div class="tiny">Waiting…</div>'; return; }
     into.innerHTML=list.map(function(r){
       var seat=(r.seat|0)+1;
-      var kind=seat<=2?(seat===1?'MIND':'VENTURE'):'CRAYON';
+      var kind=seat<=2?(seat===1?'MIND':'VENTURE'):(ID?ID.crayonById(r.col||r.color).name:'RIDER');
       var col=ID?ID.crayonById(r.col||r.color).hex:(GOLD||'#C9A24A');
       var nm=r.nm||r.name||('SEAT '+seat);
       var hat=r.hat||'—';

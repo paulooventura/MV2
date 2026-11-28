@@ -596,8 +596,8 @@ function _drawMindWideHat(cx,drawY,R,hatTX,hatTY){
   const ty=_hatBrimTY(R,hatTY);
   const hatBrimY=drawY-R+3+ty, dir=window._hatDirOverride||_hatDir();
   const pl=typeof p!=='undefined'?p:null;
-  const crayon=pl&&pl._netColor;
-  const cols=(crayon&&window.MV_IDENTITY&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
+  const crayon=pl&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(pl)&&pl._netColor;
+  const cols=(crayon&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
   ctx.save(); _hatXform(cx+tx,hatBrimY,dir<0?-1:1);
   drawLogoHat(cx+tx,hatBrimY,80,dir,Object.assign({crownH:15}, cols||{}));   // the key art's wide flat brim; crayon resonates when set
   ctx.restore();
@@ -611,8 +611,8 @@ function _drawVentureCap(cx,drawY,R,hatTX,hatTY){
   // crayon identity soft-tints the crown (online seats 3–5).
   const dir=window._hatDirOverride||_hatDir(), X=u=>cx+tx+dir*u, by=hatBrimY+1;
   const pl=typeof p!=='undefined'?p:null;
-  const crayon=pl&&pl._netColor;
-  const cols=(crayon&&window.MV_IDENTITY&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
+  const crayon=pl&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(pl)&&pl._netColor;
+  const cols=(crayon&&MV_IDENTITY.hatColors)?MV_IDENTITY.hatColors(crayon):null;
   const crown0=cols?cols.col:'#000', crown1=cols?cols.inner:'#1a1a1e', crown2=cols?cols.hi:'#2a2a30';
   ctx.save(); _hatXform(cx+tx,by,dir<0?-1:1);
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(cx+tx-15,by+1,30,2.5);
@@ -1273,7 +1273,8 @@ function drawGloveArm(sxp,syp,facing,shWX,shWY,hidden){
       // Breakable walls
       if(!p._hitDone&&!_hit) for(const bw of BWALLS){
         if(bw.hp<=0)continue;
-        if(_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h){
+        const _bwOld=_wx+_wr>bw.x&&_wx-_wr<bw.x+bw.w&&_wy+_wr>bw.y&&_wy-_wr<bw.y+bw.h;
+        if(window.MV_SHAPES?MV_SHAPES.objCircle(MV_SHAPES.bwKey(bw),MV_SHAPES.bwRect(bw),_wx,_wy,_wr,_bwOld,bw.rot):_bwOld){   // hitshapes.js: an edited block shape
           // Paulo (Oct 21): no punching through a wall into the block behind it
           if(!_punchReach(shWX,shWY,_wx,_wy,bw)) continue;
           p._hitDone=true;_hit=true;_hitKind='block';
@@ -1633,6 +1634,12 @@ function groovePose(gc,groove,gore,mode,ink){
   return _poseOut;
 }
 function drawCharacter(){
+  if(p&&!p._recoloring&&window.MV_IDENTITY&&MV_IDENTITY.spriteTakesColor&&MV_IDENTITY.spriteTakesColor(p)){
+    p._recoloring=1;
+    try{ MV_IDENTITY.recolorDraw(p, drawCharacter); }
+    finally{ p._recoloring=0; }
+    return;
+  }
   if(window.MV_SHAPES) MV_SHAPES.base();   // hit shapes: undo the world zoom, keep the rope tilt / lean / groove
   // Co-op: BOTH players are drawn in BOTH viewports. The old _splitHide filter
   // hid the other player per half, so each screen only showed its own character.
@@ -1871,10 +1878,6 @@ function drawCharacter(){
   // 5. CONNECTOR ARM — in front of body (it rides the disc to the side facing the rope)
   drawConnArm();
   ctx.restore();
-  // Online crayon wash for the local rider (seats 3–5 / identity tint).
-  if(p&&p._netColor&&window.MV_IDENTITY&&MV_IDENTITY.tintActorAabb){
-    try{ MV_IDENTITY.tintActorAabb(p, 12); }catch(e){}
-  }
 }
 function drawCharacterFor(pl){
   const oldP=p;
@@ -1890,10 +1893,6 @@ function drawCharacterFor(pl){
   if(useP2Item||useOwnItem) ITEM=pl.item;
   try{
     drawCharacter();
-    // Online crayon wash over the just-drawn hero + held jack (T639).
-    if(pl&&pl._netColor&&window.MV_IDENTITY&&MV_IDENTITY.tintActorAabb){
-      try{ MV_IDENTITY.tintActorAabb(pl, 12); }catch(e){}
-    }
   }finally{p=oldP;ITEM=oldItem;}
 }
 
@@ -3072,8 +3071,10 @@ function drawItemTutorial(){
 
 function _clampSegFrom(shX,shY,tx,ty){
   let minT=1;
+  const x0=Math.min(shX,tx), x1=Math.max(shX,tx), y0=Math.min(shY,ty), y1=Math.max(shY,ty);
   for(const pl of allP()){
     if(pl.tp!=='solid'&&pl.tp!=='ceil')continue;
+    if(pl.x>x1||pl.x+pl.w<x0||pl.y>y1||pl.y+pl.h<y0) continue;   // (build 454, perf) can't touch the arm: skip the segment test
     const hit=segHit(shX,shY,tx,ty,pl);
     if(!hit)continue;
     const segLen=Math.hypot(tx-shX,ty-shY)||1;
@@ -3392,7 +3393,7 @@ let _coopFXGuard=false;
 function _coopDrawP2FX(){
   if(_coopFXGuard) return;
   if(typeof p2==='undefined'||!p2||p2===p||p2._aiCompanion) return;
-  if(typeof _playerCount!=='undefined'&&_playerCount!==2&&!p2._netPuppet) return;
+  if(typeof _playerCount!=='undefined'&&_playerCount!==2&&!p2._netPuppet&&!p2._aiBro) return;
   _coopFXGuard=true;
   const oldP=p, oldItem=ITEM;
   const oldShots=p2.shots, oldES=(typeof ESHOTS!=='undefined'?ESHOTS:null), oldTF=(typeof TRS_FLAMES!=='undefined'?TRS_FLAMES:null);

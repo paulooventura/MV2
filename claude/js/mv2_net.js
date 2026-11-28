@@ -32,7 +32,7 @@
   var PREFIX=CFG.prefix||'mv2-room-';
   var ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
   var CODE_LEN=4;
-  var SEND_MS=50, ENEMY_MS=80, RENDER_DELAY_MS=90, BUF_MAX=24, PING_MS=2000;
+  var SEND_MS=50, ENEMY_MS=80, RENDER_DELAY_MS=90, EXTRAP_MS=120, BUF_MAX=24, PING_MS=2000;
   var CONNECT_TIMEOUT_MS=20000, OWN_SWAP_PX=160;
   var PUBLIC_URL='https://mindandventure.pauloventura.org/';
   // PeerJS cloud defaults — always attach so a blank CFG.iceServers cannot strip TURN.
@@ -48,6 +48,9 @@
   var statusCbs=[], pktCbs={};
   var mySeat=0, myIdPack=null, roster={};
   var remotes={}; // seat -> {buf, latest, hello, peerId}
+  // sorted seat list, rebuilt only when a seat comes or goes (was: Object.keys+sort several times a frame)
+  var seatsVer=0, seatsAt=-1, seatsArr=[], activeSeats={};
+  function seatKeys(){ if(seatsAt!==seatsVer){ seatsArr=Object.keys(remotes).map(Number).sort(function(a,b){ return a-b; }); seatsAt=seatsVer; } return seatsArr; }
   var lastSend=0, lastEnemy=0, lastPing=0;
   var myEpoch=0, lastStage=null, followUntil=0, followEpoch=-1, base=0, baseStage=null;
   var own='', remEn={};
@@ -101,15 +104,30 @@
     return b+'?join='+(code||st.code);
   }
 
+  // Perf (Paulo, Nov 27: "frame rate as high as possible, especially online"): the local
+  // identity was re-read from localStorage every frame (tick) and every send. Cache it;
+  // setIdentity() clears the cache. idVer bumps only when the packed identity changes.
+  var locCache=null, idVer=0, idSig='', idpSentVer=-1, idpSentAt=0;
   function localIdentity(){
-    var loc=ID?ID.loadLocal():{name:'',color:'prussian',hat:'gaucho'};
+    var loc=locCache||(locCache=ID?ID.loadLocal():{name:'',color:'',hat:'gaucho'});
     var hero=heroName();
+    var col=loc.color||(mySeat>=2?'blue':(hero==='venture'?'red':'purple'));
     if(mySeat<=1){
-      return {name:loc.name||(ID?ID.defaultName(mySeat):hero.toUpperCase()), color:loc.color, hat:mySeat===1?'cap':'gaucho', hero:hero};
+      return {name:loc.name||(ID?ID.defaultName(mySeat):hero.toUpperCase()), color:col, hat:mySeat===1?'cap':'gaucho', hero:hero};
     }
-    return {name:loc.name||(ID?ID.defaultName(mySeat):'RIDER'), color:loc.color, hat:loc.hat||'gaucho', hero:hero};
+    return {name:loc.name||(ID?ID.defaultName(mySeat):'RIDER'), color:col, hat:loc.hat||'gaucho', hero:hero};
   }
-  function refreshMyPack(){ myIdPack=ID?ID.packId(localIdentity()):{nm:'',col:'prussian',hat:'gaucho',hero:heroName()}; }
+  function refreshMyPack(){
+    var pk=ID?ID.packId(localIdentity()):{nm:'',col:'prussian',hat:'gaucho',hero:heroName()};
+    var sig=mySeat+'|'+pk.nm+'|'+pk.col+'|'+pk.hat+'|'+pk.hero;
+    if(sig!==idSig||!myIdPack){ idSig=sig; myIdPack=pk; idVer++; }
+  }
+  // apply my identity to my hero only when it changed (was: every frame)
+  function applyMine(pl){
+    if(!ID||!pl||pl._netPuppet) return;
+    if(pl._netIdVer===idVer&&pl._netIdFor===idSig) return;
+    ID.applyToActor(pl, localIdentity()); pl._netIdVer=idVer; pl._netIdFor=idSig;
+  }
   function rosterSnapshot(){
     var out=[];
     Object.keys(roster).forEach(function(k){ out.push(roster[k]); });
@@ -131,12 +149,12 @@
 
   function remBucket(seat){
     seat=seat|0;
-    if(remotes[-1]) delete remotes[-1];
-    if(!remotes[seat]) remotes[seat]={buf:[], latest:null, hello:null, peerId:null};
+    if(remotes[-1]){ delete remotes[-1]; seatsVer++; }
+    if(!remotes[seat]){ remotes[seat]={buf:[], latest:null, hello:null, peerId:null}; seatsVer++; }
     return remotes[seat];
   }
   function primaryLatest(){
-    var seats=Object.keys(remotes).map(Number).sort(function(a,b){ return a-b; });
+    var seats=seatKeys();
     for(var i=0;i<seats.length;i++){
       var L=remotes[seats[i]]&&remotes[seats[i]].latest;
       if(L) return L;
@@ -144,7 +162,7 @@
     return null;
   }
   function primaryHello(){
-    var seats=Object.keys(remotes).map(Number).sort(function(a,b){ return a-b; });
+    var seats=seatKeys();
     for(var i=0;i<seats.length;i++){
       var h=remotes[seats[i]]&&remotes[seats[i]].hello;
       if(h) return h;
@@ -153,7 +171,7 @@
   }
 
   function resetGame(){
-    remotes={}; remShots=[]; remShotAt=0; own=''; remEn={}; base=0; baseStage=null;
+    remotes={}; seatsVer++; remShots=[]; remShotAt=0; own=''; remEn={}; base=0; baseStage=null;
     myEpoch=0; lastStage=null; followUntil=0; followEpoch=-1;
     toldTimeline=false; lastPhase='offline'; extras=[];
   }
@@ -195,7 +213,7 @@
     var leftSeat=c&&c._mvSeat;
     if(leftSeat!=null){
       delete roster[String(leftSeat)];
-      delete remotes[leftSeat];
+      delete remotes[leftSeat]; seatsVer++;
     }
     try{ if(c) c.close(); }catch(e){}
   }
@@ -276,7 +294,7 @@
       var leftSeat=c._mvSeat;
       if(leftSeat!=null){
         delete roster[String(leftSeat)];
-        delete remotes[leftSeat];
+        delete remotes[leftSeat]; seatsVer++;
       }
       var wasLinked=st.linked;
       // Host keeps the room open with zero guests; linked only when a friend is actually in.
@@ -441,8 +459,9 @@
           var b=remBucket(seat);
           b.buf.push(pk); if(b.buf.length>BUF_MAX) b.buf.shift();
           b.latest=pk;
-          if(pk.idp||pk.nm||pk.col||pk.hat){
-            var idp=ID?ID.unpackId(pk.idp||pk):null;
+          var q=pk.idp||pk, cur=roster[String(seat)];
+          if((pk.idp||pk.nm||pk.col||pk.hat)&&(!cur||cur.nm!==q.nm||cur.col!==q.col||cur.hat!==q.hat||(q.hero&&cur.hero!==q.hero))){
+            var idp=ID?ID.unpackId(q):null;
             if(idp) upsertRoster(seat, Object.assign({}, roster[String(seat)]||{}, {seat:seat}, ID.packId(idp)));
           }
           if(st.role==='host') relay(fromConn, pk);
@@ -527,7 +546,7 @@
     ctx.restore();
     // nameplates for local + remotes
     try{
-      if(typeof p!=='undefined'&&p&&ID){ if(!p._netName&&myIdPack) ID.applyToActor(p, ID.unpackId(myIdPack)); ID.drawNameplate(p); }
+      if(typeof p!=='undefined'&&p&&ID){ applyMine(p); ID.drawNameplate(p); }
       if(typeof p2!=='undefined'&&p2&&ID) ID.drawNameplate(p2);
       extras.forEach(function(ex){ if(ID) ID.drawNameplate(ex); });
     }catch(e){}
@@ -538,7 +557,10 @@
     refreshMyPack();
     var pk={t:'p', a:pack(actor,HERO_F), h:String(actor.hero||'mind'),
             st:b.stageId||null, se:myEpoch, ld:loading()?1:0, gs:gs(), cm:(b.carryMask|0),
-            seat:mySeat, idp:myIdPack};
+            seat:mySeat};
+    // identity rides along only when it changed, and once a second for late joiners
+    var nowI=Date.now();
+    if(idVer!==idpSentVer||nowI-idpSentAt>1000){ pk.idp=myIdPack; idpSentVer=idVer; idpSentAt=nowI; }
     var hk=actor.hook;
     if(hk&&hk.st&&hk.st!=='idle'){
       pk.hk=[hk.st,r1(hk.ex),r1(hk.ey),r1(hk.ax),r1(hk.ay)];
@@ -581,8 +603,8 @@
     if(seat===mySeat) return null;
     try{
       // First remote seat keeps classic p2 for 2P probes / HUD.
-      var seats=Object.keys(remotes).map(Number).filter(function(s){ return s!==mySeat&&remotes[s]&&remotes[s].latest; }).sort(function(a,b){ return a-b; });
-      var primary=seats[0];
+      var all=seatKeys(), primary;
+      for(var si=0;si<all.length;si++){ var s0=all[si]; if(s0!==mySeat&&remotes[s0]&&remotes[s0].latest){ primary=s0; break; } }
       if(seat===primary){
         if(typeof p2!=='undefined'&&p2&&p2._netPuppet&&p2._netSeat===seat) return p2;
         if(typeof mkP!=='function') return null;
@@ -608,7 +630,7 @@
     }catch(e){ return null; }
   }
   function pruneExtras(activeSeats){
-    extras=extras.filter(function(ex){ return ex&&activeSeats[ex._netSeat]; });
+    if(extras.length){ var keep=true; for(var i=0;i<extras.length;i++) if(!(extras[i]&&activeSeats[extras[i]._netSeat])) keep=false; if(!keep) extras=extras.filter(function(ex){ return ex&&activeSeats[ex._netSeat]; }); }
     try{
       if(typeof p2!=='undefined'&&p2&&p2._netPuppet&&!activeSeats[p2._netSeat]) p2=null;
     }catch(e){}
@@ -624,15 +646,25 @@
     var ax=+a.a[0], ay=+a.a[1], bx=+b.a[0], by=+b.a[1];
     if(Math.abs(bx-ax)>300||Math.abs(by-ay)>300) k=1;
     var x=ax+(bx-ax)*k, y=ay+(by-ay)*k;
+    // starved (late packet): run on from the newest state for up to EXTRAP_MS on its
+    // velocity (px per 60 Hz step), so a hiccup glides instead of freezing then jumping
+    var last=buf[buf.length-1];
+    if(b===last&&target>last._rx){
+      var dt=Math.min(EXTRAP_MS,target-last._rx)/16.667, vx=+last.a[2]||0, vy=+last.a[3]||0;
+      if(Math.abs(vx)<40&&Math.abs(vy)<40){ x=bx+vx*dt; y=by+vy*dt; }
+    }
     if(isFinite(x)&&isFinite(y)){ actor.x=x; actor.y=y; }
     actor.hero=b.h||actor.hero; actor._aiCompanion=false;
-    applyIdentity(actor, b, actor._netSeat);
+    // the rest only changes when a new packet becomes current: no per-frame allocations
+    var fresh=actor._netPk!==b; actor._netPk=b;
+    if(fresh) applyIdentity(actor, b, actor._netSeat);
     if(b.hk){
       actor.hook=actor.hook||{};
       actor.hook.st=b.hk[0]; actor.hook.ex=b.hk[1]; actor.hook.ey=b.hk[2]; actor.hook.ax=b.hk[3]; actor.hook.ay=b.hk[4];
       actor.hook.rl=+b.rl||0; actor.hook._plugged=!!b.plg; actor.hook._path=null;
-      actor.hook.pivots=(b.pv||[]).map(function(q){ return {x:+q[0]||0,y:+q[1]||0}; });
+      if(fresh||!actor.hook.pivots) actor.hook.pivots=(b.pv||[]).map(function(q){ return {x:+q[0]||0,y:+q[1]||0}; });
     }else if(actor.hook&&actor.hook.st&&actor.hook.st!=='idle'){ actor.hook.st='idle'; actor.hook.tgt=null; actor.hook.pivots=null; actor.hook._path=null; }
+    if(!fresh) return;
     actor._netShots=(b.sh||[]).map(function(s){ return {x:+s[0]||0,y:+s[1]||0,vx:+s[2]||0,vy:+s[3]||0,owner:s[4]||'',charged:!!s[5],enhanced:!!s[6]}; });
     actor._netGear={w:b.gw||null,c:b.gc||null,b:b.gb||null};
     remShots=b.es||[]; remShotAt=b.es?Date.now():0;
@@ -846,7 +878,8 @@
   }
 
   function syncPuppets(){
-    var active={}, seats=Object.keys(remotes).map(Number);
+    var active=activeSeats, seats=seatKeys();
+    for(var k in active) delete active[k];
     for(var i=0;i<seats.length;i++){
       var seat=seats[i], bucket=remotes[seat];
       if(!bucket||!bucket.latest||seat===mySeat) continue;
@@ -866,7 +899,7 @@
     maybeFollow();
     if(!inGame()||!pl) return;
     // apply local identity once in-stage
-    try{ if(ID&&pl&&!pl._netPuppet) ID.applyToActor(pl, localIdentity()); }catch(e){}
+    try{ applyMine(pl); }catch(e){}
     syncPuppets();
     if(now-lastSend>=SEND_MS&&mySeat>=0){ lastSend=now; sendState(heroSnap(pl)); }
     if(now-lastEnemy>=ENEMY_MS&&!loading()){ lastEnemy=now; computeOwners(); sendEnemies(); }
@@ -896,6 +929,7 @@
       if(partial.hat) loc.hat=partial.hat;
     }
     if(ID) ID.saveLocal(loc);
+    locCache=null;
     refreshMyPack();
     upsertRoster(mySeat, Object.assign({id:MY_ID, role:st.role, seat:mySeat, hero:heroName()}, myIdPack));
     send({t:'id', seat:mySeat, idp:myIdPack});
