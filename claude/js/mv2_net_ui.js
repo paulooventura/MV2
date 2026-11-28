@@ -24,23 +24,23 @@
     s.id='mvNetCss';
     s.textContent=
       '#mvNetPanel{display:none;position:fixed;inset:0;z-index:100000;color:'+WASHI+';'+
-        'background:radial-gradient(ellipse at 50% 20%,'+MURA+'55 0%, '+NIGHT+' 42%, '+SUMI+' 100%);'+
+        'background:rgba(18,6,36,.62);'+
         'font:18px/1.35 "MV Pixel",ui-monospace,Menlo,monospace;-webkit-text-size-adjust:100%;text-size-adjust:100%;'+
         'align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));}'+
       '#mvNetPanel .box{width:min(680px,94vw);max-height:100%;max-height:calc(100dvh - 24px);overflow:auto;text-align:center;position:relative;'+
-        'background:linear-gradient(165deg,'+AGED+' 0%, '+WASHI+' 38%, '+AGED+' 100%);color:'+SUMI+';'+
+        'background:rgba(28,10,52,.72);color:'+WASHI+';'+
         'border:3px solid '+GOLD+';border-radius:0;'+
-        'box-shadow:6px 8px 0 rgba(0,0,0,.45), inset 0 0 0 1px '+SUMI+', inset 0 0 0 4px '+AGED+';'+
+        'box-shadow:6px 8px 0 rgba(0,0,0,.45), inset 0 0 0 1px '+MURA+';'+
         'padding:26px 20px 18px;}'+
       '#mvNetPanel .box:before{content:"";display:block;height:6px;margin:-26px -20px 16px;'+
         'background:linear-gradient(90deg,'+SEAL+' 0 18%, '+GOLD+' 18% 82%, '+SEAL+' 82% 100%);}'+
-      '#mvNetPanel h2{margin:0 0 6px;font-size:28px;font-weight:400;color:'+SUMI+';letter-spacing:.16em;}'+
-      '#mvNetPanel .sub{color:'+USU+';font-size:16px;margin:0 0 14px;}'+
+      '#mvNetPanel h2{margin:0 0 6px;font-size:28px;font-weight:400;color:'+GOLD+';letter-spacing:.16em;}'+
+      '#mvNetPanel .sub{color:'+AGED+';font-size:16px;margin:0 0 14px;}'+
       '#mvNetPanel .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0;}'+
       '#mvNetPanel button{font:inherit;letter-spacing:.08em;min-height:44px;padding:8px 16px;border-radius:0;'+
-        'background:'+SUMI+';color:'+WASHI+';border:2px solid '+USU+';cursor:pointer;}'+
-      '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;border-color:'+GOLD+';}'+
-      '#mvNetPanel button.on{background:'+MURA+';border-color:'+GOLD+';color:'+AGED+';}'+
+        'background:'+SUMI+';color:'+WASHI+';border:2px solid '+GOLD+';cursor:pointer;}'+
+      '#mvNetPanel button.big{min-width:200px;min-height:58px;font-size:20px;border-color:'+GOLD+';color:'+GOLD+';}'+
+      '#mvNetPanel button.on{background:'+MURA+';border-color:'+GOLD+';color:'+WASHI+';}'+
       '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:'+GOLD+';box-shadow:inset 0 0 0 1px '+GOLD+';}'+
       '#mvNetPanel button:disabled{opacity:.4;cursor:default;}'+
       '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:'+GOLD+';'+
@@ -52,22 +52,24 @@
       '#mvNetCode{font:clamp(28px,8vw,64px) "MV Pixel",ui-monospace,Menlo,monospace;width:min(100%,7.2em);max-width:100%;box-sizing:border-box;text-align:center;letter-spacing:.18em;'+
         'padding:4px 0 4px .28em;text-transform:uppercase;background:'+SUMI+';color:'+GOLD+';border:3px solid '+GOLD+';border-radius:0;}'+
       '#mvNetStatus{margin:14px auto 0;max-width:540px;padding:10px 12px;border:2px solid '+GOLD+';'+
-        'border-left:6px solid '+GOLD+';background:rgba(28,26,25,.06);color:'+SUMI+';font-size:16px;text-align:left;}'+
+        'border-left:6px solid '+GOLD+';background:rgba(12,4,24,.45);color:'+WASHI+';font-size:16px;text-align:left;}'+
       '#mvNetStatus.warn{border-left-color:'+SEAL+';color:'+SEAL+';}'+
       '#mvNetPanel .voice{margin-top:16px;padding-top:12px;border-top:2px solid '+GOLD+';}'+
-      '#mvNetPanel .tiny{color:'+USU+';font-size:14px;margin-top:8px;}'+
-      '#mvNetPanel .roster{display:flex;flex-direction:column;gap:8px;margin:10px auto;max-width:420px;text-align:left;}'+
+      '#mvNetPanel .tiny{color:'+MICA+';font-size:14px;margin-top:8px;}'+
+      '#mvNetPanel .roster{display:flex;flex-direction:column;gap:8px;margin:10px auto;max-width:480px;text-align:left;}'+
       '#mvNetPanel .seat{display:flex;align-items:center;gap:12px;padding:8px 10px;'+
-        'border:2px solid '+SUMI+';background:linear-gradient(90deg,'+WASHI+', '+AGED+');'+
-        'box-shadow:3px 3px 0 rgba(28,26,25,.25);}'+
+        'border:2px solid '+GOLD+';background:rgba(12,4,24,.4);color:'+WASHI+';'+
+        'box-shadow:3px 3px 0 rgba(0,0,0,.35);}'+
+      '#mvNetPanel canvas.face{width:72px;height:84px;flex:0 0 auto;background:rgba(8,2,16,.35);'+
+        'border:2px solid '+GOLD+';image-rendering:pixelated;}'+
       '#mvNetPanel .swatch{width:22px;height:28px;flex:0 0 auto;border:2px solid '+SUMI+';'+
         'border-radius:2px 2px 10px 10px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18), 1px 1px 0 '+GOLD+';'+
         'transform:rotate(-6deg);}'+
-      '#mvNetPanel .idbox{margin:12px auto 0;max-width:480px;padding:12px;border:2px solid '+SUMI+';'+
-        'background:linear-gradient(180deg,'+WASHI+', '+AGED+');text-align:left;box-shadow:3px 3px 0 rgba(28,26,25,.2);}'+
-      '#mvNetPanel .idbox label{display:block;font-size:14px;color:'+USU+';margin:8px 0 4px;}'+
+      '#mvNetPanel .idbox{margin:12px auto 0;max-width:480px;padding:12px;border:2px solid '+GOLD+';'+
+        'background:rgba(12,4,24,.45);text-align:left;box-shadow:3px 3px 0 rgba(0,0,0,.35);}'+
+      '#mvNetPanel .idbox label{display:block;font-size:14px;color:'+AGED+';margin:8px 0 4px;}'+
       '#mvNetNick{width:100%;box-sizing:border-box;font:18px "MV Pixel",ui-monospace,Menlo,monospace;'+
-        'padding:8px 10px;background:'+WASHI+';color:'+SUMI+';border:2px solid '+SUMI+';}'+
+        'padding:8px 10px;background:rgba(8,2,16,.55);color:'+GOLD+';border:2px solid '+GOLD+';}'+
       '#mvNetColors,#mvNetHats{display:flex;flex-wrap:wrap;gap:8px;}'+
       '#mvNetColors button,#mvNetHats button{min-width:0;min-height:40px;padding:6px 10px;}'+
       '#mvNetColors button .dot{display:inline-block;width:14px;height:18px;margin-right:6px;'+
@@ -200,15 +202,7 @@
   function paintClock(){
     if(!el.ClockBox||!el.Clock) return;
     var s=NET.status?NET.status():null;
-    if(s&&s.code==='PALOTINO'){
-      el.ClockBox.style.display='';
-      el.Clock.textContent='PALOTINO';
-      el.Clock.style.fontSize='clamp(28px,6vw,48px)';
-      var lab=document.getElementById('mvNetClockLbl');
-      if(lab) lab.textContent='THE MAIN ROOM — WALK IN ANY TIME';
-      return;
-    }
-    el.Clock.style.fontSize='';
+    if(s&&s.code==='PALOTINO'){ el.ClockBox.style.display='none'; return; }
     var until=s&&s.until;
     if(!until||!s.role){ el.ClockBox.style.display='none'; return; }
     var left=Math.max(0, until-Date.now());
@@ -268,30 +262,66 @@
     }
   }
   function showIdentity(seat){
-    var need=ID?ID.needsCrayon(seat):(seat|0)>=2;
-    // Host (seat 0) can still set a nick; crayon/hat matter most for seats 3–5.
-    // Always show the box when linked so everyone can set a session name;
-    // crayon+hat emphasized for guests.
     if(!el.Id) return;
-    el.Id.style.display=NET.isLinked()?'block':'none';
+    var open=!!(NET.role&&NET.role())||!!NET.isLinked();
+    el.Id.style.display=open?'block':'none';
     if(el.Colors) el.Colors.style.opacity=1;
     if(el.Hats) el.Hats.style.opacity=1;
   }
-
+  function drawFace(cv){
+    var g=cv.getContext('2d'); if(!g) return;
+    var w=cv.width, h=cv.height;
+    g.clearRect(0,0,w,h);
+    var hex=cv.getAttribute('data-color')||'#9a4cff';
+    var hat=cv.getAttribute('data-hat')||'gaucho';
+    var cx=w/2;
+    g.fillStyle='rgba(8,2,16,.2)'; g.fillRect(0,0,w,h);
+    g.globalAlpha=0.35; g.fillStyle=hex;
+    g.beginPath(); g.ellipse(cx,h-58,22,24,0,0,Math.PI*2); g.fill();
+    g.globalAlpha=1;
+    g.fillStyle=hex; g.beginPath(); g.arc(cx,h-14,13,0,Math.PI*2); g.fill();
+    g.strokeStyle='#1C1A19'; g.lineWidth=2; g.stroke();
+    g.fillStyle='#14121a'; g.fillRect(cx-15,h-46,30,26);
+    g.strokeStyle=hex; g.lineWidth=2; g.strokeRect(cx-15,h-46,30,26);
+    var grd=g.createRadialGradient(cx-4,h-64,2,cx,h-58,16);
+    grd.addColorStop(0,'#fff6e8'); grd.addColorStop(0.42,hex); grd.addColorStop(1,'#120818');
+    g.fillStyle=grd; g.beginPath(); g.ellipse(cx,h-58,13,15,0,0,Math.PI*2); g.fill();
+    g.strokeStyle='#1C1A19'; g.stroke();
+    g.fillStyle=hex;
+    if(hat==='cap'){
+      g.fillRect(cx-14,h-78,28,10);
+      g.fillRect(cx-22,h-70,16,5);
+    }else{
+      g.fillRect(cx-26,h-72,52,6);
+      g.fillRect(cx-10,h-84,20,14);
+    }
+  }
+  function paintFaces(root){
+    if(!root) return;
+    var cans=root.querySelectorAll('canvas.face');
+    for(var i=0;i<cans.length;i++) drawFace(cans[i]);
+  }
   function renderRoster(into){
     if(!into) return;
     var list=typeof NET.roster==='function'?NET.roster():[];
+    if(!list.length&&NET.role&&NET.role()&&NET.identity){
+      var me=NET.identity();
+      list=[{seat:NET.seat?NET.seat():0, nm:me.name, col:me.color, hat:me.hat, hero:me.hero}];
+    }
     var max=NET.MAX_PEERS||5;
-    if(!list.length){ into.innerHTML='<div class="tiny">Waiting…</div>'; return; }
+    if(!list.length){ into.innerHTML='<div class="tiny">No one in the room yet.</div>'; return; }
     into.innerHTML=list.map(function(r){
       var seat=(r.seat|0)+1;
-      var kind=seat<=2?(seat===1?'MIND':'VENTURE'):(ID?ID.crayonById(r.col||r.color).name:'RIDER');
-      var col=ID?ID.crayonById(r.col||r.color).hex:(GOLD||'#C9A24A');
-      var nm=r.nm||r.name||('SEAT '+seat);
-      var hat=r.hat||'—';
-      return '<div class="seat"><span class="swatch" style="background:'+col+'" title="crayon"></span>'+
-        '<div><b>SEAT '+seat+' · '+kind+'</b><br>'+nm+' · hat '+hat+'</div></div>';
-    }).join('')+'<div class="tiny">'+list.length+' / '+max+' riders</div>';
+      var crayon=ID?ID.crayonById(r.col||r.color):null;
+      var col=crayon?crayon.hex:(GOLD||'#C9A24A');
+      var nm=String(r.nm||r.name||('RIDER '+seat)).replace(/[&<>"]/g,function(c){ return c==='&'?'&amp;':c==='<'?'&lt;':c==='>'?'&gt;':'&quot;'; });
+      var hat=r.hat||'gaucho';
+      var hero=r.hero||(seat===2?'venture':'mind');
+      var hatName=hat==='cap'?'BASEBALL CAP':'GAUCHO';
+      return '<div class="seat"><canvas class="face" width="72" height="84" data-color="'+col+'" data-hat="'+hat+'" data-hero="'+hero+'"></canvas>'+
+        '<div><b>'+nm+'</b><br>'+(crayon?crayon.name:(hero==='venture'?'RED':'PURPLE'))+' · '+hatName+'</div></div>';
+    }).join('')+'<div class="tiny">'+list.length+' / '+max+' in the room</div>';
+    paintFaces(into);
   }
 
   function setView(v){
@@ -322,6 +352,7 @@
     el.HostCode.style.fontSize='clamp(28px,6vw,48px)';
     var lbl=document.getElementById('mvNetHostLbl'); if(lbl) lbl.textContent='THE MAIN ROOM';
     el.HostCode.textContent='PALOTINO'; el.Link.textContent=''; qr('');
+    showIdentity(0);
     try{ if(typeof _unlockAudio==='function') _unlockAudio(); }catch(e){}
     NET.enterPalotino().then(function(){
       el.HostCode.textContent='PALOTINO';
@@ -375,11 +406,10 @@
       if(view!=='menu'||s.status!=='offline') el.Status.textContent=txt;
       // Host "friend could not reach" stays gold (room healthy). Hard join failure = seal red.
       var hardErr=/error|closed/.test(s.status)&&(s.role!=='host'||!s.code);
-      var softHost=s.role==='host'&&s.status==='hosting'&&/could not reach|still open/i.test(txt);
       el.Status.className=hardErr?'warn':'';
-      el.Status.style.color=s.linked?SUMI:(hardErr?SEAL:(softHost?SUMI:SUMI));
+      el.Status.style.color=hardErr?SEAL:WASHI;
       el.Status.style.borderLeftColor=hardErr?SEAL:(s.linked||s.status==='hosting'?GOLD:USU);
-      el.Done.disabled=!(s.linked&&s.role==='host');
+      el.Done.disabled=!(s.role==='host'&&(s.linked||s.status==='hosting'||s.status==='connected'));
       if(el.Count) el.Count.textContent=(s.peers||(s.linked?2:1))+' / '+max+' in the room';
       renderRoster(el.Roster); renderRoster(el.RosterJ);
       showIdentity(typeof NET.seat==='function'?NET.seat():0);

@@ -237,7 +237,7 @@
     conns=[]; st.linked=false; st.ping=0;
     resetGame(); dropPuppets();
   }
-  var rejoinUntil=0, retryTimer=null, joinReject=null, roomUntil=0;
+  var rejoinUntil=0, retryTimer=null, joinReject=null, joinResolve=null, roomUntil=0, palClaim=false;
   function minsLeft(until){ return Math.max(0, Math.ceil(((until||0)-Date.now())/60000)); }
   function scheduleRetry(ms){
     if(retryTimer||st.linked||st.role!=='joiner') return;
@@ -257,11 +257,12 @@
     if(conns.some(function(c){ return c&&!c.open; })) return;
     var dc=pr.connect(PREFIX+st.code,{reliable:true,serialization:'json',metadata:{v:3,id:MY_ID}});
     wireConn(dc,{timeout:ICE_ATTEMPT_MS, allowRetry:true, onRetry:function(){ scheduleRetry(1200); }});
-    setStatus('joining','Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.');
+    setStatus('joining', st.code==='PALOTINO'?'Walking into Palotino…':('Looking for room '+st.code+'… '+minsLeft(rejoinUntil)+' min left.'));
   }
   function disconnect(){
     rejoinUntil=0; roomUntil=0;
     if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
+    joinResolve=null;
     if(joinReject){ var r=joinReject; joinReject=null; try{ r(new Error('cancelled')); }catch(e){} }
     try{ sendAll({t:'bye', seat:mySeat}); }catch(e){}
     closeAllConns();
@@ -370,7 +371,7 @@
         sendOne(c,{t:'seat', seat:seat, max:MAX_PEERS, roster:rosterSnapshot(), until:roomUntil});
         setStatus('connected','In the room · '+peerCount()+'/'+MAX_PEERS+'. Pick heroes; extras pick crayon, name and hat.');
       }else{
-        // Joiner waits for the host's `seat` packet before sending `hi` (identity + seat).
+        if(joinResolve){ var fn=joinResolve; joinResolve=null; try{ fn({code:st.code}); }catch(e){} }
         setStatus('joining','Linked — waiting for a seat…');
       }
     });
@@ -542,6 +543,7 @@
       peer=pr;
       var settled=false;
       joinReject=rej;
+      joinResolve=function(v){ if(settled) return; settled=true; joinReject=null; res(v); };
       function giveUp(e){
         if(settled||st.linked) return;
         if(Date.now()<rejoinUntil){ scheduleRetry(2000); return; }
@@ -553,7 +555,19 @@
       pr.on('open',function(){
         if(peer!==pr) return;
         retryJoinLink();
-        if(!settled){ settled=true; joinReject=null; res({code:c}); }
+        if(standing&&palClaim){
+          setTimeout(function(){
+            if(settled||st.linked||peer!==pr) return;
+            settled=true; joinReject=null; joinResolve=null;
+            if(retryTimer){ clearTimeout(retryTimer); retryTimer=null; }
+            var empty=new Error('empty'); empty.type='empty';
+            try{ pr.destroy(); }catch(err){}
+            if(peer===pr) peer=null;
+            rej(empty);
+          }, 4000);
+          return;
+        }
+        if(!settled){ settled=true; joinReject=null; joinResolve=null; res({code:c}); }
       });
       pr.on('call',function(call){ fire('call',call); });
       pr.on('disconnected',function(){
@@ -588,7 +602,9 @@
 
   function enterPalotino(){
     function walk(n){
+      palClaim=n===0;
       return join(PALOTINO).catch(function(e){
+        palClaim=false;
         if(!e||e.type!=='empty') throw e;
         setStatus('joining','Palotino is empty. Opening it…');
         return host(PALOTINO).catch(function(h){
