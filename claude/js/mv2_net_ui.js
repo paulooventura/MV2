@@ -43,6 +43,8 @@
       '#mvNetPanel button.on{background:'+MURA+';border-color:'+GOLD+';color:'+WASHI+';}'+
       '#mvNetPanel button:focus,#mvNetPanel button.pf{outline:none;border-color:'+GOLD+';box-shadow:inset 0 0 0 1px '+GOLD+';}'+
       '#mvNetPanel button:disabled{opacity:.4;cursor:default;}'+
+      '#mvNetPanel #mvNetDone{background:#1c8a3a;color:#f3ffe8;border:3px solid #8dff9a;min-width:220px;min-height:64px;font-size:28px;letter-spacing:.22em;}'+
+      '#mvNetPanel #mvNetDone:disabled{opacity:.4;}'+
       '#mvNetPanel .code{font-size:clamp(40px,10vw,72px);letter-spacing:.28em;color:'+GOLD+';'+
         'margin:6px 0 2px;padding-left:.28em;text-shadow:2px 2px 0 '+SUMI+';}'+
       '#mvNetPanel .link{color:'+MURA+';font-size:14px;word-break:break-all;user-select:all;}'+
@@ -167,7 +169,7 @@
         '</div>'+
 
         '<div class="row" style="margin-top:16px">'+
-          '<button type="button" id="mvNetDone" disabled>PICK YOUR HERO</button>'+
+          '<button type="button" id="mvNetDone" disabled>GO</button>'+
           '<button type="button" id="mvNetBack">BACK</button>'+
         '</div>'+
         '<div class="tiny">Palotino is the main room and stays open. A room of your own waits 15 minutes.</div>'+
@@ -186,7 +188,7 @@
     });
     el.Code.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); startJoin(el.Code.value); } });
     el.Back.onclick=back;
-    el.Done.onclick=function(){ if(NET.isLinked()&&NET.role()==='host') finishHost(); };
+    el.Done.onclick=goMap;
     el.Nick.value=draft.name;
     el.Nick.addEventListener('input',commitId);
     el.Nick.addEventListener('change',commitId);
@@ -330,7 +332,7 @@
     el.Menu.style.display=v==='menu'?'':'none';
     el.HostV.style.display=v==='host'?'':'none';
     el.JoinV.style.display=v==='join'?'':'none';
-    el.Done.style.display=v==='host'?'':'none';
+    el.Done.style.display=v==='menu'?'none':'';
     el.Back.textContent=v==='menu'?'CLOSE':'BACK';
     if(v==='menu') el.Status.textContent='Walk into Palotino, or open a room of your own.';
     padFocus(0);
@@ -409,7 +411,7 @@
       el.Status.className=hardErr?'warn':'';
       el.Status.style.color=hardErr?SEAL:WASHI;
       el.Status.style.borderLeftColor=hardErr?SEAL:(s.linked||s.status==='hosting'?GOLD:USU);
-      el.Done.disabled=!(s.role==='host'&&(s.linked||s.status==='hosting'||s.status==='connected'));
+      el.Done.disabled=!(s.role==='host'||s.role==='joiner');
       if(el.Count) el.Count.textContent=(s.peers||(s.linked?2:1))+' / '+max+' in the room';
       renderRoster(el.Roster); renderRoster(el.RosterJ);
       showIdentity(typeof NET.seat==='function'?NET.seat():0);
@@ -469,11 +471,36 @@
     if(el.Nick) el.Nick.value=draft.name;
     paintIdButtons();
     panel.style.display='flex';
+    if(el.Done) el.Done._gone=0;
     if(NET.isLinked()) setView(NET.role()==='host'?'host':'join'); else setView('menu');
     render(NET.status()); renderVoice();
   }
   function hide(){ if(panel) panel.style.display='none'; }
   function isOpen(){ return !!(panel&&panel.style.display!=='none'); }
+  function goMap(){
+    if(!(NET.role&&NET.role())) return;
+    if(el.Done&&el.Done._gone) return;
+    if(el.Done) el.Done._gone=1;
+    commitId();
+    var stage='1.1', mask=0;
+    try{ var s=NET.status(); if(s&&s.remoteStage) stage=s.remoteStage; }catch(e){}
+    var id=NET.identity?NET.identity():null;
+    var seat=NET.seat?NET.seat():0;
+    hide();
+    try{
+      _playerCount=1; _playModeIdx=3; _selectStep=1;
+      if(window.MV_SIBLING) MV_SIBLING.on=false;
+      _heroChoice=(id&&id.hero)?id.hero:(seat===1?'venture':'mind');
+      try{ _stopBGM('title'); _stopBGM('story'); }catch(e){}
+      if(typeof _stopAllBgm==='function') _stopAllBgm();
+      if(window.MV_BETA){ MV_BETA.saves={}; MV_BETA.isoOwned=false; MV_BETA.popupSeen={}; if(MV_BETA.newRun) MV_BETA.newRun(); MV_BETA.progress=0; MV_BETA.results=null; MV_BETA.popup=null; MV_BETA.trans=null; }
+      if(typeof startBetaLab==='function'){
+        startBetaLab(stage, mask, {fresh:true}).then(function(){
+          try{ if(typeof p!=='undefined'&&p&&id&&window.MV_IDENTITY) MV_IDENTITY.applyToActor(p, NET.identity()); }catch(e){}
+        }).catch(function(err){ console.error('go map', err); });
+      }
+    }catch(err){ console.error('go map', err); }
+  }
   function finishHost(){
     commitId();
     var cb=onDone; onDone=null; hide();
@@ -501,7 +528,7 @@
       try{
         if(isOpen()) return;
         if(_gameState==='select'&&_selectStep===0&&_playModeIdx===3){
-          if(NET.isLinked()&&NET.role()==='host'){ finishHost(); return; }
+          if(NET.role&&NET.role()){ goMap(); return; }
           show(null);
           return;
         }
