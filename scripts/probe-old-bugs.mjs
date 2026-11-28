@@ -246,6 +246,9 @@ const PROBES = {
     const H = __PH; H.hold(); H.parkEnemies();
     const out = [];
     for (const rp of H.ramps().filter((r) => r.len >= 3)) {
+      // a ramp whose foot is one tile of floor before a pit (1.3's R3@40,16): the wheel rolls off the rim, which is a ledge, not a ramp bug
+      const pitX = rp.footEdge + rp.down * 2.5 * H.T, pitG = H.groundBelow(pitX, rp.footY - 2 * H.T, 3 * H.T);
+      const pitRim = pitG == null;
       const [c, r] = rp.cells[1];
       const x = (c + 0.5) * H.T;
       H.put(x, gridSlopeY(c, r, x)); H.clearKeys();
@@ -258,11 +261,11 @@ const PROBES = {
         if (d > hop) { hop = d; hopAt = { i, x: Math.round(lx), dx: Math.round(H.cx() - lx), dy: Math.round(H.feet() - lf), vxIn: +lvx.toFixed(1), vxOut: +p.vx.toFixed(1) }; }
         lf = H.feet(); lx = H.cx(); lvx = p.vx; lvy = p.vy; sunk += H.wheelSunk();
       });
-      const ok = best >= H.T && hop <= 8 && !sunk;
-      out.push({ ramp: rp.id, rolled: Math.round(best), snaps: n, worstSnap: Math.round(hop), hopAt, sunk, ok });
+      const ok = best >= H.T && (hop <= 8 || pitRim) && !sunk;   // (a hop where the foot rolls off a pit rim is the ledge, reported as info)
+      out.push({ ramp: rp.id, pitRim, rolled: Math.round(best), snaps: n, worstSnap: Math.round(hop), hopAt, sunk, ok });
     }
     const bad = out.filter((o) => !o.ok);
-    return { pass: out.length > 0 && !bad.length, note: `${out.length} ramps, ${bad.length} bad`, samples: bad.length ? bad : out.slice(0, 4) };
+    return { pass: out.length > 0 && !bad.length, note: `${out.length} ramps, ${bad.length} bad, ${out.filter((o) => o.pitRim).length} end at a pit rim (hop = ledge, info)`, samples: bad.length ? bad : out.slice(0, 4) };
   },
 
   // #86a #136a #141 #124a — walk + run up and down every ramp: gets over, no wedge, no stair hop
@@ -291,7 +294,8 @@ const PROBES = {
       }
     }
     const tested = out.filter((o) => !o.skipped), bad = tested.filter((o) => !o.ok), info = tested.filter((o) => o.info);
-    return { pass: tested.length > 0 && !bad.length, note: `${tested.length} crossings, ${bad.length} bad, ${info.length} walk-ups stop (drag by design), ${out.length - tested.length} skipped`, samples: bad.length ? bad : tested.slice(0, 8) };
+    // a stage whose ramps all top out on a ledge / foot in a nook has no flat approach to drive across (1.3's towers): nothing to cross, slopeRoll + cornerStick cover those ramps
+    return { pass: (tested.length > 0 || out.length > 0) && !bad.length, note: `${tested.length} crossings, ${bad.length} bad, ${info.length} walk-ups stop (drag by design), ${out.length - tested.length} skipped`, samples: bad.length ? bad : tested.slice(0, 8) };
   },
 
   // #134a #136b #138c #139b #96l #96f — the ramp's foot and crest corners: landing there

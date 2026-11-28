@@ -125,6 +125,37 @@ async function runStage(lvl) {
         try { const m = B.placeEntity('Box', c, r, { kind: rnd() < 0.5 ? 'omni' : 'xlr' }); const bw = m && m.bwalls && m.bwalls[0]; if (bw) { if (typeof _wakeBwall === 'function') _wakeBwall(bw); bw._fly = true; bw.vx = rr(-6, 6); bw.vy = rr(0, 12); } } catch (e) {}
       }
     };
+    // explosions: the XLR blast (foes thrown, cube lines launched), a hexagon collapse (surge + thrown cubes + crumbling blocks)
+    const blast = () => {
+      const a = rnd() * 6.283; p.aimDX = Math.cos(a); p.aimDY = Math.sin(a); p.fc = Math.cos(a) >= 0;
+      p.xlrOn = true; const was = ITEM; try { ITEM = 2; } catch (e) {}
+      try { B.relPow = 1; if (B.blastEnemies) B.blastEnemies(1e4); if (B.blastCubes) B.blastCubes(1e4); } catch (e) {}
+      try { ITEM = was; } catch (e) {} p.xlrOn = false; rep.blasts = (rep.blasts || 0) + 1;
+    };
+    let collapsed = false;
+    const collapseF = () => {   // once per stage: the water hexagon collapses (Enemy F's environment reaction), if this stage has one
+      if (collapsed || !window.MV_ENEMY_F) return;
+      const e = ENEMS.find((o) => o && o._ai === 'cube' && o.alive !== false); if (!e) return;
+      collapsed = true; try { MV_ENEMY_F.collapse(e); rep.collapsed = true; } catch (er) { rep.collapseErr = String(er && er.message || er); }
+    };
+    // riders: put foes and blocks on moving platforms / lifts so they are carried through the level
+    const ride = () => {
+      const pls = (B.platforms || []).filter((m) => !m.hidden);
+      if (!pls.length) return;
+      const m = pls[Math.floor(rnd() * pls.length)];
+      const foes = ENEMS.filter((e) => e && e.alive !== false && !e.mind);
+      const e = foes[Math.floor(rnd() * foes.length)];
+      if (e) { e.x = m.x + m.w / 2 - (e.w || 30) / 2; e.y = m.y - (e.h || 30) - 1; e.vx = e.vy = 0; e.og = true; e._plat = m; e._platOff = e.x - m.x; rep.riders = (rep.riders || 0) + 1; }
+      try { const c = Math.floor((m.x + m.w / 2) / T), r = Math.floor(m.y / T) - 2; if (!solidAt(c, r) && !solidAt(c, r - 1)) { const mk = B.placeEntity('Box', c, r, { kind: 'xlr' }); const bw = mk && mk.bwalls && mk.bwalls[0]; if (bw) { if (typeof _wakeBwall === 'function') _wakeBwall(bw); bw._fly = true; bw.vx = 0; bw.vy = 0; } } } catch (e2) {}
+    };
+    // water-pushed cubes: blocks dropped into the pools and left to the water's push (stages without a pool skip this)
+    const wet = () => {
+      for (const w of (B.waters || []).slice(0, 3)) {
+        const c = Math.floor((w.c0 + w.c1) / 2 + rr(-2, 2)), r = w.r0 + 2 + Math.floor(rnd() * 3);
+        if (solidAt(c, r)) continue;
+        try { const mk = B.placeEntity('Box', c, r, { kind: 'omni' }); const bw = mk && mk.bwalls && mk.bwalls[0]; if (bw) { if (typeof _wakeBwall === 'function') _wakeBwall(bw); bw._fly = true; bw.vx = rr(-3, 3); bw.vy = 0; rep.wetCubes = (rep.wetCubes || 0) + 1; } } catch (e) {}
+      }
+    };
     // hop the hero around the stage's floors so foes/blocks near all areas get exercised
     const spots = []; for (let r = 4; r < G.rows - 2; r += 2) for (let c = 2; c < G.cols - 2; c += 5) if (solidAt(c, r + 1) && !solidAt(c, r) && !solidAt(c, r - 1) && !solidAt(c, r - 2)) spots.push([c, r]);
     const warp = () => { const sp = spots[Math.floor(rnd() * spots.length)]; if (!sp) return; p.x = sp[0] * T + T / 2 - SW / 2; p.y = (sp[1] + 1) * T - FEET_OFF; p.vx = p.vy = 0; };
@@ -133,6 +164,10 @@ async function runStage(lvl) {
       if (f % 150 === 0) { warp(); prev.delete(p); }
       if (f % 45 === 10) fling();
       if (f % 200 === 30) dropCubes();
+      if (f % 70 === 20) blast();
+      if (f === 400) collapseF();
+      if (f % 120 === 50) ride();
+      if (f % 160 === 90) wet();
       try { update(); } catch (e) { rep.err = String(e && e.message || e); break; }
       rep.frames++;
       check();
@@ -149,7 +184,7 @@ try { for (const lvl of LVLS) results.push(await runStage(lvl)); } finally { awa
 let bad = 0;
 for (const r of results) {
   bad += r.embeds + r.crosses + (r.err ? 1 : 0);
-  console.log(`${r.embeds + r.crosses === 0 && !r.err ? 'PASS' : 'FAIL'}  ${r.lvl}  frames ${r.frames}  bodies<=${r.seenBodies}  embedFrames ${r.embeds}  crossings ${r.crosses}${r.err ? '  ERROR ' + r.err : ''}`);
+  console.log(`${r.embeds + r.crosses === 0 && !r.err ? 'PASS' : 'FAIL'}  ${r.lvl}  frames ${r.frames}  bodies<=${r.seenBodies}  blasts ${r.blasts || 0} collapse ${r.collapsed ? 'y' : 'n'} riders ${r.riders || 0} wetCubes ${r.wetCubes || 0}  embedFrames ${r.embeds}  crossings ${r.crosses}${r.err ? '  ERROR ' + r.err : ''}`);
   for (const [k, v] of Object.entries(r.byKind)) console.log(`      ${k.padEnd(14)} embed ${v.embed || 0}  cross ${v.cross || 0}`);
   for (const sm of r.samples.slice(0, 8)) console.log('      -', JSON.stringify(sm));
 }
